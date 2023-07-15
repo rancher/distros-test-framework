@@ -1,0 +1,9 @@
+.ssh/
+.vscode
+.idea/
+*.modules/.terraform/
+*.terraform*
+*.tfstate*
+*plan.yaml
+*.local.tfvars
+*/local.tfvars
