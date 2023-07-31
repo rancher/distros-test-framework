@@ -1,0 +1,9 @@
+.ssh/
+.vscode
+.idea/
+*.terraform*
+*.tfstate*
+*plan.yaml
+*.local.tfvars
+distros/config
+.DS_Store

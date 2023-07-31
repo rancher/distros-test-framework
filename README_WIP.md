@@ -1,8 +1,8 @@
 ## Distros Framework - Acceptance Tests
 
-The acceptance tests are a customizable way to create clusters and perform validations on them such that the requirements of specific features and functions can be validated.
+This framwork adds the capability to be used along with the acceptance tests are a customizable way to create clusters and perform validations on them such that the requirements of specific features and functions can be validated.
 
-- It relies on [Terraform](https://www.terraform.io/) to provide the underlying cluster configuration.
+- It relies on [Terraform](https://www.terraform.io/) and [Terratest](https://terratest.gruntwork.io/) as IaC to provide the underlying cluster configuration.
 - It uses [Ginkgo](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/) as assertion framework.
 
 ## Architecture
@@ -10,44 +10,48 @@ The acceptance tests are a customizable way to create clusters and perform valid
 
 ### Packages:
 ```bash
-./acceptance
+./distros-test-framework
 │
-├── core
-│   └───── Place where resides the logic and services for it
+├── lib 
+|   ├── assert  > custom validation and assertion functions 
+|   ├── cluster > actions performed on cluster via terraform 
+|   ├── shared  > util and support functions
 │
-├── entrypoint
+├── component
+|   ├── fixture
+|   ├── template
+| 
+├── distros/{product}/feature
 │   └───── Entry for tests execution, separated by test runs and test suites
 │
-├── modules
+├── distros/{product}/modules
 │   └───── Terraform modules and configurations
 │
-│── scripts
+│── distros/{product}/scripts
 │    └───── Scripts needed for overall execution
 │
-├── shared
-│    └───── auxiliary and reusable functions
-│
-│── workloads
+│── resource/workloads
 │   └───── Place where resides workloads to use inside tests
 ```
 
 ### Explanation:
 
-- `Core`
+- `Component`
 ```
-    Service:
-  
-Act:                  Acts as a provider for customizations across framework
-Responsibility:       Should not depend on any outer layer only in the core itself, provide services rather than rely on.
- 
-  
-    Testcase:
+    Fixture:
   
 Act:                  Acts as an innermost layer where the main logic (test implementation) is handled.
 Responsibility:       Encapsulates test logic and should not depend on any outer layer
 ```
-
-- `Entrypoint`
+- `Lib`
+```
+    
+  
+Act:                  Acts as a provider for customizations across framework
+Responsibility:       Should not depend on any outer layer only in the core itself, provide services rather than rely on.
+ 
+```
+- `Feature`
 ````
 Act:                  Acts as the one of the outer layer to receive the input to start test execution
 Responsibility:       Should not implement any logic and only focus on orchestrating
@@ -95,7 +99,7 @@ Responsibility:       Totally independent of any other layer and should only pro
 
 ```How can I do that?```
 
-- Step 1: Add your desired first version or commit that you want to use on `local.tfvars` file on the vars `k3s_version` and `install_mode`
+- Step 1: Add your desired first version or commit that you want to use on `distros/config/{product}.local.tfvars` file on the vars `k3s_version` and `install_mode`
 - Step 2: Have the commands you need to run and the expected output from them
 - Step 3: Have a version or commit that you want to upgrade to.
 - Step 4: On the TestConfig field you can add another test case that we already have or a newly created one.
@@ -128,7 +132,7 @@ Available arguments to create your command with examples:
 
 Example of an execution with multiple values on k3s:
 ```bash
-go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
+go test -timeout=45m -v -tags=versionbump  .distros/k3s/feature/versionbump/... -product "k3s"\
 -cmd "/var/lib/rancher/k3s/data/current/bin/cni, kubectl get pod test-pod -o yaml : | grep -A2 annotations, k3s -v" \
 -expectedValue "v1.2.0-k3s1,1M, v1.26" \
 -expectedValueUpgrade "v1.2.0-k3s1,1M, v1.27" \
@@ -139,7 +143,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 ````
 Example of an execution with multiple values on rke2:
 ```bash
-go test -v -timeout=45m -tags=versionbump ./entrypoint/versionbump/... \
+go test -v -timeout=45m -tags=versionbump .distros/rke2/feature/versionbump/... -product "rke2" \
 -cmd "(find /var/lib/rancher/rke2/data/ -type f -name runc -exec {} --version \\;), rke2 -v"  \
 -expectedValue "v1.9.3, v1.25.9+rke2r1"  \
 -expectedValueUpgrade "v1.10.1, v1.26.4-rc1+rke2r1" \
@@ -155,7 +159,7 @@ go test -v -timeout=45m -tags=versionbump ./entrypoint/versionbump/... \
 
 Example of an execution with less args on k3s:
 ````bash
-go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
+go test -timeout=45m -v -tags=versionbump  .distros/k3s/feature/versionbump/... -product "k3s" \
 -cmd "/var/lib/rancher/k3s/data/current/bin/cni, kubectl get pod test-pod -o yaml : | grep -A2 annotations, k3s -v"  \
 -expectedValue "v1.2.0-k3s1,1M, v1.26"  \
 -expectedValueUpgrade "v1.2.0-k3s1,1M, v1.27" \
@@ -164,7 +168,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 
 Example of an execution with less args on rke2:
 ````bash
-go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
+go test -timeout=45m -v -tags=versionbump  .distros/rke2/feature/versionbump/... -product "rke2" \
 -cmd "(find /var/lib/rancher/rke2/data/ -type f -name runc -exec {} --version \\;)"  \
 -expectedValue "1.1.7"  \
 -expectedValueUpgrade "1.10.1" \
@@ -178,13 +182,13 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 
 -----
 #### Testcase naming convention:
-- All tests should be placed under `tests/acceptance/testcase/<TESTNAME>`.
+- All test fixtures should be placed under `component/fixture/<TESTNAME>`.
 - All test functions should be named: `Test<TESTNAME>`.
 
 
 ## Running
 
-- Before running the tests, you should creat local.tfvars file in `./tests/acceptance/modules/k3scluster/config/local.tfvars`. There is some information there to get you started, but the empty variables should be filled in appropriately per your AWS environment.
+- Before running the tests, you should creat ${product}.local.tfvars file in `./distros/config/${product}.local.tfvars`. There is some information there to get you started, but the empty variables should be filled in appropriately per your AWS environment.
 
 - Please make sure to export your correct AWS credentials before running the tests. e.g:
 ```bash
@@ -194,7 +198,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 - The local.tfvars split roles section should be strictly followed to not cause any false positives or negatives on tests
 
-- For running tests with "etcd" cluster type, you should add the value "etcd" to the variable "datastore", also you need have those variables at least empty:
+- For running tests with external DB datastore type, you should add the value "external_db" to the variable "datastore", also you need have those variables at least empty:
 ```
 - external_db       
 - external_db_version
@@ -250,6 +254,7 @@ Test tags rke2:
 Args:
 *Most of args are optional so you can fit to your use case.
 
+- ${DISTRO}                required flag to run tests against respective product/distro 
 - ${IMGNAME}               append any string to the end of image name
 - ${TAGNAME}               append any string to the end of tag name
 - ${ARGNAME}               name of the arg to pass to the test
@@ -283,7 +288,7 @@ $ make vet-lint                        # runs go vet and go lint
 ### Examples with docker:
 ```
 - Create an image tagged
-$ make test-env-up TAGNAME=ubuntu
+$ make test-env-up DISTRO=k3s TAGNAME=ubuntu
 
 
 
