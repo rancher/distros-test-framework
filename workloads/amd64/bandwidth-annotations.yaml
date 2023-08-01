@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-pod-bandwidth
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.25
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: v1.25
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: v1.25
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: test-pod-bandwidth
+  annotations:
+    kubernetes.io/ingress-bandwidth: "1M"
+    kubernetes.io/egress-bandwidth: "1M"
+spec:
+  containers:
+    - name: test-container
+      image: busybox
+      command: ['sh', '-c', 'echo The app is running! && sleep 3600']

@@ -12,7 +12,7 @@ The acceptance tests are a customizable way to create clusters and perform valid
 ```bash
 ./acceptance
 │
-├── core
+├── pkg
 │   └───── Place where resides the logic and services for it
 │
 ├── entrypoint
@@ -33,14 +33,8 @@ The acceptance tests are a customizable way to create clusters and perform valid
 
 ### Explanation:
 
-- `Core`
+- `Pkg`
 ```
-    Service:
-  
-Act:                  Acts as a provider for customizations across framework
-Responsibility:       Should not depend on any outer layer only in the core itself, provide services rather than rely on.
- 
-  
     Testcase:
   
 Act:                  Acts as an innermost layer where the main logic (test implementation) is handled.

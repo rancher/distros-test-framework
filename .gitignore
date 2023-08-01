@@ -5,5 +5,5 @@
 *.terraform*
 *.tfstate*
 *plan.yaml
-*.local.tfvars
-*/local.tfvars
+config/k3s.tfvars
+config/rke2.tfvars

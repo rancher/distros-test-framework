@@ -1,0 +1,2 @@
+ENV_PRODUCT: k3s
+ENV_TFVARS: k3s.tfvars

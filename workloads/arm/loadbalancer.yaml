@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-loadbalancer
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.25
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: v1.25
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: v1.25
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-loadbalancer
+  namespace: test-loadbalancer
+spec:
+  selector:
+    matchLabels:
+      k8s-app: nginx-app-loadbalancer
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        k8s-app: nginx-app-loadbalancer
+    spec:
+      containers:
+      - name: nginx
+        image: shylajarancher19/mytestcontainer:unprivileged
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: nginx-loadbalancer-svc
+ namespace: test-loadbalancer
+ labels:
+   k8s-app: nginx-app-loadbalancer
+spec:
+ type: LoadBalancer
+ ports:
+ - port: 81
+   targetPort: 80
+   protocol: TCP
+   name: http
+ selector:
+   k8s-app: nginx-app-loadbalancer
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-nginxlb-svclbtraefik-ingress
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      svccontroller.k3s.cattle.io/svcname: nginx-loadbalancer-svc
+  ingress:
+    - {}
+  policyTypes:
+    - Ingress
