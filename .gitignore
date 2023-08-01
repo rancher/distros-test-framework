@@ -1,0 +1,9 @@
+.ssh/
+.vscode
+.idea/
+*.modules/.terraform/
+*.terraform*
+*.tfstate*
+*plan.yaml
+config/k3s.tfvars
+config/rke2.tfvars
