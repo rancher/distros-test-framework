@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/config"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -23,6 +25,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 		c := exec.Command("bash", "-c", cmd)
 		c.Stdout = &output
 		c.Stderr = &errOut
+
 		if errOut.Len() > 0 {
 			fmt.Println("returning Stderr if not null, this might not be an error",
 				errOut.String())
@@ -30,6 +33,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 
 		err := c.Run()
 		if err != nil {
+			fmt.Println(c.Stderr.(*bytes.Buffer).String())
 			return output.String(), fmt.Errorf("executing command: %s: %w", cmd, err)
 		}
 	}
@@ -38,12 +42,12 @@ func RunCommandHost(cmds ...string) (string, error) {
 }
 
 // RunCommandOnNode executes a command on the node SSH
-func RunCommandOnNode(cmd string, ServerIP string) (string, error) {
+func RunCommandOnNode(cmd string, serverIP string) (string, error) {
 	if cmd == "" {
 		return "", fmt.Errorf("cmd should not be empty")
 	}
 
-	host := ServerIP + ":22"
+	host := serverIP + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
 		return fmt.Errorf("failed to configure SSH: %v", err).Error(), err
@@ -51,17 +55,25 @@ func RunCommandOnNode(cmd string, ServerIP string) (string, error) {
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil {
-		return fmt.Errorf("\ncommand: %s \n failed with error: %v", cmd, err).Error(), err
+		return "", fmt.Errorf(
+			"command: %s \n failed on run ssh : %s with error %w",
+			cmd,
+			serverIP,
+			err,
+		)
 	}
 
 	stdout = strings.TrimSpace(stdout)
 	stderr = strings.TrimSpace(stderr)
 
-	if stderr != "" && (!strings.Contains(stderr, "error") ||
-		!strings.Contains(stderr, "exit status 1") ||
-		!strings.Contains(stderr, "exit status 2")) {
-		return stderr, nil
-	} else if stderr != "" {
+	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
+	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
+
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
+		!strings.Contains(cleanedStderr, "1") ||
+		!strings.Contains(cleanedStderr, "2")) {
+		return cleanedStderr, nil
+	} else if cleanedStderr != "" {
 		return fmt.Errorf("\ncommand: %s \n failed with error: %v", cmd, stderr).Error(), err
 	}
 
@@ -98,31 +110,42 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// GetRke2Version returns the rke2 version with commit hash
-func GetRke2Version() string {
+// GetVersion returns the rke2 or k3s version
+func GetVersion(command string) string {
 	ips := FetchNodeExternalIP()
 	for _, ip := range ips {
-		res, err := RunCommandOnNode("rke2 --version", ip)
+		res, err := RunCommandOnNode(command, ip)
 		if err != nil {
 			return err.Error()
 		}
 		return res
 	}
-
 	return ""
 }
 
-// GetK3sVersion returns the k3s version
-func GetK3sVersion() string {
-	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err := RunCommandOnNode("k3s --version", ip)
-		if err != nil {
-			return err.Error()
-		}
-		return res
+// GetProduct returns the distro product based on the config file
+func GetProduct() (string, error) {
+	cfg, err := config.LoadConfigEnv("./config")
+	if err != nil {
+		return "", err
 	}
-	return ""
+	if cfg.Product != "k3s" && cfg.Product != "rke2" {
+		return "", errors.New("unknown product")
+	}
+	return cfg.Product, nil
+}
+
+// GetProductVersion return the version for a specific distro product
+func GetProductVersion(product string) (string, error) {
+	if product != "rke2" && product != "k3s" {
+		return "", fmt.Errorf("unsupported product: %s", product)
+	}
+	version := GetVersion(product + " -v")
+	if version == "" {
+		return "", fmt.Errorf("failed to get version for product: %s", product)
+	}
+
+	return version, nil
 }
 
 // AddHelmRepo adds a helm repo to the cluster.
@@ -158,20 +181,20 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 }
 
 func configureSSH(host string) (*ssh.Client, error) {
-	var config *ssh.ClientConfig
+	var cfg *ssh.ClientConfig
 
 	authMethod, err := publicKey(AccessKey)
 	if err != nil {
 		return nil, err
 	}
-	config = &ssh.ClientConfig{
+	cfg = &ssh.ClientConfig{
 		User: AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
-	conn, err := ssh.Dial("tcp", host, config)
+	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
 		return nil, err
 	}

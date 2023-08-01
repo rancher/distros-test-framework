@@ -4,60 +4,21 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-	"github.com/rancher/distros-test-framework/k3s/acceptance/shared"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var (
-	once    sync.Once
-	cluster *Cluster
-)
-
-type Cluster struct {
-	Status           string
-	ServerIPs        []string
-	AgentIPs         []string
-	NumServers       int
-	NumAgents        int
-	RenderedTemplate string
-	ExternalDb       string
-	ClusterType      string
-}
-
 // NewCluster creates a new cluster and returns his values from terraform config and vars
 func NewCluster(g GinkgoTInterface) (*Cluster, error) {
-	basepath := shared.GetBasepath()
-	fmt.Println("Basepath:", basepath)
-
-	if flag.rke2 != "" {
-		tfDirRke2, err := filepath.Abs(basepath + "/acceptance/modules/rke2")
-		if err != nil {
-			return nil, err
-		}
-		terraformOptionsRke2 := &terraform.Options{
-			TerraformDir: tfDir,
-			VarFiles:     []string{varDir},
-		}
-		terraform.InitAndApply(g, terraformOptionsRke2)
-	} else {
-
-		tfDirk3s, err := filepath.Abs(basepath + "/acceptance/modules/k3s")
-		if err != nil {
-			return nil, err
-		}
-		terraformOptionsk3s := &terraform.Options{
-			TerraformDir: tfDir,
-			VarFiles:     []string{varDir},
-		}
-		terraform.InitAndApply(g, terraformOptionsk3s)
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil, err
 	}
 
-	varDir, err := filepath.Abs(basepath + "/acceptance/config/local.tfvars")
+	terraformOptions, varDir, err := addTerraformOptions(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -73,79 +34,59 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 	}
 
 	fmt.Println("Creating Cluster")
+	terraform.InitAndApply(g, terraformOptions)
 
-	splitRoles := terraform.GetVariableAsStringFromVarFile(g, varDir, "split_roles")
-	if splitRoles == "true" {
-		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"etcd_only_nodes"))
-		if err != nil {
-			return nil, err
-		}
-		etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"etcd_cp_nodes"))
-		if err != nil {
-			return nil, err
-		}
-		etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"etcd_worker_nodes"))
-		if err != nil {
-			return nil, err
-		}
-		cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"cp_only_nodes"))
-		if err != nil {
-			return nil, err
-		}
-		cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"cp_worker_nodes"))
-		if err != nil {
-			return nil, err
-		}
-		NumServers = NumServers + etcdNodes + etcdCpNodes + etcdWorkerNodes +
-			+cpNodes + cpWorkerNodes
+	NumServers, err = addSplitRole(g, varDir, NumServers)
+	if err != nil {
+		return nil, err
 	}
 
-	ClusterType := terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
-	ExternalDb := terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
-	ServerIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-	AgentIPs := strings.Split(terraform.Output(g, terraformOptions, "worker_ips"), ",")
-	RenderedTemplate := terraform.Output(g, terraformOptions, "rendered_template")
-	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
-	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
-	shared.KubeConfigFile = "/tmp/" + terraform.Output(g, terraformOptions, "kubeconfig") + "_kubeconfig"
+	c, err := addClusterConfig(cfg, g, varDir, terraformOptions)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Cluster{
-		Status:           "cluster created",
-		ServerIPs:        ServerIPs,
-		AgentIPs:         AgentIPs,
-		NumServers:       NumServers,
-		NumAgents:        NumAgents,
-		RenderedTemplate: RenderedTemplate,
-		ExternalDb:       ExternalDb,
-		ClusterType:      ClusterType,
-	}, nil
+	c.NumServers = NumServers
+	c.NumAgents = NumAgents
+	c.Status = "cluster created"
+
+	return c, nil
 }
 
 // GetCluster returns a singleton cluster
 func GetCluster(g GinkgoTInterface) *Cluster {
 	var err error
 	once.Do(func() {
-		cluster, err = NewCluster(g)
+		singleton, err = NewCluster(g)
 		if err != nil {
 			g.Errorf("error getting cluster: %v", err)
 		}
 	})
-	return cluster
+	return singleton
 }
 
 // DestroyCluster destroys the cluster and returns a message
 func DestroyCluster(g GinkgoTInterface) (string, error) {
-	basepath := shared.GetBasepath()
-	tfDir, err := filepath.Abs(basepath + "/modules/k3scluster")
+	var varDir string
+
+	cfg, err := loadConfig()
+	if err != nil {
+		return "", fmt.Errorf("error loading config: %w", err)
+	}
+
+	tfDir, err := filepath.Abs(shared.BasePath() + "/distros-test-framework/modules")
 	if err != nil {
 		return "", err
 	}
-	varDir, err := filepath.Abs(basepath + "/modules/k3scluster/config/local.tfvars")
+
+	if cfg.Product == "rke2" {
+		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
+	} else if cfg.Product == "k3s" {
+		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
+	} else {
+		return "", fmt.Errorf("invalid product %s", cfg.Product)
+	}
+
 	if err != nil {
 		return "", err
 	}

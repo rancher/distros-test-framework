@@ -36,15 +36,16 @@ type Pod struct {
 
 // ManageWorkload creates or deletes a workload based on the action: create or delete.
 func ManageWorkload(action, workload, arch string) (string, error) {
-	if action != "create" && action != "delete" {
-		return "", fmt.Errorf("invalid action: %s. Must be 'create' or 'delete'", action)
-	}
 	var res string
 	var err error
 
-	resourceDir := BasePath() + "/acceptance/workloads/amd64/"
+	if action != "create" && action != "delete" {
+		return "", fmt.Errorf("invalid action: %s. Must be 'create' or 'delete'", action)
+	}
+
+	resourceDir := BasePath() + "/distros-test-framework/workloads/amd64/"
 	if arch == "arm64" {
-		resourceDir = BasePath() + "/acceptance/workloads/arm/"
+		resourceDir = BasePath() + "/distros-test-framework/workloads/arm/"
 	}
 
 	files, err := os.ReadDir(resourceDir)
@@ -161,9 +162,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(
-	namespace string,
-	serviceName string) (string, string, error) {
+func FetchClusterIP(namespace string, serviceName string) (string, string, error) {
 	ip, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
@@ -179,6 +178,18 @@ func FetchClusterIP(
 	return ip, port, err
 }
 
+// FetchServiceNodePort returns the node port of the service
+func FetchServiceNodePort(namespace, serviceName string) (string, error) {
+	cmd := "kubectl get service -n " + namespace + " " + serviceName + " --kubeconfig=" + KubeConfigFile +
+		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
+	nodeport, err := RunCommandHost(cmd)
+	if err != nil {
+		return "", err
+	}
+
+	return nodeport, nil
+}
+
 // FetchNodeExternalIP returns the external IP of the nodes.
 func FetchNodeExternalIP() []string {
 	res, _ := RunCommandHost("kubectl get nodes " +
@@ -190,9 +201,9 @@ func FetchNodeExternalIP() []string {
 	return nodeExternalIPs
 }
 
-// RestartCluster restarts the rke2 service on each node given by external IP.
-func RestartCluster(ip string) (string, error) {
-	return RunCommandOnNode("sudo systemctl restart rke2-*", ip)
+// RestartCluster restarts the service on each node given by external IP.
+func RestartCluster(product, ip string) (string, error) {
+	return RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s-*", product), ip)
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
@@ -220,8 +231,7 @@ func FetchIngressIP(namespace string) ([]string, error) {
 func ParseNodes(print bool) ([]Node, error) {
 	nodes := make([]Node, 0, 10)
 
-	cmd := "kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile
-	res, err := RunCommandHost(cmd)
+	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +284,6 @@ func ParsePods(print bool) ([]Pod, error) {
 		}
 		pods = append(pods, p)
 	}
-
 	if print {
 		fmt.Println(podList)
 	}
@@ -283,35 +292,35 @@ func ParsePods(print bool) ([]Pod, error) {
 }
 
 // ReadDataPod reads the data from the pod
-func ReadDataPod(name string) (string, error) {
+func ReadDataPod(namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		"host",
 		"get",
 		"pods",
-		"-l app="+name+" -o jsonpath={.items[0].metadata.name}",
+		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
 		return "", err
 	}
 
-	cmd := "kubectl exec " + podName + " --kubeconfig=" + KubeConfigFile +
+	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
 		" -- cat /data/test"
 	return RunCommandHost(cmd)
 }
 
 // WriteDataPod writes data to the pod
-func WriteDataPod(name string) (string, error) {
+func WriteDataPod(namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		"host",
 		"get",
 		"pods",
-		"-l app="+name+" -o jsonpath={.items[0].metadata.name}",
+		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
 		return "", err
 	}
 
-	cmd := "kubectl exec " + podName + " --kubeconfig=" + KubeConfigFile +
+	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)

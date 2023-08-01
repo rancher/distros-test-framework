@@ -1,11 +1,11 @@
 SHELL := /bin/bash
 
-LOCAL_TFVARS_PATH := config/local.tfvars
+LOCAL_TFVARS := $(ENV_TFVARS)
 
-ifeq ($(wildcard ${LOCAL_TFVARS_PATH}),)
+ifeq ($(wildcard ${LOCAL_TFVARS=}),)
   RESOURCE_NAME :=
 else
-  export RESOURCE_NAME := $(shell sed -n 's/resource_name *= *"\([^"]*\)"/\1/p' ${LOCAL_TFVARS_PATH})
+  export RESOURCE_NAME := $(shell sed -n 's/resource_name *= *"\([^"]*\)"/\1/p' ${LOCAL_TFVARS=})
 endif
 
 export ACCESS_KEY_LOCAL

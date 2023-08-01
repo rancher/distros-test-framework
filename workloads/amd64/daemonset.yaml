@@ -1,7 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-daemonset
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.25
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: v1.25
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: v1.25
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: test-daemonset
+  namespace: test-daemonset
 spec:
   selector:
     matchLabels:
@@ -15,4 +28,4 @@ spec:
         - name: webserver
           image: nginx
           ports:
-          - containerPort: 80
+          - containerPort: 8080

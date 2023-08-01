@@ -1,9 +1,9 @@
 output "Registration_address" {
-  value = "${data.local_file.master_ip.content}"
+  value = data.local_file.master_ip.content
 }
 
 output "master_node_token" {
-  value = "${data.local_file.token.content}"
+  value = data.local_file.token.content
 }
 
 output "worker_ips" {
