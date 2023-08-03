@@ -49,8 +49,8 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd: "kubectl get -n test-pod-bandwidth  pod test-pod -o yaml : | grep -A2 annotations ," +
-							" k3s -v",
+						Cmd: "/var/lib/rancher/k3s/data/current/bin/cni, /var/lib/rancher/k3s/data/current/bin/flannel",
+
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},
