@@ -12,10 +12,8 @@ import (
 )
 
 func TestDaemonset(deployWorkload bool) {
-	var err error
-
 	if deployWorkload {
-		_, err = shared.ManageWorkload(
+		_, err := shared.ManageWorkload(
 			"create",
 			"daemonset.yaml",
 			customflag.ServiceFlag.ClusterConfig.Arch.String(),
@@ -25,8 +23,10 @@ func TestDaemonset(deployWorkload bool) {
 	}
 	pods, _ := shared.ParsePods(false)
 
-	cmd := fmt.Sprintf(
-		`kubectl get pods -n test-daemonset -o wide --kubeconfig="%s" | grep -A10 NODE | awk 'NR>1 {print $7}'`,
+	cmd := fmt.Sprintf(`
+		kubectl get pods -n test-daemonset -o wide --kubeconfig="%s" \
+		| grep -A10 NODE | awk 'NR>1 {print $7}'
+		`,
 		shared.KubeConfigFile,
 	)
 	nodeNames, err := shared.RunCommandHost(cmd)
@@ -42,8 +42,10 @@ func TestDaemonset(deployWorkload bool) {
 		}
 	}
 
-	cmd = fmt.Sprintf(
-		`kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints --kubeconfig="%s" | grep '<none>'`,
+	cmd = fmt.Sprintf(`
+		kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints \
+		--kubeconfig="%s" | grep '<none>'
+		`,
 		shared.KubeConfigFile,
 	)
 	taints, err := shared.RunCommandHost(cmd)
@@ -51,10 +53,7 @@ func TestDaemonset(deployWorkload bool) {
 		return
 	}
 	Expect(taints).To(ContainSubstring("<none>"))
-
-	f := strings.TrimSpace(nodeNames)
-	t := strings.TrimSpace(taints)
-	Expect(validateNodes(t, f)).To(BeTrue())
+	Expect(validateNodesEqual(strings.TrimSpace(taints), strings.TrimSpace(nodeNames))).To(BeTrue())
 
 	Eventually(func(g Gomega) int {
 		return shared.CountOfStringInSlice("test-daemonset", pods)
@@ -63,10 +62,10 @@ func TestDaemonset(deployWorkload bool) {
 
 }
 
-// validateNodes checks if the nodes in the two strings are equal (ignoring order through sorting).
-func validateNodes(taints, names string) bool {
+// validateNodesEqual checks if the nodes in the two strings are equal (ignoring order through sorting).
+func validateNodesEqual(taints, nodeNames string) bool {
 	s1 := strings.Split(taints, "\n")
-	s2 := strings.Split(names, "\n")
+	s2 := strings.Split(nodeNames, "\n")
 
 	for i, node := range s1 {
 		fields := strings.Fields(node)

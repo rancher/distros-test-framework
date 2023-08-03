@@ -1,4 +1,4 @@
-//go:build runc
+//go:build canal
 
 package versionbump
 
@@ -13,34 +13,30 @@ import (
 )
 
 var _ = Describe("VersionTemplate Upgrade:", func() {
-
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	It("Validate Nodes", func() {
+	It("Validate Node", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
-			nil,
-		)
+			nil)
 	})
 
-	It("Validate Pods", func() {
+	It("Validate Pod", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertStatus())
 	})
 
-	cmd := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)",
-		cfg.Product)
-	It("Verifies Runc bump", func() {
+	It("Verifies bump version", func() {
 		template.VersionTemplate(template.VersionTestTemplate{
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd:                  cmd,
+						Cmd: "kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\", " +
+							"kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" ",
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},
