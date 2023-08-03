@@ -70,9 +70,9 @@ func TestServiceNodePort(deployWorkload bool) {
 		}
 
 		err = assert.CheckComponentCmdNode(
-			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
-			"test-nodeport",
-			ip)
+		    "curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
+		    ip,
+		    "test-nodeport")
 	}
 	if err != nil {
 		GinkgoT().Errorf("%v", err)

@@ -74,18 +74,44 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
-func CheckComponentCmdNode(cmd, assert, ip string) error {
-	Eventually(func(g Gomega) {
+func CheckComponentCmdNode(cmd, ip string, asserts ...string) error{
+var err error
+	Eventually(func() error {
 		fmt.Println("Executing cmd: ", cmd)
+		res, cmdErr := shared.RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return fmt.Errorf("error on RunCommandNode: %v", cmdErr)
+		}
 
+		for _, assert := range asserts {
+            if !strings.Contains(res, assert) {
+                return fmt.Errorf("expected substring %q not found in result %q", assert, res)
+            }
+            fmt.Println("\nResult:\n", res+"\nMatched with assert:\n", assert)
+        }
+
+        return nil
+	}, "420s", "3s").Should(Succeed())
+	return err // Return the error from Eventually
+}
+
+// CheckNotPresentOnNode runs a command on a node and asserts that the value received
+// is NOT present in the given output.
+func CheckNotPresentOnNode(cmd, ip string, notExpOutput ...string) {
+	Eventually(func() error {
+		fmt.Println("Executing cmd: ", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return
+			return fmt.Errorf("error on RunCommandNode: %v", err)
 		}
-		g.Expect(res).Should(ContainSubstring(assert))
 
-		fmt.Println("Result:", res+"\nMatched with assert:\n", assert)
+		for _, assert := range notExpOutput {
+            if strings.Contains(res, assert) {
+               return fmt.Errorf("%q was found in the output %q", assert, res)
+            }
+            fmt.Println("Result:\n",res+"\nPassed. Output should not match with:\n", assert)
+        }
+
+        return nil
 	}, "420s", "3s").Should(Succeed())
-
-	return nil
 }
