@@ -33,12 +33,14 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 		)
 	})
 
+	cmd := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)",
+		cfg.Product)
 	It("Verifies Runc bump", func() {
 		template.VersionTemplate(template.VersionTestTemplate{
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd:                  "(find /var/lib/rancher/rke2/data/ -type f -name runc -exec {} --version \\;)",
+						Cmd:                  cmd,
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},

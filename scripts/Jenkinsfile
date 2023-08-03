@@ -97,9 +97,9 @@ node {
                 sh "docker rmi -f ${imageName} || true"
               }
             } // finally
-          } // dir
+          } // dir 
         } // withEnv
       } // withCredentials
     } // withFolderProperties
-  } // wrap
+  } // wrap 
 } // node
