@@ -33,6 +33,11 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 		return nil, err
 	}
 
+	NumWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_windows_worker_nodes"))
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Println("Creating Cluster")
 	terraform.InitAndApply(g, terraformOptions)
 
@@ -48,6 +53,7 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 
 	c.NumServers = NumServers
 	c.NumAgents = NumAgents
+	c.NumWinAgents = NumWinAgents
 	c.Status = "cluster created"
 
 	return c, nil
@@ -79,16 +85,13 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 		return "", err
 	}
 
-	if cfg.Product == "rke2" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
-	} else if cfg.Product == "k3s" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
+	if cfg.Product == "rke2" || cfg.Product == "k3s"{
+		varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars"))
+		if err != nil {
+			return "", err
+		}
 	} else {
 		return "", fmt.Errorf("invalid product %s", cfg.Product)
-	}
-
-	if err != nil {
-		return "", err
 	}
 
 	terraformOptions := terraform.Options{

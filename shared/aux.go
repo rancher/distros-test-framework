@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+    "encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,6 +97,18 @@ func PrintFileContents(f ...string) error {
 		fmt.Println(string(content) + "\n")
 	}
 
+	return nil
+}
+
+// PrintBase64Encoded prints the base64 encoded contents of the file.
+func PrintBase64Encoded(filepath string) error {
+    file, err := os.ReadFile(filepath)
+	if err != nil {
+		return err
+	}
+    encoded := base64.StdEncoding.EncodeToString(file)
+
+    fmt.Println(encoded)
 	return nil
 }
 
@@ -236,4 +249,14 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	}
 
 	return joinedCmd
+}
+
+// fileExists Checks if a file exists in a directory
+func fileExists(files []os.DirEntry, workload string) bool {
+	for _, file := range files {
+		if file.Name() == workload {
+			return true
+		}
+	}
+	return false
 }
