@@ -1,6 +1,7 @@
 package testcase
 
 import (
+    "fmt"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
@@ -25,12 +26,24 @@ func TestSelinuxEnabled(product string) {
 func TestSelinuxVersions(product string) {
 	cluster := factory.GetCluster(GinkgoT())
 
-	serverAsserts := []string{"container-selinux", product + "-selinux", product + "-server"}
+	var serverAsserts [] string
+
+	if product == "rke2"{
+	    serverAsserts = []string{"container-selinux", product + "-selinux", product + "-server"}
+	}else{
+	    serverAsserts = []string{"container-selinux", product + "-selinux"}
+	}
+
 	agentAsserts := []string{"container-selinux", product + "-selinux"}
 
 	if cluster.NumServers > 0 {
 		for _, serverIP := range cluster.ServerIPs {
-			assert.CheckComponentCmdNode("rpm -qa container-selinux " + product + "-server " + product + "-selinux", serverIP, serverAsserts...)
+
+		    if product == "rke2"{
+		        assert.CheckComponentCmdNode("rpm -qa container-selinux " + product + "-server " + product + "-selinux", serverIP, serverAsserts...)
+		    }else{
+		        assert.CheckComponentCmdNode("rpm -qa container-selinux " + product + "-selinux", serverIP, serverAsserts...)
+		    }
 		}
 	}
 
@@ -56,12 +69,38 @@ func TestSelinuxSpcT() {
 
 // Validate that uninstallation will remove the rke2-selinux or k3s-selinux policy
 func TestUninstallPolicy(product string) {
+    cluster := factory.GetCluster(GinkgoT())
 
-	ips := shared.FetchNodeExternalIP()
-	asserts := []string{"container-selinux", product + "-selinux", product + "-server"}
+	var asserts [] string
 
-	for _, ip := range ips {
-		shared.RunCommandOnNode("sudo "+product+"-uninstall.sh", ip)
-		assert.CheckNotPresentOnNode("rpm -qa container-selinux" + product + "-server " + product + "-selinux", ip, asserts...)
-	}
+    if product == "rke2"{
+        asserts = []string{"container-selinux", product + "-selinux", product + "-server"}
+    }else{
+        asserts = []string{"container-selinux", product + "-selinux"}
+    }
+
+    for _, serverIP := range cluster.ServerIPs {
+        if product == "rke2"{
+            fmt.Println("Uninstalling RKE2 on ", serverIP)
+            shared.RunCommandOnNode("sudo "+product+"-uninstall.sh", serverIP)
+            assert.CheckNotPresentOnNode("rpm -qa container-selinux " + product + "-server " + product + "-selinux", serverIP, asserts...)
+
+        }else{
+            fmt.Println("Uninstalling K3S on ", serverIP)
+            shared.RunCommandOnNode(product+"-uninstall.sh", serverIP)
+            assert.CheckNotPresentOnNode("rpm -qa container-selinux " + product + "-selinux", serverIP, asserts...)
+        }
+    }
+
+    for _, agentIP := range cluster.AgentIPs {
+        if product == "rke2"{
+            fmt.Println("Uninstalling RKE2 on ", agentIP)
+            shared.RunCommandOnNode("sudo "+product+"-uninstall.sh", agentIP)
+            assert.CheckNotPresentOnNode("rpm -qa container-selinux " + product + "-server " + product + "-selinux", agentIP, asserts...)
+        }else{
+            fmt.Println("Uninstalling K3S on ", agentIP)
+            shared.RunCommandOnNode(product+"-agent-uninstall.sh", agentIP)
+            assert.CheckNotPresentOnNode("rpm -qa container-selinux " + product + "-selinux", agentIP, asserts...)
+        }
+    }
 }
