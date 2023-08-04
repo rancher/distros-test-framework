@@ -20,3 +20,4 @@ while [[ 3 -gt $count ]]; do
     count=$(($count + 1))
     echo "Repeating failed Docker build ${count} of 3..."
 done
+
