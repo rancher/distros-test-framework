@@ -9,7 +9,7 @@ output "master_ips" {
 }
 
 output "kubeconfig" {
-  value = var.resource_name
+  value = "/tmp/${var.resource_name}_kubeconfig"
   description = "kubeconfig of the cluster created"
 }
 
