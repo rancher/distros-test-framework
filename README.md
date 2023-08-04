@@ -10,10 +10,7 @@ The acceptance tests are a customizable way to create clusters and perform valid
 
 ### Packages:
 ```bash
-./acceptance
-│
-├── pkg
-│   └───── Place where resides the logic and services for it
+./distros-test-framework
 │
 ├── entrypoint
 │   └───── Entry for tests execution, separated by test runs and test suites
@@ -26,6 +23,9 @@ The acceptance tests are a customizable way to create clusters and perform valid
 │
 ├── shared
 │    └───── auxiliary and reusable functions
+│
+├── pkg
+│   └───── Place where resides the logic and services for it
 │
 │── workloads
 │   └───── Place where resides workloads to use inside tests
@@ -172,13 +172,15 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 
 -----
 #### Testcase naming convention:
-- All tests should be placed under `tests/acceptance/testcase/<TESTNAME>`.
+- All tests should be placed under `./testcase/<TESTNAME>`.
 - All test functions should be named: `Test<TESTNAME>`.
 
 
 ## Running
 
-- Before running the tests, you should creat local.tfvars file in `./tests/acceptance/modules/k3scluster/config/local.tfvars`. There is some information there to get you started, but the empty variables should be filled in appropriately per your AWS environment.
+- Before running the tests, you should creat file in `./config/{product}.tfvars`. There is some information there to get you started, but the empty variables should be filled in appropriately per your AWS environment.
+
+- Also before running on the config.yaml add your product name and tfvars product name
 
 - Please make sure to export your correct AWS credentials before running the tests. e.g:
 ```bash
@@ -201,7 +203,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 Tests can be run individually per package:
 ```bash
-go test -timeout=45m -v ./{PRODUCT}/acceptance/entrypoint/${PACKAGE_NAME}/...
+go test -timeout=45m -v ./entrypoint/${PACKAGE_NAME}/...
 
 go test -timeout=45m -v ./entrypoint/$PACKAGE_NAME/...
 
@@ -225,15 +227,7 @@ ${upgradeVersion} version to upgrade to as SUC
 
 Test tags rke2:
 ```
- -tags=versionbump
- -tags=upgrademanual
  -tags=upgradesuc
-```
-
- Test tags k3s:
-```
--tags=versionbump
--tags=upgrademanual
 ```
 
 
@@ -313,7 +307,7 @@ $ make test-create
 
 
 - Run upgrade cluster test:
-$ make test-upgrade-manual INSTALLTYPE=INSTALL_K3S_COMMIT=257fa2c54cda332e42b8aae248c152f4d1898218
+$ make test-upgrade-manual INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218
 
 
 
@@ -349,16 +343,10 @@ $ make vet-lint TESTDIR=upgradecluster
 
 ### In between tests:
 ```
-- If you want to run with same cluster do not delete ./tests/terraform/modules/terraform.tfstate + .terraform.lock.hcl file after each test.
+- If you want to run with same cluster do not delete ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file after each test.
 
-- if you want to use new resources then make sure to delete the ./tests/terraform/modules/terraform.tfstate + .terraform.lock.hcl file if you want to create a new cluster.
+- if you want to use new resources then make sure to delete the ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file if you want to create a new cluster.
 ```
-
-###  Common Issues:
-````
-- Issues related to terraform plugin please also delete the modules/.terraform folder
-- In mac m1 maybe you need also to go to rke2/tests/terraform/modules and run `terraform init` to download the plugins
-````
 
 ### Debugging
 ````

@@ -23,7 +23,6 @@ cluster-init: true
 EOF
 }
 
-
 add_config() {
   local server_flags="${1}"
 
@@ -33,7 +32,6 @@ add_config() {
       cat /etc/rancher/k3s/config.yaml
   fi
 }
-
 
 policy_files() {
   local server_flags="${1}"
@@ -170,7 +168,6 @@ wait_pods() {
   echo "Timed out while waiting for pods."
   exit 1
 }
-
 
 config_files() {
   cat /etc/rancher/k3s/config.yaml> /tmp/joinflags

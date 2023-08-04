@@ -16,8 +16,15 @@ token:  "${2}"
 EOF
 }
 
+
 add_config() {
   local worker_flags="${1}"
+
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]
+    then
+      echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
+      cat /etc/rancher/k3s/config.yaml
+  fi
 
   if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]
     then
