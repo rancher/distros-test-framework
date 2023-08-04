@@ -42,7 +42,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 }
 
 // RunCommandOnNode executes a command on the node SSH
-func RunCommandOnNode(cmd string, serverIP string) (string, error) {
+func RunCommandOnNode(cmd, serverIP string) (string, error) {
 	if cmd == "" {
 		return "", fmt.Errorf("cmd should not be empty")
 	}
