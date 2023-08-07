@@ -1,4 +1,4 @@
-//go:build cniplugin
+//go:build canal
 
 package versionbump
 
@@ -31,12 +31,15 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			assert.PodAssertStatus())
 	})
 
-	It("Verifies bump version for cni plugins and flannel", func() {
+	It("Verifies bump version on rke2 for canal with calico and flannel versions", func() {
 		template.VersionTemplate(template.VersionTestTemplate{
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd:                  "/var/lib/rancher/k3s/data/current/bin/cni , var/lib/rancher/k3s/data/current/bin/flannel",
+						Cmd: "kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
+							"| awk '{for(i=1;i<=NF;i++) if($i ~ /calico/) print $i}'," +
+							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
+							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}'",
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},

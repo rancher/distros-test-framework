@@ -26,16 +26,16 @@ func RunCommandHost(cmds ...string) (string, error) {
 		c.Stdout = &output
 		c.Stderr = &errOut
 
-		if errOut.Len() > 0 {
-			fmt.Println("returning Stderr if not null, this might not be an error",
-				errOut.String())
-		}
-
 		err := c.Run()
 		if err != nil {
 			fmt.Println(c.Stderr.(*bytes.Buffer).String())
 			return output.String(), fmt.Errorf("executing command: %s: %w", cmd, err)
 		}
+		if errOut.Len() > 0 {
+			fmt.Println("returning Stderr if not null, this might not be an error",
+				errOut.String())
+		}
+
 	}
 
 	return output.String(), nil
