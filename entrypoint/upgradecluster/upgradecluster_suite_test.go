@@ -18,7 +18,7 @@ var cfg config.ProductConfig
 func TestMain(m *testing.M) {
 	var err error
 	flag.Var(&customflag.ServiceFlag.InstallUpgrade, "installVersionOrCommit",
-		"Upgrade with version or commit - v1.26.2+k3s1 or 1823dsad7129873192873129asd")
+		"Upgrade with version or commit")
 	flag.StringVar(&customflag.ServiceFlag.InstallType.Channel, "channel", "",
 		"channel to use on install or upgrade")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy",

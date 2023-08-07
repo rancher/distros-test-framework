@@ -35,8 +35,8 @@ func TestUpgradeClusterSUC(version string) error {
 		return err
 	}
 
-	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64" + "/upgrade-plan.yaml"
-	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64" + "/plan.yaml"
+	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/rke2-upgrade-plan.yaml"
+	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)
 	if err != nil {

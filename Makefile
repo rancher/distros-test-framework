@@ -58,7 +58,7 @@ test-upgrade-suc:
 
 .PHONY: test-upgrade-manual
 test-upgrade-manual:
-	@go test -timeout=45m -v ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLTYPE}
+	@go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLTYPE}
 
 .PHONY: test-version-bump
 test-version-bump:

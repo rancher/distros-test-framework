@@ -4,7 +4,7 @@
 *.modules/.terraform/
 *.terraform*
 *.tfstate*
-*plan.yaml
+workloads/amd64/plan.yaml
 config/k3s.tfvars
 config/rke2.tfvars
 config/config.yaml

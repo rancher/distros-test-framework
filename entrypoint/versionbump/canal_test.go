@@ -5,11 +5,12 @@ package versionbump
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+
+	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("VersionTemplate Upgrade:", func() {
@@ -30,13 +31,15 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			assert.PodAssertStatus())
 	})
 
-	It("Verifies bump version", func() {
+	It("Verifies bump version on rke2 for canal with calico and flannel versions", func() {
 		template.VersionTemplate(template.VersionTestTemplate{
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd: "kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\", " +
-							"kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" ",
+						Cmd: "kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
+							"| awk '{for(i=1;i<=NF;i++) if($i ~ /calico/) print $i}'," +
+							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
+							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}'",
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},
