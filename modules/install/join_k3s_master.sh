@@ -28,10 +28,10 @@ EOF
 
 
 add_config() {
-  local worker_flags="${1}"
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]
+  local server_flags="${1}"
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" == *":"* ]]
     then
-      echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
+      echo -e "$server_flags" >> /etc/rancher/k3s/config.yaml
       cat /etc/rancher/k3s/config.yaml
   fi
   alias k=kubectl
@@ -51,10 +51,10 @@ rhel() {
 
 
 policy_files() {
-  local worker_flags="${1}"
+  local server_flags="${1}"
   local version="${2}"
 
-  if [[ -n "$worker_flags"  ]] && [[ "$worker_flags"  == *"protect-kernel-defaults"* ]]
+  if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
     then
       cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
       printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf

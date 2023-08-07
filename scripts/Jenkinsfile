@@ -1,26 +1,31 @@
 #!groovy
+
 node {
   def job_name = "${JOB_NAME}"
-  if (job_name.contains('/')) { 
+  if (job_name.contains('/')) {
     job_names = job_name.split('/')
-    job_name = job_names[job_names.size() - 1] 
+    job_name = job_names[job_names.size() - 1]
   }
+
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
-  def imageName = "rke2-test-${job_name}${env.BUILD_NUMBER}"
+  def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
   def envFile = ".env"
-  def branch = "master"
+  def branch = "main"
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
   }
+
   def repo = scm.userRemoteConfigs
   if ("${env.REPO}" != "null" && "${env.REPO}" != "") {
-    repo = [[url: "${env.REPO}"]]
+    repo = [
+      [url: "${env.REPO}"]
+    ]
   }
   def timeout = "60m"
   if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
-    timeout = "${env.TIMEOUT}" 
+    timeout = "${env.TIMEOUT}"
   }
-  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg':1]) {
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
       paramsMap = []
       params.each {
@@ -28,8 +33,8 @@ node {
           paramsMap << "$it.key=$it.value"
         }
       }
-      withCredentials([ 
-        
+      withCredentials([
+
         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
         string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
@@ -41,43 +46,50 @@ node {
             deleteDir()
             checkout([
               $class: 'GitSCM',
-              branches: [[name: "*/${branch}"]],
-              extensions: scm.extensions + [[$class: 'CleanCheckout']],
+              branches: [
+                [name: "*/${branch}"]
+              ],
+              extensions: scm.extensions + [
+                [$class: 'CleanCheckout']
+              ],
               userRemoteConfigs: repo
             ])
           }
-          dir ("./") {
+          dir("./") {
             try {
               stage('Configure and Build') {
                 if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
-                  dir("./tests/acceptance/modules/config/.ssh") {
+                  dir("./config/.ssh") {
                     def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
                     writeFile file: "aws_key.pem", text: decoded
                   }
                 }
+                dir("./config") {
+                  //update product info
+                  def data = "ENV_PRODUCT: ${env.PRODUCT_NAME}\nENV_TFVARS: ${env.PRODUCT_NAME}.tfvars\n"
+                  writeFile(file: 'config.yaml', text: data)
 
-                dir("./tests/acceptance/modules/config") {
-                  def filename = "local.tfvars"
+                  //update tfvars file
+                  def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS
-
                   writeFile file: filename, text: configContents +
                     "\npassword = \"" + RKE2_RHEL_PASSWORD + "\"" +
-                    "\nssh_key = \"" + AWS_SSH_KEY_NAME + "\"" +
-                    "\naccess_key = \"/go/src/github.com/rancher/rke2/tests/acceptance/modules/config/.ssh/aws_key.pem\"" +
-                    "\nresource_name = \"" + RKE2_HOSTNAME_PREFIX + "\"" +
-                    "\nrke2_version = \"" + RKE2_VERSION + "\"" +
-                    "\nrke2_channel = \"" + RKE2_CHANNEL + "\""
+                    "\nkey_name = \"" + AWS_SSH_KEY_NAME + "\"" +
+                    "\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"" +
+                    "\nresource_name = \"" + HOSTNAME_PREFIX + "\""
+                  def testdata = readFile(file: filename)
+                  println("\n\nTFVARS TEST DATA")
+                  println(testdata)
                 }
-
-                sh "./tests/acceptance/scripts/configure.sh"
-                sh "./tests/acceptance/scripts/build.sh"
+                sh "./scripts/configure.sh"
+                sh "./scripts/build.sh"
               }
               stage('Run TestCombination') {
                 sh "docker run --name ${testContainer} -t --env-file ${envFile} " +
-                  "${imageName} sh -c \"chmod 400 /go/src/github.com/rancher/rke2/tests/acceptance/modules/config/.ssh/aws_key.pem && " +
-                      "cd ./tests/acceptance/entrypoint && go test -timeout=${timeout} -v ./${RKE2_TESTCASE}/... ${RKE2_TEST_ARGS}\""
+                  "${imageName} sh -c \"chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && " +
+                  "cd ./entrypoint && go test -timeout=${timeout} -v ./${TESTCASE}/... ${TEST_ARGS}\""
               }
-            } finally {           
+            } finally {
               stage('Cleanup') {
                 // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
                 sh "docker stop ${testContainer} || true"
@@ -90,4 +102,4 @@ node {
       } // withCredentials
     } // withFolderProperties
   } // wrap 
-}// node
+} // node

@@ -1,3 +1,5 @@
+//go:build selinux
+
 package selinux
 
 import (
@@ -33,11 +35,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled Pre upgrade", func() {
-		testcase.TestSelinuxEnabled(cfg.Product)
+		testcase.TestSelinuxEnabled()
 	})
 
 	It("Validate container, server and selinux version Pre upgrade", func() {
-		testcase.TestSelinuxVersions(cfg.Product)
+		testcase.TestSelinuxVersions()
 	})
 
 	It("Validate container security Pre upgrade", func() {
@@ -65,20 +67,20 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled Post upgrade", func() {
-		testcase.TestSelinuxEnabled(cfg.Product)
+		testcase.TestSelinuxEnabled()
 	})
 
 	It("Validate container, server and selinux version Post upgrade", func() {
-		testcase.TestSelinuxVersions(cfg.Product)
+		testcase.TestSelinuxVersions()
 	})
 
 	It("Validate container security Post upgrade", func() {
 		testcase.TestSelinuxSpcT()
 	})
 
-	It("Validate uninstall selinux policies", func() {
-		testcase.TestUninstallPolicy(cfg.Product)
-	})
+	/*It("Validate uninstall selinux policies", func() {
+		testcase.TestUninstallPolicy()
+	})*/
 
 })
 

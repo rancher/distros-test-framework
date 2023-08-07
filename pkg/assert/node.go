@@ -74,25 +74,26 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
-func CheckComponentCmdNode(cmd, ip string, asserts ...string) error{
-var err error
+func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 	Eventually(func() error {
 		fmt.Println("Executing cmd: ", cmd)
-		res, cmdErr := shared.RunCommandOnNode(cmd, ip)
+		res, err := shared.RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return fmt.Errorf("error on RunCommandNode: %v", cmdErr)
+			return fmt.Errorf("error on RunCommandNode: %v", err)
 		}
 
 		for _, assert := range asserts {
-            if !strings.Contains(res, assert) {
-                return fmt.Errorf("expected substring %q not found in result %q", assert, res)
-            }
-            fmt.Println("\nResult:\n", res+"\nMatched with assert:\n", assert)
-        }
+			if !strings.Contains(res, assert) {
+				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
+			}
+			fmt.Println("\nResult:\n", res+"\nMatched with assert:\n", assert)
+		}
 
-        return nil
-	}, "420s", "3s").Should(Succeed())
-	return err // Return the error from Eventually
+		return nil
+
+	}, "20s", "3s").Should(Succeed())
+
+	return nil
 }
 
 // CheckNotPresentOnNode runs a command on a node and asserts that the value received
@@ -106,12 +107,12 @@ func CheckNotPresentOnNode(cmd, ip string, notExpOutput ...string) {
 		}
 
 		for _, assert := range notExpOutput {
-            if strings.Contains(res, assert) {
-               return fmt.Errorf("%q was found in the output %q", assert, res)
-            }
-            fmt.Println("Result:\n",res+"\nPassed. Output should not match with:\n", assert)
-        }
+			if strings.Contains(res, assert) {
+				return fmt.Errorf("%q was found in the output %q", assert, res)
+			}
+			fmt.Println("Result:\n", res+"\nPassed. Output should not match with:\n", assert)
+		}
 
-        return nil
+		return nil
 	}, "420s", "3s").Should(Succeed())
 }
