@@ -8,7 +8,7 @@ test-env-up:
 
 .PHONY: test-run
 test-run:
-	@docker run -d --name acceptance-test${IMGNAME} -t \
+	@docker run -d --name acceptance-test-${IMGNAME} -t \
       -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
       -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
       -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
@@ -47,8 +47,8 @@ test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
 .PHONY: remove-tf-state
 remove-tf-state:
-	@rm -rf ./modules/rke2/.terraform
-	@rm -rf ./modules/rke2/.terraform.lock.hcl ./modules/rk2/terraform.tfstate ./modules/rke2/terraform.tfstate.backup
+	@rm -rf ./modules/${PRODUCT}/.terraform
+	@rm -rf ./modules/${PRODUCT}/.terraform.lock.hcl ./modules/${PRODUCT}/terraform.tfstate ./modules/${PRODUCT}/terraform.tfstate.backup
 
 
 #========================= Run acceptance tests locally =========================#

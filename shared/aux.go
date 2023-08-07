@@ -92,7 +92,7 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read file %s: %w", file, err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
@@ -100,11 +100,11 @@ func PrintFileContents(f ...string) error {
 	return nil
 }
 
-// PrintBase64Encoded prints the base64 encoded contents of the file.
+// PrintBase64Encoded prints the base64 encoded contents of the file as string.
 func PrintBase64Encoded(filepath string) error {
     file, err := os.ReadFile(filepath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encode file %s: %w", file, err)
 	}
     encoded := base64.StdEncoding.EncodeToString(file)
 

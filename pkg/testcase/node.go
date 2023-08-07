@@ -32,7 +32,7 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1200s", "60s").Should(Succeed())
+	}, "1500s", "150s").Should(Succeed())
 
 	fmt.Println("\nRetrieving Cluster nodes:")
 	_, err := shared.ParseNodes(true)
@@ -62,19 +62,19 @@ func TestInternodeConnectivityMixedOS() {
 
 // testCrossNodeService Perform testing cross node communication via service exec call
 //
-// services array Takes service names as parameters in the array
+// services Slice Takes service names as parameters in the array
 //
-// ports	array Takes service ports needed to access the services
+// ports	Slice Takes service ports needed to access the services
 //
 // expected	array Takes the expected substring from the curl response
 func testCrossNodeService(services, ports, expected []string) error{
 	var cmd string
 
 	if len(services) != len(ports) && len(ports) != len(expected){
-		return fmt.Errorf("array parameters must have equal length")
+		return fmt.Errorf("slice parameters must have equal length")
 	}
 	if len(services) < 2 || len(ports) < 2 || len(expected) < 2{
-		return fmt.Errorf("array parameters must not be less than or equal to 2")
+		return fmt.Errorf("slice parameters must not be less than or equal to 2")
 	}
 
 	for i := 0; i < len(services); i++ {

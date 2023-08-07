@@ -101,4 +101,5 @@ module "windows_worker" {
 
   # RKE2 variables
   rke2_version   = var.rke2_version
+  install_mode   = var.install_mode
 }

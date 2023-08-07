@@ -37,7 +37,7 @@ type Pod struct {
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
 func ManageWorkload(action string, arch string, workloads ...string) (string, error) {
-	if action != "apply" && action != "delete" {
+	if action != "apply" || action != "delete" {
 		return "", fmt.Errorf("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 	
@@ -60,13 +60,11 @@ func ManageWorkload(action string, arch string, workloads ...string) (string, er
 			if err != nil {
 				return "", fmt.Errorf("failed to apply workload %s: %s", workload, err)
 			}
-		} else if action == "delete" {
+		} else {
 			err = deleteWorkload(workload, filename)
 			if err != nil {
 				return "", fmt.Errorf("failed to delete workload %s: %s", workload, err)
 			}
-		} else {
-			return "", fmt.Errorf("workload %s not found in %s", workload, resourceDir)
 		}
 	}
 
@@ -76,6 +74,7 @@ func ManageWorkload(action string, arch string, workloads ...string) (string, er
 // applyWorkload applies a workload to the cluster.
 func applyWorkload(workload, filename string) (error) {
 	fmt.Println("\nApplying ", workload)
+	
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	if err != nil || out == "" {
@@ -240,18 +239,24 @@ func FetchIngressIP(namespace string) ([]string, error) {
 	return ingressIPs, nil
 }
 
-// InstallSonobuoyMixedOS Runs mixedos_sonobuoy.sh script, installs sonobuoy for mixed OS cluster
-func InstallSonobuoyMixedOS(version string) error{
+// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script
+// action	required install or cleanup sonobuoy plugin for mixed OS cluster
+// version	optional sonobouy version to be installed
+func SonobuoyMixedOS(action, version string) error{
+	if action != "install" || action != "cleanup" {
+		return fmt.Errorf("invalid action: %s. Must be 'install' or 'cleanup'", action)
+	}
+
 	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to change script permissions: %v", err)
 	}
 
-	cmd := exec.Command("/bin/sh", scriptsDir, "install", version)
+	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to execute script: %v\nOutput: %s", err, output)
+		return fmt.Errorf("failed to execute %s action sonobuoy: %v\nOutput: %s", action, err, output)
 	}
 
 	return err

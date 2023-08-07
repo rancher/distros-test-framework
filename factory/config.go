@@ -76,6 +76,7 @@ func addClusterConfig(
 ) (*Cluster, error) {
 	c := &Cluster{}
 	var agentIPs []string
+	var winAgentIPs []string
 
 	if cfg.Product == "k3s" {
 		c.ClusterType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
@@ -94,15 +95,16 @@ func addClusterConfig(
 	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
 		agentIPs = strings.Split(rawAgentIPs, ",")
+		c.AgentIPs = agentIPs
 	}
-	c.AgentIPs = agentIPs
+	
 
-	rawAgentIPs = terraform.Output(g, terraformOptions, "windows_worker_ips")
-	if rawAgentIPs != "" {
-		agentIPs = strings.Split(rawAgentIPs, ",")
+	rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
+	if rawWinAgentIPs != "" {
+		winAgentIPs = strings.Split(rawWinAgentIPs, ",")
+		c.WinAgentIPs = winAgentIPs
 	}
-	c.WinAgentIPs = agentIPs
-
+	
 	return c, nil
 }
 

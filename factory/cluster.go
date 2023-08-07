@@ -86,7 +86,7 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 	}
 
 	if cfg.Product == "rke2" || cfg.Product == "k3s"{
-		varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars"))
+		varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
 		if err != nil {
 			return "", err
 		}

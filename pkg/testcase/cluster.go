@@ -36,15 +36,15 @@ func TestBuildCluster(g GinkgoTInterface) {
 		}
 	}
 
-	fmt.Println("\nKubeconfig file:")
+	fmt.Println("\nKubeconfig file:\n")
 	err = shared.PrintFileContents(shared.KubeConfigFile)
 	if err != nil {
-		fmt.Errorf(err.Error())
+		return
 	}
-	fmt.Println("Base64 Encoded Kubeconfig file:")
+	fmt.Println("Base64 Encoded Kubeconfig file:\n")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	if err != nil {
-		fmt.Errorf(err.Error())
+		return
 	}
 	fmt.Println(
 		"\nServer Node IPS:", cluster.ServerIPs,
@@ -67,9 +67,9 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(version string, delete bool) {
-	err := shared.InstallSonobuoyMixedOS(version)
+	err := shared.SonobuoyMixedOS("install", version)
 	if err != nil {
-		fmt.Errorf("Error installing sonobuoy: ", err)
+		fmt.Println(err)
 		return
 	}
 
@@ -92,6 +92,10 @@ func TestSonobuoyMixedOS(version string, delete bool) {
 		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
 		res, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
-		
+		err := shared.SonobuoyMixedOS("cleanup", version)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 }

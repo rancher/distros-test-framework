@@ -11,8 +11,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var arch = customflag.ServiceFlag.ClusterConfig.Arch.String()
-
 var _ = Describe("Test:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
