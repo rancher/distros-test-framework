@@ -10,14 +10,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCoredns(deployWorkload bool) {
-	if deployWorkload {
-		_, err := shared.ManageWorkload("apply", "dnsutils.yaml", "arch")
-		Expect(err).NotTo(HaveOccurred(),
-			"dnsutils manifest not deployed", err)
-	}
+func TestCoredns(delete bool) {
+	_, err := shared.ManageWorkload("apply", arch, "dnsutils.yaml")
+	Expect(err).NotTo(HaveOccurred(),"dnsutils manifest not deployed")
 
-	_, err := shared.AddHelmRepo("traefik", "https://helm.traefik.io/traefik")
+	_, err = shared.AddHelmRepo("traefik", "https://helm.traefik.io/traefik")
 	if err != nil {
 		log.Fatalf("failed to add Helm repo: %v", err)
 	}
@@ -36,5 +33,10 @@ func TestCoredns(deployWorkload bool) {
 		" -- nslookup kubernetes.default", Nslookup)
 	if err != nil {
 		return
+	}
+
+	if delete {
+		_, err := shared.ManageWorkload("apply", arch, "dnsutils.yaml")
+		Expect(err).NotTo(HaveOccurred(),"dnsutils manifest not deleted")
 	}
 }

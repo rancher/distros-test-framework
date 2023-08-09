@@ -69,7 +69,7 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		"TestDaemonset":                   testcase.TestDaemonset,
 		"TestIngress":                     testcase.TestIngress,
 		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIp":            testcase.TestServiceClusterIp,
+		"TestServiceClusterIP":            testcase.TestServiceClusterIP,
 		"TestServiceNodePort":             testcase.TestServiceNodePort,
 		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
 		"TestCoredns":                     testcase.TestCoredns,

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,22 +13,15 @@ import (
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(deployWorkload bool) {
-	if deployWorkload {
-		_, err := shared.ManageWorkload(
-			"create",
-			"local-path-provisioner.yaml",
-			customflag.ServiceFlag.ClusterConfig.Arch.String(),
-		)
-		Expect(err).NotTo(HaveOccurred(),
-			"local-path-provisioner manifest not deployed")
-	}
+func TestLocalPathProvisionerStorage(delete bool) {
+	_, err := shared.ManageWorkload("apply", arch, "local-path-provisioner.yaml")
+	Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
-	err := assert.ValidateOnHost(
+	err = assert.ValidateOnHost(
 		getPodVolumeTestRunning,
-		Running,
+		statusRunning,
 	)
 	if err != nil {
 		GinkgoT().Errorf("%v", err)
@@ -47,7 +39,7 @@ func TestLocalPathProvisionerStorage(deployWorkload bool) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
-	}, "420s", "2s").Should(Succeed())
+	}, "420s", "30s").Should(Succeed())
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
@@ -67,6 +59,12 @@ func TestLocalPathProvisionerStorage(deployWorkload bool) {
 	if err != nil {
 		return
 	}
+
+	if delete {
+		_, err := shared.ManageWorkload("apply", arch, "local-path-provisioner.yaml")
+		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
+	}
+
 }
 
 func readData() error {

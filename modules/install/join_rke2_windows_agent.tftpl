@@ -6,5 +6,5 @@ Start-Service sshd
 Set-Service -Name sshd -StartupType 'Automatic'
 Write-Output "[INFO] Dowloading quickstart script..."
 Invoke-WebRequest -Uri https://raw.githubusercontent.com/mdrahman-suse/rke2/windows_qs_script/windows/rke2-quickstart.ps1 -Outfile C:\Users\Administrator\rke2-quickstart.ps1
-Invoke-Expression -Command "C:\Users\Administrator\rke2-quickstart.ps1 -ServerIP ${serverIP} -Token ${token} -Mode {install_mode} -Version ${rke2_version}"
+Invoke-Expression -Command "C:\Users\Administrator\rke2-quickstart.ps1 -ServerIP ${serverIP} -Token ${token} -Mode ${install_mode} -Version ${rke2_version}"
 </powershell>

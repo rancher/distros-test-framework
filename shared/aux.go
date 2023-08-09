@@ -33,7 +33,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 			return output.String(), fmt.Errorf("executing command: %s: %w", cmd, err)
 		}
 		if errOut.Len() > 0 {
-			fmt.Println("returning Stderr if not null, this might not be an error",
+			fmt.Println("\nreturning Stderr if not null, this might not be an error:\n",
 				errOut.String())
 		}
 
@@ -106,9 +106,10 @@ func PrintBase64Encoded(filepath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode file %s: %w", file, err)
 	}
-    encoded := base64.StdEncoding.EncodeToString(file)
 
+    encoded := base64.StdEncoding.EncodeToString(file)
     fmt.Println(encoded)
+
 	return nil
 }
 

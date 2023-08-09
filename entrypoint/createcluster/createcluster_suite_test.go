@@ -15,7 +15,6 @@ import (
 )
 
 var cfg config.ProductConfig
-var arch = customflag.ServiceFlag.ClusterConfig.Arch.String()
 
 func TestMain(m *testing.M) {
 	var err error

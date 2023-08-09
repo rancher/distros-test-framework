@@ -14,9 +14,9 @@ func VersionTemplate(test VersionTestTemplate) {
 	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
 		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
 		_, err := shared.ManageWorkload(
-			"create",
-			customflag.ServiceFlag.TestConfig.WorkloadName,
+			"apply",
 			customflag.ServiceFlag.ClusterConfig.Arch.String(),
+			customflag.ServiceFlag.TestConfig.WorkloadName,
 		)
 		if err != nil {
 			GinkgoT().Errorf(err.Error())

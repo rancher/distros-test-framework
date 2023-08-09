@@ -5,7 +5,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -32,13 +31,11 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS()
+		testcase.TestInternodeConnectivityMixedOS(true)
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
 		testcase.TestSonobuoyMixedOS(sonobuoyVersion, true)
-		shared.ManageWorkload("delete", "",
-			"pod_client.yaml","windows_app_deployment.yaml")
 	})
 })
 

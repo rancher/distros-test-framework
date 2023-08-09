@@ -33,11 +33,6 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 		return nil, err
 	}
 
-	NumWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_windows_worker_nodes"))
-	if err != nil {
-		return nil, err
-	}
-
 	fmt.Println("Creating Cluster")
 	terraform.InitAndApply(g, terraformOptions)
 
@@ -53,8 +48,16 @@ func NewCluster(g GinkgoTInterface) (*Cluster, error) {
 
 	c.NumServers = NumServers
 	c.NumAgents = NumAgents
-	c.NumWinAgents = NumWinAgents
 	c.Status = "cluster created"
+
+	if cfg.Product == "rke2" {
+		NumWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_windows_worker_nodes"))
+		if err != nil {
+			return nil, err
+		}
+
+		c.NumWinAgents = NumWinAgents
+	}
 
 	return c, nil
 }

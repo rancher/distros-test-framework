@@ -19,15 +19,23 @@ fi
 
 installation(){
     echo "Installing sonobuoy version ${version} for mixedos validation"
-    git clone https://github.com/phillipsj/my-sonobuoy-plugins.git
+    if [ ! -d "my-sonobuoy-plugins" ]; 
+    then
+        echo "Cloning repo: https://github.com/phillipsj/my-sonobuoy-plugins.git"
+        git clone https://github.com/phillipsj/my-sonobuoy-plugins.git
+    fi
     wait
-    wget -q https://github.com/vmware-tanzu/sonobuoy/releases/download/v${version}/sonobuoy_${version}_linux_${arch}.tar.gz
+    if [ ! -f "sonobuoy_${version}_linux_${arch}.tar.gz" ];
+    then
+        echo "Downloading sonobouy installer"
+        wget -q https://github.com/vmware-tanzu/sonobuoy/releases/download/v${version}/sonobuoy_${version}_linux_${arch}.tar.gz
+    fi
     wait
-    tar -xvf sonobuoy_${version}_linux_amd64.tar.gz
+    tar -xvf sonobuoy_${version}_linux_${arch}.tar.gz
     chmod +x sonobuoy && mv sonobuoy /usr/local/bin/sonobuoy
 }
 
-cleanup(){
+deletion(){
     echo "Deleting sonobuoy installer"
     rm -rf my-sonobuoy-plugins
     rm -rf sonobuoy_*
@@ -39,7 +47,7 @@ then
     installation
 elif [ "$1" == "delete" ];
 then
-    cleanup
+    deletion
 else
     echo "Invalid argument, please pass required arg [install or delete]"
 fi

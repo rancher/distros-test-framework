@@ -31,6 +31,7 @@ type Cluster struct {
 	ExternalDb       string
 	ClusterType      string
 	ProductType      string
+	ArchType		 string
 }
 
 func loadConfig() (*config.ProductConfig, error) {
@@ -76,7 +77,6 @@ func addClusterConfig(
 ) (*Cluster, error) {
 	c := &Cluster{}
 	var agentIPs []string
-	var winAgentIPs []string
 
 	if cfg.Product == "k3s" {
 		c.ClusterType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
@@ -87,7 +87,9 @@ func addClusterConfig(
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
+	c.ArchType = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
 	c.ProductType = cfg.Product
+	
 	
 	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 	c.ServerIPs = serverIPs
@@ -98,11 +100,13 @@ func addClusterConfig(
 		c.AgentIPs = agentIPs
 	}
 	
-
-	rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
-	if rawWinAgentIPs != "" {
-		winAgentIPs = strings.Split(rawWinAgentIPs, ",")
-		c.WinAgentIPs = winAgentIPs
+	if cfg.Product == "rke2" {
+		var winAgentIPs []string
+		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
+		if rawWinAgentIPs != "" {
+			winAgentIPs = strings.Split(rawWinAgentIPs, ",")
+			c.WinAgentIPs = winAgentIPs
+		}
 	}
 	
 	return c, nil

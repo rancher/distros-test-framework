@@ -11,10 +11,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+var arch string
+
 func TestBuildCluster(g GinkgoTInterface) {
 	var err error
 
 	cluster := factory.GetCluster(g)
+	arch = cluster.ArchType
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -41,28 +44,20 @@ func TestBuildCluster(g GinkgoTInterface) {
 	if err != nil {
 		return
 	}
+
 	fmt.Println("Base64 Encoded Kubeconfig file:\n")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	if err != nil {
 		return
 	}
-	fmt.Println(
-		"\nServer Node IPS:", cluster.ServerIPs,
-		"\nAgent Node IPS:", cluster.AgentIPs,
-		"\nWindows Agent Node IPS:", cluster.WinAgentIPs,
-	)
 
-	if cluster.NumAgents > 0 {
-		Expect(cluster.AgentIPs).ShouldNot(BeEmpty())
-	} else {
-		Expect(cluster.AgentIPs).Should(BeEmpty())
-	}
+	fmt.Println("Server Node IPS:", cluster.ServerIPs)
 
-	if cluster.NumWinAgents > 0 {
-		Expect(cluster.WinAgentIPs).ShouldNot(BeEmpty())
-	} else {
-		Expect(cluster.WinAgentIPs).Should(BeEmpty())
-	}
+	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
+
+	if cluster.ProductType == "rke2" {
+		checkAndPrintAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
+	}	
 }
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
@@ -97,5 +92,24 @@ func TestSonobuoyMixedOS(version string, delete bool) {
 			fmt.Println(err)
 			return
 		}
+	}
+}
+
+// checkAndPrintAgentNodeIPs Prints out the Agent node IPs
+// agentNum		int			Number of agent nodes
+// agentIPs		[]string	IP list of agent nodes 
+// isWindows 	bool 		Check for Windows enablement
+func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
+	info := "Agent Node IPS:"
+
+	if isWindows {
+		info = "Windows " + info
+	}
+
+	if agentNum > 0 {
+		Expect(agentIPs).ShouldNot(BeEmpty())
+		fmt.Println(info, agentIPs)
+	} else {
+		Expect(agentIPs).Should(BeEmpty())
 	}
 }

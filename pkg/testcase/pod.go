@@ -34,7 +34,7 @@ func TestPodStatus(
 					Equal(statusCompleted),
 				), pod.Name)
 			} else {
-				g.Expect(pod.Status).Should(Equal(Running), pod.Name)
+				g.Expect(pod.Status).Should(Equal(statusRunning), pod.Name)
 				if podAssertRestarts != nil {
 					podAssertRestarts(g, pod)
 				}
@@ -46,9 +46,9 @@ func TestPodStatus(
 				}
 			}
 		}
-	}, "900s", "30s").Should(Succeed())
+	}, "180s", "30s").Should(Succeed())
 
-	fmt.Println("\nRetrieving pod status:")
+	fmt.Println("\n\nCluster Pods:")
 	_, err := shared.ParsePods(true)
 	Expect(err).NotTo(HaveOccurred())
 }

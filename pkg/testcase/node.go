@@ -16,9 +16,17 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
+	timeout := "300s"
+	interval := "30s"
 	cluster := factory.GetCluster(GinkgoT())
+	expectedNodeCount := cluster.NumServers + cluster.NumAgents 
 
-	expectedNodeCount := cluster.NumServers + cluster.NumAgents + cluster.NumWinAgents
+	if cluster.ProductType == "rke2" {
+		timeout = "1200s"
+		interval = "180s"
+		expectedNodeCount += cluster.NumWinAgents
+	}
+
 	Eventually(func(g Gomega) {
 		nodes, err := shared.ParseNodes(false)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -32,19 +40,20 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1500s", "150s").Should(Succeed())
+	}, timeout, interval).Should(Succeed())
 
-	fmt.Println("\nRetrieving Cluster nodes:")
+	fmt.Println("\n\nCluster nodes:")
 	_, err := shared.ParseNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS() {
-	_, err := shared.ManageWorkload("apply", "",
+func TestInternodeConnectivityMixedOS(delete bool) {
+	_, err := shared.ManageWorkload("apply", arch,
 		"pod_client.yaml","windows_app_deployment.yaml")
 	if err != nil {
-		fmt.Errorf("Error applying workload: ", err)
+		fmt.Println(err)
+
 		return
 	}
 	
@@ -55,8 +64,19 @@ func TestInternodeConnectivityMixedOS() {
 		[]string{"8080", "3000"}, 
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
 	if err != nil {
-		fmt.Errorf("Error checking cross node service: ", err)
+		fmt.Println("Error checking cross node service: ", err)
+
 		return
+	}
+
+	if delete {
+		_, err := shared.ManageWorkload("delete", arch,
+			"pod_client.yaml","windows_app_deployment.yaml")
+		if err != nil {
+			fmt.Println(err)
+
+			return
+		}
 	}
 }
 
@@ -83,7 +103,7 @@ func testCrossNodeService(services, ports, expected []string) error{
 				services[i], shared.KubeConfigFile, services[j], ports[j])
 			Eventually(func() (string, error) {
 				return shared.RunCommandHost(cmd)
-			}, "300s", "60s").Should(ContainSubstring(expected[j]))
+			}, "180s", "30s").Should(ContainSubstring(expected[j]))
 		}
 	}
 
@@ -93,7 +113,7 @@ func testCrossNodeService(services, ports, expected []string) error{
 				services[i], shared.KubeConfigFile, services[i-j], ports[i-j])
 			Eventually(func() (string, error) {
 				return shared.RunCommandHost(cmd)
-			}, "300s", "60s").Should(ContainSubstring(expected[i-j]))
+			}, "180s", "30s").Should(ContainSubstring(expected[i-j]))
 		}
 	}
 

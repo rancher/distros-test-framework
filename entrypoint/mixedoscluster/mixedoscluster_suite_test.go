@@ -35,18 +35,12 @@ func TestMain(m *testing.M) {
 		fmt.Println("Unsupported product to execute tests: " + cfg.Product)
 		os.Exit(1)
 	}
-	
 }
 
 func TestMixedOSClusterCreateSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	if cfg.Product == "rke2" {
-		RunSpecs(t, "Create Mixed OS Cluster Test Suite")
-	} else {
-		fmt.Println("Unsupported product to execute test suite", cfg.Product)
-	}
-	
+	RunSpecs(t, "Create Mixed OS Cluster Test Suite")
 }
 
 var _ = AfterSuite(func() {

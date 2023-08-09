@@ -37,17 +37,14 @@ type Pod struct {
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
 func ManageWorkload(action string, arch string, workloads ...string) (string, error) {
-	if action != "apply" || action != "delete" {
+	if action != "apply" && action != "delete" {
 		return "", fmt.Errorf("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 	
 	var res string
 	var err error
 
-	resourceDir := BasePath() + "/distros-test-framework/workloads/"
-	if arch != "" {
-		resourceDir += arch
-	}
+	resourceDir := BasePath() + "/distros-test-framework/workloads/" + arch
 	
 	files, err := os.ReadDir(resourceDir)
 	for _, workload := range workloads {
@@ -243,7 +240,7 @@ func FetchIngressIP(namespace string) ([]string, error) {
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster
 // version	optional sonobouy version to be installed
 func SonobuoyMixedOS(action, version string) error{
-	if action != "install" || action != "cleanup" {
+	if action != "install" && action != "cleanup" {
 		return fmt.Errorf("invalid action: %s. Must be 'install' or 'cleanup'", action)
 	}
 
@@ -287,6 +284,7 @@ func ParseNodes(print bool) ([]Node, error) {
 			nodes = append(nodes, n)
 		}
 	}
+
 	if print {
 		fmt.Println(nodelist)
 	}
@@ -319,6 +317,7 @@ func ParsePods(print bool) ([]Pod, error) {
 		}
 		pods = append(pods, p)
 	}
+
 	if print {
 		fmt.Println(podList)
 	}
