@@ -18,7 +18,7 @@ import (
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
 func TestUpgradeClusterSUC(version string) error {
-	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
+	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
 	_, err := shared.ManageWorkload("create", "suc.yaml",
 		customflag.ServiceFlag.ClusterConfig.Arch.String())
@@ -58,15 +58,15 @@ func TestUpgradeClusterSUC(version string) error {
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
 func TestUpgradeClusterManually(version string) error {
-	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
+	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
 	if version == "" {
-		return fmt.Errorf("please provide a non-empty version or commit to upgrade to")
+		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.GetCluster(GinkgoT())
+	cluster := factory.StartCluster(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
-		return fmt.Errorf("no nodes found to upgrade")
+		return shared.ReturnLogError("no nodes found to upgrade")
 	}
 
 	if cluster.NumServers > 0 {
@@ -99,8 +99,7 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 
 			fmt.Println("Upgrading " + nodeType + " to: " + upgradeCommand)
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				fmt.Printf("\nError upgrading %s %s: %v\n\n", nodeType, ip, err)
-				errCh <- err
+				errCh <- shared.ReturnLogError("\nError upgrading %s %s: %v\n\n", nodeType, ip, err)
 				close(errCh)
 				return
 			}
@@ -110,9 +109,8 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 				return
 			}
 			fmt.Println("Restarting " + nodeType + ": " + ip)
-			if _, err := shared.RestartCluster(product, ip); err != nil {
-				fmt.Printf("\nError restarting %s %s: %v\n\n", nodeType, ip, err)
-				errCh <- err
+			if err := shared.RestartCluster(product, ip); err != nil {
+				errCh <- shared.ReturnLogError("\nError restarting %s %s: %v\n\n", nodeType, ip, err)
 				close(errCh)
 				return
 			}
@@ -151,11 +149,12 @@ func getChannel() string {
 	if err != nil {
 		return err.Error()
 	}
+
 	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
 
-	if customflag.ServiceFlag.InstallType.Channel != "" {
+	if customflag.ServiceFlag.Channel.Channel != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
-			customflag.ServiceFlag.InstallType.Channel)
+			customflag.ServiceFlag.Channel.Channel)
 	}
 
 	return defaultChannel

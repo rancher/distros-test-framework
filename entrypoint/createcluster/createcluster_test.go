@@ -48,7 +48,6 @@ var _ = Describe("Test:", func() {
 		shared.ManageWorkload("delete", "ingress.yaml",
 			customflag.ServiceFlag.ClusterConfig.Arch.String())
 	})
-
 	It("Verifies Daemonset", func() {
 		testcase.TestDaemonset(true)
 		shared.ManageWorkload("delete", "daemonset.yaml",
@@ -67,6 +66,7 @@ var _ = Describe("Test:", func() {
 			shared.ManageWorkload("delete", "local-path-provisioner.yaml",
 				customflag.ServiceFlag.ClusterConfig.Arch.String())
 		})
+
 		It("Verifies LoadBalancer Service", func() {
 			testcase.TestServiceLoadBalancer(true)
 			shared.ManageWorkload("delete", "loadbalancer.yaml",

@@ -15,14 +15,21 @@ import (
 // it will spawn a go routine per testCombination and ip.
 func processCmds(resultChan chan error, wg *sync.WaitGroup, ip string, cmds []string, expectedValues []string) {
 	if len(cmds) != len(expectedValues) {
-		resultChan <- fmt.Errorf("mismatched length commands x expected values:"+
+		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
 			" %s x %s", cmds, expectedValues)
+		return
+	}
+
+	if expectedValues[0] == "" || cmds[0] == "" {
+		resultChan <- shared.ReturnLogError("error: command and/or expected value was not sent")
+		close(resultChan)
 		return
 	}
 
 	for i := range cmds {
 		cmd := cmds[i]
 		expectedValue := expectedValues[i]
+
 		wg.Add(1)
 		go func(ip string, cmd, expectedValue string) {
 			defer wg.Done()
@@ -54,25 +61,16 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 	var version string
 	var err error
 
-	if expectedValue == "" {
-		err = fmt.Errorf("\nerror: expected value should be sent to node")
-		resultChan <- err
-		close(resultChan)
-		return
-	}
-
 	product, err := shared.GetProduct()
 	if err != nil {
-		fmt.Println(err)
-		resultChan <- err
+		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
 	version, err = shared.GetProductVersion(product)
 	if err != nil {
-		fmt.Println(err)
-		resultChan <- err
+		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)
 		return
 	}
@@ -93,7 +91,7 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 			expectedValue,
 		)
 		if err != nil {
-			resultChan <- err
+			resultChan <- shared.ReturnLogError("failed to validate on node: %v", err)
 			close(resultChan)
 			return
 		}
@@ -105,28 +103,19 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 	var version string
 	var err error
 
-	if expectedValue == "" {
-		err = fmt.Errorf("\nerror: expected value should be sent to host")
-		resultChan <- err
-		close(resultChan)
-		return
-	}
-
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 
 	product, err := shared.GetProduct()
 	if err != nil {
-		fmt.Println(err)
-		resultChan <- err
+		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
 	version, err = shared.GetProductVersion(product)
 	if err != nil {
-		fmt.Println(err)
-		resultChan <- err
+		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)
 		return
 	}
@@ -144,7 +133,7 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 		expectedValue,
 	)
 	if err != nil {
-		resultChan <- err
+		resultChan <- shared.ReturnLogError("failed to validate on host: %v", err)
 		close(resultChan)
 		return
 	}

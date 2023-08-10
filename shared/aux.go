@@ -2,7 +2,6 @@ package shared
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,31 +10,30 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/log"
 	"golang.org/x/crypto/ssh"
 )
 
 // RunCommandHost executes a command on the host
 func RunCommandHost(cmds ...string) (string, error) {
 	if cmds == nil {
-		return "", fmt.Errorf("cmd should not be empty")
+		return "", ReturnLogError("should send at least one command")
 	}
 
 	var output, errOut bytes.Buffer
 	for _, cmd := range cmds {
+		if cmd == "" {
+			return "", ReturnLogError("cmd should not be empty")
+		}
+
 		c := exec.Command("bash", "-c", cmd)
 		c.Stdout = &output
 		c.Stderr = &errOut
 
 		err := c.Run()
 		if err != nil {
-			fmt.Println(c.Stderr.(*bytes.Buffer).String())
-			return output.String(), fmt.Errorf("executing command: %s: %w", cmd, err)
+			return "", ReturnLogError("executing command: %s: %w", cmd, err)
 		}
-		if errOut.Len() > 0 {
-			fmt.Println("returning Stderr if not null, this might not be an error",
-				errOut.String())
-		}
-
 	}
 
 	return output.String(), nil
@@ -44,18 +42,17 @@ func RunCommandHost(cmds ...string) (string, error) {
 // RunCommandOnNode executes a command on the node SSH
 func RunCommandOnNode(cmd, serverIP string) (string, error) {
 	if cmd == "" {
-		return "", fmt.Errorf("cmd should not be empty")
+		return "", ReturnLogError("cmd should not be empty")
 	}
 
 	host := serverIP + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
-		return fmt.Errorf("failed to configure SSH: %v", err).Error(), err
+		return "", ReturnLogError("failed to configure SSH: %v", err)
 	}
-
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil {
-		return "", fmt.Errorf(
+		return "", ReturnLogError(
 			"command: %s \n failed on run ssh : %s with error %w",
 			cmd,
 			serverIP,
@@ -74,7 +71,7 @@ func RunCommandOnNode(cmd, serverIP string) (string, error) {
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
-		return fmt.Errorf("\ncommand: %s \n failed with error: %v", cmd, stderr).Error(), err
+		return "", ReturnLogError("\ncommand: %s \n failed with error: %v", cmd, stderr)
 	}
 
 	return stdout, err
@@ -91,7 +88,7 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return err
+			return ReturnLogError("failed to read file: %v", err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
@@ -107,42 +104,46 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 			count++
 		}
 	}
+
 	return count
 }
 
 // GetVersion returns the rke2 or k3s version
-func GetVersion(command string) string {
+func GetVersion(cmd string) (string, error) {
+	var res string
+	var err error
 	ips := FetchNodeExternalIP()
 	for _, ip := range ips {
-		res, err := RunCommandOnNode(command, ip)
+		res, err = RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return err.Error()
+			return "", ReturnLogError("failed to run command on node: %v", err)
 		}
-		return res
 	}
-	return ""
+
+	return res, nil
 }
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := config.LoadConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config")
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("failed to get config: %v", err)
 	}
 	if cfg.Product != "k3s" && cfg.Product != "rke2" {
-		return "", errors.New("unknown product")
+		return "", ReturnLogError("unknown product")
 	}
+
 	return cfg.Product, nil
 }
 
 // GetProductVersion return the version for a specific distro product
 func GetProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
-		return "", fmt.Errorf("unsupported product: %s", product)
+		return "", ReturnLogError("unsupported product: %s", product)
 	}
-	version := GetVersion(product + " -v")
-	if version == "" {
-		return "", fmt.Errorf("failed to get version for product: %s", product)
+	version, err := GetVersion(product + " -v")
+	if err != nil {
+		return "", ReturnLogError("failed to get version for product: %s, error: %v", product, err)
 	}
 
 	return version, nil
@@ -150,7 +151,7 @@ func GetProductVersion(product string) (string, error) {
 
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
-	InstallHelm := "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+	installHelm := "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
 	update := "helm repo update"
 	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
@@ -158,9 +159,9 @@ func AddHelmRepo(name, url string) (string, error) {
 
 	nodeExternalIP := FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
-		_, err := RunCommandOnNode(InstallHelm, ip)
+		_, err := RunCommandOnNode(installHelm, ip)
 		if err != nil {
-			return "", err
+			return "", ReturnLogError("failed to install helm: %v", err)
 		}
 	}
 
@@ -170,11 +171,11 @@ func AddHelmRepo(name, url string) (string, error) {
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to read private key: %v", err)
 	}
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to parse private key: %v", err)
 	}
 
 	return ssh.PublicKeys(signer), nil
@@ -185,7 +186,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 
 	authMethod, err := publicKey(AccessKey)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to get public key: %v", err)
 	}
 	cfg = &ssh.ClientConfig{
 		User: AwsUser,
@@ -196,7 +197,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 	}
 	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to dial: %v", err)
 	}
 
 	return conn, nil
@@ -205,7 +206,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	session, err := conn.NewSession()
 	if err != nil {
-		return "", "", err
+		return "", "", ReturnLogError("failed to create session: %v", err)
 	}
 	defer session.Close()
 
@@ -219,7 +220,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	stderrStr := stderrBuf.String()
 
 	if errssh != nil {
-		return stdoutStr, stderrStr, fmt.Errorf("error on command execution: %v", errssh)
+		return stdoutStr, stderrStr, ReturnLogError("error on command execution: %v", errssh)
 	}
 
 	return stdoutStr, stderrStr, nil
@@ -236,4 +237,53 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	}
 
 	return joinedCmd
+}
+
+// GetJournalLogs returns the journal logs for a specific product
+func GetJournalLogs(product, ip string) (string, error) {
+	cmd := fmt.Sprintf("journalctl -u %s* --no-pager", product)
+	return RunCommandOnNode(cmd, ip)
+}
+
+// ReturnLogError logs the error and returns it.
+func ReturnLogError(format string, args ...interface{}) error {
+	logger := log.AddLogger(false)
+
+	err := formatLogArgs(format, args...)
+	logger.Error(err)
+
+	return err
+}
+
+// LogLevel logs the message with the specified level.
+func LogLevel(level, format string, args ...interface{}) {
+	logger := log.AddLogger(true)
+	msg := formatLogArgs(format, args...)
+
+	switch level {
+	case "debug":
+		logger.Debug(msg)
+	case "info":
+		logger.Info(msg)
+	case "warn":
+		logger.Warn(msg)
+	case "error":
+		logger.Error(msg)
+	}
+}
+
+// formatLogArgs formats the log message.
+func formatLogArgs(format string, args ...interface{}) error {
+	if len(args) == 0 {
+		return fmt.Errorf(format)
+	}
+	if e, ok := args[0].(error); ok {
+		if len(args) > 1 {
+			return fmt.Errorf(format, args[1:]...)
+		}
+
+		return e
+	}
+
+	return fmt.Errorf(format, args...)
 }

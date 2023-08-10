@@ -1,7 +1,6 @@
 package shared
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,7 +39,7 @@ func ManageWorkload(action, workload, arch string) (string, error) {
 	var err error
 
 	if action != "create" && action != "delete" {
-		return "", fmt.Errorf("invalid action: %s. Must be 'create' or 'delete'", action)
+		return "", ReturnLogError("invalid action: %s. Must be 'create' or 'delete'", action)
 	}
 
 	resourceDir := BasePath() + "/distros-test-framework/workloads/amd64/"
@@ -50,8 +49,7 @@ func ManageWorkload(action, workload, arch string) (string, error) {
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
-		err = fmt.Errorf("%s : Unable to read resource manifest file for %s", err, workload)
-		return "", err
+		return "", ReturnLogError("%s : Unable to read resource manifest file for %s", err, workload)
 	}
 
 	for _, f := range files {
@@ -60,19 +58,20 @@ func ManageWorkload(action, workload, arch string) (string, error) {
 			if action == "create" {
 				res, err = createWorkload(workload, filename)
 				if err != nil {
-					return "", fmt.Errorf("failed to create workload %s: %s", workload, err)
+					return "", ReturnLogError("failed to create workload %s: %s", workload, err)
 				}
 			} else {
 				err = deleteWorkload(workload, filename)
 				if err != nil {
-					return "", fmt.Errorf("failed to delete workload %s: %s", workload, err)
+					return "", ReturnLogError("failed to delete workload %s: %s", workload, err)
 				}
 			}
+
 			return res, err
 		}
 	}
 
-	return "", fmt.Errorf("workload %s not found", workload)
+	return "", ReturnLogError("workload %s not found", workload)
 }
 
 func createWorkload(workload, filename string) (string, error) {
@@ -89,20 +88,20 @@ func deleteWorkload(workload, filename string) error {
 
 	_, err := RunCommandHost(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to run kubectl delete: %v", err)
+		return ReturnLogError("failed to run kubectl delete: %v", err)
 	}
 
 	timeout := time.After(60 * time.Second)
-	tick := time.Tick(5 * time.Second)
+	tick := time.NewTicker(5 * time.Second)
 
 	for {
 		select {
 		case <-timeout:
-			return errors.New("workload deletion timed out")
-		case <-tick:
+			return ReturnLogError("workload deletion timed out")
+		case <-tick.C:
 			res, err := RunCommandHost("kubectl get all -A --kubeconfig=" + KubeConfigFile)
 			if err != nil {
-				return err
+				return ReturnLogError("failed to run kubectl get all: %v", err)
 			}
 			isDeleted := !strings.Contains(res, workload)
 			if isDeleted {
@@ -139,26 +138,34 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 
 	cmd := cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 
-	var res string
-	var err error
-	if destination == "host" {
-		res, err = RunCommandHost(cmd)
-		if err != nil {
-			return "", err
-		}
-	} else if destination == "node" {
-		ips := FetchNodeExternalIP()
-		for _, ip := range ips {
-			res, err = RunCommandOnNode(cmd, ip)
-			if err != nil {
-				return "", err
-			}
-		}
-	} else {
-		return "", fmt.Errorf("invalid destination: %s", destination)
+	switch destination {
+	case "host":
+		return kubectlCmdOnHost(cmd)
+	case "node":
+		return kubectlCmdOnNode(cmd)
+	default:
+		return "", ReturnLogError("invalid destination: %s", destination)
 	}
+}
 
+func kubectlCmdOnHost(cmd string) (string, error) {
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return "", ReturnLogError("failed to run command on host: %v", err)
+	}
 	return res, nil
+}
+
+func kubectlCmdOnNode(cmd string) (string, error) {
+	ips := FetchNodeExternalIP()
+	for _, ip := range ips {
+		res, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return "", ReturnLogError("failed to run command on node: %v", err)
+		}
+		return res, nil
+	}
+	return "", nil
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
@@ -166,13 +173,13 @@ func FetchClusterIP(namespace string, serviceName string) (string, string, error
 	ip, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		return "", "", err
+		return "", "", ReturnLogError("failed to fetch cluster IP: %v", err)
 	}
 
 	port, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		return "", "", err
+		return "", "", ReturnLogError("failed to fetch cluster port: %v", err)
 	}
 
 	return ip, port, err
@@ -184,7 +191,7 @@ func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
 	nodeport, err := RunCommandHost(cmd)
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("failed to fetch service node port: %v", err)
 	}
 
 	return nodeport, nil
@@ -202,8 +209,14 @@ func FetchNodeExternalIP() []string {
 }
 
 // RestartCluster restarts the service on each node given by external IP.
-func RestartCluster(product, ip string) (string, error) {
-	return RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s-*", product), ip)
+func RestartCluster(product, ip string) error {
+	_, err := RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s-*", product), ip)
+	if err != nil {
+		return ReturnLogError("failed to restart %s on node %s: %v", product, ip, err)
+	}
+	time.Sleep(20 * time.Second)
+
+	return nil
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
@@ -215,7 +228,7 @@ func FetchIngressIP(namespace string) ([]string, error) {
 			KubeConfigFile,
 	)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to fetch ingress IP: %v", err)
 	}
 
 	ingressIP := strings.Trim(res, " ")
@@ -233,7 +246,7 @@ func ParseNodes(print bool) ([]Node, error) {
 
 	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to run kubectl get nodes: %v", err)
 	}
 
 	nodelist := strings.TrimSpace(res)
@@ -266,7 +279,7 @@ func ParsePods(print bool) ([]Pod, error) {
 	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to get pods: %v", err)
 	}
 
 	podList := strings.TrimSpace(res)
@@ -300,7 +313,7 @@ func ReadDataPod(namespace string) (string, error) {
 		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("failed to fetch pod name: %v", err)
 	}
 
 	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
@@ -317,7 +330,7 @@ func WriteDataPod(namespace string) (string, error) {
 		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("failed to fetch pod name: %v", err)
 	}
 
 	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +

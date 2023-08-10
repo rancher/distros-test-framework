@@ -9,7 +9,7 @@ var TestMapTemplate TestMap
 // VersionTestTemplate represents a version test scenario with test configurations and commands.
 type VersionTestTemplate struct {
 	TestCombination *RunCmd
-	InstallUpgrade  []string
+	InstallUpgrade  string
 	TestConfig      *TestConfig
 	Description     string
 }

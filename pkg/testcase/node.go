@@ -16,7 +16,7 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.GetCluster(GinkgoT())
+	cluster := factory.StartCluster(GinkgoT())
 	fmt.Println("\nFetching node status")
 
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents

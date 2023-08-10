@@ -2,7 +2,6 @@ package assert
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -15,12 +14,11 @@ import (
 type NodeAssertFunc func(g Gomega, node shared.Node)
 
 // NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected
-func NodeAssertVersionTypeUpgrade(installType customflag.FlagConfig) NodeAssertFunc {
-	if installType.InstallUpgrade != nil {
-		if strings.HasPrefix(customflag.ServiceFlag.InstallUpgrade.String(), "v") {
-			return assertVersion(installType)
-		}
-		return assertCommit(installType)
+func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
+	if c.InstallType.Version != "" {
+		return assertVersion(c)
+	} else if c.InstallType.Commit != "" {
+		return assertCommit(c)
 	}
 
 	return func(g Gomega, node shared.Node) {
@@ -29,29 +27,29 @@ func NodeAssertVersionTypeUpgrade(installType customflag.FlagConfig) NodeAssertF
 }
 
 // assertVersion returns the NodeAssertFunc for asserting version
-func assertVersion(installType customflag.FlagConfig) NodeAssertFunc {
-	fmt.Printf("Asserting Version: %s\n", installType.InstallUpgrade.String())
+func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
+	fmt.Printf("Asserting Version: %s\n", c.InstallType.Version)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(node.Version).Should(ContainSubstring(installType.InstallUpgrade.String()),
+		g.Expect(node.Version).Should(ContainSubstring(c.InstallType.Version),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
 
 // assertCommit returns the NodeAssertFunc for asserting commit
-func assertCommit(installType customflag.FlagConfig) NodeAssertFunc {
+func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	product, err := shared.GetProduct()
-	if err != nil {
-		log.Println(err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 
 	commit, err := shared.GetProductVersion(product)
-	if err != nil {
-		log.Println(err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "error getting commit ID version: %v", err)
 
-	fmt.Printf("Asserting Commit: %s\n", installType.InstallUpgrade.String())
+	initial := strings.Index(commit, "(")
+	ending := strings.Index(commit, ")")
+	commit = commit[initial+1 : ending]
+
+	fmt.Printf("Asserting Commit: %s\n", c.InstallType.Commit)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(commit).Should(ContainSubstring(installType.InstallUpgrade.String()),
+		g.Expect(c.InstallType.Commit).Should(ContainSubstring(commit),
 			"Nodes should all be upgraded to the specified commit", node.Name)
 	}
 }
@@ -75,16 +73,16 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
 func CheckComponentCmdNode(cmd, assert, ip string) error {
-	Eventually(func(g Gomega) {
-		fmt.Println("Executing cmd: ", cmd)
+	if cmd == "" || assert == "" {
+		return shared.ReturnLogError("cmd and/or assert should not be sent empty")
+	}
 
+	Eventually(func(g Gomega) {
 		res, err := shared.RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return
-		}
+		Expect(err).ToNot(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring(assert))
 
-		fmt.Println("Result:", res+"\nMatched with assert:\n", assert)
+		fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
 	}, "420s", "3s").Should(Succeed())
 
 	return nil

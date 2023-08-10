@@ -1,13 +1,13 @@
 package template
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 func VersionTemplate(test VersionTestTemplate) {
@@ -19,39 +19,22 @@ func VersionTemplate(test VersionTestTemplate) {
 			customflag.ServiceFlag.ClusterConfig.Arch.String(),
 		)
 		if err != nil {
-			GinkgoT().Errorf(err.Error())
-			return
+			GinkgoT().Errorf("failed to create workload: %v", err)
 		}
 	}
 
 	err := checkVersion(test)
-	if err != nil {
-		GinkgoT().Errorf(err.Error())
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
 
-	if test.InstallUpgrade != nil {
-		for _, version := range test.InstallUpgrade {
-			if GinkgoT().Failed() {
-				fmt.Println("checkVersion failed, not proceeding to upgrade")
-				return
-			}
+	if test.InstallUpgrade != "" {
+		upgErr := upgradeVersion(test, test.InstallUpgrade)
+		Expect(upgErr).NotTo(HaveOccurred(), "error upgrading version: %v", upgErr)
 
-			upgErr := upgradeVersion(test, version)
-			if upgErr != nil {
-				GinkgoT().Errorf("error upgrading: %v\n", err)
-				return
-			}
+		err = checkVersion(test)
+		Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
 
-			err = checkVersion(test)
-			if err != nil {
-				GinkgoT().Errorf(err.Error())
-				return
-			}
-
-			if test.TestConfig != nil {
-				TestCaseWrapper(test)
-			}
+		if test.TestConfig != nil {
+			TestCaseWrapper(test)
 		}
 	}
 }

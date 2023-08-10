@@ -1,8 +1,6 @@
 package testcase
 
 import (
-	"fmt"
-
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -13,7 +11,6 @@ import (
 
 func TestServiceClusterIp(deployWorkload bool) {
 	if deployWorkload {
-		fmt.Println("ARCH", customflag.ServiceFlag.ClusterConfig.Arch.String())
 		_, err := shared.ManageWorkload(
 			"create",
 			"clusterip.yaml",

@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -51,12 +50,11 @@ func TestLocalPathProvisionerStorage(deployWorkload bool) {
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
-		_, err = shared.RestartCluster("k3s", ip)
+		err = shared.RestartCluster("k3s", ip)
 		if err != nil {
 			return
 		}
 	}
-	time.Sleep(30 * time.Second)
 
 	_, err = shared.ReadDataPod(lps)
 	if err != nil {
@@ -75,7 +73,7 @@ func readData() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(160 * time.Second)
+	// time.Sleep(20 * time.Second)
 
 	fmt.Println("Read data from newly create pod")
 	_, err = shared.ReadDataPod(lps)

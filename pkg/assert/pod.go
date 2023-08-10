@@ -76,9 +76,7 @@ func CheckPodStatusRunning(name, namespace, assert string) {
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		res, err := shared.RunCommandHost(cmd)
-		if err != nil {
-			return
-		}
+		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring(assert))
 	}, "180s", "5s").Should(Succeed())
 }

@@ -65,7 +65,7 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallUpgrade.String())
+		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallType.String())
 		Expect(err).NotTo(HaveOccurred())
 	})
 

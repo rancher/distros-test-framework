@@ -9,17 +9,13 @@ import (
 )
 
 // validate calls runAssertion for each cmd/assert pair
-//
-// the first caller - process tests will spawn a go routine per ip the cluster
-//
-// need to send KubeconfigFile
 func validate(exec func(string) (string, error), args ...string) error {
 	if len(args) < 2 || len(args)%2 != 0 {
-		return fmt.Errorf("must receive an even number of arguments as cmd/assert pairs")
+		return shared.ReturnLogError("should send even number of args")
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(220 * time.Second)
+	timeout := time.After(10 * time.Second)
 	ticker := time.NewTicker(3 * time.Second)
 
 	for i := 0; i < len(args); i++ {
@@ -28,9 +24,13 @@ func validate(exec func(string) (string, error), args ...string) error {
 			assert := args[i+1]
 			i++
 
+			if assert == "" || cmd == "" {
+				return shared.ReturnLogError("should not send empty arg for assert:%s and/or cmd:%s",
+					assert, cmd)
+			}
 			err := runAssertion(cmd, assert, exec, ticker.C, timeout, errorsChan)
 			if err != nil {
-				fmt.Printf("error from runAssertion():\n %s\n", err)
+				shared.LogLevel("error", "error from runAssertion():\n %s\n", err)
 				close(errorsChan)
 				return err
 			}
@@ -52,7 +52,7 @@ func runAssertion(
 	for {
 		select {
 		case <-timeout:
-			timeoutErr := fmt.Errorf("timeout reached for command:\n%s\n "+
+			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n "+
 				"Trying to assert with:\n %s",
 				cmd, assert)
 			errorsChan <- timeoutErr
@@ -64,14 +64,14 @@ func runAssertion(
 				errorsChan <- err
 				return fmt.Errorf("error from runCmd:\n %s\n %s", res, err)
 			}
-			fmt.Printf("\n---------------------\nCommand:\n"+
-				"%s\n"+
-				"\n---------------------\nResult:\n"+
-				"%s\n"+
-				"\n---------------------\nAssertion:\n"+
-				"%s\n", cmd, res, assert)
 			if strings.Contains(res, assert) {
-				fmt.Printf("Matched with: \n%s\n", res)
+				fmt.Printf("\n---------------------\nCommand:\n"+
+					"%s\n"+
+					"\n---------------------\nResult:\n"+
+					"%s"+
+					"\n---------------------\nAssertion:\n"+
+					"%s\n", cmd, res, assert)
+				fmt.Printf("Matched with:\n%s\n", res)
 				errorsChan <- nil
 				return nil
 			}

@@ -1,7 +1,6 @@
 package template
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -13,7 +12,7 @@ import (
 func upgradeVersion(template VersionTestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
-		return err
+		return shared.ReturnLogError("failed to upgrade cluster: %v", err)
 	}
 
 	for i := range template.TestCombination.Run {
@@ -26,10 +25,7 @@ func upgradeVersion(template VersionTestTemplate, version string) error {
 
 // checkVersion checks the version of RKE2 by calling processTestCombination
 func checkVersion(v VersionTestTemplate) error {
-	ips, err := getIPs()
-	if err != nil {
-		return fmt.Errorf("failed to get IPs: %v", err)
-	}
+	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
 	errorChanList := make(
@@ -44,7 +40,7 @@ func checkVersion(v VersionTestTemplate) error {
 
 	for chanErr := range errorChanList {
 		if chanErr != nil {
-			return chanErr
+			return shared.ReturnLogError("failed to process test combination: %v", chanErr)
 		}
 	}
 
@@ -53,12 +49,6 @@ func checkVersion(v VersionTestTemplate) error {
 	}
 
 	return nil
-}
-
-// getIPs gets the IPs of the nodes
-func getIPs() (ips []string, err error) {
-	ips = shared.FetchNodeExternalIP()
-	return ips, nil
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
@@ -83,7 +73,7 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		} else if test, ok := testCase[name]; ok {
 			testCases = append(testCases, test)
 		} else {
-			return nil, fmt.Errorf("invalid test case name")
+			return nil, shared.ReturnLogError("invalid test case name")
 		}
 	}
 

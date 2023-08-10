@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -31,7 +32,7 @@ func TestDaemonset(deployWorkload bool) {
 	)
 	nodeNames, err := shared.RunCommandHost(cmd)
 	if err != nil {
-		return
+		GinkgoT().Errorf(err.Error())
 	}
 
 	var nodes []string

@@ -12,21 +12,21 @@ import (
 )
 
 func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.GetCluster(g)
+	cluster := factory.StartCluster(g)
 	Expect(cluster.Status).To(Equal("cluster created"))
 
-	if strings.Contains(cluster.ClusterType, "etcd") {
-		fmt.Println("Backend:", cluster.ClusterType)
+	if strings.Contains(cluster.Config.ClusterType, "etcd") {
+		fmt.Println("Backend:", cluster.Config.ClusterType)
 	} else {
-		fmt.Println("Backend:", cluster.ExternalDb)
+		fmt.Println("Backend:", cluster.Config.ExternalDb)
 	}
 
-	if cluster.ExternalDb != "" && cluster.ClusterType == "" {
+	if cluster.Config.ExternalDb != "" && cluster.Config.ClusterType == "" {
 		for i := 0; i > len(cluster.ServerIPs); i++ {
 			cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
 			res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 			Expect(err).NotTo(HaveOccurred())
-			Expect(res).Should(ContainSubstring(cluster.RenderedTemplate))
+			Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
 		}
 	}
 
