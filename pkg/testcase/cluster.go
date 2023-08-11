@@ -39,19 +39,19 @@ func TestBuildCluster(g GinkgoTInterface) {
 		}
 	}
 
-	fmt.Println("\nKubeconfig file:\n")
+	fmt.Println("\nKUBECONFIG:\n")
 	err = shared.PrintFileContents(shared.KubeConfigFile)
 	if err != nil {
 		return
 	}
 
-	fmt.Println("Base64 Encoded Kubeconfig file:\n")
+	fmt.Println("BASE64 ENCODED KUBECONFIG:\n")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	if err != nil {
 		return
 	}
 
-	fmt.Println("Server Node IPS:", cluster.ServerIPs)
+	fmt.Println("\nServer Node IPS:", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -87,7 +87,7 @@ func TestSonobuoyMixedOS(version string, delete bool) {
 		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
 		res, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
-		err := shared.SonobuoyMixedOS("cleanup", version)
+		err := shared.SonobuoyMixedOS("delete", version)
 		if err != nil {
 			fmt.Println(err)
 			return

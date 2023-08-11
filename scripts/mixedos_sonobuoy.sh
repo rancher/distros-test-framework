@@ -32,14 +32,14 @@ installation(){
     fi
     wait
     tar -xvf sonobuoy_${version}_linux_${arch}.tar.gz
-    chmod +x sonobuoy && mv sonobuoy /usr/local/bin/sonobuoy
+    sudo chmod +x sonobuoy && sudo mv sonobuoy /usr/local/bin/sonobuoy
 }
 
 deletion(){
     echo "Deleting sonobuoy installer"
-    rm -rf my-sonobuoy-plugins
-    rm -rf sonobuoy_*
-    rm -rf /usr/local/bin/sonobuoy
+    sudo rm -rf my-sonobuoy-plugins
+    sudo rm -rf sonobuoy_*
+    sudo rm -rf /usr/local/bin/sonobuoy
 }
 
 if [ "$1" == "install" ];

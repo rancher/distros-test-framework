@@ -80,7 +80,7 @@ test-create-mixedos:
 
 
 #========================= TestCode Static Quality Check =========================#
-.PHONY: vet-lint                   ## Run locally only inside acceptance framework
+.PHONY: vet-lint
 vet-lint:
 	@echo "Running go vet and lint"
 	@go vet ./${TESTDIR} && golangci-lint run --tests

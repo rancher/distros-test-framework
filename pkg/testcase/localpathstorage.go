@@ -39,7 +39,7 @@ func TestLocalPathProvisionerStorage(delete bool) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
-	}, "420s", "30s").Should(Succeed())
+	}, "300s", "10s").Should(Succeed())
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
@@ -61,7 +61,7 @@ func TestLocalPathProvisionerStorage(delete bool) {
 	}
 
 	if delete {
-		_, err := shared.ManageWorkload("apply", arch, "local-path-provisioner.yaml")
+		_, err := shared.ManageWorkload("delete", arch, "local-path-provisioner.yaml")
 		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
 	}
 

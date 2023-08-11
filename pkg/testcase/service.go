@@ -99,7 +99,7 @@ func TestServiceLoadBalancer(delete bool) {
 	}
 
 	if delete {
-		_, err := shared.ManageWorkload("apply", arch, "loadbalancer.yaml")
+		_, err := shared.ManageWorkload("delete", arch, "loadbalancer.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
 	}
 }

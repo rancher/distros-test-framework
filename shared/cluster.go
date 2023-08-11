@@ -240,8 +240,8 @@ func FetchIngressIP(namespace string) ([]string, error) {
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster
 // version	optional sonobouy version to be installed
 func SonobuoyMixedOS(action, version string) error{
-	if action != "install" && action != "cleanup" {
-		return fmt.Errorf("invalid action: %s. Must be 'install' or 'cleanup'", action)
+	if action != "install" && action != "delete" {
+		return fmt.Errorf("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
 	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"

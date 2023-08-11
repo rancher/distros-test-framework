@@ -36,7 +36,7 @@ func TestCoredns(delete bool) {
 	}
 
 	if delete {
-		_, err := shared.ManageWorkload("apply", arch, "dnsutils.yaml")
+		_, err := shared.ManageWorkload("delete", arch, "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(),"dnsutils manifest not deleted")
 	}
 }

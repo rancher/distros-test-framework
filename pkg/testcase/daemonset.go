@@ -54,7 +54,7 @@ func TestDaemonset(delete bool) {
 		"Daemonset pod count does not match node count")
 
 	if delete {
-		_, err := shared.ManageWorkload("apply", arch, "daemonset.yaml")
+		_, err := shared.ManageWorkload("delete", arch, "daemonset.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
 

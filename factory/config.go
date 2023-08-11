@@ -35,7 +35,7 @@ type Cluster struct {
 }
 
 func loadConfig() (*config.ProductConfig, error) {
-	cfg, err := config.LoadConfigEnv(shared.BasePath() + "/distros-test-framework/config")
+	cfg, err := config.LoadConfigEnv("./config")
 	if err != nil {
 		return nil, fmt.Errorf("error loading env config: %w", err)
 	}
