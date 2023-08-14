@@ -20,7 +20,7 @@ import (
 func TestUpgradeClusterSUC(version string) error {
 	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
 
-	_, err := shared.ManageWorkload("apply", arch, "suc.yaml")
+	_, err := shared.ManageWorkload("apply", "suc.yaml")
 	Expect(err).NotTo(HaveOccurred(),
 		"system-upgrade-controller manifest did not deploy successfully")
 
@@ -48,7 +48,7 @@ func TestUpgradeClusterSUC(version string) error {
 		return fmt.Errorf("failed to write file: %s", err)
 	}
 
-	_, err = shared.ManageWorkload("apply", arch, "plan.yaml")
+	_, err = shared.ManageWorkload("apply", "plan.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to upgrade cluster.")
 
 	return nil

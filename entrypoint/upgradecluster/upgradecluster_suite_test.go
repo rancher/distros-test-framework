@@ -23,7 +23,6 @@ func TestMain(m *testing.M) {
 		"channel to use on install or upgrade")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy",
 		"Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
 	flag.Var(&customflag.ServiceFlag.UpgradeVersionSUC, "upgradeVersion", "Upgrade SUC model")
 
 	flag.Parse()

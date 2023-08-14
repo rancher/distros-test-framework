@@ -15,7 +15,6 @@ func VersionTemplate(test VersionTestTemplate) {
 		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
 		_, err := shared.ManageWorkload(
 			"apply",
-			customflag.ServiceFlag.ClusterConfig.Arch.String(),
 			customflag.ServiceFlag.TestConfig.WorkloadName,
 		)
 		if err != nil {

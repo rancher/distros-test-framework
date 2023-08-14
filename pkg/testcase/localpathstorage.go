@@ -13,8 +13,8 @@ import (
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "local-path-provisioner.yaml")
+func TestLocalPathProvisionerStorage(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "local-path-provisioner.yaml")
 	Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
@@ -60,8 +60,8 @@ func TestLocalPathProvisionerStorage(delete bool) {
 		return
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "local-path-provisioner.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "local-path-provisioner.yaml")
 		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
 	}
 

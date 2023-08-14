@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Usage: sh mixedos_sonobouy.sh install 0.56.16 amd64
+# Usage: sh mixedos_sonobouy.sh install 0.56.17 amd64
 # Usage: sh mixedos_sonobouy.sh delete
 
 action=$1
 
-if [ -z "$2" ] || [[ ( -n "$2" ) && ( "$2" != *.* ) ]];
+if [ -z "$2" ] || [[ -n "$2" && "$2" != *.* ]];
 then
     version="0.56.17"
 else
     version=$2
 fi
 
-if [ -z "$3" ] || [[ ( "$2" == "amd*" ) || ( "$2" == "arm*" ) ]];
+if [ -z "$3" ] || [[ "$3" != "arm" ]];
 then
     arch="amd64"
 else

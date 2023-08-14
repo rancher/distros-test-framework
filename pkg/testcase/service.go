@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIP(delete bool) {		
-	_, err := shared.ManageWorkload("apply", arch, "clusterip.yaml")
+func TestServiceClusterIP(deleteWorkload bool) {		
+	_, err := shared.ManageWorkload("apply", "clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
 
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
@@ -29,14 +29,14 @@ func TestServiceClusterIP(delete bool) {
 		}
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "clusterip.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "clusterip.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
 	}
 }
 
-func TestServiceNodePort(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "nodeport.yaml")
+func TestServiceNodePort(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
 	
 	nodeExternalIP := shared.FetchNodeExternalIP()
@@ -65,14 +65,14 @@ func TestServiceNodePort(delete bool) {
 		GinkgoT().Errorf("%v", err)
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "nodeport.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "nodeport.yaml")
 		Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deleted")
 	}
 }
 
-func TestServiceLoadBalancer(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "loadbalancer.yaml")
+func TestServiceLoadBalancer(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
 	
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
@@ -98,8 +98,8 @@ func TestServiceLoadBalancer(delete bool) {
 		}
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "loadbalancer.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "loadbalancer.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
 	}
 }

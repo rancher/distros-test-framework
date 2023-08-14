@@ -14,8 +14,8 @@ const (
 	Nslookup = "kubernetes.default.svc.cluster.local"
 )
 
-func TestIngress(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "ingress.yaml")
+func TestIngress(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "ingress.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deployed")
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
@@ -39,14 +39,14 @@ func TestIngress(delete bool) {
 		GinkgoT().Errorf("%v", err)
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "ingress.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "ingress.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deleted")
 	}
 }
 
-func TestDnsAccess(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "dnsutils.yaml")
+func TestDnsAccess(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
 	Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
@@ -64,8 +64,8 @@ func TestDnsAccess(delete bool) {
 		GinkgoT().Errorf("%v", err)
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "dnsutils.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
 	}
 }

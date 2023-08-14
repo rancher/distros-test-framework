@@ -14,6 +14,7 @@ var (
 	KubeConfigFile string
 	AwsUser        string
 	AccessKey      string
+	Arch           string
 )
 
 type Node struct {
@@ -36,7 +37,7 @@ type Pod struct {
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
-func ManageWorkload(action string, arch string, workloads ...string) (string, error) {
+func ManageWorkload(action string, workloads ...string) (string, error) {
 	if action != "apply" && action != "delete" {
 		return "", fmt.Errorf("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
@@ -44,7 +45,7 @@ func ManageWorkload(action string, arch string, workloads ...string) (string, er
 	var res string
 	var err error
 
-	resourceDir := BasePath() + "/distros-test-framework/workloads/" + arch
+	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
 	
 	files, err := os.ReadDir(resourceDir)
 	for _, workload := range workloads {

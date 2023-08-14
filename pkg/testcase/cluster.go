@@ -11,13 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var arch string
-
 func TestBuildCluster(g GinkgoTInterface) {
 	var err error
 
 	cluster := factory.GetCluster(g)
-	arch = cluster.ArchType
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())

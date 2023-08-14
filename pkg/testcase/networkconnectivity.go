@@ -11,8 +11,8 @@ import (
 )
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch,
+func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply",
 		"pod_client.yaml","windows_app_deployment.yaml")
 	if err != nil {
 		GinkgoT().Errorf("error: %v", err)
@@ -31,8 +31,8 @@ func TestInternodeConnectivityMixedOS(delete bool) {
 		return
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch,
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete",
 			"pod_client.yaml","windows_app_deployment.yaml")
 		if err != nil {
 			GinkgoT().Errorf("error: %v", err)

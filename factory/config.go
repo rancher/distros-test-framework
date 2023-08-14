@@ -87,9 +87,9 @@ func addClusterConfig(
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
-	c.ArchType = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	c.ArchType = shared.Arch
 	c.ProductType = cfg.Product
-	
 	
 	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 	c.ServerIPs = serverIPs

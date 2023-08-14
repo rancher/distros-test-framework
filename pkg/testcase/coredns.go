@@ -10,8 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestCoredns(delete bool) {
-	_, err := shared.ManageWorkload("apply", arch, "dnsutils.yaml")
+func TestCoredns(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
 	Expect(err).NotTo(HaveOccurred(),"dnsutils manifest not deployed")
 
 	_, err = shared.AddHelmRepo("traefik", "https://helm.traefik.io/traefik")
@@ -35,8 +35,8 @@ func TestCoredns(delete bool) {
 		return
 	}
 
-	if delete {
-		_, err := shared.ManageWorkload("delete", arch, "dnsutils.yaml")
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(),"dnsutils manifest not deleted")
 	}
 }

@@ -37,7 +37,6 @@ func TestMain(m *testing.M) {
 		false, "Deploy workload customflag for tests passed in")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy",
 		"Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "amd64 or arm64")
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "",
 		"Description of the test")
 	flag.Parse()
