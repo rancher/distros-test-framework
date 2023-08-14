@@ -23,7 +23,7 @@ type Cluster struct {
 	Status           string
 	ServerIPs        []string
 	AgentIPs         []string
-	WinAgentIPs		 []string
+	WinAgentIPs      []string
 	NumServers       int
 	NumAgents        int
 	NumWinAgents	 int
@@ -31,7 +31,7 @@ type Cluster struct {
 	ExternalDb       string
 	ClusterType      string
 	ProductType      string
-	ArchType		 string
+	ArchType         string
 }
 
 func loadConfig() (*config.ProductConfig, error) {

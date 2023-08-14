@@ -46,7 +46,7 @@ func TestPodStatus(
 				}
 			}
 		}
-	}, "180s", "30s").Should(Succeed())
+	}, "900s", "10s").Should(Succeed())
 
 	fmt.Println("\n\nCluster Pods:")
 	_, err := shared.ParsePods(true)

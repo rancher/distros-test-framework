@@ -101,8 +101,8 @@ func deleteWorkload(workload, filename string) error {
 		return fmt.Errorf("failed to run kubectl delete: %v", err)
 	}
 
-	timeout := time.After(60 * time.Second)
-	tick := time.Tick(5 * time.Second)
+	timeout := time.After(30 * time.Second)
+	tick := time.Tick(2 * time.Second)
 
 	for {
 		select {

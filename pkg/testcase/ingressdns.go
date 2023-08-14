@@ -40,7 +40,7 @@ func TestIngress(delete bool) {
 	}
 
 	if delete {
-		_, err := shared.ManageWorkload("apply", arch, "ingress.yaml")
+		_, err := shared.ManageWorkload("delete", arch, "ingress.yaml")
 		Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deleted")
 	}
 }

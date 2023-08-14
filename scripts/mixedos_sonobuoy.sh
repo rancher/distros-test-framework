@@ -3,14 +3,16 @@
 # Usage: sh mixedos_sonobouy.sh install 0.56.16 amd64
 # Usage: sh mixedos_sonobouy.sh delete
 
-if [ -z "$2" ]
+action=$1
+
+if [ -z "$2" ] || [[ ( -n "$2" ) && ( "$2" != *.* ) ]];
 then
-    version="0.56.16"
+    version="0.56.17"
 else
     version=$2
 fi
 
-if [ -z "$3" ]
+if [ -z "$3" ] || [[ ( "$2" == "amd*" ) || ( "$2" == "arm*" ) ]];
 then
     arch="amd64"
 else
@@ -32,20 +34,20 @@ installation(){
     fi
     wait
     tar -xvf sonobuoy_${version}_linux_${arch}.tar.gz
-    sudo chmod +x sonobuoy && sudo mv sonobuoy /usr/local/bin/sonobuoy
+    chmod +x sonobuoy && mv sonobuoy /usr/local/bin/sonobuoy
 }
 
 deletion(){
     echo "Deleting sonobuoy installer"
-    sudo rm -rf my-sonobuoy-plugins
-    sudo rm -rf sonobuoy_*
-    sudo rm -rf /usr/local/bin/sonobuoy
+    rm -rf my-sonobuoy-plugins
+    rm -rf sonobuoy_*
+    rm -rf /usr/local/bin/sonobuoy
 }
 
-if [ "$1" == "install" ];
+if [ "$action" == "install" ];
 then
     installation
-elif [ "$1" == "delete" ];
+elif [ "$action" == "delete" ];
 then
     deletion
 else

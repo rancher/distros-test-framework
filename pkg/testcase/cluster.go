@@ -64,7 +64,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 func TestSonobuoyMixedOS(version string, delete bool) {
 	err := shared.SonobuoyMixedOS("install", version)
 	if err != nil {
-		fmt.Println(err)
+		GinkgoT().Errorf("error: %v", err)
 		return
 	}
 
@@ -89,7 +89,7 @@ func TestSonobuoyMixedOS(version string, delete bool) {
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+ cmd)
 		err := shared.SonobuoyMixedOS("delete", version)
 		if err != nil {
-			fmt.Println(err)
+			GinkgoT().Errorf("error: %v", err)
 			return
 		}
 	}
