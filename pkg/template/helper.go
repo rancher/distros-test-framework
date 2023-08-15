@@ -9,23 +9,28 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// upgradeVersion upgrades the version of RKE2 and updates the expected values
+// upgradeVersion upgrades the product version
 func upgradeVersion(template VersionTestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
 		return err
 	}
 
-	for i := range template.TestCombination.Run {
-		template.TestCombination.Run[i].ExpectedValue =
-			template.TestCombination.Run[i].ExpectedValueUpgrade
-	}
+	updateExpectedValue(template)
 
 	return nil
 }
 
-// checkVersion checks the version of RKE2 by calling processTestCombination
-func checkVersion(v VersionTestTemplate) error {
+// updateExpectedValue updates the expected values
+func updateExpectedValue(template VersionTestTemplate) {
+	for i := range template.TestCombination.Run {
+		template.TestCombination.Run[i].ExpectedValue =
+			template.TestCombination.Run[i].ExpectedValueUpgrade
+	}
+}
+
+// executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
+func executeTestCombination(v VersionTestTemplate) error {
 	ips, err := getIPs()
 	if err != nil {
 		return fmt.Errorf("failed to get IPs: %v", err)

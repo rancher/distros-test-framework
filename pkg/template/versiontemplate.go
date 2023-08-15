@@ -24,7 +24,7 @@ func VersionTemplate(test VersionTestTemplate) {
 		}
 	}
 
-	err := checkVersion(test)
+	err := executeTestCombination(test)
 	if err != nil {
 		GinkgoT().Errorf(err.Error())
 		return
@@ -43,7 +43,7 @@ func VersionTemplate(test VersionTestTemplate) {
 				return
 			}
 
-			err = checkVersion(test)
+			err = executeTestCombination(test)
 			if err != nil {
 				GinkgoT().Errorf(err.Error())
 				return

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -38,12 +39,21 @@ func processCmds(resultChan chan error, wg *sync.WaitGroup, ip string, cmds []st
 }
 
 func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []string, testCombination RunCmd) {
+	cluster := factory.GetCluster(GinkgoT())
 	if testCombination.Run != nil {
-		for _, ip := range ips {
-			for _, testMap := range testCombination.Run {
-				cmds := strings.Split(testMap.Cmd, ",")
-				expectedValues := strings.Split(testMap.ExpectedValue, ",")
-				processCmds(resultChan, wg, ip, cmds, expectedValues)
+		for _, testMap := range testCombination.Run {
+
+			cmds := strings.Split(testMap.Cmd, ",")
+			expectedValues := strings.Split(testMap.ExpectedValue, ",")
+
+			if strings.Contains(testMap.Cmd, "etcd") {
+				for _, serverIP := range cluster.ServerIPs {
+					processCmds(resultChan, wg, serverIP, cmds, expectedValues)
+				}
+			} else {
+				for _, ip := range ips {
+					processCmds(resultChan, wg, ip, cmds, expectedValues)
+				}
 			}
 		}
 	}
