@@ -83,20 +83,16 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 		return "", fmt.Errorf("error loading config: %w", err)
 	}
 
-	tfDir, err := filepath.Abs(shared.BasePath() + "/distros-test-framework/modules")
+	tfDir, err := filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
 	if err != nil {
 		return "", err
 	}
 
-	if cfg.Product == "rke2" || cfg.Product == "k3s"{
-		varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
-		if err != nil {
-			return "", err
-		}
-	} else {
-		return "", fmt.Errorf("invalid product %s", cfg.Product)
+	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+	if err != nil {
+		return "", err
 	}
-
+	
 	terraformOptions := terraform.Options{
 		TerraformDir: tfDir,
 		VarFiles:     []string{varDir},

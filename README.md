@@ -213,7 +213,9 @@ windows_aws_ami             = "<windows ami>"
 no_of_windows_worker_nodes  = <count of Windows node>
 ```
 
-#### NOTE: The sonobuoy test runs outside of the cluster, so if running the test locally, user have to clean up sonobouy manually
+#### NOTES: 
+- The sonobuoy test runs outside of the cluster, so if running the test locally, user have to clean up sonobouy manually. 
+- The MixedOS test is not supported with split-roles (TBA later) or Hardened cluster (Not supported in Windows)
 
 ### Test Execution
 

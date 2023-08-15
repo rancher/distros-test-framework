@@ -4,7 +4,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -21,9 +20,7 @@ func TestIngress(deleteWorkload bool) {
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
 	err = assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	ingressIps, err := shared.FetchIngressIP("test-ingress")
 	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
@@ -35,9 +32,7 @@ func TestIngress(deleteWorkload bool) {
 			ip,
 		)
 	}
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
 		_, err := shared.ManageWorkload("delete", "ingress.yaml")
@@ -51,18 +46,14 @@ func TestDnsAccess(deleteWorkload bool) {
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
 	err = assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
 	err = assert.CheckComponentCmdHost(
 		execDnsUtils+shared.KubeConfigFile+" -- nslookup kubernetes.default",
 		Nslookup,
 	)
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
 		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")

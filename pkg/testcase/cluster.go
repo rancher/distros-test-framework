@@ -38,15 +38,11 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 	fmt.Println("\nKUBECONFIG:\n")
 	err = shared.PrintFileContents(shared.KubeConfigFile)
-	if err != nil {
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	fmt.Println("BASE64 ENCODED KUBECONFIG:\n")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
-	if err != nil {
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	fmt.Println("\nServer Node IPS:", cluster.ServerIPs)
 
@@ -60,10 +56,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(version string, delete bool) {
 	err := shared.SonobuoyMixedOS("install", version)
-	if err != nil {
-		GinkgoT().Errorf("error: %v", err)
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" + 

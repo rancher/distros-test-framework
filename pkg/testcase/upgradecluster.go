@@ -30,9 +30,7 @@ func TestUpgradeClusterSUC(version string) error {
 		"system-upgrade-controller",
 		statusRunning,
 	)
-	if err != nil {
-		return err
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/rke2-upgrade-plan.yaml"
 	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"

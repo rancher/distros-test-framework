@@ -48,19 +48,15 @@ func addTerraformOptions(cfg *config.ProductConfig) (*terraform.Options, string,
 	var tfDir string
 	var err error
 
-	if cfg.Product == "k3s" || cfg.Product == "rke2" {
-		varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
-		if err != nil {
-			return nil, "", err
-		}
-		tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s",cfg.Product))
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		return nil, "", fmt.Errorf("invalid product %s", cfg.Product)
+	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+	if err != nil {
+		return nil, "", err
 	}
-
+	tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s",cfg.Product))
+	if err != nil {
+		return nil, "", err
+	}
+	
 	terraformOptions := &terraform.Options{
 		TerraformDir: tfDir,
 		VarFiles:     []string{varDir},
@@ -76,12 +72,13 @@ func addClusterConfig(
 	terraformOptions *terraform.Options,
 ) (*Cluster, error) {
 	c := &Cluster{}
-	var agentIPs []string
 
 	if cfg.Product == "k3s" {
 		c.ClusterType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
-		c.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
-		c.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		if c.ClusterType == "" {
+			c.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
+			c.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		}
 	} 
 	
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
@@ -91,21 +88,17 @@ func addClusterConfig(
 	c.ArchType = shared.Arch
 	c.ProductType = cfg.Product
 	
-	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-	c.ServerIPs = serverIPs
+	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
-		agentIPs = strings.Split(rawAgentIPs, ",")
-		c.AgentIPs = agentIPs
+		c.AgentIPs = strings.Split(rawAgentIPs, ",")
 	}
 	
 	if cfg.Product == "rke2" {
-		var winAgentIPs []string
 		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
 		if rawWinAgentIPs != "" {
-			winAgentIPs = strings.Split(rawWinAgentIPs, ",")
-			c.WinAgentIPs = winAgentIPs
+			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
 		}
 	}
 	

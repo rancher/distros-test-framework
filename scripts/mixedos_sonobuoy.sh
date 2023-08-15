@@ -4,19 +4,17 @@
 # Usage: sh mixedos_sonobouy.sh delete
 
 action=$1
+version=$2
+arch=$3
 
-if [ -z "$2" ] || [[ -n "$2" && "$2" != *.* ]];
+if [ -z "$version" ] || [[ -n "$version" && "$version" != *.* ]];
 then
     version="0.56.17"
-else
-    version=$2
 fi
 
-if [ -z "$3" ] || [[ "$3" != "arm" ]];
+if [ -z "$arch" ] || [[ "$arch" != "arm" ]];
 then
     arch="amd64"
-else
-    arch=$3
 fi
 
 installation(){

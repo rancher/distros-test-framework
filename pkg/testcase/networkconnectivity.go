@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -14,11 +13,7 @@ import (
 func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply",
 		"pod_client.yaml","windows_app_deployment.yaml")
-	if err != nil {
-		GinkgoT().Errorf("error: %v", err)
-
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 	
 	assert.ValidatePodIPByLabel([]string{"app=client","app=windows-app"},[]string{"10.42","10.42"})
 
@@ -26,18 +21,12 @@ func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
 		[]string{"client-curl", "windows-app-svc"}, 
 		[]string{"8080", "3000"}, 
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
-	if err != nil {
-		GinkgoT().Errorf("error: %v", err)
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
 		_, err := shared.ManageWorkload("delete",
 			"pod_client.yaml","windows_app_deployment.yaml")
-		if err != nil {
-			GinkgoT().Errorf("error: %v", err)
-			return
-		}
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
 
@@ -47,7 +36,7 @@ func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
 //
 // ports	Slice Takes service ports needed to access the services
 //
-// expected	array Takes the expected substring from the curl response
+// expected	Slice Takes the expected substring from the curl response
 func testCrossNodeService(services, ports, expected []string) error{
 	var cmd string
 

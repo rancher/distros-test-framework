@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -23,15 +22,10 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 		getPodVolumeTestRunning,
 		statusRunning,
 	)
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	_, err = shared.WriteDataPod(lps)
-	if err != nil {
-		GinkgoT().Errorf("error writing data to pod: %v", err)
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)
 
 	Eventually(func(g Gomega) {
 		fmt.Println("Writing and reading data from pod")
@@ -39,7 +33,7 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
-	}, "300s", "10s").Should(Succeed())
+	}, "300s", "2s").Should(Succeed())
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
