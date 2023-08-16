@@ -1,14 +1,7 @@
 package config
 
 import (
-	"sync"
-
 	"github.com/spf13/viper"
-)
-
-var (
-	once    sync.Once
-	product *ProductConfig
 )
 
 type ProductConfig struct {
@@ -19,9 +12,7 @@ type ProductConfig struct {
 // AddConfigEnv returns a singleton of ProductConfig from yaml config file
 func AddConfigEnv(path string) (*ProductConfig, error) {
 	var err error
-	once.Do(func() {
-		product, err = loadConfigEnv(path)
-	})
+	product, err := loadConfigEnv(path)
 	if err != nil {
 		return nil, err
 	}
