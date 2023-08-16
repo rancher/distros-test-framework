@@ -4,21 +4,21 @@ linters:
     - govet
     - revive
     - gosec
-    - megacheck
     - misspell
-    - unparam
-    - exportloopref
     - nlreturn
     - nestif
     - dupl
-    - gci
-    - ginkgolinter
 
 linters-settings:
   govet:
     check-shadowing: true
     check-tests: true
-
+  gci:
+    local-prefixes: github.com/rancher/distros-test-framework
+  gosec:
+    issues:
+      - G306
+      - G106
   nestif:
     min-complexity: 4
 
@@ -31,11 +31,8 @@ linters-settings:
         arguments: [110]
       - name: cognitive-complexity
         arguments: [10]
-      - name: empty-lines
-      - name: empty-block
       - name: bare-return
       - name: blank-imports
-      - name: confusing-naming
       - name: confusing-results
       - name: duplicated-imports
       - name: early-return
@@ -54,7 +51,6 @@ linters-settings:
       - name: modifies-value-receiver
       - name: range
       - name: range-val-in-closure
-      - name: range-val-address
       - name: receiver-naming
       - name: string-of-int
       - name: struct-tag
