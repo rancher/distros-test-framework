@@ -15,9 +15,9 @@ type NodeAssertFunc func(g Gomega, node shared.Node)
 
 // NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected
 func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
-	if c.InstallType.Version != "" {
+	if c.InstallMode.Version != "" {
 		return assertVersion(c)
-	} else if c.InstallType.Commit != "" {
+	} else if c.InstallMode.Commit != "" {
 		return assertCommit(c)
 	}
 
@@ -28,9 +28,9 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertVersion returns the NodeAssertFunc for asserting version
 func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
-	fmt.Printf("Asserting Version: %s\n", c.InstallType.Version)
+	fmt.Printf("Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(node.Version).Should(ContainSubstring(c.InstallType.Version),
+		g.Expect(node.Version).Should(ContainSubstring(c.InstallMode.Version),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
@@ -47,9 +47,9 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	ending := strings.Index(commit, ")")
 	commit = commit[initial+1 : ending]
 
-	fmt.Printf("Asserting Commit: %s\n", c.InstallType.Commit)
+	fmt.Printf("Asserting Commit: %s\n", c.InstallMode.Commit)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(c.InstallType.Commit).Should(ContainSubstring(commit),
+		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commit),
 			"Nodes should all be upgraded to the specified commit", node.Name)
 	}
 }
@@ -57,7 +57,7 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 // NodeAssertVersionUpgraded custom assertion func that asserts that node version is as expected
 func NodeAssertVersionUpgraded() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
-		g.Expect(&customflag.ServiceFlag.UpgradeVersionSUC).Should(ContainSubstring(node.Version),
+		g.Expect(&customflag.ServiceFlag.SUCUpgradeVersion).Should(ContainSubstring(node.Version),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }

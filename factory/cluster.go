@@ -11,13 +11,13 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// StartCluster returns a singleton cluster with all terraform config and vars
-func StartCluster(g GinkgoTInterface) *Cluster {
+// AddCluster returns a singleton cluster with all terraform config and vars
+func AddCluster(g GinkgoTInterface) *Cluster {
 	once.Do(func() {
 		var err error
 		cluster, err = newCluster(g)
 		if err != nil {
-			err = shared.ReturnLogError("error getting cluster: %w", err)
+			err = shared.ReturnLogError("error getting cluster: %w\n", err)
 			g.Errorf("%s", err)
 		}
 	})
@@ -40,7 +40,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_worker_nodes"))
 	if err != nil {
 
-		return nil, shared.ReturnLogError("error getting no_of_worker_nodes from var file: %w", err)
+		return nil, shared.ReturnLogError("error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
 	fmt.Println("Creating Cluster")
@@ -53,7 +53,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 
 	c, err := addClusterConfig(g, varDir, terraformOptions)
 	if err != nil {
-		return nil, shared.ReturnLogError("error adding cluster config: %w", err)
+		return nil, err
 	}
 
 	c.NumServers = numServers
@@ -73,7 +73,7 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 
 	tfDir, err := filepath.Abs(shared.BasePath() + "/distros-test-framework/modules")
 	if err != nil {
-		return "", shared.ReturnLogError("error getting modules dir: %w", err)
+		return "", shared.ReturnLogError("error getting modules dir: %w\n", err)
 	}
 
 	if cfg.Product == "rke2" {
@@ -81,7 +81,7 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 	} else if cfg.Product == "k3s" {
 		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
 	} else {
-		return "", shared.ReturnLogError("invalid product: %s", cfg.Product, err)
+		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product, err)
 	}
 
 	terraformOptions := terraform.Options{

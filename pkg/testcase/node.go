@@ -16,7 +16,7 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.StartCluster(GinkgoT())
+	cluster := factory.AddCluster(GinkgoT())
 	fmt.Println("\nFetching node status")
 
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
@@ -33,7 +33,7 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "900s", "3s").Should(Succeed())
+	}, "900s", "5s").Should(Succeed())
 
 	_, err := shared.ParseNodes(true)
 	Expect(err).NotTo(HaveOccurred())

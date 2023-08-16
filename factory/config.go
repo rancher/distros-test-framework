@@ -30,13 +30,13 @@ type Cluster struct {
 type ClusterConfig struct {
 	RenderedTemplate string
 	ExternalDb       string
-	ClusterType      string
+	DatastoreType    string
 }
 
 func loadConfig() (*config.ProductConfig, error) {
 	cfg, err := config.AddConfigEnv("./config")
 	if err != nil {
-		return nil, shared.ReturnLogError("error getting config: %w", err)
+		return nil, shared.ReturnLogError("error getting config: %w\n", err)
 	}
 
 	return cfg, nil
@@ -45,7 +45,7 @@ func loadConfig() (*config.ProductConfig, error) {
 func addTerraformOptions() (*terraform.Options, string, error) {
 	cfg, err := loadConfig()
 	if err != nil {
-		return nil, "", shared.ReturnLogError("error loading config: %w", err)
+		return nil, "", shared.ReturnLogError("error loading config: %w\n", err)
 	}
 
 	var varDir string
@@ -58,11 +58,11 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
 		tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/k3s")
 	} else {
-		return nil, "", shared.ReturnLogError("invalid product %s", cfg.Product)
+		return nil, "", shared.ReturnLogError("invalid product %s\n", cfg.Product)
 	}
 
 	if err != nil {
-		return nil, "", shared.ReturnLogError("error getting absolute path: %w", err)
+		return nil, "", shared.ReturnLogError("error getting absolute path: %w\n", err)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -87,7 +87,7 @@ func addClusterConfig(
 	var agentIPs []string
 
 	if cfg.Product == "k3s" {
-		c.Config.ClusterType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
+		c.Config.DatastoreType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
 		shared.KubeConfigFile = "/tmp/" + terraform.Output(g, terraformOptions, "kubeconfig") + "_kubeconfig"

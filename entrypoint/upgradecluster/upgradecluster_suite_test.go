@@ -18,11 +18,11 @@ var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.Var(&customflag.ServiceFlag.InstallType, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
-	flag.Var(&customflag.ServiceFlag.UpgradeVersionSUC, "upgradeVersion", "Upgrade SUC model")
+	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "upgradeVersion", "Upgrade SUC model")
 
 	flag.Parse()
 

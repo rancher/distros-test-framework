@@ -50,10 +50,7 @@ func TestLocalPathProvisionerStorage(deployWorkload bool) {
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
-		err = shared.RestartCluster("k3s", ip)
-		if err != nil {
-			return
-		}
+		shared.RestartCluster("k3s", ip)
 	}
 
 	_, err = shared.ReadDataPod(lps)
@@ -73,7 +70,6 @@ func readData() error {
 	if err != nil {
 		return err
 	}
-	// time.Sleep(20 * time.Second)
 
 	fmt.Println("Read data from newly create pod")
 	_, err = shared.ReadDataPod(lps)

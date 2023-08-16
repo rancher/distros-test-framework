@@ -32,7 +32,8 @@ func RunCommandHost(cmds ...string) (string, error) {
 
 		err := c.Run()
 		if err != nil {
-			return "", ReturnLogError("executing command: %s: %w", cmd, err)
+			fmt.Println(c.Stderr.(*bytes.Buffer).String())
+			return output.String(), fmt.Errorf("executing command: %s: %w\n", cmd, err)
 		}
 	}
 
@@ -40,22 +41,22 @@ func RunCommandHost(cmds ...string) (string, error) {
 }
 
 // RunCommandOnNode executes a command on the node SSH
-func RunCommandOnNode(cmd, serverIP string) (string, error) {
+func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
 
-	host := serverIP + ":22"
+	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %v", err)
+		return "", ReturnLogError("failed to configure SSH: %v\n", err)
 	}
 	stdout, stderr, err := runsshCommand(cmd, conn)
-	if err != nil {
-		return "", ReturnLogError(
-			"command: %s \n failed on run ssh : %s with error %w",
+	if err != nil && !strings.Contains(stderr, "restart") {
+		return "", fmt.Errorf(
+			"command: %s failed on run ssh: %s with error: %w\n",
 			cmd,
-			serverIP,
+			ip,
 			err,
 		)
 	}
@@ -71,7 +72,7 @@ func RunCommandOnNode(cmd, serverIP string) (string, error) {
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
-		return "", ReturnLogError("\ncommand: %s \n failed with error: %v", cmd, stderr)
+		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
 
 	return stdout, err
@@ -88,7 +89,7 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return ReturnLogError("failed to read file: %v", err)
+			return ReturnLogError("failed to read file: %v\n", err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
@@ -116,7 +117,7 @@ func GetVersion(cmd string) (string, error) {
 	for _, ip := range ips {
 		res, err = RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v", err)
+			return "", ReturnLogError("failed to run command on node: %v\n", err)
 		}
 	}
 
@@ -127,7 +128,7 @@ func GetVersion(cmd string) (string, error) {
 func GetProduct() (string, error) {
 	cfg, err := config.AddConfigEnv("./config")
 	if err != nil {
-		return "", ReturnLogError("failed to get config: %v", err)
+		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
 	if cfg.Product != "k3s" && cfg.Product != "rke2" {
 		return "", ReturnLogError("unknown product")
@@ -139,11 +140,11 @@ func GetProduct() (string, error) {
 // GetProductVersion return the version for a specific distro product
 func GetProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
-		return "", ReturnLogError("unsupported product: %s", product)
+		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
 	version, err := GetVersion(product + " -v")
 	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v", product, err)
+		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
 	}
 
 	return version, nil
@@ -206,7 +207,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	session, err := conn.NewSession()
 	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %v", err)
+		return "", "", ReturnLogError("failed to create session: %v\n", err)
 	}
 	defer session.Close()
 
@@ -220,7 +221,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	stderrStr := stderrBuf.String()
 
 	if errssh != nil {
-		return stdoutStr, stderrStr, ReturnLogError("error on command execution: %v", errssh)
+		return stdoutStr, stderrStr, errssh
 	}
 
 	return stdoutStr, stderrStr, nil
@@ -248,16 +249,22 @@ func GetJournalLogs(product, ip string) (string, error) {
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
 	logger := log.AddLogger(false)
-
 	err := formatLogArgs(format, args...)
-	logger.Error(err)
+
+	pc, file, line, ok := runtime.Caller(1)
+	if ok {
+		funcName := runtime.FuncForPC(pc).Name()
+		logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+	} else {
+		logger.Error(err.Error())
+	}
 
 	return err
 }
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	logger := log.AddLogger(true)
+	logger := log.AddLogger(false)
 	msg := formatLogArgs(format, args...)
 
 	switch level {
@@ -281,9 +288,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}
-
 		return e
 	}
-
 	return fmt.Errorf(format, args...)
 }

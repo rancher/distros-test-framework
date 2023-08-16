@@ -55,7 +55,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("\nUpgrade via SUC", func() {
-		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.UpgradeVersionSUC.String())
+		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
 		Expect(err).NotTo(HaveOccurred())
 	})
 

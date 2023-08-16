@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -63,7 +62,7 @@ func TestUpgradeClusterManually(version string) error {
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.StartCluster(GinkgoT())
+	cluster := factory.AddCluster(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")
@@ -99,7 +98,8 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 
 			fmt.Println("Upgrading " + nodeType + " to: " + upgradeCommand)
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				errCh <- shared.ReturnLogError("\nError upgrading %s %s: %v\n\n", nodeType, ip, err)
+				fmt.Printf("\nError upgrading %s %s: %v\n\n", nodeType, ip, err)
+				errCh <- err
 				close(errCh)
 				return
 			}
@@ -109,12 +109,7 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 				return
 			}
 			fmt.Println("Restarting " + nodeType + ": " + ip)
-			if err := shared.RestartCluster(product, ip); err != nil {
-				errCh <- shared.ReturnLogError("\nError restarting %s %s: %v\n\n", nodeType, ip, err)
-				close(errCh)
-				return
-			}
-			time.Sleep(20 * time.Second)
+			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}
 	wg.Wait()
@@ -152,9 +147,9 @@ func getChannel() string {
 
 	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
 
-	if customflag.ServiceFlag.Channel.Channel != "" {
+	if customflag.ServiceFlag.Channel.String() != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
-			customflag.ServiceFlag.Channel.Channel)
+			customflag.ServiceFlag.Channel.String())
 	}
 
 	return defaultChannel

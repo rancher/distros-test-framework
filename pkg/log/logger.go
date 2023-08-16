@@ -1,7 +1,9 @@
 package log
 
 import (
+	"fmt"
 	"os"
+	"runtime"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -14,23 +16,32 @@ var (
 
 func AddLogger(json bool) *log.Entry {
 	once.Do(func() {
-		logger := addLogger(json)
+		logger := newLogger(json)
 		le = log.NewEntry(logger)
 	})
 
 	return le
 }
 
-func addLogger(json bool) *log.Logger {
+func newLogger(json bool) *log.Logger {
 	logger := log.New()
 
 	if !json {
 		logger.SetFormatter(&log.TextFormatter{
 			ForceColors:   true,
 			FullTimestamp: true,
+			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+			},
+			QuoteEmptyFields: true,
 		})
 	} else {
-		logger.SetFormatter(&log.JSONFormatter{})
+		logger.SetFormatter(&log.JSONFormatter{
+			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+			},
+			PrettyPrint: true,
+		})
 	}
 
 	logger.SetReportCaller(true)

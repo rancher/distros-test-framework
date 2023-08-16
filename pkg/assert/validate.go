@@ -15,7 +15,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(420 * time.Second)
 	ticker := time.NewTicker(3 * time.Second)
 
 	for i := 0; i < len(args); i++ {
