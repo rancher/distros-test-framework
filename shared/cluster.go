@@ -246,7 +246,7 @@ func ParseNodes(print bool) ([]Node, error) {
 
 	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run kubectl get nodes: %v", err)
+		return nil, ReturnLogError("failed to run kubectl get nodes: %v", err)
 	}
 
 	nodelist := strings.TrimSpace(res)

@@ -14,7 +14,6 @@ var TestCaseNameFlag StringSlice
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
 	InstallType       InstallTypeValueFlag
-	InstallUpgrade    MultiValueFlag
 	TestConfig        TestConfigFlag
 	ClusterConfig     ClusterConfigFlag
 	UpgradeVersionSUC UpgradeVersionFlag
@@ -53,8 +52,6 @@ type ArchFlag string
 
 type TestCaseFlag func(deployWorkload bool)
 
-type MultiValueFlag []string
-
 type StringSlice []string
 
 func (s *StringSlice) String() string {
@@ -63,15 +60,6 @@ func (s *StringSlice) String() string {
 
 func (s *StringSlice) Set(value string) error {
 	*s = strings.Split(value, ",")
-	return nil
-}
-
-func (m *MultiValueFlag) String() string {
-	return strings.Join(*m, ",")
-}
-
-func (m *MultiValueFlag) Set(value string) error {
-	*m = append(*m, value)
 	return nil
 }
 
@@ -108,7 +96,7 @@ func (i *InstallTypeValueFlag) String() string {
 
 func (i *InstallTypeValueFlag) Set(value string) error {
 	if strings.HasPrefix(value, "v") {
-		if !strings.HasSuffix(value, "k3s1") && !strings.HasSuffix(value, "rke2r1") {
+		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
 			return shared.ReturnLogError("invalid version format: %s", value)
 		}
 		i.Version = value
