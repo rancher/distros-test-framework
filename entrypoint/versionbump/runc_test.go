@@ -46,7 +46,7 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 					},
 				},
 			},
-			InstallUpgrade: customflag.ServiceFlag.InstallMode.String(),
+			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &template.TestConfig{
 				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,

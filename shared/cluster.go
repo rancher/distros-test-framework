@@ -3,6 +3,7 @@ package shared
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ var (
 	KubeConfigFile string
 	AwsUser        string
 	AccessKey      string
+	Arch           string
 )
 
 type Node struct {
@@ -33,53 +35,104 @@ type Pod struct {
 	Node      string
 }
 
-// ManageWorkload creates or deletes a workload based on the action: create or delete.
-func ManageWorkload(action, workload, arch string) (string, error) {
+// ManageWorkload applies or deletes a workload based on the action: apply or delete.
+func ManageWorkload(action string, workloads ...string) (string, error) {
+	if action != "apply" && action != "delete" {
+		return "", ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
+	}
+
 	var res string
 	var err error
 
-	if action != "create" && action != "delete" {
-		return "", ReturnLogError("invalid action: %s. Must be 'create' or 'delete'", action)
-	}
-
-	resourceDir := BasePath() + "/distros-test-framework/workloads/amd64/"
-	if arch == "arm64" {
-		resourceDir = BasePath() + "/distros-test-framework/workloads/arm/"
-	}
+	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
-		return "", ReturnLogError("%s : Unable to read resource manifest file for %s\n", err, workload)
+		return "", ReturnLogError("%s : Unable to read resource manifest file for: %s\n", Arch, err)
 	}
 
-	for _, f := range files {
-		filename := filepath.Join(resourceDir, f.Name())
-		if strings.TrimSpace(f.Name()) == workload {
-			if action == "create" {
-				res, err = createWorkload(workload, filename)
-				if err != nil {
-					return "", ReturnLogError("failed to create workload %s: %s\n", workload, err)
-				}
-			} else {
-				err = deleteWorkload(workload, filename)
-				if err != nil {
-					LogLevel("warn", "failed to delete workload %s: %s\n", workload, err)
-					return "", err
-				}
+	for _, workload := range workloads {
+		if !fileExists(files, workload) {
+			return "", ReturnLogError("workload %s not found", workload)
+		}
+		filename := filepath.Join(resourceDir, workload)
+		if action == "apply" {
+			err = applyWorkload(workload, filename)
+			if err != nil {
+				return "", ReturnLogError("failed to apply workload %s: %s\n", workload, err)
 			}
-
-			return res, err
+		} else {
+			err = deleteWorkload(workload, filename)
+			if err != nil {
+				return "", ReturnLogError("failed to delete workload %s: %s\n", workload, err)
+			}
 		}
 	}
 
-	return "", ReturnLogError("workload %s not found", workload)
+	return res, err
 }
 
-func createWorkload(workload, filename string) (string, error) {
-	fmt.Println("\nDeploying", workload)
+// // ManageWorkload creates or deletes a workload based on the action: create or delete.
+// func ManageWorkload(action, workload, arch string) (string, error) {
+// 	var res string
+// 	var err error
+//
+// 	if action != "create" && action != "delete" {
+// 		return "", ReturnLogError("invalid action: %s. Must be 'create' or 'delete'", action)
+// 	}
+//
+// 	resourceDir := BasePath() + "/distros-test-framework/workloads/amd64/"
+// 	if arch == "arm64" {
+// 		resourceDir = BasePath() + "/distros-test-framework/workloads/arm/"
+// 	}
+//
+// 	files, err := os.ReadDir(resourceDir)
+// 	if err != nil {
+// 		return "", ReturnLogError("%s : Unable to read resource manifest file for %s\n", err, workload)
+// 	}
+//
+// 	for _, f := range files {
+// 		filename := filepath.Join(resourceDir, f.Name())
+// 		if strings.TrimSpace(f.Name()) == workload {
+// 			if action == "create" {
+// 				res, err = createWorkload(workload, filename)
+// 				if err != nil {
+// 					return "", ReturnLogError("failed to create workload %s: %s\n", workload, err)
+// 				}
+// 			} else {
+// 				err = deleteWorkload(workload, filename)
+// 				if err != nil {
+// 					LogLevel("warn", "failed to delete workload %s: %s\n", workload, err)
+// 					return "", err
+// 				}
+// 			}
+//
+// 			return res, err
+// 		}
+// 	}
+//
+// 	return "", ReturnLogError("workload %s not found", workload)
+// }
+
+func applyWorkload(workload, filename string) error {
+	fmt.Println("\nApplying ", workload)
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 
-	return RunCommandHost(cmd)
+	out, err := RunCommandHost(cmd)
+	if err != nil || out == "" {
+		return ReturnLogError("failed to run kubectl apply: %w", err)
+	}
+
+	out, err = RunCommandHost("kubectl get all -A --kubeconfig=" + KubeConfigFile)
+	if err != nil {
+		return ReturnLogError("failed to run kubectl get all: %w\n", err)
+	}
+
+	if ok := !strings.Contains(out, "Creating") && strings.Contains(out, workload); !ok {
+		return ReturnLogError("failed to apply workload %s", workload)
+	}
+
+	return nil
 }
 
 // deleteWorkload deletes a workload and asserts that the workload is deleted.
@@ -92,8 +145,8 @@ func deleteWorkload(workload, filename string) error {
 		return err
 	}
 
-	timeout := time.After(60 * time.Second)
-	tick := time.NewTicker(5 * time.Second)
+	timeout := time.After(30 * time.Second)
+	tick := time.NewTicker(2 * time.Second)
 
 	for {
 		select {
@@ -107,7 +160,7 @@ func deleteWorkload(workload, filename string) error {
 				return nil
 			}
 		case <-timeout:
-			return ReturnLogError("workload deletion timed out")
+			return ReturnLogError("workload delete timed out")
 		}
 	}
 }
@@ -213,7 +266,7 @@ func FetchNodeExternalIP() []string {
 // RestartCluster restarts the service on each node given by external IP.
 func RestartCluster(product, ip string) {
 	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	time.Sleep(40 * time.Second)
+	time.Sleep(20 * time.Second)
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
@@ -235,6 +288,29 @@ func FetchIngressIP(namespace string) ([]string, error) {
 	ingressIPs := strings.Split(ingressIP, " ")
 
 	return ingressIPs, nil
+}
+
+// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script
+// action	required install or cleanup sonobuoy plugin for mixed OS cluster
+// version	optional sonobouy version to be installed
+func SonobuoyMixedOS(action, version string) error {
+	if action != "install" && action != "delete" {
+		return fmt.Errorf("invalid action: %s. Must be 'install' or 'delete'", action)
+	}
+
+	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"
+	err := os.Chmod(scriptsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change script permissions: %v", err)
+	}
+
+	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to execute %s action sonobuoy: %v\nOutput: %s", action, err, output)
+	}
+
+	return err
 }
 
 // ParseNodes returns nodes parsed from kubectl get nodes.

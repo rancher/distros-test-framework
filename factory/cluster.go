@@ -63,7 +63,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	return c, nil
 }
 
-// DestroyCluster destroys the cluster and returns a message
+// DestroyCluster destroys the cluster and returns it
 func DestroyCluster(g GinkgoTInterface) (string, error) {
 	var varDir string
 	cfg, err := config.AddConfigEnv("./config")
@@ -79,9 +79,13 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 	if cfg.Product == "rke2" {
 		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
 	} else if cfg.Product == "k3s" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
+		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
 	} else {
-		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product, err)
+		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
+	}
+
+	if err != nil {
+		return "", shared.ReturnLogError("error getting var dir: %w\n", err)
 	}
 
 	terraformOptions := terraform.Options{

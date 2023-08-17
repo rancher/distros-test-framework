@@ -11,7 +11,6 @@ import (
 )
 
 // TestPodStatus test the status of the pods in the cluster using 2 custom assert functions
-
 func TestPodStatus(
 	podAssertRestarts assert.PodAssertFunc,
 	podAssertReady assert.PodAssertFunc,

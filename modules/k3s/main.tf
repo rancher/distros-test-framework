@@ -12,7 +12,7 @@ module "master" {
    qa_space=var.qa_space
    ec2_instance_class=var.ec2_instance_class
    access_key=var.access_key
-   cluster_type=var.cluster_type
+   datastore_type=var.datastore_type
    server_flags=var.server_flags
    availability_zone=var.availability_zone
    sg_id=var.sg_id

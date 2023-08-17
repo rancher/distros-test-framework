@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -81,6 +82,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 // BasePath returns the base path of the project.
 func BasePath() string {
 	_, b, _, _ := runtime.Caller(0)
+
 	return filepath.Join(filepath.Dir(b), "../..")
 }
 
@@ -93,6 +95,19 @@ func PrintFileContents(f ...string) error {
 		}
 		fmt.Println(string(content) + "\n")
 	}
+
+	return nil
+}
+
+// PrintBase64Encoded prints the base64 encoded contents of the file as string.
+func PrintBase64Encoded(filepath string) error {
+	file, err := os.ReadFile(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to encode file %s: %w", file, err)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(file)
+	fmt.Println(encoded)
 
 	return nil
 }
@@ -243,6 +258,7 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 // GetJournalLogs returns the journal logs for a specific product
 func GetJournalLogs(product, ip string) (string, error) {
 	cmd := fmt.Sprintf("journalctl -u %s* --no-pager", product)
+
 	return RunCommandOnNode(cmd, ip)
 }
 
@@ -290,5 +306,16 @@ func formatLogArgs(format string, args ...interface{}) error {
 		}
 		return e
 	}
+
 	return fmt.Errorf(format, args...)
+}
+
+// fileExists Checks if a file exists in a directory
+func fileExists(files []os.DirEntry, workload string) bool {
+	for _, file := range files {
+		if file.Name() == workload {
+			return true
+		}
+	}
+	return false
 }

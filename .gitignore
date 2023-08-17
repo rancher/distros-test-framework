@@ -7,5 +7,4 @@
 *.tfstate*
 workloads/amd64/plan.yaml
 /config/config.yaml
-config/k3s.tfvars
-config/rke2.tfvars
+/config/*.tfvars

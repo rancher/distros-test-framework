@@ -62,7 +62,7 @@ func runAssertion(
 			res, err := exec(cmd)
 			if err != nil {
 				errorsChan <- err
-				return fmt.Errorf("error from runCmd:\n %s\n %s", res, err)
+				return fmt.Errorf("error from runCmd: %s\n %s", res, err)
 			}
 			if strings.Contains(res, assert) {
 				fmt.Printf("\n---------------------\nCommand:\n"+

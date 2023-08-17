@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,12 +20,14 @@ var (
 )
 
 type Cluster struct {
-	Status     string
-	ServerIPs  []string
-	AgentIPs   []string
-	NumServers int
-	NumAgents  int
-	Config     ClusterConfig
+	Status       string
+	ServerIPs    []string
+	AgentIPs     []string
+	WinAgentIPs  []string
+	NumWinAgents int
+	NumServers   int
+	NumAgents    int
+	Config       ClusterConfig
 }
 
 type ClusterConfig struct {
@@ -51,19 +54,28 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	var varDir string
 	var tfDir string
 
-	if cfg.Product == "rke2" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
-		tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/rke2")
-	} else if cfg.Product == "k3s" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
-		tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/k3s")
-	} else {
-		return nil, "", shared.ReturnLogError("invalid product %s\n", cfg.Product)
+	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+	if err != nil {
+		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
+	}
+	tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+	if err != nil {
+		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
 
-	if err != nil {
-		return nil, "", shared.ReturnLogError("error getting absolute path: %w\n", err)
-	}
+	// if cfg.Product == "rke2" {
+	// 	varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
+	// 	tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/rke2")
+	// } else if cfg.Product == "k3s" {
+	// 	varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
+	// 	tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/k3s")
+	// } else {
+	// 	return nil, "", shared.ReturnLogError("invalid product %s\n", cfg.Product)
+	// }
+	//
+	// if err != nil {
+	// 	return nil, "", shared.ReturnLogError("error getting absolute path: %w\n", err)
+	// }
 
 	terraformOptions := &terraform.Options{
 		TerraformDir: tfDir,
@@ -86,14 +98,21 @@ func addClusterConfig(
 	c := &Cluster{}
 	var agentIPs []string
 
+	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
+	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
+	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
+	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+
 	if cfg.Product == "k3s" {
-		c.Config.DatastoreType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
-		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
-		c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
-		shared.KubeConfigFile = "/tmp/" + terraform.Output(g, terraformOptions, "kubeconfig") + "_kubeconfig"
-	} else {
-		shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
+		c.Config.DatastoreType = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
+		if c.Config.DatastoreType == "" {
+			c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
+			c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		}
 	}
+
+	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
+	c.ServerIPs = serverIPs
 
 	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
@@ -101,11 +120,18 @@ func addClusterConfig(
 	}
 	c.AgentIPs = agentIPs
 
-	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-	c.ServerIPs = serverIPs
+	if cfg.Product == "rke2" {
+		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
+		if rawWinAgentIPs != "" {
+			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
+		}
+		NumWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_windows_worker_nodes"))
+		if err != nil {
+			return nil, err
+		}
 
-	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
-	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
+		c.NumWinAgents = NumWinAgents
+	}
 
 	return c, nil
 }

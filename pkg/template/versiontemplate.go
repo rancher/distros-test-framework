@@ -14,20 +14,20 @@ func VersionTemplate(test VersionTestTemplate) {
 	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
 		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
 		_, err := shared.ManageWorkload(
-			"create",
+			"apply",
 			customflag.ServiceFlag.TestConfig.WorkloadName,
 			customflag.ServiceFlag.ClusterConfig.Arch.String(),
 		)
 		if err != nil {
-			GinkgoT().Errorf("failed to create workload: %v", err)
+			GinkgoT().Errorf("failed to apply workload: %v", err)
 		}
 	}
 
 	err := checkVersion(test)
 	Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
 
-	if test.InstallUpgrade != "" {
-		upgErr := upgradeVersion(test, test.InstallUpgrade)
+	if test.InstallMode != "" {
+		upgErr := upgradeVersion(test, test.InstallMode)
 		Expect(upgErr).NotTo(HaveOccurred(), "error upgrading version: %v", upgErr)
 
 		err = checkVersion(test)

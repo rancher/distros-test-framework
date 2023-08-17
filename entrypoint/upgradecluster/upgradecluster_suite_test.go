@@ -22,13 +22,13 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
-	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "upgradeVersion", "Upgrade SUC model")
+	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "upgradeVersion", "Version for upgrading using SUC")
 
 	flag.Parse()
 
 	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		shared.LogLevel("warn", "error getting config: %v", err)
+		shared.LogLevel("error", "error getting config: %v", err)
 		os.Exit(1)
 	}
 

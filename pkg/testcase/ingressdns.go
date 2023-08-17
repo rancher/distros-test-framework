@@ -10,8 +10,6 @@ import (
 )
 
 var Running = "Running"
-var ExecDnsUtils = "kubectl exec -n auto-dns -t dnsutils --kubeconfig="
-var Nslookup = "kubernetes.default.svc.cluster.local"
 
 func TestIngress(deployWorkload bool) {
 	if deployWorkload {

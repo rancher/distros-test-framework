@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		shared.LogLevel("warn", "error getting config: %v", err)
+		shared.LogLevel("error", "error getting config: %v", err)
 		os.Exit(1)
 	}
 
