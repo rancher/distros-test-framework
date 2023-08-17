@@ -32,12 +32,10 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Verifies bump version on product for etcd", func() {
-		var cmd string
+		cmd := "sudo journalctl -u k3s | grep 'etcd-version' ," + " k3s -v"
 		if cfg.Product == "rke2" {
 			cmd = "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images | grep etcd ," +
 				" rke2 -v"
-		} else {
-			cmd = "sudo journalctl -u k3s | grep 'etcd-version' ," + " k3s -v"
 		}
 
 		template.VersionTemplate(template.VersionTestTemplate{

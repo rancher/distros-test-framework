@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -39,21 +38,40 @@ func processCmds(resultChan chan error, wg *sync.WaitGroup, ip string, cmds []st
 }
 
 func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []string, testCombination RunCmd) {
-	cluster := factory.GetCluster(GinkgoT())
 	if testCombination.Run != nil {
 		for _, testMap := range testCombination.Run {
 
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
 
+			ipsToUse := ips
+
 			if strings.Contains(testMap.Cmd, "etcd") {
-				for _, serverIP := range cluster.ServerIPs {
-					processCmds(resultChan, wg, serverIP, cmds, expectedValues)
+
+				cmdToGetIps := fmt.Sprintf(`
+				kubectl get node -A -o wide --kubeconfig="%s" \
+				| grep 'etcd' | awk '{print $7}'
+				`,
+					shared.KubeConfigFile)
+
+				var nodes []string
+				nodeIps, err := shared.RunCommandHost(cmdToGetIps)
+				if err != nil {
+					return
 				}
-			} else {
-				for _, ip := range ips {
-					processCmds(resultChan, wg, ip, cmds, expectedValues)
+
+				n := strings.Split(nodeIps, "\n")
+				for _, nodeIP := range n {
+					if nodeIP != "" {
+						nodes = append(nodes, nodeIP)
+					}
 				}
+
+				ipsToUse = nodes
+			}
+
+			for _, ip := range ipsToUse {
+				processCmds(resultChan, wg, ip, cmds, expectedValues)
 			}
 		}
 	}

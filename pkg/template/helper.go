@@ -21,7 +21,7 @@ func upgradeVersion(template VersionTestTemplate, version string) error {
 	return nil
 }
 
-// updateExpectedValue updates the expected values
+// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
 func updateExpectedValue(template VersionTestTemplate) {
 	for i := range template.TestCombination.Run {
 		template.TestCombination.Run[i].ExpectedValue =
@@ -31,10 +31,7 @@ func updateExpectedValue(template VersionTestTemplate) {
 
 // executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
 func executeTestCombination(v VersionTestTemplate) error {
-	ips, err := getIPs()
-	if err != nil {
-		return fmt.Errorf("failed to get IPs: %v", err)
-	}
+	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
 	errorChanList := make(
@@ -58,12 +55,6 @@ func executeTestCombination(v VersionTestTemplate) error {
 	}
 
 	return nil
-}
-
-// getIPs gets the IPs of the nodes
-func getIPs() (ips []string, err error) {
-	ips = shared.FetchNodeExternalIP()
-	return ips, nil
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
