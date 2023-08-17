@@ -2,8 +2,8 @@ package mixedoscluster
 
 import (
 	"flag"
-	"fmt"
 	"os"
+	"fmt"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -28,13 +28,8 @@ func TestMain(m *testing.M) {
 		fmt.Println(err)
 		return
 	}
-
-	if cfg.Product == "rke2" {
-		os.Exit(m.Run())
-	} else {
-		fmt.Println("Unsupported product to execute tests: " + cfg.Product)
-		os.Exit(1)
-	}
+	
+	os.Exit(m.Run())
 }
 
 func TestMixedOSClusterCreateSuite(t *testing.T) {
