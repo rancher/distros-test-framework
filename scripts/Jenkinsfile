@@ -98,6 +98,11 @@ node {
                   "${imageName} sh -c \"chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && " +
                   "cd ./entrypoint && go test -timeout=${timeout} -v ./${TESTCASE}/... ${TEST_ARGS}\""
               }
+              stage('Test Report') {
+                sh "docker logs ${testContainer} |grep -v \"^go:\" >createreport/rke2_${OS}.log "
+                sh "cd createreport " +
+                "&& /usr/local/go/bin/go run -v report-template-bindata.go generate_report.go -f rke2_${OS}.log ${UPLOAD}"
+              }
             } finally {
               stage('Cleanup') {
                 // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
