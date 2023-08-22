@@ -5,22 +5,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestDaemonset(deployWorkload bool) {
-	if deployWorkload {
-		_, err := shared.ManageWorkload(
-			"create",
-			"daemonset.yaml",
-			customflag.ServiceFlag.ClusterConfig.Arch.String(),
-		)
-		Expect(err).NotTo(HaveOccurred(),
-			"Daemonset manifest not deployed")
-	}
+func TestDaemonset(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "daemonset.yaml")
+	Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	
 	pods, _ := shared.ParsePods(false)
 
 	cmd := fmt.Sprintf(`
@@ -59,6 +52,11 @@ func TestDaemonset(deployWorkload bool) {
 		return shared.CountOfStringInSlice("test-daemonset", pods)
 	}, "10s", "5s").Should(Equal(len(nodes)),
 		"Daemonset pod count does not match node count")
+
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "daemonset.yaml")
+		Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
+	}
 
 }
 

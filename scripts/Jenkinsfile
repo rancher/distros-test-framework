@@ -80,6 +80,15 @@ node {
                   def testdata = readFile(file: filename)
                   println("\n\nTFVARS TEST DATA")
                   println(testdata)
+                  
+                  if (TESTCASE == 'mixedoscluster') {
+                    if (env.PRODUCT_NAME == 'k3s') {
+                      error("Found testcase-${TESTCASE} executing with product-${env.PRODUCT_NAME}, which is not supported\nAborting the build!")
+                    }
+                    if ((env.PRODUCT_NAME == 'rke2') && testdata.contains('cis')) {
+                      error("Found testcase-${TESTCASE} executing with product-${env.PRODUCT_NAME} and profile CIS, which is not supported\nAborting the build!")
+                    }
+                  }
                 }
                 sh "./scripts/configure.sh"
                 sh "./scripts/build.sh"

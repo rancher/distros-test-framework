@@ -41,11 +41,9 @@ type TestConfigFlag struct {
 // ClusterConfigFlag is a customFlag type that can be used to change some cluster config
 type ClusterConfigFlag struct {
 	Destroy DestroyFlag
-	Arch    ArchFlag
 }
 
 type DestroyFlag bool
-type ArchFlag string
 
 // TestCaseFlag is a customflag type that can be used to parse the test case argument
 type TestCaseFlag func(deployWorkload bool)
@@ -151,19 +149,3 @@ func (d *DestroyFlag) Set(value string) error {
 	return nil
 }
 
-// String returns the string representation of the ArchFlag
-func (a *ArchFlag) String() string {
-	return string(*a)
-}
-
-// Set parses the customFlag value for ArchFlag
-func (a *ArchFlag) Set(value string) error {
-	if value == "arm" || value == "arm64" ||
-		value == "amd64" || value == "s390x" {
-		*a = ArchFlag(value)
-	} else {
-		*a = "amd64"
-	}
-
-	return nil
-}

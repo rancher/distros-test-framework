@@ -23,11 +23,15 @@ type Cluster struct {
 	Status           string
 	ServerIPs        []string
 	AgentIPs         []string
+	WinAgentIPs      []string
 	NumServers       int
 	NumAgents        int
+	NumWinAgents	 int
 	RenderedTemplate string
 	ExternalDb       string
 	ClusterType      string
+	ProductType      string
+	ArchType         string
 }
 
 func loadConfig() (*config.ProductConfig, error) {
@@ -44,20 +48,15 @@ func addTerraformOptions(cfg *config.ProductConfig) (*terraform.Options, string,
 	var tfDir string
 	var err error
 
-	if cfg.Product == "rke2" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
-		tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/rke2")
-	} else if cfg.Product == "k3s" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
-		tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/k3s")
-	} else {
-		return nil, "", fmt.Errorf("invalid product %s", cfg.Product)
-	}
-
+	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return nil, "", err
 	}
-
+	tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s",cfg.Product))
+	if err != nil {
+		return nil, "", err
+	}
+	
 	terraformOptions := &terraform.Options{
 		TerraformDir: tfDir,
 		VarFiles:     []string{varDir},
@@ -73,29 +72,36 @@ func addClusterConfig(
 	terraformOptions *terraform.Options,
 ) (*Cluster, error) {
 	c := &Cluster{}
-	var agentIPs []string
 
 	if cfg.Product == "k3s" {
 		c.ClusterType = terraform.GetVariableAsStringFromVarFile(g, varDir, "cluster_type")
-		c.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
-		c.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
-		shared.KubeConfigFile = "/tmp/" + terraform.Output(g, terraformOptions, "kubeconfig") + "_kubeconfig"
-	} else {
-		shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
-	}
+		if c.ClusterType == "" {
+			c.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
+			c.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		}
+	} 
+	
+	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
+	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
+	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
+	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	c.ArchType = shared.Arch
+	c.ProductType = cfg.Product
+	
+	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
-		agentIPs = strings.Split(rawAgentIPs, ",")
+		c.AgentIPs = strings.Split(rawAgentIPs, ",")
 	}
-	c.AgentIPs = agentIPs
-
-	ServerIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-	c.ServerIPs = ServerIPs
-
-	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
-	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
-
+	
+	if cfg.Product == "rke2" {
+		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
+		if rawWinAgentIPs != "" {
+			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
+		}
+	}
+	
 	return c, nil
 }
 

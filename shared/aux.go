@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+    "encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 			return output.String(), fmt.Errorf("executing command: %s: %w", cmd, err)
 		}
 		if errOut.Len() > 0 {
-			fmt.Println("returning Stderr if not null, this might not be an error",
+			fmt.Println("\nreturning Stderr if not null, this might not be an error:\n",
 				errOut.String())
 		}
 
@@ -91,10 +92,23 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read file %s: %w", file, err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
+
+	return nil
+}
+
+// PrintBase64Encoded prints the base64 encoded contents of the file as string.
+func PrintBase64Encoded(filepath string) error {
+    file, err := os.ReadFile(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to encode file %s: %w", file, err)
+	}
+
+    encoded := base64.StdEncoding.EncodeToString(file)
+    fmt.Println(encoded)
 
 	return nil
 }
@@ -236,4 +250,14 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	}
 
 	return joinedCmd
+}
+
+// fileExists Checks if a file exists in a directory
+func fileExists(files []os.DirEntry, workload string) bool {
+	for _, file := range files {
+		if file.Name() == workload {
+			return true
+		}
+	}
+	return false
 }
