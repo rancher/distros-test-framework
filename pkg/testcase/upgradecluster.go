@@ -35,7 +35,10 @@ func TestUpgradeClusterSUC(version string) error {
 		return err
 	}
 
-	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/rke2-upgrade-plan.yaml"
+	product, err := shared.GetProduct()
+	Expect(err).NotTo(HaveOccurred())
+
+	originalFilePath := shared.BasePath() + fmt.Sprintf("/distros-test-framework/workloads/amd64/%s-upgrade-plan.yaml", product)
 	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)
@@ -109,6 +112,7 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 			if err != nil {
 				return
 			}
+
 			fmt.Println("Restarting " + nodeType + ": " + ip)
 			if _, err := shared.RestartCluster(product, ip); err != nil {
 				fmt.Printf("\nError restarting %s %s: %v\n\n", nodeType, ip, err)
