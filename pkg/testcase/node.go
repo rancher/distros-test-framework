@@ -17,12 +17,9 @@ func TestNodeStatus(
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
 	cluster := factory.GetCluster(GinkgoT())
-	expectedNodeCount := cluster.NumServers + cluster.NumAgents 
+	fmt.Println("\nFetching node status")
 
-	if cluster.ProductType == "rke2" {
-		expectedNodeCount += cluster.NumWinAgents
-	}
-
+	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 	Eventually(func(g Gomega) {
 		nodes, err := shared.ParseNodes(false)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -36,9 +33,8 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1200s", "10s").Should(Succeed())
+	}, "900s", "3s").Should(Succeed())
 
-	fmt.Println("\n\nCluster nodes:")
 	_, err := shared.ParseNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }

@@ -35,32 +35,32 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(false)
+		testcase.TestServiceClusterIp(true)
 	})
 
 	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(false)
+		testcase.TestServiceNodePort(true)
 	})
 
 	It("Verifies Ingress", func() {
-		testcase.TestIngress(false)
+		testcase.TestIngress(true)
 	})
 
 	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(false)
+		testcase.TestDaemonset(true)
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(false)
+		testcase.TestDnsAccess(true)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(false)
+			testcase.TestServiceLoadBalancer(true)
 		})
 
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(false)
+			testcase.TestLocalPathProvisionerStorage(true)
 		})
 	}
 
@@ -85,32 +85,32 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIP(true)
+		testcase.TestServiceClusterIp(false)
 	})
 
 	It("Verifies NodePort Service after upgrade", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(false)
 	})
 
 	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(false)
 	})
 
 	It("Verifies Daemonset after upgrade", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(false)
 	})
 
 	It("Verifies dns access after upgrade", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(false)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(true)
+			testcase.TestServiceLoadBalancer(false)
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(true)
+			testcase.TestLocalPathProvisionerStorage(false)
 		})
 	}
 })

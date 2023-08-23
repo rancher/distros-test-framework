@@ -20,6 +20,7 @@ func TestMain(m *testing.M) {
 	var err error
 
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
 	flag.Parse()
 
 	cfg, err = config.LoadConfigEnv("../../config")
