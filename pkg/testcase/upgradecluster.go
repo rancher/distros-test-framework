@@ -20,7 +20,8 @@ import (
 func TestUpgradeClusterSUC(version string) error {
 	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
 
-	_, err := shared.ManageWorkload("apply", "suc.yaml")
+	_, err := shared.ManageWorkload("create", "suc.yaml",
+		customflag.ServiceFlag.ClusterConfig.Arch.String())
 	Expect(err).NotTo(HaveOccurred(),
 		"system-upgrade-controller manifest did not deploy successfully")
 
@@ -28,9 +29,11 @@ func TestUpgradeClusterSUC(version string) error {
 	err = assert.CheckComponentCmdHost(
 		getPodsSystemUpgrade+shared.KubeConfigFile,
 		"system-upgrade-controller",
-		statusRunning,
+		Running,
 	)
-	Expect(err).NotTo(HaveOccurred(), err)
+	if err != nil {
+		return err
+	}
 
 	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/rke2-upgrade-plan.yaml"
 	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
@@ -46,7 +49,8 @@ func TestUpgradeClusterSUC(version string) error {
 		return fmt.Errorf("failed to write file: %s", err)
 	}
 
-	_, err = shared.ManageWorkload("apply", "plan.yaml")
+	_, err = shared.ManageWorkload("create", "plan.yaml",
+		customflag.ServiceFlag.ClusterConfig.Arch.String())
 	Expect(err).NotTo(HaveOccurred(), "failed to upgrade cluster.")
 
 	return nil
