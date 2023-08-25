@@ -40,19 +40,14 @@ func processCmds(resultChan chan error, wg *sync.WaitGroup, ip string, cmds []st
 func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []string, testCombination RunCmd) {
 	if testCombination.Run != nil {
 		for _, testMap := range testCombination.Run {
-
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
 
-			ipsToUse := ips
-
 			if strings.Contains(testMap.Cmd, "etcd") {
-
 				cmdToGetIps := fmt.Sprintf(`
 				kubectl get node -A -o wide --kubeconfig="%s" \
 				| grep 'etcd' | awk '{print $7}'
-				`,
-					shared.KubeConfigFile)
+				`, shared.KubeConfigFile)
 
 				var nodes []string
 				nodeIps, err := shared.RunCommandHost(cmdToGetIps)
@@ -67,10 +62,10 @@ func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []str
 					}
 				}
 
-				ipsToUse = nodes
+				ips = nodes
 			}
 
-			for _, ip := range ipsToUse {
+			for _, ip := range ips {
 				processCmds(resultChan, wg, ip, cmds, expectedValues)
 			}
 		}
