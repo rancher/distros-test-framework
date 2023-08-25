@@ -127,7 +127,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -expectedValue "v1.2.0-k3s1,1M, v1.26" \
 -expectedValueUpgrade "v1.2.0-k3s1,1M, v1.27" \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
--testCase "TestServiceClusterIp, TestLocalPathProvisionerStorage" \
+-testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
 -deployWorkload=true \
 -workloadName "bandwidth-annotations.yaml"
 ````
@@ -138,7 +138,7 @@ go test -v -timeout=45m -tags=versionbump ./entrypoint/versionbump/... \
 -expectedValue "v1.9.3, v1.25.9+rke2r1"  \
 -expectedValueUpgrade "v1.10.1, v1.26.4-rc1+rke2r1" \
 -installVersionOrCommit INSTALL_RKE2_VERSION=v1.25.9+rke2r1 \
--testCase "TestServiceClusterIp, TestIngress" \
+-testCase "TestServiceClusterIP, TestIngress" \
 -deployWorkload true \
 -workloadName "ingress.yaml" \
 -description "Testing ingress and service cluster ip"
@@ -190,7 +190,9 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 - The local.tfvars split roles section should be strictly followed to not cause any false positives or negatives on tests
 
-- For running tests with "etcd" cluster type, you should add the value "etcd" to the variable "cluster_type" , also you need have those variables at least empty:
+### K3S Only
+
+- For running tests on a K3S cluster with "etcd" cluster type, you should add the value "etcd" to the variable "cluster_type" , also you need have those variables at least empty:
 ```
 - external_db       
 - external_db_version
@@ -200,6 +202,22 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 - For running with external db you need the same variables above filled in with the correct data and also cluster_type= ""
 
+### RKE2 Only
+
+- For running tests on a RKE2 cluster with Windows agent, additional vars are required to create the Windows instance in AWS and join the node as agent
+- In `rke2.tfvars` file, add the below vars:
+```
+server_flags                = "cni: calico"
+windows_ec2_instance_class  = "<use t3.xlarge or higher>"
+windows_aws_ami             = "<windows ami>"
+no_of_windows_worker_nodes  = <count of Windows node>
+```
+
+#### NOTES: 
+- The sonobuoy test runs outside of the cluster, so if running the test locally, user have to clean up sonobouy manually. 
+- The MixedOS test is not supported with split-roles (TBA later) or Hardened cluster (Not supported in Windows)
+
+### Test Execution
 
 Tests can be run individually per package:
 ```bash
@@ -231,7 +249,7 @@ Test tags rke2:
 ```
 
 
-###  Run with `Makefile` through acceptance package:
+###  Run with `Makefile` locally:
 ```bash
 - On the first run with make and docker please delete your .terraform folder, terraform.tfstate and terraform.hcl.lock file
 
@@ -273,18 +291,11 @@ $ make vet-lint                        # runs go vet and go lint
 - Create an image tagged
 $ make test-env-up TAGNAME=ubuntu
 
-
-
 - Run upgrade cluster test with `${IMGNAME}` and  `${TAGNAME}`
 $ make test-run IMGNAME=2 TAGNAME=ubuntu TESTDIR=upgradecluster INSTALLTYPE=1.26.2+k3s1
 
-
-
-
 - Run create and upgrade cluster just adding `INSTALLTYPE` flag to upgrade
 $ make test-run INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218
-
-
 
 - Run version bump test upgrading with commit id
 $ make test-run IMGNAME=x \
@@ -296,20 +307,14 @@ INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218 \
 TESTCASE=TestLocalPathProvisionerStorage \
 DEPLOYWORKLOAD=true \
 WORKLOADNAME="someWorkload.yaml"
-
-
 ````
 ### Examples to run locally:
 ````
 - Run create cluster test:
 $ make test-create
 
-
-
 - Run upgrade cluster test:
 $ make test-upgrade-manual INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218
-
-
 
 - Run bump version with go test:
 $go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
@@ -317,19 +322,15 @@ $go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -expectedValue "CNI plugins plugin v1.2.0-k3s1,1M, v1.26" \
 -expectedValueUpgrade "CNI plugins plugin v1.2.0-k3s1,1M, v1.27" \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
--testCase "TestServiceClusterIp, TestLocalPathProvisionerStorage" \
+-testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
 -deployWorkload true \
 -workloadName "bandwidth-annotations.yaml"
-
 
  - Logs from test
 $ make tf-logs IMGNAME=1
 
-
-
 - Run lint for a specific directory
 $ make vet-lint TESTDIR=upgradecluster
-
 ````
 
 ### Running tests in parallel:
@@ -353,8 +354,6 @@ $ make vet-lint TESTDIR=upgradecluster
 To focus individual runs on specific test clauses, you can prefix with `F`. For example, in the [create cluster test](../tests/acceptance/entrypoint/createcluster_test.go), you can update the initial creation to be: `FIt("Starts up with no issues", func() {` in order to focus the run on only that clause.
 Or use break points in your IDE.
 ````
-
-
 
 ### Custom Reporting: WIP
 
