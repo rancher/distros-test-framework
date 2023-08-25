@@ -2,15 +2,18 @@ package shared
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
-    "encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/rancher/distros-test-framework/config"
 	"golang.org/x/crypto/ssh"
 )
@@ -102,13 +105,13 @@ func PrintFileContents(f ...string) error {
 
 // PrintBase64Encoded prints the base64 encoded contents of the file as string.
 func PrintBase64Encoded(filepath string) error {
-    file, err := os.ReadFile(filepath)
+	file, err := os.ReadFile(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to encode file %s: %w", file, err)
 	}
 
-    encoded := base64.StdEncoding.EncodeToString(file)
-    fmt.Println(encoded)
+	encoded := base64.StdEncoding.EncodeToString(file)
+	fmt.Println(encoded)
 
 	return nil
 }
@@ -260,4 +263,21 @@ func fileExists(files []os.DirEntry, workload string) bool {
 		}
 	}
 	return false
+}
+
+// GenReport returns the relevant lines from test results in json format
+func GenReport(specReport ginkgo.SpecReport) {
+	state := struct {
+		State string        `json:"state"`
+		Name  string        `json:"name"`
+		Type  string        `json:"type"`
+		Time  time.Duration `json:"time"`
+	}{
+		State: specReport.State.String(),
+		Name:  specReport.LeafNodeText,
+		Type:  "k3s rke2 test",
+		Time:  specReport.RunTime,
+	}
+	status, _ := json.Marshal(state)
+	fmt.Printf("%s", status)
 }
