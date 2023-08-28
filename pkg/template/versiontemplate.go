@@ -23,7 +23,7 @@ func VersionTemplate(test VersionTestTemplate) {
 		}
 	}
 
-	err := checkVersion(test)
+	err := executeTestCombination(test)
 	if err != nil {
 		GinkgoT().Errorf(err.Error())
 		return
@@ -32,7 +32,7 @@ func VersionTemplate(test VersionTestTemplate) {
 	if test.InstallUpgrade != nil {
 		for _, version := range test.InstallUpgrade {
 			if GinkgoT().Failed() {
-				fmt.Println("checkVersion failed, not proceeding to upgrade")
+				fmt.Println("executeTestCombination failed, not proceeding to upgrade")
 				return
 			}
 
@@ -42,7 +42,7 @@ func VersionTemplate(test VersionTestTemplate) {
 				return
 			}
 
-			err = checkVersion(test)
+			err = executeTestCombination(test)
 			if err != nil {
 				GinkgoT().Errorf(err.Error())
 				return

@@ -116,7 +116,7 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 				close(errCh)
 				return
 			}
-			time.Sleep(20 * time.Second)
+			time.Sleep(40 * time.Second)
 		}(ip, upgradeCommand)
 	}
 	wg.Wait()
