@@ -5,11 +5,12 @@ package versionbump
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+
+	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("VersionTemplate Upgrade:", func() {

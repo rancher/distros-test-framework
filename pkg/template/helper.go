@@ -8,23 +8,28 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// upgradeVersion upgrades the version of RKE2 and updates the expected values
+// upgradeVersion upgrades the product version
 func upgradeVersion(template VersionTestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
-		return shared.ReturnLogError("failed to upgrade cluster: %v", err)
+		return err
 	}
 
-	for i := range template.TestCombination.Run {
-		template.TestCombination.Run[i].ExpectedValue =
-			template.TestCombination.Run[i].ExpectedValueUpgrade
-	}
+	updateExpectedValue(template)
 
 	return nil
 }
 
-// checkVersion checks the version of RKE2 by calling processTestCombination
-func checkVersion(v VersionTestTemplate) error {
+// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
+func updateExpectedValue(template VersionTestTemplate) {
+	for i := range template.TestCombination.Run {
+		template.TestCombination.Run[i].ExpectedValue =
+			template.TestCombination.Run[i].ExpectedValueUpgrade
+	}
+}
+
+// executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
+func executeTestCombination(v VersionTestTemplate) error {
 	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
@@ -40,7 +45,7 @@ func checkVersion(v VersionTestTemplate) error {
 
 	for chanErr := range errorChanList {
 		if chanErr != nil {
-			return shared.ReturnLogError("failed to process test combination: %v", chanErr)
+			return chanErr
 		}
 	}
 
@@ -51,6 +56,34 @@ func checkVersion(v VersionTestTemplate) error {
 	return nil
 }
 
+// // checkVersion checks the version of RKE2 by calling processTestCombination
+// func checkVersion(v VersionTestTemplate) error {
+// 	ips := shared.FetchNodeExternalIP()
+//
+// 	var wg sync.WaitGroup
+// 	errorChanList := make(
+// 		chan error,
+// 		len(ips)*(len(v.TestCombination.Run)),
+// 	)
+//
+// 	processTestCombination(errorChanList, &wg, ips, *v.TestCombination)
+//
+// 	wg.Wait()
+// 	close(errorChanList)
+//
+// 	for chanErr := range errorChanList {
+// 		if chanErr != nil {
+// 			return shared.ReturnLogError("failed to process test combination: %v", chanErr)
+// 		}
+// 	}
+//
+// 	if v.TestConfig != nil {
+// 		TestCaseWrapper(v)
+// 	}
+//
+// 	return nil
+// }
+
 // AddTestCases returns the test case based on the name to be used as customflag.
 func AddTestCases(names []string) ([]TestCase, error) {
 	var testCases []TestCase
@@ -59,7 +92,7 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		"TestDaemonset":                   testcase.TestDaemonset,
 		"TestIngress":                     testcase.TestIngress,
 		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIp":            testcase.TestServiceClusterIp,
+		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
 		"TestServiceNodePort":             testcase.TestServiceNodePort,
 		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,

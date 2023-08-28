@@ -33,7 +33,9 @@ type Cluster struct {
 type ClusterConfig struct {
 	RenderedTemplate string
 	ExternalDb       string
-	DatastoreType    string
+	DataStore        string
+	Product          string
+	Arch             string
 }
 
 func loadConfig() (*config.ProductConfig, error) {
@@ -58,6 +60,7 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	if err != nil {
 		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
+
 	tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
@@ -94,43 +97,41 @@ func addClusterConfig(
 	if err != nil {
 		return nil, shared.ReturnLogError("error loading config: %w", err)
 	}
-
 	c := &Cluster{}
-	var agentIPs []string
 
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	c.Config.Arch = shared.Arch
+	c.Config.Product = cfg.Product
+	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {
-		c.Config.DatastoreType = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
-		if c.Config.DatastoreType == "" {
+		c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
+		if c.Config.DataStore == "" {
 			c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
 			c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
 		}
 	}
 
-	serverIPs := strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-	c.ServerIPs = serverIPs
-
 	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
-		agentIPs = strings.Split(rawAgentIPs, ",")
+		c.AgentIPs = strings.Split(rawAgentIPs, ",")
 	}
-	c.AgentIPs = agentIPs
 
 	if cfg.Product == "rke2" {
 		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
 		if rawWinAgentIPs != "" {
 			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
 		}
-		NumWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_windows_worker_nodes"))
+		numWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
+			"no_of_windows_worker_nodes"))
 		if err != nil {
-			return nil, err
+			return nil, shared.ReturnLogError("error getting no_of_windows_worker_nodes: \n%w", err)
 		}
 
-		c.NumWinAgents = NumWinAgents
+		c.NumWinAgents = numWinAgents
 	}
 
 	return c, nil

@@ -5,13 +5,11 @@ linters:
     - revive
     - gosec
     - misspell
-    - nlreturn
     - dupl
 
 linters-settings:
   govet:
     check-shadowing: true
-    check-tests: true
   gci:
     local-prefixes: github.com/rancher/distros-test-framework
   gosec:
@@ -72,4 +70,7 @@ issues:
       text: "G106: Use of ssh InsecureIgnoreHostKey should be audited"
     - linters: [gosec]
       text: "G306: Expect WriteFile permissions to be 0600 or less"
-
+    - linters: [revive]
+      text: 'Unhandled error in call to function fmt\.Println'
+    - linters: [govet]
+      text: '`fmt\.Println` arg list ends with redundant newline'

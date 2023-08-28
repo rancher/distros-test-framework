@@ -48,7 +48,7 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
-		return "", ReturnLogError("%s : Unable to read resource manifest file for: %s\n", Arch, err)
+		return "", ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
 	}
 
 	for _, workload := range workloads {
@@ -59,12 +59,12 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 		if action == "apply" {
 			err = applyWorkload(workload, filename)
 			if err != nil {
-				return "", ReturnLogError("failed to apply workload %s: %s\n", workload, err)
+				return "", ReturnLogError("failed to apply workload %s: \n", workload)
 			}
 		} else {
 			err = deleteWorkload(workload, filename)
 			if err != nil {
-				return "", ReturnLogError("failed to delete workload %s: %s\n", workload, err)
+				return "", ReturnLogError("failed to delete workload %s: \n", workload)
 			}
 		}
 	}
@@ -72,52 +72,9 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 	return res, err
 }
 
-// // ManageWorkload creates or deletes a workload based on the action: create or delete.
-// func ManageWorkload(action, workload, arch string) (string, error) {
-// 	var res string
-// 	var err error
-//
-// 	if action != "create" && action != "delete" {
-// 		return "", ReturnLogError("invalid action: %s. Must be 'create' or 'delete'", action)
-// 	}
-//
-// 	resourceDir := BasePath() + "/distros-test-framework/workloads/amd64/"
-// 	if arch == "arm64" {
-// 		resourceDir = BasePath() + "/distros-test-framework/workloads/arm/"
-// 	}
-//
-// 	files, err := os.ReadDir(resourceDir)
-// 	if err != nil {
-// 		return "", ReturnLogError("%s : Unable to read resource manifest file for %s\n", err, workload)
-// 	}
-//
-// 	for _, f := range files {
-// 		filename := filepath.Join(resourceDir, f.Name())
-// 		if strings.TrimSpace(f.Name()) == workload {
-// 			if action == "create" {
-// 				res, err = createWorkload(workload, filename)
-// 				if err != nil {
-// 					return "", ReturnLogError("failed to create workload %s: %s\n", workload, err)
-// 				}
-// 			} else {
-// 				err = deleteWorkload(workload, filename)
-// 				if err != nil {
-// 					LogLevel("warn", "failed to delete workload %s: %s\n", workload, err)
-// 					return "", err
-// 				}
-// 			}
-//
-// 			return res, err
-// 		}
-// 	}
-//
-// 	return "", ReturnLogError("workload %s not found", workload)
-// }
-
 func applyWorkload(workload, filename string) error {
 	fmt.Println("\nApplying ", workload)
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
-
 	out, err := RunCommandHost(cmd)
 	if err != nil || out == "" {
 		return ReturnLogError("failed to run kubectl apply: %w", err)
@@ -128,7 +85,7 @@ func applyWorkload(workload, filename string) error {
 		return ReturnLogError("failed to run kubectl get all: %w\n", err)
 	}
 
-	if ok := !strings.Contains(out, "Creating") && strings.Contains(out, workload); !ok {
+	if ok := !strings.Contains(out, "Creating") && strings.Contains(out, workload); ok {
 		return ReturnLogError("failed to apply workload %s", workload)
 	}
 
@@ -205,7 +162,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 func kubectlCmdOnHost(cmd string) (string, error) {
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("failed to run kubectl command: %w\n", err)
 	}
 
 	return res, nil
@@ -213,14 +170,17 @@ func kubectlCmdOnHost(cmd string) (string, error) {
 
 func kubectlCmdOnNode(cmd string) (string, error) {
 	ips := FetchNodeExternalIP()
+	var finalRes string
+
 	for _, ip := range ips {
 		res, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return "", err
 		}
-		return res, nil
+		finalRes += res
 	}
-	return "", nil
+
+	return finalRes, nil
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
@@ -295,19 +255,19 @@ func FetchIngressIP(namespace string) ([]string, error) {
 // version	optional sonobouy version to be installed
 func SonobuoyMixedOS(action, version string) error {
 	if action != "install" && action != "delete" {
-		return fmt.Errorf("invalid action: %s. Must be 'install' or 'delete'", action)
+		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
 	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0755)
 	if err != nil {
-		return fmt.Errorf("failed to change script permissions: %v", err)
+		return ReturnLogError("failed to change script permissions: %w", err)
 	}
 
 	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to execute %s action sonobuoy: %v\nOutput: %s", action, err, output)
+		return ReturnLogError("failed to execute %s action sonobuoy: %w\nOutput: %s", action, err, output)
 	}
 
 	return err
@@ -338,6 +298,7 @@ func ParseNodes(print bool) ([]Node, error) {
 			nodes = append(nodes, n)
 		}
 	}
+
 	if print {
 		fmt.Println(nodelist)
 	}
@@ -370,6 +331,7 @@ func ParsePods(print bool) ([]Pod, error) {
 		}
 		pods = append(pods, p)
 	}
+
 	if print {
 		fmt.Println(podList)
 	}
@@ -386,12 +348,20 @@ func ReadDataPod(namespace string) (string, error) {
 		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
-		return "", ReturnLogError("failed to fetch pod name: %v\n", err)
+		LogLevel("error", "failed to fetch pod name: \n%w", err)
+		os.Exit(1)
 	}
 
 	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
 		" -- cat /data/test"
-	return RunCommandHost(cmd)
+
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		LogLevel("error", "failed to read data from pod: \n%w", err)
+		os.Exit(1)
+	}
+
+	return res, nil
 }
 
 // WriteDataPod writes data to the pod
@@ -403,7 +373,7 @@ func WriteDataPod(namespace string) (string, error) {
 		"-n "+namespace+" -o jsonpath={.items[0].metadata.name}",
 	)
 	if err != nil {
-		return "", ReturnLogError("failed to fetch pod name: %v\n", err)
+		return "", ReturnLogError("failed to fetch pod name: \n%w", err)
 	}
 
 	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +

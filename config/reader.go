@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -40,6 +42,16 @@ func loadConfigEnv(path string) (config *ProductConfig, err error) {
 
 	}
 	err = viper.Unmarshal(&config)
+
+	if config.Product == "" || (config.Product != "k3s" && config.Product != "rke2") {
+		fmt.Printf("unknown product: %s\n", config.Product)
+		os.Exit(1)
+	}
+
+	if config.TFVars == "" || (config.TFVars != "k3s.tfvars" && config.TFVars != "rke2.tfvars") {
+		fmt.Printf("unknown tfvars: %s\n", config.TFVars)
+		os.Exit(1)
+	}
 
 	return config, err
 }

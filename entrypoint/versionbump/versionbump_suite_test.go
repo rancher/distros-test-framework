@@ -6,14 +6,12 @@ import (
 	"os"
 	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
-	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var cfg *config.ProductConfig
@@ -28,7 +26,6 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
 	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeployWorkload, "deployWorkload", false, "Deploy workload customflag for tests passed in")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "amd64 or arm64")
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
 
@@ -49,8 +46,7 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		shared.LogLevel("error", "error getting config: %v", err)
-		os.Exit(1)
+		return
 	}
 
 	os.Exit(m.Run())

@@ -35,23 +35,23 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies ClusterIP Service pre upgrade", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(false)
 	})
 
-	It("Verifies NodePort Service pre upgrade", func() {
-		testcase.TestServiceNodePort(true)
+	It("Verifies NodePort Service pre-upgrade", func() {
+		testcase.TestServiceNodePort(false)
 	})
 
-	It("Verifies Ingress pre upgrade", func() {
-		testcase.TestIngress(true)
+	It("Verifies Ingress pre-upgrade", func() {
+		testcase.TestIngress(false)
 	})
 
-	It("Verifies Daemonset pre upgrade", func() {
-		testcase.TestDaemonset(true)
+	It("Verifies Daemonset pre-upgrade", func() {
+		testcase.TestDaemonset(false)
 	})
 
-	It("Verifies DNS Access pre upgrade", func() {
-		testcase.TestDnsAccess(true)
+	It("Verifies DNS Access pre-upgrade", func() {
+		testcase.TestDnsAccess(false)
 	})
 
 	It("\nUpgrade via SUC", func() {
@@ -59,14 +59,14 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("Checks Node Status pos upgrade suc", func() {
+	It("Checks Node Status post-upgrade", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
 	})
 
-	It("Checks Pod Status pos upgrade suc", func() {
+	It("Checks Pod Status post-upgrade", func() {
 		testcase.TestPodStatus(
 			nil,
 			assert.PodAssertReady(),
@@ -74,23 +74,23 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		)
 	})
 
-	It("Verifies ClusterIP Service pos upgrade", func() {
-		testcase.TestServiceClusterIp(false)
+	It("Verifies ClusterIP Service post-upgrade", func() {
+		testcase.TestServiceClusterIp(true)
 	})
 
-	It("Verifies NodePort Service pos upgrade", func() {
-		testcase.TestServiceNodePort(false)
+	It("Verifies NodePort Service post-upgrade", func() {
+		testcase.TestServiceNodePort(true)
 	})
 
-	It("Verifies Ingress pos upgrade", func() {
-		testcase.TestIngress(false)
+	It("Verifies Ingress post-upgrade", func() {
+		testcase.TestIngress(true)
 	})
 
-	It("Verifies Daemonset pos upgrade", func() {
-		testcase.TestDaemonset(false)
+	It("Verifies Daemonset post-upgrade", func() {
+		testcase.TestDaemonset(true)
 	})
 
-	It("Verifies DNS Access pos upgrade", func() {
+	It("Verifies DNS Access post-upgrade", func() {
 		testcase.TestDnsAccess(true)
 	})
 })

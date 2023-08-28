@@ -71,21 +71,14 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 		return "", shared.ReturnLogError("error getting config: %w", err)
 	}
 
-	tfDir, err := filepath.Abs(shared.BasePath() + "/distros-test-framework/modules")
+	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
 	if err != nil {
-		return "", shared.ReturnLogError("error getting modules dir: %w\n", err)
-	}
-
-	if cfg.Product == "rke2" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
-	} else if cfg.Product == "k3s" {
-		varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
-	} else {
 		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
+	tfDir, err := filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
 	if err != nil {
-		return "", shared.ReturnLogError("error getting var dir: %w\n", err)
+		return "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
 
 	terraformOptions := terraform.Options{

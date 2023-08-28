@@ -33,8 +33,9 @@ func RunCommandHost(cmds ...string) (string, error) {
 
 		err := c.Run()
 		if err != nil {
-			fmt.Println(c.Stderr.(*bytes.Buffer).String())
-			return output.String(), fmt.Errorf("executing command: %s: %w\n", cmd, err)
+			LogLevel("warn", "something happening on command:\n %s: \nwith error: %w\n", cmd,
+				c.Stderr.(*bytes.Buffer).String())
+			return "", err
 		}
 	}
 
@@ -103,7 +104,7 @@ func PrintFileContents(f ...string) error {
 func PrintBase64Encoded(filepath string) error {
 	file, err := os.ReadFile(filepath)
 	if err != nil {
-		return fmt.Errorf("failed to encode file %s: %w", file, err)
+		return ReturnLogError("failed to encode file %s: %w", file, err)
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(file)
@@ -258,7 +259,6 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 // GetJournalLogs returns the journal logs for a specific product
 func GetJournalLogs(product, ip string) (string, error) {
 	cmd := fmt.Sprintf("journalctl -u %s* --no-pager", product)
-
 	return RunCommandOnNode(cmd, ip)
 }
 
@@ -317,5 +317,6 @@ func fileExists(files []os.DirEntry, workload string) bool {
 			return true
 		}
 	}
+
 	return false
 }

@@ -43,12 +43,9 @@ type TestConfigFlag struct {
 
 type ClusterConfigFlag struct {
 	Destroy DestroyFlag
-	Arch    ArchFlag
 }
 
 type DestroyFlag bool
-
-type ArchFlag string
 
 type TestCaseFlag func(deployWorkload bool)
 
@@ -60,6 +57,7 @@ func (s *StringSlice) String() string {
 
 func (s *StringSlice) Set(value string) error {
 	*s = strings.Split(value, ",")
+
 	return nil
 }
 
@@ -69,9 +67,10 @@ func (t *TestConfigFlag) String() string {
 
 func (t *TestConfigFlag) Set(value string) error {
 	t.TestFuncNames = strings.Split(value, ",")
-	return nil
-}
 
+	return nil
+
+}
 func (c *ChannelFlag) String() string {
 	return c.Channel
 }
@@ -133,21 +132,6 @@ func (d *DestroyFlag) Set(value string) error {
 		return err
 	}
 	*d = DestroyFlag(v)
-
-	return nil
-}
-
-func (a *ArchFlag) String() string {
-	return string(*a)
-}
-
-func (a *ArchFlag) Set(value string) error {
-	if value == "arm" || value == "arm64" ||
-		value == "amd64" || value == "s390x" {
-		*a = ArchFlag(value)
-	} else {
-		*a = "amd64"
-	}
 
 	return nil
 }
