@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #Get resource name from tfvarslocal && change name to make more sense in this context
-PRODUCT_NAME=$(grep ENV_PRODUCT <config/config.yaml | cut -d: -f2 | tr -d ' "')
-RESOURCE_NAME=$(grep resource_name <config/"{$PRODUCT_NAME}".tfvars | cut -d= -f2 | tr -d ' "')
+PRODUCT_NAME=$(grep ENV_PRODUCT <../config/config.yaml | cut -d: -f2 | tr -d ' "')
+RESOURCE_NAME=$(grep resource_name <../config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
 NAME_PREFIX="$RESOURCE_NAME"
 
 #Terminate the instances

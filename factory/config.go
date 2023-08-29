@@ -66,20 +66,6 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
 
-	// if cfg.Product == "rke2" {
-	// 	varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/rke2.tfvars")
-	// 	tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/rke2")
-	// } else if cfg.Product == "k3s" {
-	// 	varDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/config/k3s.tfvars")
-	// 	tfDir, err = filepath.Abs(shared.BasePath() + "/distros-test-framework/modules/k3s")
-	// } else {
-	// 	return nil, "", shared.ReturnLogError("invalid product %s\n", cfg.Product)
-	// }
-	//
-	// if err != nil {
-	// 	return nil, "", shared.ReturnLogError("error getting absolute path: %w\n", err)
-	// }
-
 	terraformOptions := &terraform.Options{
 		TerraformDir: tfDir,
 		VarFiles:     []string{varDir},

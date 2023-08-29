@@ -276,9 +276,11 @@ func SonobuoyMixedOS(action, version string) error {
 // ParseNodes returns nodes parsed from kubectl get nodes.
 func ParseNodes(print bool) ([]Node, error) {
 	nodes := make([]Node, 0, 10)
+	delay := time.After(30 * time.Second)
 
 	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
 	if err != nil {
+		<-delay
 		return nil, fmt.Errorf("failed to run kubectl get nodes: %v\n", err)
 	}
 

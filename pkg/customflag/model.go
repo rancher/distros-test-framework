@@ -114,11 +114,12 @@ func (t *SUCUpgradeVersion) String() string {
 }
 
 func (t *SUCUpgradeVersion) Set(value string) error {
-	if !strings.HasPrefix(value, "v") || !strings.HasSuffix(value, "rke2r1") {
-		return shared.ReturnLogError("invalid version format: %s", value)
+	if !strings.HasPrefix(value, "v") ||
+		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
+		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
 	}
-
 	t.Version = value
+
 	return nil
 }
 

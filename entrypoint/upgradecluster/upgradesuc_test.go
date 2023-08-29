@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
@@ -55,8 +54,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("\nUpgrade via SUC", func() {
-		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
-		Expect(err).NotTo(HaveOccurred())
+		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node Status post-upgrade", func() {

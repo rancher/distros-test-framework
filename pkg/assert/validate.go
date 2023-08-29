@@ -65,13 +65,11 @@ func runAssertion(
 				return fmt.Errorf("error from runCmd: %s\n %s", res, err)
 			}
 			if strings.Contains(res, assert) {
-				fmt.Printf("\n---------------------\nCommand:\n"+
-					"%s\n"+
-					"\n---------------------\nResult:\n"+
+				fmt.Printf("\nCommand:\n"+
 					"%s"+
 					"\n---------------------\nAssertion:\n"+
-					"%s\n", cmd, res, assert)
-				fmt.Printf("Matched with:\n%s\n", res)
+					"%s"+
+					"\n----------------------\nMatched with result:\n%s\n", cmd, assert, res)
 				errorsChan <- nil
 				return nil
 			}

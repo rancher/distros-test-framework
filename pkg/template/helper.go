@@ -56,34 +56,6 @@ func executeTestCombination(v VersionTestTemplate) error {
 	return nil
 }
 
-// // checkVersion checks the version of RKE2 by calling processTestCombination
-// func checkVersion(v VersionTestTemplate) error {
-// 	ips := shared.FetchNodeExternalIP()
-//
-// 	var wg sync.WaitGroup
-// 	errorChanList := make(
-// 		chan error,
-// 		len(ips)*(len(v.TestCombination.Run)),
-// 	)
-//
-// 	processTestCombination(errorChanList, &wg, ips, *v.TestCombination)
-//
-// 	wg.Wait()
-// 	close(errorChanList)
-//
-// 	for chanErr := range errorChanList {
-// 		if chanErr != nil {
-// 			return shared.ReturnLogError("failed to process test combination: %v", chanErr)
-// 		}
-// 	}
-//
-// 	if v.TestConfig != nil {
-// 		TestCaseWrapper(v)
-// 	}
-//
-// 	return nil
-// }
-
 // AddTestCases returns the test case based on the name to be used as customflag.
 func AddTestCases(names []string) ([]TestCase, error) {
 	var testCases []TestCase

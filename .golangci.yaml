@@ -6,6 +6,8 @@ linters:
     - gosec
     - misspell
     - dupl
+    - exportloopref
+    - dupl
 
 linters-settings:
   govet:
