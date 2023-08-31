@@ -4,32 +4,35 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/rancher/distros-test-framework/shared"
 )
 
 var ServiceFlag FlagConfig
 var TestCaseNameFlag StringSlice
 
+// FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
-	InstallType       InstallTypeValueFlag
-	InstallUpgrade    MultiValueFlag
+	InstallMode       InstallTypeValueFlag
 	TestConfig        TestConfigFlag
 	ClusterConfig     ClusterConfigFlag
-	UpgradeVersionSUC UpgradeVersionFlag
+	SUCUpgradeVersion SUCUpgradeVersion
+	Channel           ChannelFlag
 }
 
-// UpgradeVersionFlag is a custom type to use upgradeVersionSUC flag
-type UpgradeVersionFlag struct {
+type SUCUpgradeVersion struct {
 	Version string
 }
 
-// InstallTypeValueFlag is a customflag type that can be used to parse the installation type
 type InstallTypeValueFlag struct {
-	Version []string
-	Commit  []string
+	Version string
+	Commit  string
+}
+
+type ChannelFlag struct {
 	Channel string
 }
 
-// TestConfigFlag is a customflag type that can be used to parse the test case argument
 type TestConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
@@ -38,107 +41,92 @@ type TestConfigFlag struct {
 	Description    string
 }
 
-// ClusterConfigFlag is a customFlag type that can be used to change some cluster config
 type ClusterConfigFlag struct {
 	Destroy DestroyFlag
 }
 
 type DestroyFlag bool
 
-// TestCaseFlag is a customflag type that can be used to parse the test case argument
 type TestCaseFlag func(deployWorkload bool)
 
-// MultiValueFlag is a customflag type that can be used to parse multiple values
-type MultiValueFlag []string
-
-// StringSlice defines a custom flag type for string slice
 type StringSlice []string
 
-// String returns the string representation of the StringSlice
 func (s *StringSlice) String() string {
 	return strings.Join(*s, ",")
 }
 
-// Set parses the input string and sets the StringSlice using Set customflag interface
 func (s *StringSlice) Set(value string) error {
 	*s = strings.Split(value, ",")
+
 	return nil
 }
 
-// String returns the string representation of the MultiValueFlag
-func (m *MultiValueFlag) String() string {
-	return strings.Join(*m, ",")
-}
-
-// Set func sets multiValueFlag appending the value
-func (m *MultiValueFlag) Set(value string) error {
-	*m = append(*m, value)
-	return nil
-}
-
-// String returns the string representation of the TestConfigFlag
 func (t *TestConfigFlag) String() string {
 	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
 }
 
-// Set parses the customFlag value for TestConfigFlag
 func (t *TestConfigFlag) Set(value string) error {
 	t.TestFuncNames = strings.Split(value, ",")
+
+	return nil
+
+}
+func (c *ChannelFlag) String() string {
+	return c.Channel
+}
+
+func (c *ChannelFlag) Set(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	if value != "latest" && value != "stable" && value != "testing" {
+		return shared.ReturnLogError("invalid channel: %s", value)
+	}
+
+	c.Channel = value
+
 	return nil
 }
 
-// String returns the string representation of the InstallTypeValue
 func (i *InstallTypeValueFlag) String() string {
-	return fmt.Sprintf("Version: %s, Commit: %s", i.Version, i.Commit)
+	return fmt.Sprintf("%s%s", i.Version, i.Commit)
 }
 
-// Set parses the input string and sets the Version or Commit field using Set customflag interface
 func (i *InstallTypeValueFlag) Set(value string) error {
-	parts := strings.Split(value, "=")
-
-	for _, part := range parts {
-		subParts := strings.Split(part, "=")
-		if len(subParts) != 2 {
-			return fmt.Errorf("invalid input format")
+	if strings.HasPrefix(value, "v") {
+		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
+			return shared.ReturnLogError("invalid version format: %s", value)
 		}
-		switch parts[0] {
-		case "INSTALL_RKE2_VERSION":
-			i.Version = append(i.Version, subParts[1])
-		case "INSTALL_RKE2_COMMIT":
-			i.Commit = append(i.Commit, subParts[1])
-		case "INSTALL_K3S_VERSION":
-			i.Version = append(i.Version, subParts[1])
-		case "INSTALL_K3S_COMMIT":
-			i.Commit = append(i.Commit, subParts[1])
-		default:
-			return fmt.Errorf("invalid install type: %s", parts[0])
+		i.Version = value
+	} else {
+		if len(value) != 40 {
+			return shared.ReturnLogError("invalid commit length: %s", value)
 		}
+		i.Commit = value
 	}
 
 	return nil
 }
 
-// String returns the string representation of the UpgradeVersion for SUC upgrade
-func (t *UpgradeVersionFlag) String() string {
+func (t *SUCUpgradeVersion) String() string {
 	return t.Version
 }
 
-// Set parses the input string and sets the Version field for SUC upgrades
-func (t *UpgradeVersionFlag) Set(value string) error {
-	if !strings.HasPrefix(value, "v") && !strings.HasSuffix(value, "rke2r1") {
-		return fmt.Errorf("invalid install format: %s", value)
+func (t *SUCUpgradeVersion) Set(value string) error {
+	if !strings.HasPrefix(value, "v") ||
+		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
+		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
 	}
-
 	t.Version = value
+
 	return nil
 }
 
-// String returns the string representation of the DestroyFlag
 func (d *DestroyFlag) String() string {
 	return fmt.Sprintf("%v", *d)
 }
 
-// Set parses the customFlag value for DestroyFlag
 func (d *DestroyFlag) Set(value string) error {
 	v, err := strconv.ParseBool(value)
 	if err != nil {
@@ -148,4 +136,3 @@ func (d *DestroyFlag) Set(value string) error {
 
 	return nil
 }
-

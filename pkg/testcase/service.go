@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIP(deleteWorkload bool) {		
+func TestServiceClusterIp(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply", "clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
 
@@ -21,7 +21,7 @@ func TestServiceClusterIP(deleteWorkload bool) {
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
 			":"+port+"/name.html", "test-clusterip")
-			Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 
 	if deleteWorkload {
@@ -33,7 +33,7 @@ func TestServiceClusterIP(deleteWorkload bool) {
 func TestServiceNodePort(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
-	
+
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -63,7 +63,7 @@ func TestServiceNodePort(deleteWorkload bool) {
 func TestServiceLoadBalancer(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
-	
+
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
 	port, err := shared.RunCommandHost(getLoadbalancerSVC + shared.KubeConfigFile)

@@ -3,19 +3,19 @@ package mixedoscluster
 import (
 	"flag"
 	"os"
-	"fmt"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var sonobuoyVersion string
-var cfg config.ProductConfig
+var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
@@ -23,12 +23,16 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = config.LoadConfigEnv("../../config")
+	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
-	
+
+	if cfg.Product == "k3s" {
+		shared.LogLevel("error", "\nproduct not supported: %s", cfg.Product)
+		os.Exit(1)
+	}
+
 	os.Exit(m.Run())
 }
 

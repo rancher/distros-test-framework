@@ -36,13 +36,13 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd:                  "/var/lib/rancher/k3s/data/current/bin/cni , var/lib/rancher/k3s/data/current/bin/flannel",
+						Cmd:                  "/var/lib/rancher/k3s/data/current/bin/cni , /var/lib/rancher/k3s/data/current/bin/flannel",
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallUpgrade: customflag.ServiceFlag.InstallUpgrade,
+			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &template.TestConfig{
 				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,

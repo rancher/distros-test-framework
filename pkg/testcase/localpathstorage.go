@@ -28,8 +28,9 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)
 
 	Eventually(func(g Gomega) {
+		var res string
 		fmt.Println("Writing and reading data from pod")
-		res, err := shared.ReadDataPod(lps)
+		res, err = shared.ReadDataPod(lps)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -37,12 +38,8 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
-		_, err = shared.RestartCluster("k3s", ip)
-		if err != nil {
-			return
-		}
+		shared.RestartCluster("k3s", ip)
 	}
-	time.Sleep(30 * time.Second)
 
 	_, err = shared.ReadDataPod(lps)
 	if err != nil {
@@ -58,7 +55,6 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 		_, err := shared.ManageWorkload("delete", "local-path-provisioner.yaml")
 		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
 	}
-
 }
 
 func readData() error {
@@ -67,9 +63,11 @@ func readData() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(160 * time.Second)
 
-	fmt.Println("Read data from newly create pod")
+	fmt.Println("Reading data from newly created pod")
+	delay := time.After(30 * time.Second)
+	<-delay
+
 	_, err = shared.ReadDataPod(lps)
 	if err != nil {
 		return err

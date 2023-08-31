@@ -1,7 +1,6 @@
 package template
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -65,10 +64,9 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		"TestDaemonset":                   testcase.TestDaemonset,
 		"TestIngress":                     testcase.TestIngress,
 		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIP":            testcase.TestServiceClusterIP,
+		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
 		"TestServiceNodePort":             testcase.TestServiceNodePort,
 		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
-		"TestCoredns":                     testcase.TestCoredns,
 		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,
 	}
 
@@ -79,7 +77,7 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		} else if test, ok := testCase[name]; ok {
 			testCases = append(testCases, test)
 		} else {
-			return nil, fmt.Errorf("invalid test case name")
+			return nil, shared.ReturnLogError("invalid test case name")
 		}
 	}
 

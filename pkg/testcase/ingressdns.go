@@ -9,8 +9,7 @@ import (
 
 const (
 	statusRunning = "Running"
-	ExecDnsUtils = "kubectl exec -n auto-dns -t dnsutils --kubeconfig="
-	Nslookup = "kubernetes.default.svc.cluster.local"
+	Nslookup      = "kubernetes.default.svc.cluster.local"
 )
 
 func TestIngress(deleteWorkload bool) {

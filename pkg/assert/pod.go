@@ -76,14 +76,12 @@ func CheckPodStatusRunning(name, namespace, assert string) {
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		res, err := shared.RunCommandHost(cmd)
-		if err != nil {
-			return
-		}
+		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring(assert))
 	}, "180s", "5s").Should(Succeed())
 }
 
-// ValidatePodIPByLabel validates expected pod IP by label 
+// ValidatePodIPByLabel validates expected pod IP by label
 func ValidatePodIPByLabel(labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
@@ -91,7 +89,7 @@ func ValidatePodIPByLabel(labels, expected []string) {
 				res, _ := shared.KubectlCommand(
 					"host",
 					"get",
-					fmt.Sprintf("pods -l %s",label),
+					fmt.Sprintf("pods -l %s", label),
 					`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
 				ips := strings.Split(res, " ")
 				if strings.Contains(ips[0], expected[i]) {
@@ -100,6 +98,6 @@ func ValidatePodIPByLabel(labels, expected []string) {
 			}
 		}
 		return nil
-	}, "180s", "30s").Should(Succeed(), 
+	}, "180s", "30s").Should(Succeed(),
 		"failed to validate expected: %s on %s", expected, labels)
 }

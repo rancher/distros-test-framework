@@ -10,6 +10,7 @@ import (
 )
 
 var _ = Describe("Test:", func() {
+
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
@@ -30,7 +31,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(true)
+		testcase.TestServiceClusterIp(true)
 	})
 
 	It("Verifies NodePort Service", func() {
@@ -40,7 +41,6 @@ var _ = Describe("Test:", func() {
 	It("Verifies Ingress", func() {
 		testcase.TestIngress(true)
 	})
-
 	It("Verifies Daemonset", func() {
 		testcase.TestDaemonset(true)
 	})
@@ -53,6 +53,7 @@ var _ = Describe("Test:", func() {
 		It("Verifies Local Path Provisioner storage", func() {
 			testcase.TestLocalPathProvisionerStorage(true)
 		})
+
 		It("Verifies LoadBalancer Service", func() {
 			testcase.TestServiceLoadBalancer(true)
 		})

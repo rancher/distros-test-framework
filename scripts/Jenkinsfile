@@ -68,7 +68,6 @@ node {
                   //update product info
                   def data = "ENV_PRODUCT: ${env.PRODUCT_NAME}\nENV_TFVARS: ${env.PRODUCT_NAME}.tfvars\n"
                   writeFile(file: 'config.yaml', text: data)
-
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS
@@ -80,15 +79,6 @@ node {
                   def testdata = readFile(file: filename)
                   println("\n\nTFVARS TEST DATA")
                   println(testdata)
-                  
-                  if (TESTCASE == 'mixedoscluster') {
-                    if (env.PRODUCT_NAME == 'k3s') {
-                      error("Found testcase-${TESTCASE} executing with product-${env.PRODUCT_NAME}, which is not supported\nAborting the build!")
-                    }
-                    if ((env.PRODUCT_NAME == 'rke2') && testdata.contains('cis')) {
-                      error("Found testcase-${TESTCASE} executing with product-${env.PRODUCT_NAME} and profile CIS, which is not supported\nAborting the build!")
-                    }
-                  }
                 }
                 sh "./scripts/configure.sh"
                 sh "./scripts/build.sh"

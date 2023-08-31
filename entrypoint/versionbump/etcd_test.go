@@ -32,10 +32,11 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Verifies bump version on product for etcd", func() {
-		cmd := "sudo journalctl -u k3s | grep 'etcd-version' ," + " k3s -v"
+		cmd := "sudo journalctl -u k3s | grep 'etcd-version' | awk -F'\"' " +
+			"'{ for(i=1; i<=NF; ++i) if($i == \"etcd-version\") print $(i+2) }' ," + "k3s -v"
 		if cfg.Product == "rke2" {
 			cmd = "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images | grep etcd ," +
-				" rke2 -v"
+				"rke2 -v"
 		}
 
 		template.VersionTemplate(template.VersionTestTemplate{
@@ -48,7 +49,7 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 					},
 				},
 			},
-			InstallUpgrade: customflag.ServiceFlag.InstallUpgrade,
+			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &template.TestConfig{
 				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,

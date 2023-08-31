@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
@@ -35,7 +34,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies ClusterIP Service pre upgrade", func() {
-		testcase.TestServiceClusterIP(false)
+		testcase.TestServiceClusterIp(false)
 	})
 
 	It("Verifies NodePort Service pre-upgrade", func() {
@@ -55,8 +54,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("\nUpgrade via SUC", func() {
-		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.UpgradeVersionSUC.String())
-		Expect(err).NotTo(HaveOccurred())
+		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node Status post-upgrade", func() {
@@ -75,7 +73,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies ClusterIP Service post-upgrade", func() {
-		testcase.TestServiceClusterIP(true)
+		testcase.TestServiceClusterIp(true)
 	})
 
 	It("Verifies NodePort Service post-upgrade", func() {

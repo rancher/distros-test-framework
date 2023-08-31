@@ -190,9 +190,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 - The local.tfvars split roles section should be strictly followed to not cause any false positives or negatives on tests
 
-### K3S Only
-
-- For running tests on a K3S cluster with "etcd" cluster type, you should add the value "etcd" to the variable "cluster_type" , also you need have those variables at least empty:
+- For running tests with "etcd" cluster type, you should add the value "etcd" to the variable "datastore_type" , also you need have those variables at least empty:
 ```
 - external_db       
 - external_db_version
@@ -200,7 +198,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 - db_group_name
 ```
 
-- For running with external db you need the same variables above filled in with the correct data and also cluster_type= ""
+- For running with external db you need the same variables above filled in with the correct data and also datastore_type= ""
 
 ### RKE2 Only
 

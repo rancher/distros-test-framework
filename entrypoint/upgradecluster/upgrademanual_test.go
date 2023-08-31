@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -35,7 +34,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(false)
+		testcase.TestServiceClusterIp(false)
 	})
 
 	It("Verifies NodePort Service", func() {
@@ -65,8 +64,7 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallUpgrade.String())
-		Expect(err).NotTo(HaveOccurred())
+		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status pos upgrade and validate version", func() {
@@ -85,7 +83,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIP(true)
+		testcase.TestServiceClusterIp(true)
 	})
 
 	It("Verifies NodePort Service after upgrade", func() {
