@@ -1,5 +1,5 @@
 resource "aws_db_instance" "db" {
-  count                  = (var.cluster_type == "etcd" || var.external_db == "" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
+  count                  = (var.datastore_type == "etcd" || var.external_db == "" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
   identifier             = "${var.resource_name}${local.random_string}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
@@ -18,7 +18,7 @@ resource "aws_db_instance" "db" {
 }
 
 resource "aws_rds_cluster" "db" {
-  count                  = (var.external_db == "aurora-mysql" && var.cluster_type == "" ? 1 : 0)
+  count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "" ? 1 : 0)
   cluster_identifier     = "${var.resource_name}${local.random_string}-db"
   engine                 = var.external_db
   engine_version         = var.external_db_version
@@ -34,7 +34,7 @@ resource "aws_rds_cluster" "db" {
 }
 
 resource "aws_rds_cluster_instance" "db" {
- count                   = (var.external_db == "aurora-mysql" && var.cluster_type == "" ? 1 : 0)
+ count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "" ? 1 : 0)
  cluster_identifier      = aws_rds_cluster.db[0].id
  identifier              = "${var.resource_name}${local.random_string}-instance1"
  instance_class          = var.instance_class
@@ -89,7 +89,7 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/k3s_master.sh",
-      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.cluster_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel}",
+      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel}",
     ]
   }
   provisioner "local-exec" {
@@ -110,12 +110,12 @@ resource "aws_instance" "master" {
 }
 
 data "template_file" "test" {
-  template   = (var.cluster_type == "etcd" ? "NULL": (var.external_db == "postgres" ? "postgres://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@${aws_db_instance.db[0].endpoint}/${aws_db_instance.db[0].db_name}" : (var.external_db == "aurora-mysql" ? "mysql://${aws_rds_cluster.db[0].master_username}:${aws_rds_cluster.db[0].master_password}@tcp(${aws_rds_cluster.db[0].endpoint})/${aws_rds_cluster.db[0].database_name}" : "mysql://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@tcp(${aws_db_instance.db[0].endpoint})/${aws_db_instance.db[0].db_name}")))
+  template   = (var.datastore_type == "etcd" ? "NULL": (var.external_db == "postgres" ? "postgres://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@${aws_db_instance.db[0].endpoint}/${aws_db_instance.db[0].db_name}" : (var.external_db == "aurora-mysql" ? "mysql://${aws_rds_cluster.db[0].master_username}:${aws_rds_cluster.db[0].master_password}@tcp(${aws_rds_cluster.db[0].endpoint})/${aws_rds_cluster.db[0].database_name}" : "mysql://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@tcp(${aws_db_instance.db[0].endpoint})/${aws_db_instance.db[0].db_name}")))
   depends_on = [data.template_file.test_status]
 }
 
 data "template_file" "test_status" {
-  template = (var.cluster_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
+  template = (var.datastore_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
 }
 data "local_file" "token" {
   filename   = "/tmp/${var.resource_name}_nodetoken"
@@ -185,7 +185,7 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_k3s_master.sh",
-      "sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${var.install_mode} ${var.k3s_version} ${var.cluster_type} ${self.public_ip} ${aws_instance.master.public_ip} ${local.node_token} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} ${var.k3s_channel} ",
+      "sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} ${aws_instance.master.public_ip} ${local.node_token} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} ${var.k3s_channel} ",
     ]
   }
 }

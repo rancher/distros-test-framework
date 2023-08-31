@@ -65,7 +65,7 @@ fi
 
 if [ -z "$rke2_channel" ]
 then
-    curl -sfL https://get.rke2.io |  sh -
+    curl -sfL https://get.rke2.io | sh -
 else
     curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$rke2_channel" sh -
 fi

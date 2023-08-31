@@ -71,12 +71,12 @@ policy_files() {
 export "${3}"="${4}"
 
 install() {
-    local cluster_type="${1}"
+    local datastore_type="${1}"
     local version="${2}"
     local channel="${3}"
     local datastore_endpoint="${4}"
 
-    if [ "$cluster_type" = "etcd" ]; then
+    if [ "$datastore_type" = "etcd" ]; then
         if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]
          then
             curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -

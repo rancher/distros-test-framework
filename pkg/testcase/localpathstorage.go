@@ -5,58 +5,41 @@ import (
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(deployWorkload bool) {
-	if deployWorkload {
-		_, err := shared.ManageWorkload(
-			"create",
-			"local-path-provisioner.yaml",
-			customflag.ServiceFlag.ClusterConfig.Arch.String(),
-		)
-		Expect(err).NotTo(HaveOccurred(),
-			"local-path-provisioner manifest not deployed")
-	}
+func TestLocalPathProvisionerStorage(deleteWorkload bool) {
+	_, err := shared.ManageWorkload("apply", "local-path-provisioner.yaml")
+	Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
-	err := assert.ValidateOnHost(
+	err = assert.ValidateOnHost(
 		getPodVolumeTestRunning,
-		Running,
+		statusRunning,
 	)
-	if err != nil {
-		GinkgoT().Errorf("%v", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	_, err = shared.WriteDataPod(lps)
-	if err != nil {
-		GinkgoT().Errorf("error writing data to pod: %v", err)
-		return
-	}
+	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)
 
 	Eventually(func(g Gomega) {
+		var res string
 		fmt.Println("Writing and reading data from pod")
-		res, err := shared.ReadDataPod(lps)
+		res, err = shared.ReadDataPod(lps)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
-	}, "420s", "2s").Should(Succeed())
+	}, "300s", "2s").Should(Succeed())
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {
-		_, err = shared.RestartCluster("k3s", ip)
-		if err != nil {
-			return
-		}
+		shared.RestartCluster("k3s", ip)
 	}
-	time.Sleep(30 * time.Second)
 
 	_, err = shared.ReadDataPod(lps)
 	if err != nil {
@@ -67,6 +50,11 @@ func TestLocalPathProvisionerStorage(deployWorkload bool) {
 	if err != nil {
 		return
 	}
+
+	if deleteWorkload {
+		_, err := shared.ManageWorkload("delete", "local-path-provisioner.yaml")
+		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
+	}
 }
 
 func readData() error {
@@ -75,9 +63,11 @@ func readData() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(160 * time.Second)
 
-	fmt.Println("Read data from newly create pod")
+	fmt.Println("Reading data from newly created pod")
+	delay := time.After(30 * time.Second)
+	<-delay
+
 	_, err = shared.ReadDataPod(lps)
 	if err != nil {
 		return err

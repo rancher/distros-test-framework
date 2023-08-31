@@ -2,35 +2,30 @@ package upgradecluster
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
-var cfg config.ProductConfig
+var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.Var(&customflag.ServiceFlag.InstallUpgrade, "installVersionOrCommit",
-		"Upgrade with version or commit - v1.26.2+k3s1 or 1823dsad7129873192873129asd")
-	flag.StringVar(&customflag.ServiceFlag.InstallType.Channel, "channel", "",
-		"channel to use on install or upgrade")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy",
-		"Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
-	flag.Var(&customflag.ServiceFlag.UpgradeVersionSUC, "upgradeVersion", "Upgrade SUC model")
+	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
+	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "upgradeVersion", "Version for upgrading using SUC")
 
 	flag.Parse()
 
-	cfg, err = config.LoadConfigEnv("../../config")
+	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
 

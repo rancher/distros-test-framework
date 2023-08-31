@@ -20,7 +20,7 @@ variable "k3s_version" {}
 variable "no_of_server_nodes" {}
 variable "server_flags" {}
 
-variable "cluster_type" {}
+variable "datastore_type" {}
 variable "node_os" {}
 variable "db_username" {}
 variable "db_password" {}

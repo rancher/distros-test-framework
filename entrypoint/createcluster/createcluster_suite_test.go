@@ -2,7 +2,6 @@ package createcluster
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
@@ -14,18 +13,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg config.ProductConfig
+var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Arch, "arch", "Architecture type")
 	flag.Parse()
 
-	cfg, err = config.LoadConfigEnv("../../config")
+	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
 

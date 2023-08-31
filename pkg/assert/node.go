@@ -2,7 +2,6 @@ package assert
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -15,12 +14,11 @@ import (
 type NodeAssertFunc func(g Gomega, node shared.Node)
 
 // NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected
-func NodeAssertVersionTypeUpgrade(installType customflag.FlagConfig) NodeAssertFunc {
-	if installType.InstallUpgrade != nil {
-		if strings.HasPrefix(customflag.ServiceFlag.InstallUpgrade.String(), "v") {
-			return assertVersion(installType)
-		}
-		return assertCommit(installType)
+func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
+	if c.InstallMode.Version != "" {
+		return assertVersion(c)
+	} else if c.InstallMode.Commit != "" {
+		return assertCommit(c)
 	}
 
 	return func(g Gomega, node shared.Node) {
@@ -29,29 +27,29 @@ func NodeAssertVersionTypeUpgrade(installType customflag.FlagConfig) NodeAssertF
 }
 
 // assertVersion returns the NodeAssertFunc for asserting version
-func assertVersion(installType customflag.FlagConfig) NodeAssertFunc {
-	fmt.Printf("Asserting Version: %s\n", installType.InstallUpgrade.String())
+func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
+	fmt.Printf("Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(node.Version).Should(ContainSubstring(installType.InstallUpgrade.String()),
+		g.Expect(node.Version).Should(ContainSubstring(c.InstallMode.Version),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
 
 // assertCommit returns the NodeAssertFunc for asserting commit
-func assertCommit(installType customflag.FlagConfig) NodeAssertFunc {
+func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	product, err := shared.GetProduct()
-	if err != nil {
-		log.Println(err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 
 	commit, err := shared.GetProductVersion(product)
-	if err != nil {
-		log.Println(err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "error getting commit ID version: %v", err)
 
-	fmt.Printf("Asserting Commit: %s\n", installType.InstallUpgrade.String())
+	initial := strings.Index(commit, "(")
+	ending := strings.Index(commit, ")")
+	commit = commit[initial+1 : ending]
+
+	fmt.Printf("Asserting Commit: %s\n", c.InstallMode.Commit)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(commit).Should(ContainSubstring(installType.InstallUpgrade.String()),
+		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commit),
 			"Nodes should all be upgraded to the specified commit", node.Name)
 	}
 }
@@ -59,7 +57,7 @@ func assertCommit(installType customflag.FlagConfig) NodeAssertFunc {
 // NodeAssertVersionUpgraded custom assertion func that asserts that node version is as expected
 func NodeAssertVersionUpgraded() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
-		g.Expect(&customflag.ServiceFlag.UpgradeVersionSUC).Should(ContainSubstring(node.Version),
+		g.Expect(&customflag.ServiceFlag.SUCUpgradeVersion).Should(ContainSubstring(node.Version),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
@@ -75,18 +73,19 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
 func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
+	if cmd == "" || asserts == "" {
+		return shared.ReturnLogError("cmd and/or assert should not be sent empty")
+	}
 	Eventually(func() error {
 		fmt.Println("Executing cmd: ", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return fmt.Errorf("error on RunCommandNode: %v", err)
-		}
+		Expect(err).ToNot(HaveOccurred())
 
 		for _, assert := range asserts {
 			if !strings.Contains(res, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
-			fmt.Println("\nResult:\n", res+"\nMatched with assert:\n", assert)
+			fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
 		}
 
 		return nil

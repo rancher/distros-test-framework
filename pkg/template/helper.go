@@ -1,7 +1,6 @@
 package template
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -9,27 +8,29 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// upgradeVersion upgrades the version of RKE2 and updates the expected values
+// upgradeVersion upgrades the product version
 func upgradeVersion(template VersionTestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
 		return err
 	}
 
-	for i := range template.TestCombination.Run {
-		template.TestCombination.Run[i].ExpectedValue =
-			template.TestCombination.Run[i].ExpectedValueUpgrade
-	}
+	updateExpectedValue(template)
 
 	return nil
 }
 
-// checkVersion checks the version of RKE2 by calling processTestCombination
-func checkVersion(v VersionTestTemplate) error {
-	ips, err := getIPs()
-	if err != nil {
-		return fmt.Errorf("failed to get IPs: %v", err)
+// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
+func updateExpectedValue(template VersionTestTemplate) {
+	for i := range template.TestCombination.Run {
+		template.TestCombination.Run[i].ExpectedValue =
+			template.TestCombination.Run[i].ExpectedValueUpgrade
 	}
+}
+
+// executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
+func executeTestCombination(v VersionTestTemplate) error {
+	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
 	errorChanList := make(
@@ -55,12 +56,6 @@ func checkVersion(v VersionTestTemplate) error {
 	return nil
 }
 
-// getIPs gets the IPs of the nodes
-func getIPs() (ips []string, err error) {
-	ips = shared.FetchNodeExternalIP()
-	return ips, nil
-}
-
 // AddTestCases returns the test case based on the name to be used as customflag.
 func AddTestCases(names []string) ([]TestCase, error) {
 	var testCases []TestCase
@@ -69,10 +64,9 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		"TestDaemonset":                   testcase.TestDaemonset,
 		"TestIngress":                     testcase.TestIngress,
 		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIp":            testcase.TestServiceClusterIp,
+		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
 		"TestServiceNodePort":             testcase.TestServiceNodePort,
 		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
-		"TestCoredns":                     testcase.TestCoredns,
 		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,
 	}
 
@@ -83,7 +77,7 @@ func AddTestCases(names []string) ([]TestCase, error) {
 		} else if test, ok := testCase[name]; ok {
 			testCases = append(testCases, test)
 		} else {
-			return nil, fmt.Errorf("invalid test case name")
+			return nil, shared.ReturnLogError("invalid test case name")
 		}
 	}
 
