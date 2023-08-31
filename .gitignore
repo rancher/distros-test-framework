@@ -1,10 +1,10 @@
 .ssh/
+.DS_Store
 .vscode
 .idea/
 *.modules/.terraform/
 *.terraform*
 *.tfstate*
 workloads/amd64/plan.yaml
-config/k3s.tfvars
-config/rke2.tfvars
-config/config.yaml
+/config/config.yaml
+/config/*.tfvars

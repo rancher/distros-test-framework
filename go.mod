@@ -6,6 +6,7 @@ require (
 	github.com/gruntwork-io/terratest v0.41.15
 	github.com/onsi/ginkgo/v2 v2.9.4
 	github.com/onsi/gomega v1.27.6
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.16.0
 	golang.org/x/crypto v0.9.0
 )

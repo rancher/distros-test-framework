@@ -1,4 +1,4 @@
-//go:build cniplugin
+//go:build etcd
 
 package versionbump
 
@@ -31,12 +31,19 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			assert.PodAssertStatus())
 	})
 
-	It("Verifies bump version for cni plugins and flannel", func() {
+	It("Verifies bump version on product for etcd", func() {
+		cmd := "sudo journalctl -u k3s | grep 'etcd-version' | awk -F'\"' " +
+			"'{ for(i=1; i<=NF; ++i) if($i == \"etcd-version\") print $(i+2) }' ," + "k3s -v"
+		if cfg.Product == "rke2" {
+			cmd = "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images | grep etcd ," +
+				"rke2 -v"
+		}
+
 		template.VersionTemplate(template.VersionTestTemplate{
 			TestCombination: &template.RunCmd{
 				Run: []template.TestMap{
 					{
-						Cmd:                  "/var/lib/rancher/k3s/data/current/bin/cni , /var/lib/rancher/k3s/data/current/bin/flannel",
+						Cmd:                  cmd,
 						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
 					},

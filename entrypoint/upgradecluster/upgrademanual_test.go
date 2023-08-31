@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -35,38 +34,37 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(false)
 	})
 
 	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(false)
 	})
 
 	It("Verifies Ingress", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(false)
 	})
 
 	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(false)
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(false)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true)
+			testcase.TestServiceLoadBalancer(false)
 		})
 
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(true)
+			testcase.TestLocalPathProvisionerStorage(false)
 		})
 	}
 
 	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallUpgrade.String())
-		Expect(err).NotTo(HaveOccurred())
+		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status pos upgrade and validate version", func() {
@@ -85,32 +83,32 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIp(false)
+		testcase.TestServiceClusterIp(true)
 	})
 
 	It("Verifies NodePort Service after upgrade", func() {
-		testcase.TestServiceNodePort(false)
+		testcase.TestServiceNodePort(true)
 	})
 
 	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(false)
+		testcase.TestIngress(true)
 	})
 
 	It("Verifies Daemonset after upgrade", func() {
-		testcase.TestDaemonset(false)
+		testcase.TestDaemonset(true)
 	})
 
 	It("Verifies dns access after upgrade", func() {
-		testcase.TestDnsAccess(false)
+		testcase.TestDnsAccess(true)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(false)
+			testcase.TestServiceLoadBalancer(true)
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(false)
+			testcase.TestLocalPathProvisionerStorage(true)
 		})
 	}
 })

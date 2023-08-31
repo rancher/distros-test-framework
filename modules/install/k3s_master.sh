@@ -66,12 +66,12 @@ rhel() {
 export "${3}"="${4}"
 
 install() {
-    local cluster_type="${1}"
+    local datastore_type="${1}"
     local version="${2}"
     local channel="${3}"
     local datastore_endpoint="${4}"
 
-  if [ "$cluster_type" = "etcd" ]
+  if [ "$datastore_type" = "etcd" ]
   then
      echo "CLUSTER TYPE is ETCD and channel is $channel"
      if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]

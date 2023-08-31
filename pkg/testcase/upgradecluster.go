@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -18,10 +17,9 @@ import (
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
 func TestUpgradeClusterSUC(version string) error {
-	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
+	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
-	_, err := shared.ManageWorkload("create", "suc.yaml",
-		customflag.ServiceFlag.ClusterConfig.Arch.String())
+	_, err := shared.ManageWorkload("apply", "suc.yaml")
 	Expect(err).NotTo(HaveOccurred(),
 		"system-upgrade-controller manifest did not deploy successfully")
 
@@ -29,13 +27,14 @@ func TestUpgradeClusterSUC(version string) error {
 	err = assert.CheckComponentCmdHost(
 		getPodsSystemUpgrade+shared.KubeConfigFile,
 		"system-upgrade-controller",
-		Running,
+		statusRunning,
 	)
-	if err != nil {
-		return err
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
-	originalFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/rke2-upgrade-plan.yaml"
+	product, err := shared.GetProduct()
+	Expect(err).NotTo(HaveOccurred())
+
+	originalFilePath := shared.BasePath() + fmt.Sprintf("/distros-test-framework/workloads/amd64/%s-upgrade-plan.yaml", product)
 	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)
@@ -49,8 +48,7 @@ func TestUpgradeClusterSUC(version string) error {
 		return fmt.Errorf("failed to write file: %s", err)
 	}
 
-	_, err = shared.ManageWorkload("create", "plan.yaml",
-		customflag.ServiceFlag.ClusterConfig.Arch.String())
+	_, err = shared.ManageWorkload("apply", "plan.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to upgrade cluster.")
 
 	return nil
@@ -58,15 +56,15 @@ func TestUpgradeClusterSUC(version string) error {
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
 func TestUpgradeClusterManually(version string) error {
-	fmt.Printf("\nUpgrading cluster to version: %s\n", version)
+	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
 	if version == "" {
-		return fmt.Errorf("please provide a non-empty version or commit to upgrade to")
+		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.GetCluster(GinkgoT())
+	cluster := factory.AddCluster(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
-		return fmt.Errorf("no nodes found to upgrade")
+		return shared.ReturnLogError("no nodes found to upgrade")
 	}
 
 	if cluster.NumServers > 0 {
@@ -109,14 +107,9 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 			if err != nil {
 				return
 			}
+
 			fmt.Println("Restarting " + nodeType + ": " + ip)
-			if _, err := shared.RestartCluster(product, ip); err != nil {
-				fmt.Printf("\nError restarting %s %s: %v\n\n", nodeType, ip, err)
-				errCh <- err
-				close(errCh)
-				return
-			}
-			time.Sleep(20 * time.Second)
+			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}
 	wg.Wait()
@@ -151,11 +144,12 @@ func getChannel() string {
 	if err != nil {
 		return err.Error()
 	}
+
 	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
 
-	if customflag.ServiceFlag.InstallType.Channel != "" {
+	if customflag.ServiceFlag.Channel.String() != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
-			customflag.ServiceFlag.InstallType.Channel)
+			customflag.ServiceFlag.Channel.String())
 	}
 
 	return defaultChannel

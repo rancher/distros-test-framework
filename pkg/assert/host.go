@@ -15,18 +15,21 @@ import (
 //
 // need to send sKubeconfigFile
 func CheckComponentCmdHost(cmd string, asserts ...string) error {
+	if cmd == "" {
+		return fmt.Errorf("cmd: %s should not be sent empty", cmd)
+	}
 	Eventually(func() error {
-		fmt.Println("Executing cmd: ", cmd)
 		res, err := shared.RunCommandHost(cmd)
-		if err != nil {
-			return fmt.Errorf("error on RunCommandHost: %v", err)
-		}
-
+		Expect(err).ToNot(HaveOccurred())
 		for _, assert := range asserts {
+			if assert == "" {
+				return fmt.Errorf("assert: %s should not be sent empty", assert)
+			}
 			if !strings.Contains(res, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
-			fmt.Println("Result:", res+"\nMatched with assert:", assert)
+
+			fmt.Println("\nResult:", res+"\nMatched with:\n", assert)
 		}
 		return nil
 	}, "420s", "5s").Should(Succeed())
