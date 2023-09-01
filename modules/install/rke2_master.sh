@@ -46,6 +46,17 @@ fi
 
 if [ "$node_os" = "centos8" ] || [ "$node_os" = "rhel8" ] || [ "$node_os" = "oracle8" ]
 then
+  NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
+  NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
+
+  if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
+  systemctl disable nm-cloud-setup.service
+  fi
+
+  if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
+  systemctl disable nm-cloud-setup.timer
+  fi
+
   yum install tar -y
   yum install iptables -y
   workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
