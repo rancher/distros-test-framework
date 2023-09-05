@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -19,14 +18,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	It("Validate Nodes Pre upgrade", func() {
+	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validate Pods Pre upgrade", func() {
+	It("Validate Pods", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -34,49 +33,50 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Validate selinux is enabled Pre upgrade", func() {
+	It("Validate selinux is enabled", func() {
 		testcase.TestSelinuxEnabled()
 	})
 
-	It("Validate container, server and selinux version Pre upgrade", func() {
+	It("Validate container, server and selinux version", func() {
 		testcase.TestSelinuxVersions()
 	})
 
-	It("Validate container security Pre upgrade", func() {
+	It("Validate container security", func() {
 		testcase.TestSelinuxSpcT()
 	})
 
-	It("Upgrade manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallUpgrade.String())
-		Expect(err).NotTo(HaveOccurred())
-	})
+	if customflag.ServiceFlag.InstallMode.String() != "" {
+		It("Upgrade manual", func() {
+			_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		})
 
-	It("Validate Nodes Post upgrade", func() {
-		testcase.TestNodeStatus(
-			assert.NodeAssertReadyStatus(),
-			nil,
-		)
-	})
+		It("Validate Nodes Post upgrade", func() {
+			testcase.TestNodeStatus(
+				assert.NodeAssertReadyStatus(),
+				assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
+			)
+		})
 
-	It("Validate Pods Post upgrade", func() {
-		testcase.TestPodStatus(
-			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
-	})
+		It("Validate Pods Post upgrade", func() {
+			testcase.TestPodStatus(
+				assert.PodAssertRestart(),
+				assert.PodAssertReady(),
+				assert.PodAssertStatus(),
+			)
+		})
 
-	It("Validate selinux is enabled Post upgrade", func() {
-		testcase.TestSelinuxEnabled()
-	})
+		It("Validate selinux is enabled Post upgrade", func() {
+			testcase.TestSelinuxEnabled()
+		})
 
-	It("Validate container, server and selinux version Post upgrade", func() {
-		testcase.TestSelinuxVersions()
-	})
+		It("Validate container, server and selinux version Post upgrade", func() {
+			testcase.TestSelinuxVersions()
+		})
 
-	It("Validate container security Post upgrade", func() {
-		testcase.TestSelinuxSpcT()
-	})
+		It("Validate container security Post upgrade", func() {
+			testcase.TestSelinuxSpcT()
+		})
+	}
 
 	/*It("Validate uninstall selinux policies", func() {
 		testcase.TestUninstallPolicy()

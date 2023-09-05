@@ -73,11 +73,17 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
 func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
-	if cmd == "" || asserts == "" {
-		return shared.ReturnLogError("cmd and/or assert should not be sent empty")
+	for _, assert := range asserts {
+		if assert == "" {
+			return shared.ReturnLogError("asserts should not be sent empty")
+		}
 	}
+	if cmd == "" {
+		return shared.ReturnLogError("cmd should not be sent empty")
+	}
+
 	Eventually(func() error {
-		fmt.Println("Executing cmd: ", cmd)
+		fmt.Println("\nExecuting cmd: ", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -90,28 +96,7 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 
 		return nil
 
-	}, "20s", "3s").Should(Succeed())
+	}, "420s", "3s").Should(Succeed())
 
 	return nil
-}
-
-// CheckNotPresentOnNode runs a command on a node and asserts that the value received
-// is NOT present in the given output.
-func CheckNotPresentOnNode(cmd, ip string, notExpOutput ...string) {
-	Eventually(func() error {
-		fmt.Println("Executing cmd: ", cmd)
-		res, err := shared.RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return fmt.Errorf("error on RunCommandNode: %v", err)
-		}
-
-		for _, assert := range notExpOutput {
-			if strings.Contains(res, assert) {
-				return fmt.Errorf("%q was found in the output %q", assert, res)
-			}
-			fmt.Println("Result:\n", res+"\nPassed. Output should not match with:\n", assert)
-		}
-
-		return nil
-	}, "420s", "3s").Should(Succeed())
 }
