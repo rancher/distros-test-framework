@@ -15,7 +15,7 @@ import (
 func TestSelinuxEnabled() {
 	product, err := shared.GetProduct()
 	if err != nil {
-		log.Println(err)
+		return
 	}
 
 	ips := shared.FetchNodeExternalIP()
@@ -23,32 +23,35 @@ func TestSelinuxEnabled() {
 	selinuxContainerdAssert := "enable_selinux = true"
 
 	for _, ip := range ips {
-		err := assert.CheckComponentCmdNode("cat /etc/rancher/"+product+"/config.yaml", ip, selinuxConfigAssert)
+		err := assert.CheckComponentCmdNode("cat /etc/rancher/"+
+			product+"/config.yaml", ip, selinuxConfigAssert)
 		Expect(err).NotTo(HaveOccurred())
-		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
+		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
+			product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
 		Expect(errCont).NotTo(HaveOccurred())
 	}
 }
 
 // TestSelinuxVersions Validates container-selinux version, rke2-selinux version and rke2-selinux version
 func TestSelinuxVersions() {
+	cluster := factory.AddCluster(GinkgoT())
 	product, err := shared.GetProduct()
 	if err != nil {
-		log.Println(err)
-	}
-	cluster := factory.AddCluster(GinkgoT())
-
-	serverCmd := "rpm -qa container-selinux " + product + "-server " + product + "-selinux"
-	if product == "k3s" {
-		serverCmd = "rpm -qa container-selinux " + product + "-selinux"
+		return
 	}
 
-	serverAsserts := []string{"container-selinux", product + "-selinux", product + "-server"}
-	if product == "k3s" {
-		serverAsserts = []string{"container-selinux", product + "-selinux"}
-	}
-
+	var serverCmd string
+	var serverAsserts []string
 	agentAsserts := []string{"container-selinux", product + "-selinux"}
+
+	switch product {
+	case "k3s":
+		serverCmd = "rpm -qa container-selinux k3s-selinux"
+		serverAsserts = []string{"container-selinux", "k3s-selinux"}
+	default:
+		serverCmd = "rpm -qa container-selinux rke2-server rke2-selinux"
+		serverAsserts = []string{"container-selinux", "rke2-selinux", "rke2-server"}
+	}
 
 	if cluster.NumServers > 0 {
 		for _, serverIP := range cluster.ServerIPs {
@@ -85,15 +88,17 @@ func TestUninstallPolicy() {
 		log.Println(err)
 	}
 	cluster := factory.AddCluster(GinkgoT())
+	var serverUninstallCmd string
+	var agentUninstallCmd string
 
-	serverUninstallCmd := "sudo " + product + "-uninstall.sh"
-	if product == "k3s" {
-		serverUninstallCmd = product + "-uninstall.sh"
-	}
+	switch product {
+	case "k3s":
+		serverUninstallCmd = "k3s-uninstall.sh"
+		agentUninstallCmd = "k3s-agent-uninstall.sh"
 
-	agentUninstallCmd := "sudo " + product + "-uninstall.sh"
-	if product == "k3s" {
-		agentUninstallCmd = product + "-agent-uninstall.sh"
+	default:
+		serverUninstallCmd = "sudo rke2-uninstall.sh"
+		agentUninstallCmd = "sudo rke2-uninstall.sh"
 	}
 
 	for _, serverIP := range cluster.ServerIPs {

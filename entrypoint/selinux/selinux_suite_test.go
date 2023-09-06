@@ -2,7 +2,6 @@ package selinux
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
@@ -26,7 +25,6 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddConfigEnv("../../config")
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
 
