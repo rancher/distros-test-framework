@@ -11,6 +11,10 @@ resource "aws_instance" "worker" {
     host                 = self.public_ip
     private_key          = file(var.access_key)
   }
+  root_block_device {
+    volume_size = var.volume_size
+    volume_type = "standard"
+  }
   subnet_id              = var.subnets
   availability_zone      = var.availability_zone
   vpc_security_group_ids = [var.sg_id]

@@ -16,7 +16,6 @@ token:  "${2}"
 EOF
 }
 
-
 add_config() {
   local worker_flags="${1}"
 
@@ -36,15 +35,33 @@ add_config() {
 }
 
 rhel() {
-   local os_name="${1}"
+   local node_os="${1}"
    local username="${2}"
    local password="${3}"
 
-  if [ "$os_name" = "rhel" ]
+  if [ "$node_os" = "rhel" ]
     then
       subscription-manager register --auto-attach --username="$username" --password="$password"
       subscription-manager repos --enable=rhel-7-server-extras-rpms
   fi
+}
+
+disable_cloud_setup() {
+   local node_os="${1}"
+
+if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = *"centos"* ]]
+  then
+    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
+    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
+
+    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.service
+    fi
+
+    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.timer
+    fi
+fi
 }
 
 export "${2}"="${3}"
@@ -76,6 +93,7 @@ main() {
   create_config "$4" "$5"
   add_config "$7"
   rhel "$1" "$8" "$9"
+  disable_cloud_setup "$1"
   install "$3" "$7" "$2" "$6" "$4" "$5" "${10}"
 }
 main "$@"

@@ -273,54 +273,95 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
-// ParseNodes returns nodes parsed from kubectl get nodes.
-func ParseNodes(print bool) ([]Node, error) {
-	nodes := make([]Node, 0, 10)
+// GetNodes returns nodes parsed from kubectl get nodes.
+func GetNodes(print bool) ([]Node, error) {
 	delay := time.After(30 * time.Second)
+
+	reasons := []string{
+		"connection reset by peer",
+		"Error from server:",
+		"request timed out",
+		"did you specify the right host or port?",
+		"connect: connection refused",
+		"Unable to connect to the server",
+	}
 
 	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		<-delay
-		return nil, fmt.Errorf("failed to run kubectl get nodes: %v\n", err)
-	}
-
-	nodelist := strings.TrimSpace(res)
-	split := strings.Split(nodelist, "\n")
-	for _, rec := range split {
-		if strings.TrimSpace(rec) != "" {
-			fields := strings.Fields(rec)
-			n := Node{
-				Name:       fields[0],
-				Status:     fields[1],
-				Roles:      fields[2],
-				Version:    fields[4],
-				InternalIP: fields[5],
-				ExternalIP: fields[6],
-			}
-			nodes = append(nodes, n)
+		if isUnavailable(res, reasons) {
+			<-delay
+			return nil, nil
 		}
+
+		return nil, ReturnLogError("failed to get nodes: %w\n", err)
 	}
 
+	nodes := parseNodes(res)
 	if print {
-		fmt.Println(nodelist)
+		fmt.Println(res)
 	}
 
 	return nodes, nil
 }
 
-// ParsePods returns pods parsed from kubectl get pods.
-func ParsePods(print bool) ([]Pod, error) {
-	pods := make([]Pod, 0, 10)
+// parseNodes parses the nodes from the kubeclt get nodes command.
+func parseNodes(res string) []Node {
+	nodes := make([]Node, 0, 10)
+	nodeList := strings.Split(strings.TrimSpace(res), "\n")
+	for _, rec := range nodeList {
+		if strings.TrimSpace(rec) == "" {
+			continue
+		}
 
+		fields := strings.Fields(rec)
+		n := Node{
+			Name:       fields[0],
+			Status:     fields[1],
+			Roles:      fields[2],
+			Version:    fields[4],
+			InternalIP: fields[5],
+			ExternalIP: fields[6],
+		}
+		nodes = append(nodes, n)
+	}
+
+	return nodes
+}
+
+// isUnavailable checks if the resource is unavailable based on reasons sent.
+func isUnavailable(res string, reasons []string) bool {
+	for _, reason := range reasons {
+		if strings.Contains(res, reason) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetPods returns pods parsed from kubectl get pods.
+func GetPods(print bool) ([]Pod, error) {
 	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
-	podList := strings.TrimSpace(res)
-	split := strings.Split(podList, "\n")
-	for _, rec := range split {
+	pods := parsePods(res)
+
+	if print {
+		fmt.Println(res)
+	}
+
+	return pods, nil
+}
+
+// parsePods parses the pods from the kubeclt get pods command.
+func parsePods(res string) []Pod {
+	pods := make([]Pod, 0, 10)
+	podList := strings.Split(strings.TrimSpace(res), "\n")
+
+	for _, rec := range podList {
 		fields := strings.Fields(rec)
 		p := Pod{
 			NameSpace: fields[0],
@@ -334,11 +375,8 @@ func ParsePods(print bool) ([]Pod, error) {
 		pods = append(pods, p)
 	}
 
-	if print {
-		fmt.Println(podList)
-	}
+	return pods
 
-	return pods, nil
 }
 
 // ReadDataPod reads the data from the pod

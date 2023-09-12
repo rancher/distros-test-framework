@@ -63,6 +63,25 @@ rhel() {
   fi
 }
 
+disable_cloud_setup() {
+   local os_name="${1}"
+
+if  [[ "$os_name" = *"rhel"* ]] || [[ "$os_name" = *"centos"* ]]
+  then
+    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
+    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
+
+    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.service
+    fi
+
+    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.timer
+    fi
+fi
+
+}
+
 export "${3}"="${4}"
 
 install() {
@@ -184,6 +203,7 @@ main() {
   add_config "$8"
   policy_files "$8" "$4"
   rhel "$1" "$9" "${10}"
+  disable_cloud_setup "$1"
   install "$5" "$4" "${11}" "$7"
   wait_nodes
   wait_ready_nodes
