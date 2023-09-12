@@ -52,11 +52,11 @@ policy_files() {
 }
 
 rhel() {
-   local os_name="${1}"
+   local node_os="${1}"
    local username="${2}"
    local password="${3}"
 
-  if [ "$os_name" = "rhel" ]
+  if [ "$node_os" = "rhel" ]
     then
       subscription-manager register --auto-attach --username="$username" --password="$password"
       subscription-manager repos --enable=rhel-7-server-extras-rpms
@@ -64,9 +64,9 @@ rhel() {
 }
 
 disable_cloud_setup() {
-   local os_name="${1}"
+   local node_os="${1}"
 
-if  [[ "$os_name" = *"rhel"* ]] || [[ "$os_name" = *"centos"* ]]
+if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = *"centos"* ]]
   then
     NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
     NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)

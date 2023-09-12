@@ -275,25 +275,10 @@ func SonobuoyMixedOS(action, version string) error {
 
 // GetNodes returns nodes parsed from kubectl get nodes.
 func GetNodes(print bool) ([]Node, error) {
-	delay := time.After(30 * time.Second)
-
-	reasons := []string{
-		"connection reset by peer",
-		"Error from server:",
-		"request timed out",
-		"did you specify the right host or port?",
-		"connect: connection refused",
-		"Unable to connect to the server",
-	}
-
-	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
+	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		if isUnavailable(res, reasons) {
-			<-delay
-			return nil, nil
-		}
-
-		return nil, ReturnLogError("failed to get nodes: %w\n", err)
+		LogLevel("error", "\n%s", res)
+		return nil, err
 	}
 
 	nodes := parseNodes(res)
@@ -314,6 +299,10 @@ func parseNodes(res string) []Node {
 		}
 
 		fields := strings.Fields(rec)
+		if len(fields) < 7 {
+			continue
+		}
+
 		n := Node{
 			Name:       fields[0],
 			Status:     fields[1],
@@ -326,17 +315,6 @@ func parseNodes(res string) []Node {
 	}
 
 	return nodes
-}
-
-// isUnavailable checks if the resource is unavailable based on reasons sent.
-func isUnavailable(res string, reasons []string) bool {
-	for _, reason := range reasons {
-		if strings.Contains(res, reason) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // GetPods returns pods parsed from kubectl get pods.

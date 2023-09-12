@@ -21,7 +21,7 @@ variable "server_flags" {}
 variable "worker_flags" {}
 variable "availability_zone" {}
 variable "sg_id" {}
-variable  "volume_size" {}
+variable "volume_size" {}
 variable "datastore_type" {}
 variable "node_os" {}
 variable "db_username" {}
