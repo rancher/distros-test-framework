@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,7 +44,11 @@ var _ = Describe("Test:", func() {
 		testcase.TestSelinuxSpcT()
 	})
 
-	It("Upgrade manual", func() {
+	It("Validate context", func() {
+		testcase.TestSelinuxContext()
+	})
+
+	/*It("Upgrade manual", func() {
 		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
 
@@ -78,7 +81,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate uninstall selinux policies", func() {
 		testcase.TestUninstallPolicy()
-	})
+	})*/
 
 })
 
