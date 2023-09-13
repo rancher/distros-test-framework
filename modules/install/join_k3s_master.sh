@@ -26,7 +26,6 @@ cluster-init: true
 EOF
 }
 
-
 add_config() {
   local server_flags="${1}"
   if [[ -n "$server_flags" ]] && [[ "$server_flags" == *":"* ]]
@@ -37,18 +36,35 @@ add_config() {
   alias k=kubectl
 }
 
-
 rhel() {
-   local os_name="${1}"
+   local node_os="${1}"
    local username="${2}"
    local password="${3}"
-  if [ "$os_name" = "rhel" ]
+
+  if [ "$node_os" = "rhel" ]
     then
       subscription-manager register --auto-attach --username="$username" --password="$password"
       subscription-manager repos --enable=rhel-7-server-extras-rpms
   fi
 }
 
+disable_cloud_setup() {
+   local node_os="${1}"
+
+if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]]
+  then
+    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
+    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
+
+    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.service
+    fi
+
+    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
+    systemctl disable nm-cloud-setup.timer
+    fi
+fi
+}
 
 policy_files() {
   local server_flags="${1}"
@@ -108,6 +124,7 @@ main() {
   add_config  "${10}"
   policy_files "${10}" "$4"
   rhel "$1" "${11}" "${12}"
+  disable_cloud_setup "$1"
   install "$5" "$4" "${13}" "$9"
 }
 main "$@"

@@ -20,7 +20,7 @@ func TestPodStatus(
 ) {
 
 	Eventually(func(g Gomega) {
-		pods, err := shared.ParsePods(false)
+		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		for _, pod := range pods {
@@ -29,7 +29,7 @@ func TestPodStatus(
 	}, "900s", "5s").Should(Succeed())
 
 	fmt.Println("\n\nCluster Pods:")
-	_, err := shared.ParsePods(true)
+	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
 }
 

@@ -6,6 +6,7 @@ variable "vpc_id" {}
 variable "subnets" {}
 variable "availability_zone" {}
 variable "sg_id" {}
+variable "volume_size" {}
 variable "qa_space" {}
 variable "ec2_instance_class" {}
 variable "resource_name" {}
