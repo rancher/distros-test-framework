@@ -365,9 +365,9 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
 1. Fork your own git copy, clone it and create a branch in your local git repo.
 2. Create the following files in config directory path: 
 
-    a. `k3s.tfvars`: Edit and copy over the `k3s.tfvars.example` file
+    a. `k3s.tfvars`: Copy over and edit the `k3s.tfvars.example` file
 
-    b. `rke2.tfvars`: Edit and copy over the `rke2.tfvars.example` file
+    b. `rke2.tfvars`: Copy over and edit the `rke2.tfvars.example` file
 
     c. Run these commands:
 
@@ -383,7 +383,7 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     resource_name = "<name of aws resource you will create - your prefix name>"
     key_name        = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
     access_key      = "/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem"
-    password="<1password>"
+    password="< password >"
     ```
     e. Create config/config.yaml file with contents: 
     ```
@@ -440,5 +440,5 @@ Solution: Use `lima+nerdctl` commands instead.
 8. FYI. To delete unused container/image:
     ```
     nerdctl container prune
-    nerdctl image rm <1image_name>
+    nerdctl image rm < image name >
     ```
