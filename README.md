@@ -381,9 +381,9 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     d. Add the following lines in the tfvars file:
     ```
     resource_name = "<name of aws resource you will create - your prefix name>"
-    key_name        = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
-    access_key      = "/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem"
-    password="< password >"
+    key_name      = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
+    access_key    = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
+    password      = "< password >"
     ```
     e. Create config/config.yaml file with contents: 
     ```
@@ -392,9 +392,9 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     ```
 3. Export the following variables:
     ```
-       export AWS_ACCESS_KEY_ID=xxx
-       export AWS_SECRET_ACCESS_KEY=xxxx
-       export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
+    export AWS_ACCESS_KEY_ID=xxx
+    export AWS_SECRET_ACCESS_KEY=xxxx
+    export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
    ```
 You are now set to use make commands or the go test commands 
 
