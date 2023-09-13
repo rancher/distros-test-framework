@@ -359,65 +359,86 @@ Or use break points in your IDE.
 ````
 The cluster and VMs can be retained after a test by passing `-destroy=false`. 
 To focus individual runs on specific test clauses, you can prefix with `F`. For example, in the [create cluster test](../tests/terraform/cases/createcluster_test.go), you can update the initial creation to be: `FIt("Starts up with no issues", func() {` in order to focus the run on only that clause.
+````
 
 ### Your first steps - prep your setup to run tests:
 1. Fork your own git copy, clone it and create a branch in your local git repo.
 2. Create the following files in config directory path: 
-    a. k3s.tfvars: Copy the TFVARS contents from: https://jenkins.int.rancher.io/job/k3s-tests/job/k3s_validate_cluster/build?delay=0sec
-    b. rke2.tfvars: Copy the TFVARS contents from: https://jenkins.int.rancher.io/job/rke2-tests/job/rke2_validate_cluster/build?delay=0sec
-    c. Run these commands: ```mkdir -p config/.ssh; touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;```
-      Copy over contents of jenkins-rke-validation.pem file or you own .pem file content. There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file in the next step.
-      Ensure permissions to this file is set so no one else has access to the same.
+
+    a. `k3s.tfvars`: Edit and copy over the `k3s.tfvars.example` file
+
+    b. `rke2.tfvars`: Edit and copy over the `rke2.tfvars.example` file
+
+    c. Run these commands:
+
+    ````
+    touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;
+    ````
+    Copy over contents of `jenkins-rke-validation.pem` file, or you own `.pem` file content. An example file can be found with permissions set.
+    There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file in the next step.
+    Ensure permissions to this file is set so no one else has access to the same.
+
     d. Add the following lines in the tfvars file:
-    ``` 
+    ```
     resource_name = "<name of aws resource you will create - your prefix name>"
     key_name        = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
     access_key      = "/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem"
+    password="<1password>"
     ```
     e. Create config/config.yaml file with contents: 
     ```
     ENV_PRODUCT: k3s
     ENV_TFVARS: k3s.tfvars
     ```
-3. Export the following variables: 
-    export AWS_ACCESS_KEY_ID=xxx
-    export AWS_SECRET_ACCESS_KEY=xxxx
-    export ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem
-4. Edit the modules/k3s/variables.tf file line numer 17:
-variable "password" {
-  default = "<set a password you like>"
-}
+3. Export the following variables:
+    ```
+       export AWS_ACCESS_KEY_ID=xxx
+       export AWS_SECRET_ACCESS_KEY=xxxx
+       export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
+   ```
 You are now set to use make commands or the go test commands 
 
-### Working with M2 chip mac:
-Docker and most virtualization solutions dont work well with M2 chip. 
-Solution: Use lima+nerdctl commands instead. 
-1. Install limactl: 
-```$ brew install limactl```
-2. cd to your work directory, say: ```cd ${HOME}/forks/distro-test-framework```
-3. Start a lima VM (we can use current config option). It has nerdctl pre-installed and ready to use. 
-``` $ lima start ```
-4. Access lima VM shell with your directory mounted already.  
-``` $ lima ```
-Note to make any code changes before starting VM/building your image.
-5. Build your image and run the same:
-```
-nerdctl build -t k3s . -f ./scripts/Dockerfile.build
-nerdctl run -it --rm k3s
-```
-6 Export variables in your lima VM: 
-```
+### Working with M2 chip on macOS:
+
+Docker and most virtualization solutions don't work well with M2 chip. 
+
+Solution: Use `lima+nerdctl` commands instead. 
+1. Install `lima`: 
+    ```
+    brew install lima
+    ```
+2. Can `cd` to your work directory, say: 
+    ```
+    cd ${HOME}/distro-test-framework
+    ```
+3. Start a lima VM default instance (we can use current config option). It has nerdctl pre-installed and ready to use. 
+    ``` 
+    limactl start 
+    ```
+4. Access lima VM shell with your current directory mounted already.  
+    ``` 
+    lima
+    ```
+    Remember to make any code changes before starting VM/building your image.
+5.  Build your image and run the same:
+    ```
+    nerdctl build -t k3s . -f ./scripts/Dockerfile.build
+    nerdctl run -it --rm k3s
+    ```
+6. Export variables in your lima VM:
+    ```
     export AWS_ACCESS_KEY_ID=xxx
     export AWS_SECRET_ACCESS_KEY=xxxx
     export ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem
-```
+    ```
+
 7. We are now ready to run a sample test: 
-```
-cd entrypoint
-go test -timeout=45m -v ./createcluster/...
-```
+    ```
+    cd entrypoint
+    go test -timeout=45m -v ./createcluster/...
+    ```
 8. FYI. To delete unused container/image:
-```
-nerdctl container prune
-nerdctl image rm <1image_name>
-```
+    ```
+    nerdctl container prune
+    nerdctl image rm <1image_name>
+    ```
