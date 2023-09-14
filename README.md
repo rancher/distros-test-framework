@@ -378,12 +378,25 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file in the next step.
     Ensure permissions to this file is set so no one else has access to the same.
 
-    d. Add the following lines in the tfvars file:
+    d. Edit the following vars in the tfvars file:
+    i. Generic variables:
     ```
     resource_name = "<name of aws resource you will create - your prefix name>"
     key_name      = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
     access_key    = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
-    password      = "< password >"
+    ```
+    ii. AWS related mandatory variable values: 
+    ```
+    vpc_id             = "<vpc_id>"
+    subnets            = "<subnet_id>"
+    sg_id              = "<sg_id>"
+    iam_role           = "<iam_role>"
+    ```
+    iii. Sensitive variables to edit in tfvars file:
+    ```
+    password      = "<password>"   
+    db_username   = "<db_user>"
+    db_password   = "<db_password>"   
     ```
     e. Create config/config.yaml file with contents: 
     ```
@@ -431,7 +444,6 @@ Solution: Use `lima+nerdctl` commands instead.
     export AWS_SECRET_ACCESS_KEY=xxxx
     export ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem
     ```
-
 7. We are now ready to run a sample test: 
     ```
     cd entrypoint
