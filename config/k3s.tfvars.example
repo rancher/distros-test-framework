@@ -19,7 +19,7 @@ arch           = "amd64"
 
 ## Custom Vars
 node_os            = "sles15"
-aws_ami            = "ami-046cd3113e0c1b581"
+aws_ami            = "<ami-id>"
 aws_user           = "ec2-user"
 # This is also known as an "all-roles" node
 #no_of_server_nodes = 3

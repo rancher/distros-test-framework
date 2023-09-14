@@ -391,6 +391,8 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     subnets            = "<subnet_id>"
     sg_id              = "<sg_id>"
     iam_role           = "<iam_role>"
+    aws_ami            = "<ami_id>"
+    windows_aws_ami    = "<ami-id>"    # rke2.tfvars file only
     ```
     iii. Sensitive variables to edit in tfvars file:
     ```

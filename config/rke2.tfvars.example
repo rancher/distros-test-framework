@@ -25,12 +25,12 @@ install_method = ""
 ## Windows agent variables
 #server_flags   = "cni: calico\n"
 windows_ec2_instance_class  = "t3.xlarge"
-windows_aws_ami             = "ami-05a418fd6eb36fd5b"
+windows_aws_ami             = "<ami-id>"
 no_of_windows_worker_nodes  = 0
 
 ## Custom Vars
 node_os            = "sles15"
-aws_ami            = "ami-046cd3113e0c1b581"
+aws_ami            = "<ami-id>"
 aws_user           = "ec2-user"
 # This is also known as an "all-roles" node
 no_of_server_nodes = 3
