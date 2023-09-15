@@ -405,13 +405,18 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     ENV_PRODUCT: k3s
     ENV_TFVARS: k3s.tfvars
     ```
-3. Export the following variables:
+    There is a sample 'config.yaml.example' found in the same 'config' folder
+    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above ^^.
+
+3.  Export the following variables:
     ```
     export AWS_ACCESS_KEY_ID=xxx
     export AWS_SECRET_ACCESS_KEY=xxxx
     export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
-   ```
+    ```
+
 You are now set to use make commands or the go test commands 
+
 
 ### Working with M2 chip on macOS:
 
