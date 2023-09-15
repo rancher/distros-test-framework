@@ -9,10 +9,8 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("VersionTemplate Upgrade:", func() {
@@ -31,14 +29,6 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())
-	})
-
-	It("Install traefik repo", func() {
-		_, err := shared.ManageWorkload(
-			"apply",
-			"dnsutils.yaml",
-		)
-		Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
 	})
 
 	It("Verifies bump version for coredns on rke2", func() {
