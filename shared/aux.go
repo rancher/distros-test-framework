@@ -123,8 +123,8 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// GetVersion returns the rke2 or k3s version
-func GetVersion(cmd string) (string, error) {
+// getVersion returns the rke2 or k3s version
+func getVersion(cmd string) (string, error) {
 	var res string
 	var err error
 	ips := FetchNodeExternalIP()
@@ -156,7 +156,7 @@ func GetProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := GetVersion(product + " -v")
+	version, err := getVersion(product + " -v")
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
 	}
@@ -166,19 +166,10 @@ func GetProductVersion(product string) (string, error) {
 
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
-	installHelm := "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
 	update := "helm repo update"
 	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
 		name, name, name, KubeConfigFile)
-
-	nodeExternalIP := FetchNodeExternalIP()
-	for _, ip := range nodeExternalIP {
-		_, err := RunCommandOnNode(installHelm, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to install helm: %v", err)
-		}
-	}
 
 	return RunCommandHost(addRepo, update, installRepo)
 }
@@ -265,12 +256,14 @@ func ReturnLogError(format string, args ...interface{}) error {
 	logger := log.AddLogger(false)
 	err := formatLogArgs(format, args...)
 
-	pc, file, line, ok := runtime.Caller(1)
-	if ok {
-		funcName := runtime.FuncForPC(pc).Name()
-		logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
-	} else {
-		logger.Error(err.Error())
+	if err != nil {
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+		} else {
+			logger.Error(err.Error())
+		}
 	}
 
 	return err

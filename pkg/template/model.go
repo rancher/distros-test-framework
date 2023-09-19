@@ -28,26 +28,26 @@ type TestMap struct {
 
 // TestConfig represents the testcase function configuration
 type TestConfig struct {
-	TestFunc       []TestCase
+	TestFunc       []testCase
 	DeployWorkload bool
 	WorkloadName   string
 }
 
-// TestCase is a custom type representing the test function.
-type TestCase func(deployWorkload bool)
+// testCase is a custom type representing the test function.
+type testCase func(deployWorkload bool)
 
-// TestCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and VersionTestTemplate.
-func TestCaseWrapper(v VersionTestTemplate) {
+// testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and VersionTestTemplate.
+func testCaseWrapper(v VersionTestTemplate) {
 	for _, testFunc := range v.TestConfig.TestFunc {
 		testFunc(v.TestConfig.DeployWorkload)
 	}
 }
 
-// ConvertToTestCase converts the TestCaseFlag to TestCase
-func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []TestCase {
-	var testCases []TestCase
+// ConvertToTestCase converts the TestCaseFlag to testCase
+func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
+	var testCases []testCase
 	for _, tcf := range testCaseFlags {
-		tc := TestCase(tcf)
+		tc := testCase(tcf)
 		testCases = append(testCases, tc)
 	}
 

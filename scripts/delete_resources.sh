@@ -1,10 +1,15 @@
 #!/bin/bash
 
 #Get resource name from tfvarslocal && change name to make more sense in this context
-PRODUCT_NAME=$(grep ENV_PRODUCT <../config/config.yaml | cut -d: -f2 | tr -d ' "')
+PRODUCT_NAME=$(grep ENV_PRODUCT <../config/.env | cut -d= -f2 | tr -d ' "')
 RESOURCE_NAME=$(grep resource_name <../config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
-NAME_PREFIX="$RESOURCE_NAME"
 
+if [ -z "$RESOURCE_NAME" ] || [ -z "$PRODUCT_NAME" ]; then
+  echo "No file or directory found"
+  exit 1
+fi
+
+NAME_PREFIX="$RESOURCE_NAME"
 #Terminate the instances
 echo "Terminating resources for $NAME_PREFIX if still up and running"
 # shellcheck disable=SC2046

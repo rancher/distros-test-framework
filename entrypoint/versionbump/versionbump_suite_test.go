@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -45,9 +46,19 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	cfg, err = config.AddConfigEnv("../../config")
+	cfg, err = config.AddConfigEnv("../../config/.env")
 	if err != nil {
 		return
+	}
+
+	flag.VisitAll(func(f *flag.Flag) {
+		// PRINT FLAG VALUE
+		fmt.Printf("%s: %v\n", f.Name, f.Value)
+	})
+
+	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
+		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
+		os.Exit(1)
 	}
 
 	os.Exit(m.Run())

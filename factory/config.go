@@ -27,10 +27,10 @@ type Cluster struct {
 	NumWinAgents int
 	NumServers   int
 	NumAgents    int
-	Config       ClusterConfig
+	Config       clusterConfig
 }
 
-type ClusterConfig struct {
+type clusterConfig struct {
 	RenderedTemplate string
 	ExternalDb       string
 	DataStore        string
@@ -39,7 +39,7 @@ type ClusterConfig struct {
 }
 
 func loadConfig() (*config.ProductConfig, error) {
-	cfg, err := config.AddConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config/")
 	if err != nil {
 		return nil, shared.ReturnLogError("error getting config: %w\n", err)
 	}

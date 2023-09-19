@@ -35,7 +35,7 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS(sonobuoyVersion, true)
+		testcase.TestSonobuoyMixedOS(true)
 	})
 })
 
