@@ -15,6 +15,7 @@ module "master" {
   cp_only_nodes      = var.cp_only_nodes
   cp_worker_nodes    = var.cp_worker_nodes
   optional_files     = var.optional_files
+  create_eip         = var.create_eip
 
   # AWS variables
   access_key         = var.access_key
@@ -55,6 +56,7 @@ module "worker" {
 
   # AWS variables
   access_key         = var.access_key
+  create_eip         = var.create_eip
   key_name           = var.key_name
   availability_zone  = var.availability_zone
   aws_ami            = var.aws_ami

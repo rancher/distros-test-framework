@@ -53,6 +53,10 @@ resource "aws_instance" "master" {
   provisioner "local-exec" {
     command = "echo ${aws_instance.master.public_ip} >/tmp/${var.resource_name}_master_ip"
   }
+   provisioner "local-exec" {
+    command = "echo ${aws_instance.master.public_ip} >/tmp/${var.resource_name}_master_ip_prev"
+  }
+
   provisioner "local-exec" {
     command = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${var.access_key} ${var.aws_user}@${aws_instance.master.public_ip}:/tmp/nodetoken /tmp/${var.resource_name}_nodetoken"
   }
@@ -62,6 +66,95 @@ resource "aws_instance" "master" {
   provisioner "local-exec" {
     command = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${var.access_key} ${var.aws_user}@${aws_instance.master.public_ip}:/tmp/joinflags /tmp/${var.resource_name}_joinflags"
   }
+}
+
+locals {
+        master_with_eip = { for i, v in aws_instance.master2 : tonumber(i)  => v.id if var.create_eip}      
+}
+
+resource "aws_eip" "stop-eip-master" { 
+        count = var.create_eip ? 1 : 0
+        vpc = true
+        tags = {
+           Name ="${var.resource_name}-server"
+        }     
+}
+
+resource "aws_eip" "stop-eip-master2" {
+        for_each = local.master_with_eip
+        vpc = true
+          tags = {
+                  Name ="${var.resource_name}-servers-${each.key}"
+        }
+      depends_on = [aws_eip.stop-eip-master]
+}
+
+resource "aws_eip_association" "master-stop-association" { 
+        count = var.create_eip ? 1 : 0
+        instance_id = aws_instance.master.id
+        allocation_id = aws_eip.stop-eip-master[0].id
+        depends_on = [aws_eip.stop-eip-master]
+}
+
+resource "aws_eip_association" "master2-stop-association" {
+        for_each = local.master_with_eip
+        instance_id = aws_instance.master2[each.key].id
+        allocation_id = aws_eip.stop-eip-master2[each.key].id
+        depends_on = [aws_instance.master]
+}
+
+data "local_file" "master_ip" {
+  depends_on = [aws_instance.master]
+  filename = "/tmp/${var.resource_name}_master_ip"
+}
+
+locals {
+  master_ip = trimspace("${data.local_file.master_ip.content}")
+}
+
+resource "null_resource" "master_eip" {
+  count = var.create_eip ? 1 : 0 
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = aws_eip.stop-eip-master[0].public_ip
+    private_key = file(var.access_key)
+  }
+   
+  provisioner "remote-exec" {
+    inline = [
+      "sudo sed -i s/${local.master_ip}/${aws_eip.stop-eip-master[0].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo systemctl restart --no-block rke2-server"
+    ]
+  }
+
+   provisioner "local-exec" {
+    command = "echo ${aws_eip.stop-eip-master[0].public_ip} > /tmp/${var.resource_name}_master_ip"
+  }
+
+   depends_on = [aws_instance.master, 
+                 aws_eip_association.master-stop-association]                 
+}
+
+resource "null_resource" "master2_eip" {
+  for_each = local.master_with_eip
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = tostring(aws_eip.stop-eip-master2[each.key].public_ip)
+    private_key = file(var.access_key)
+  }
+
+  provisioner "remote-exec" { 
+    inline = [
+      "sudo sed -i s/${local.master_ip}/${aws_eip.stop-eip-master[0].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo sed -i s/-ip:.*/\"-ip: ${aws_eip.stop-eip-master2[each.key].public_ip}\"/g /etc/rancher/rke2/config.yaml",
+      "sudo systemctl restart --no-block rke2-server"
+    ]
+  }
+
+ depends_on = [null_resource.master_eip, 
+                 aws_eip_association.master2-stop-association]
 }
 
 resource "aws_instance" "master2" {
