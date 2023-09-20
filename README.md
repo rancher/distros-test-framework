@@ -363,22 +363,16 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
 
 ### Your first steps - prep your setup to run tests:
 1. Fork your own git copy, clone it and create a branch in your local git repo.
-2. Create the following files in config directory path: 
 
-    a. `k3s.tfvars`: Copy over and edit the `k3s.tfvars.example` file
+   Please note that example files can be found under `config/examples` directory for your reference.
+2. Create the following files in 'config' directory path: 
 
-    b. `rke2.tfvars`: Copy over and edit the `rke2.tfvars.example` file
+    a. `k3s.tfvars`: Copy over `config/examples/k3s.tfvars` file into `config` directory and edit the same.
 
-    c. Run these commands:
+    b. `rke2.tfvars`: Copy over `config/examples/rke2.tfvars` file into `config` directory and edit the same.
 
-    ````
-    touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;
-    ````
-    Copy over contents of `jenkins-rke-validation.pem` file, or you own `.pem` file content. An example file can be found with permissions set.
-    There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file in the next step.
-    Ensure permissions to this file is set so no one else has access to the same.
+3.  Edit the following vars in the tfvars file:
 
-    d. Edit the following vars in the tfvars file:
     i. Generic variables:
     ```
     resource_name = "<name of aws resource you will create - your prefix name>"
@@ -400,20 +394,29 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     db_username   = "<db_user>"
     db_password   = "<db_password>"   
     ```
-    e. Create config/config.yaml file with contents: 
-    ```
-    ENV_PRODUCT: k3s
-    ENV_TFVARS: k3s.tfvars
-    ```
-    There is a sample 'config.yaml.example' found in the same 'config' folder
-    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above ^^.
+4. Create `config/config.yaml` file with contents: 
+   ```
+   ENV_PRODUCT: k3s
+   ENV_TFVARS: k3s.tfvars
+   ```
+   Please use `config/examples/config.yaml` for reference. 
+   Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
 
-3.  Export the following variables:
+5.  Export the following variables:
     ```
     export AWS_ACCESS_KEY_ID=xxx
     export AWS_SECRET_ACCESS_KEY=xxxx
     export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
     ```
+6. Run these commands:
+
+    ````
+    cd config; mkdir .ssh; touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;
+    ````
+   Copy over contents of `jenkins-rke-validation.pem` file, or you own `.pem` file content. An example file can be found with permissions set.
+   There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file `key_name` variable.
+   Also, note the `access_key` var in tfvars file, is referring to your .pem file path we create in this step.
+   Ensure permissions to this file is set so no one else has access to the same.
 
 You are now set to use make commands or the go test commands 
 
