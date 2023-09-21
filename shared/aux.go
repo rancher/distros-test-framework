@@ -33,9 +33,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 
 		err := c.Run()
 		if err != nil {
-			LogLevel("warn", "\nsomething happening on command:\n %s: \nwith error: %s\n", cmd,
-				c.Stderr.(*bytes.Buffer).String())
-			return "", err
+			return c.Stderr.(*bytes.Buffer).String(), err
 		}
 	}
 

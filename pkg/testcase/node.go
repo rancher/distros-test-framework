@@ -24,7 +24,7 @@ func TestNodeStatus(
 	}
 
 	Eventually(func(g Gomega) {
-		nodes, err := shared.ParseNodes(false)
+		nodes, err := shared.GetNodes(false)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(len(nodes)).To(Equal(expectedNodeCount),
 			"Number of nodes should match the spec")
@@ -36,9 +36,9 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1200s", "10s").Should(Succeed())
+	}, "1200s", "20s").Should(Succeed())
 
 	fmt.Println("\n\nCluster nodes:")
-	_, err := shared.ParseNodes(true)
+	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }

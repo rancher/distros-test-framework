@@ -16,6 +16,7 @@ module "master" {
    server_flags=var.server_flags
    availability_zone=var.availability_zone
    sg_id=var.sg_id
+   volume_size=var.volume_size
    resource_name=var.resource_name
    node_os=var.node_os
    username=var.username
@@ -48,6 +49,7 @@ module "worker" {
    worker_flags=var.worker_flags
    availability_zone=var.availability_zone
    sg_id=var.sg_id
+   volume_size=var.volume_size
    resource_name=var.resource_name
    node_os=var.node_os
    username=var.username

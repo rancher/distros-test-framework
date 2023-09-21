@@ -273,54 +273,73 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
-// ParseNodes returns nodes parsed from kubectl get nodes.
-func ParseNodes(print bool) ([]Node, error) {
-	nodes := make([]Node, 0, 10)
-	delay := time.After(30 * time.Second)
-
-	res, err := RunCommandHost("kubectl get nodes --no-headers -o wide --kubeconfig=" + KubeConfigFile)
+// GetNodes returns nodes parsed from kubectl get nodes.
+func GetNodes(print bool) ([]Node, error) {
+	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		<-delay
-		return nil, fmt.Errorf("failed to run kubectl get nodes: %v\n", err)
+		LogLevel("error", "\n%s", res)
+		return nil, err
 	}
 
-	nodelist := strings.TrimSpace(res)
-	split := strings.Split(nodelist, "\n")
-	for _, rec := range split {
-		if strings.TrimSpace(rec) != "" {
-			fields := strings.Fields(rec)
-			n := Node{
-				Name:       fields[0],
-				Status:     fields[1],
-				Roles:      fields[2],
-				Version:    fields[4],
-				InternalIP: fields[5],
-				ExternalIP: fields[6],
-			}
-			nodes = append(nodes, n)
-		}
-	}
-
+	nodes := parseNodes(res)
 	if print {
-		fmt.Println(nodelist)
+		fmt.Println(res)
 	}
 
 	return nodes, nil
 }
 
-// ParsePods returns pods parsed from kubectl get pods.
-func ParsePods(print bool) ([]Pod, error) {
-	pods := make([]Pod, 0, 10)
+// parseNodes parses the nodes from the kubeclt get nodes command.
+func parseNodes(res string) []Node {
+	nodes := make([]Node, 0, 10)
+	nodeList := strings.Split(strings.TrimSpace(res), "\n")
+	for _, rec := range nodeList {
+		if strings.TrimSpace(rec) == "" {
+			continue
+		}
 
+		fields := strings.Fields(rec)
+		if len(fields) < 7 {
+			continue
+		}
+
+		n := Node{
+			Name:       fields[0],
+			Status:     fields[1],
+			Roles:      fields[2],
+			Version:    fields[4],
+			InternalIP: fields[5],
+			ExternalIP: fields[6],
+		}
+		nodes = append(nodes, n)
+	}
+
+	return nodes
+}
+
+// GetPods returns pods parsed from kubectl get pods.
+func GetPods(print bool) ([]Pod, error) {
 	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		return nil, err
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
-	podList := strings.TrimSpace(res)
-	split := strings.Split(podList, "\n")
-	for _, rec := range split {
+	pods := parsePods(res)
+
+	if print {
+		fmt.Println(res)
+	}
+
+	return pods, nil
+}
+
+// parsePods parses the pods from the kubeclt get pods command.
+func parsePods(res string) []Pod {
+	pods := make([]Pod, 0, 10)
+	podList := strings.Split(strings.TrimSpace(res), "\n")
+
+	for _, rec := range podList {
 		fields := strings.Fields(rec)
 		p := Pod{
 			NameSpace: fields[0],
@@ -334,11 +353,8 @@ func ParsePods(print bool) ([]Pod, error) {
 		pods = append(pods, p)
 	}
 
-	if print {
-		fmt.Println(podList)
-	}
+	return pods
 
-	return pods, nil
 }
 
 // ReadDataPod reads the data from the pod

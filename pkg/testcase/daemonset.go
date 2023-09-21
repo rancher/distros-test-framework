@@ -15,7 +15,7 @@ func TestDaemonset(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply", "daemonset.yaml")
 	Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
 
-	pods, _ := shared.ParsePods(false)
+	pods, _ := shared.GetPods(false)
 
 	cmd := fmt.Sprintf(`
 		kubectl get pods -n test-daemonset -o wide --kubeconfig="%s" \

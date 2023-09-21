@@ -15,6 +15,7 @@ variable "worker_flags" {}
 variable "ec2_instance_class" {}
 variable "availability_zone" {}
 variable "sg_id" {}
+variable  "volume_size" {}
 variable "username" {}
 variable "password" {}
 variable "node_os" {}

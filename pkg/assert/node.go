@@ -30,7 +30,8 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 	fmt.Printf("Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
-		g.Expect(node.Version).Should(ContainSubstring(c.InstallMode.Version),
+		version := strings.Split(c.InstallMode.Version, "-")
+		g.Expect(node.Version).Should(ContainSubstring(version[0]),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
@@ -57,7 +58,8 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 // NodeAssertVersionUpgraded custom assertion func that asserts that node version is as expected
 func NodeAssertVersionUpgraded() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
-		g.Expect(&customflag.ServiceFlag.SUCUpgradeVersion).Should(ContainSubstring(node.Version),
+		version := strings.Split(customflag.ServiceFlag.SUCUpgradeVersion.String(), "-")
+		g.Expect(node.Version).Should(ContainSubstring(version[0]),
 			"Nodes should all be upgraded to the specified version", node.Name)
 	}
 }
