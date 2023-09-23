@@ -1,6 +1,7 @@
 .ssh/
 .DS_Store
-.vscode
+.vscode\
+.env
 .idea/
 *.modules/.terraform/
 *.terraform*

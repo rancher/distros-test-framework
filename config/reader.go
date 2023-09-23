@@ -33,7 +33,6 @@ func AddConfigEnv(path string) (*ProductConfig, error) {
 
 func loadConfigEnv(path string) (config *ProductConfig, err error) {
 	viper.AddConfigPath(path)
-	viper.SetConfigName("product")
 	viper.SetConfigType("yaml")
 	viper.AutomaticEnv()
 

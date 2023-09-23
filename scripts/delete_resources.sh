@@ -1,14 +1,18 @@
 #!/bin/bash
 
 #Get resource name from tfvarslocal && change name to make more sense in this context
-PRODUCT_NAME=$(grep ENV_PRODUCT <../config/config.yaml | cut -d: -f2 | tr -d ' "')
+PRODUCT_NAME=$(grep ENV_PRODUCT <../config/product.yaml | cut -d: -f2 | tr -d ' "')
 RESOURCE_NAME=$(grep resource_name <../config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
 
-if [[ -z "$RESOURCE_NAME" || -z "$PRODUCTNAME" ]]; then
-  echo "File or directory not found"
+if [[ -z "$RESOURCE_NAME" ]]; then
+  echo "No file or directory found"
   exit 1
 fi
 
+if  [[ "$RESOURCE_NAME" != "$PRODUCT_NAME".tfvars ]]; then
+  echo "Wrong tf.vars file found"
+  exit 1
+fi
 
 NAME_PREFIX="$RESOURCE_NAME"
 

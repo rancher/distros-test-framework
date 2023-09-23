@@ -1,2 +1,0 @@
-ENV_TFVARS: rke2.tfvars
-ENV_PRODUCT: rke2
