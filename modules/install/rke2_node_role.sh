@@ -17,27 +17,27 @@ cp_only_nodes=$7
 cp_worker_nodes=$8
 
 # Set the desired role into an array based on the index
-order_array=($(echo "$role_order" | tr ',' '\n'))
+read -r -a order_array <<< "$role_order"
 role_array=()
 for order_num in "${order_array[@]}"; do
   case "$order_num" in
     1)
-      role_array+=($(printf "all-roles %.0s " $(seq 1 "$all_role_nodes")))
+     role_array=$'\n' read -r -d '' -a role_array < <(printf "all-role-nodes %.0s " $(seq 1 "$all_role_nodes") && printf '\0')
       ;;
     2)
-      role_array+=($(printf "etcd-only %.0s " $(seq 1 "$etcd_only_nodes")))
+    role_array=$'\n' read -r -d '' -a role_array < <(printf "etcd-only %.0s " $(seq 1 "$etcd_only_nodes") && printf '\0')
       ;;
     3)
-      role_array+=($(printf "etcd-cp %.0s " $(seq 1 "$etcd_cp_nodes")))
+      role_array=$'\n' read -r -d '' -a role_array < <(printf "etcd-cp %.0s " $(seq 1 "$etcd_cp_nodes") && printf '\0')
       ;;
     4)
-      role_array+=($(printf "etcd-worker %.0s " $(seq 1 "$etcd_worker_nodes")))
+      role_array=$'\n' read -r -d '' -a role_array < <(printf "etcd-worker %.0s " $(seq 1 "$etcd_worker_nodes") && printf '\0')
       ;;
     5)
-      role_array+=($(printf "cp-only %.0s " $(seq 1 "$cp_only_nodes")))
+      role_array=$'\n' read -r -d '' -a role_array < <(printf "cp-only %.0s " $(seq 1 "$cp_only_nodes") && printf '\0')
       ;;
     6)
-      role_array+=($(printf "cp-worker %.0s " $(seq 1 "$cp_worker_nodes")))
+      role_array=$'\n' read -r -d '' -a role_array < <(printf "cp-worker %.0s " $(seq 1 "$cp_worker_nodes") && printf '\0')
       ;;
   esac
 done

@@ -9,7 +9,7 @@ import (
 
 const (
 	statusRunning = "Running"
-	Nslookup      = "kubernetes.default.svc.cluster.local"
+	nslookup      = "kubernetes.default.svc.cluster.local"
 )
 
 func TestIngress(deleteWorkload bool) {
@@ -50,7 +50,7 @@ func TestDnsAccess(deleteWorkload bool) {
 	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
 	err = assert.CheckComponentCmdHost(
 		execDnsUtils+shared.KubeConfigFile+" -- nslookup kubernetes.default",
-		Nslookup,
+		nslookup,
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
