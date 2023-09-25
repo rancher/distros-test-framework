@@ -67,7 +67,7 @@ node {
                 dir("./config") {
                   //update product info
                   def data = "ENV_PRODUCT: ${env.PRODUCT_NAME}\nENV_TFVARS: ${env.PRODUCT_NAME}.tfvars\n"
-                  writeFile(file: 'config.yaml', text: data)
+                  writeFile(file: 'product.yaml', text: data)
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS

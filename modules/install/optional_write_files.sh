@@ -7,7 +7,7 @@ files=$1
 
 if [ -n "$files" ]
 then
-  read -r -a file_array <<< "$files"
+  file_array=($(echo "$files" | tr ' ' '\n'))
   for current_file in "${file_array[@]}"; do
     file_location=$(echo "$current_file" | awk -F, '{print $1}')
     mkdir -p "$(dirname "$file_location")"

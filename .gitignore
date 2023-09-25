@@ -7,5 +7,5 @@
 *.terraform*
 *.tfstate*
 workloads/amd64/plan.yaml
-/config/config.yaml
+/config/product.yaml
 /config/*.tfvars
