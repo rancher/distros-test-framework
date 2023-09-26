@@ -27,10 +27,10 @@ type Cluster struct {
 	NumWinAgents int
 	NumServers   int
 	NumAgents    int
-	Config       ClusterConfig
+	Config       clusterConfig
 }
 
-type ClusterConfig struct {
+type clusterConfig struct {
 	RenderedTemplate string
 	ExternalDb       string
 	DataStore        string
