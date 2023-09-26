@@ -80,7 +80,11 @@ resource "aws_eip" "master_with_eip" {
         }     
 }
 
+<<<<<<< HEAD
 resource "aws_eip" "master_with_eip2" {
+=======
+resource "aws_eip" "stop-eip-master2" {
+>>>>>>> 047ec7ec07474b048e42c604c8437e3d3c28fc6a
         for_each = local.master_with_eip
         vpc = true
           tags = {
