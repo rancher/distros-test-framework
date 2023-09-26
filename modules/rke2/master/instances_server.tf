@@ -72,7 +72,7 @@ locals {
         master_with_eip = { for i, v in aws_instance.master2 : tonumber(i)  => v.id if var.create_eip}      
 }
 
-resource "aws_eip" "stop-eip-master" { 
+resource "aws_eip" "master_with_eip" { 
         count = var.create_eip ? 1 : 0
         vpc = true
         tags = {
@@ -80,26 +80,26 @@ resource "aws_eip" "stop-eip-master" {
         }     
 }
 
-resource "aws_eip" "stop-eip-master2" {
+resource "aws_eip" "master_with_eip2" {
         for_each = local.master_with_eip
         vpc = true
           tags = {
                   Name ="${var.resource_name}-servers-${each.key}"
         }
-      depends_on = [aws_eip.stop-eip-master]
+      depends_on = [aws_eip.master_with_eip ]
 }
 
 resource "aws_eip_association" "master-stop-association" { 
         count = var.create_eip ? 1 : 0
         instance_id = aws_instance.master.id
-        allocation_id = aws_eip.stop-eip-master[0].id
-        depends_on = [aws_eip.stop-eip-master]
+        allocation_id = aws_eip.master_with_eip[0].id
+        depends_on = [aws_eip.master_with_eip]
 }
 
 resource "aws_eip_association" "master2-stop-association" {
         for_each = local.master_with_eip
         instance_id = aws_instance.master2[each.key].id
-        allocation_id = aws_eip.stop-eip-master2[each.key].id
+        allocation_id = aws_eip.smaster_with_eip2[each.key].id
         depends_on = [aws_instance.master]
 }
 
@@ -117,19 +117,19 @@ resource "null_resource" "master_eip" {
   connection {
     type        = "ssh"
     user        = var.aws_user
-    host        = aws_eip.stop-eip-master[0].public_ip
+    host        = aws_eip.master_with_eip[0].public_ip
     private_key = file(var.access_key)
   }
    
   provisioner "remote-exec" {
     inline = [
-      "sudo sed -i s/${local.master_ip}/${aws_eip.stop-eip-master[0].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo sed -i s/${local.master_ip}/${aws_eip.master_with_eip[0].public_ip}/g /etc/rancher/rke2/config.yaml",
       "sudo systemctl restart --no-block rke2-server"
     ]
   }
 
    provisioner "local-exec" {
-    command = "echo ${aws_eip.stop-eip-master[0].public_ip} > /tmp/${var.resource_name}_master_ip"
+    command = "echo ${aws_eip.master_with_eip[0].public_ip} > /tmp/${var.resource_name}_master_ip"
   }
 
    depends_on = [aws_instance.master, 
@@ -141,14 +141,14 @@ resource "null_resource" "master2_eip" {
   connection {
     type        = "ssh"
     user        = var.aws_user
-    host        = tostring(aws_eip.stop-eip-master2[each.key].public_ip)
+    host        = tostring(aws_eip.master_with_eip2[each.key].public_ip)
     private_key = file(var.access_key)
   }
 
   provisioner "remote-exec" { 
     inline = [
-      "sudo sed -i s/${local.master_ip}/${aws_eip.stop-eip-master[0].public_ip}/g /etc/rancher/rke2/config.yaml",
-      "sudo sed -i s/-ip:.*/\"-ip: ${aws_eip.stop-eip-master2[each.key].public_ip}\"/g /etc/rancher/rke2/config.yaml",
+      "sudo sed -i s/${local.master_ip}/${aws_eip.master_with_eip[0].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo sed -i s/-ip:.*/\"-ip: ${aws_eip.master_with_eip2[each.key].public_ip}\"/g /etc/rancher/rke2/config.yaml",
       "sudo systemctl restart --no-block rke2-server"
     ]
   }
