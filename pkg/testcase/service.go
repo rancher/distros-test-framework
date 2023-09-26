@@ -30,6 +30,10 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	}
 }
 
+// func (m *customflag.MyTestCase) Func(deployWorkload bool) {
+// 	// implementation here
+// }
+
 func TestServiceNodePort(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")

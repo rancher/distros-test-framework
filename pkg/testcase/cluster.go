@@ -51,8 +51,8 @@ func TestBuildCluster(g GinkgoTInterface) {
 }
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
-func TestSonobuoyMixedOS(delete bool) {
-	sonobuoyVersion := customflag.ServiceFlag.TestConfig.ExternalTestConfig.SonobuoyVersion
+func TestSonobuoyMixedOS(deleteWorkload bool) {
+	sonobuoyVersion := customflag.ServiceFlag.SonobouyVersion.String()
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -71,7 +71,7 @@ func TestSonobuoyMixedOS(delete bool) {
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
-	if delete {
+	if deleteWorkload {
 		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)

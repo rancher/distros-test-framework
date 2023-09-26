@@ -12,7 +12,7 @@ import (
 
 const statusCompleted = "Completed"
 
-// TestPodStatus test the status of the pods in the cluster using 2 custom assert functions
+// TestPodStatus test the status of the pods in the cluster using custom assert functions
 func TestPodStatus(
 	podAssertRestarts assert.PodAssertFunc,
 	podAssertReady assert.PodAssertFunc,

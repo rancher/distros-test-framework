@@ -5,6 +5,7 @@ package versionbump
 import (
 	"fmt"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
@@ -18,20 +19,20 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	// It("Validate Nodes", func() {
-	// 	testcase.TestNodeStatus(
-	// 		assert.NodeAssertReadyStatus(),
-	// 		nil,
-	// 	)
-	// })
-	//
-	// It("Validate Pods", func() {
-	// 	testcase.TestPodStatus(
-	// 		assert.PodAssertRestart(),
-	// 		assert.PodAssertReady(),
-	// 		assert.PodAssertStatus(),
-	// 	)
-	// })
+	It("Validate Nodes", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus(),
+		)
+	})
 
 	cmd := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)",
 		cfg.Product)

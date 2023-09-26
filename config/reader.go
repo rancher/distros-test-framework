@@ -34,13 +34,14 @@ func AddConfigEnv(path string) (*ProductConfig, error) {
 func loadConfigEnv(path string) (config *ProductConfig, err error) {
 	dir, err := os.Getwd()
 	if err != nil {
+		fmt.Println("failed to get current working directory", err)
 		return nil, err
 	}
-
 	fullPath := filepath.Join(dir, path)
 
 	file, err := os.Open(fullPath)
 	if err != nil {
+		fmt.Println("failed to open file:", err)
 		return nil, err
 	}
 	defer file.Close()

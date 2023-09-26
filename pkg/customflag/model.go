@@ -18,10 +18,11 @@ type FlagConfig struct {
 	ClusterConfig     clusterConfigFlag
 	SUCUpgradeVersion sucUpgradeVersion
 	Channel           channelFlag
+	SonobouyVersion   externalConfigFlag
 }
 
 type sucUpgradeVersion struct {
-	Version string
+	SucUpgradeVersion string
 }
 
 type installTypeValueFlag struct {
@@ -34,15 +35,14 @@ type channelFlag struct {
 }
 
 type testConfigFlag struct {
-	TestFuncNames      []string
-	TestFuncs          []TestCaseFlag
-	DeployWorkload     bool
-	WorkloadName       string
-	Description        string
-	ExternalTestConfig externalTestConfig
+	TestFuncNames  []string
+	TestFuncs      []TestCaseFlag
+	DeployWorkload bool
+	WorkloadName   string
+	Description    string
 }
 
-type externalTestConfig struct {
+type externalConfigFlag struct {
 	SonobuoyVersion string
 }
 
@@ -115,7 +115,7 @@ func (i *installTypeValueFlag) Set(value string) error {
 }
 
 func (t *sucUpgradeVersion) String() string {
-	return t.Version
+	return t.SucUpgradeVersion
 }
 
 func (t *sucUpgradeVersion) Set(value string) error {
@@ -123,7 +123,7 @@ func (t *sucUpgradeVersion) Set(value string) error {
 		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
 		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
 	}
-	t.Version = value
+	t.SucUpgradeVersion = value
 
 	return nil
 }
@@ -142,11 +142,11 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
-func (e *externalTestConfig) String() string {
-	return fmt.Sprintf("sonobuoyVersion: %s", e.SonobuoyVersion)
+func (e *externalConfigFlag) String() string {
+	return e.SonobuoyVersion
 }
 
-func (e *externalTestConfig) Set(value string) error {
+func (e *externalConfigFlag) Set(value string) error {
 	e.SonobuoyVersion = value
 
 	return nil

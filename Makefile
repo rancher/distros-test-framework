@@ -6,44 +6,10 @@ TAGNAME := $(if $(TAGNAME),$(TAGNAME),default)
 test-env-up:
 	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
 
-#.PHONY: test-run
-#test-run:
-#	@docker run -d --name acceptance-test-${IMGNAME} -t \
-#      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-#      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-#      -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-#      acceptance-test-${TAGNAME} sh -c 'cd ./entrypoint; \
-#if [ -n "${TESTDIR}" ]; then \
-#    if [ "${TESTDIR}" = "upgradecluster" ]; then \
-#        if [ "${TESTTAG}" = "upgrademanual" ]; then \
-#            go test -timeout=45m -v ./upgradecluster/... -tags=upgrademanual -installVersionOrCommit "${INSTALLTYPE}"; \
-#        else \
-#            go test -timeout=45m -v ./upgradecluster/... -tags=upgradesuc -upgradeVersion "${UPGRADEVERSION}"; \
-#        fi; \
-#    elif [ "${TESTDIR}" = "versionbump" ]; then \
-#        go test -timeout=45m -v -tags=versionbump ./versionbump/... \
-#            -cmd "${CMD}" \
-#            -expectedValue "${EXPECTEDVALUE}" \
-#            -expectedValueUpgrade "${VALUEUPGRADED}" \
-#            -installVersionOrCommit "${INSTALLTYPE}" \
-#            -channel "${CHANNEL}" \
-#            -testCase "${TESTCASE}" \
-#            -deployWorkload "${DEPLOYWORKLOAD}" \
-#            -workloadName "${WORKLOADNAME}" \
-#            -description "${DESCRIPTION}"; \
-#    elif [ "${TESTDIR}" = "mixedoscluster" ]; then \
-#        go test -timeout=45m -v -tags=mixedos ./mixedoscluster/...; \
-#    fi; \
-#elif [ -z "${TESTDIR}" ]; then \
-#    go test -timeout=45m -v ./createcluster/...; \
-#fi; \
-#'
-
 test-run:
 	if [ -z "$${IMGNAME}" ]; then IMGNAME=${IMGNAME}; fi; \
-	if [ -z "$${ACCESS_KEY_LOCAL}" ]; then ACCESS_KEY_LOCAL=${ACCESS_KEY_LOCAL}; fi; \
 	if [ -z "$${TAGNAME}" ]; then TAGNAME=${TAGNAME}; fi; \
-	@docker run -d --name acceptance-test-$${IMGNAME} -t \
+	  docker run -dt --name acceptance-test-$${IMGNAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
 	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
 	  --env-file ./config/.env \
@@ -51,22 +17,23 @@ test-run:
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
 	  acceptance-test-$${TAGNAME} sh ./scripts/test-runner.sh
 
-
 test-run-state:
-	@CONTAINER_ID=$(docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
+	DOCKERCOMMIT=$$? \
+	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
     	if [ -z "$$CONTAINER_ID" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
     	else \
-    		echo "Committing container $$CONTAINER_ID"; \
-    		@docker commit $$CONTAINER_ID teststate:latest; \
-    		if [ $$? -eq 0 ]; then \
-    			docker run -d --name "${TESTSTATE}" --env-file ./config/.env  -t teststate:latest \
+    		docker commit $$CONTAINER_ID teststate:latest; \
+    		if [ $$DOCKERCOMMIT -eq 0 ]; then \
+    			docker run -dt --name "${TESTSTATE}" --env-file ./config/.env \
     			-e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
     			-e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
     			-v $${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
+    			teststate:latest \
     			sh ./scripts/test-runner.sh \
+    			echo "Docker run exit code: $$?"; \
     		else \
     			echo "Failed to commit container"; \
     			exit 1; \
@@ -84,10 +51,14 @@ test-logs:
 
 .PHONY: test-env-down
 test-env-down:
-	@echo "Removing containers and images"
-	@docker rm --force $$(docker ps -a -q --filter="name=acceptance-test*") ; \
-	 docker rmi --force $$(docker images -q --filter="reference=acceptance-test*") ; \
-	 docker rmi --force $$(docker images -q --filter="reference=teststate*")
+	@echo "Removing containers"
+	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f || true
+	@echo "Removing acceptance-test images"
+	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f || true
+	@echo "Removing dangling images"
+	@docker images -q -f "dangling=true" | xargs -r docker rmi -f || true
+	@echo "Removing state images"
+	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f
 
 .PHONY: test-env-clean
 test-env-clean:
@@ -113,13 +84,16 @@ test-upgrade-suc:
 
 .PHONY: test-upgrade-manual
 test-upgrade-manual:
-	@go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLVERSIONORCOMMIT}
+	@go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLVERSIONORCOMMIT} -channel ${CHANNEL}
 
 
 .PHONY: test-create-mixedos
 test-create-mixedos:
-	@go test -timeout=45m -v ./entrypoint/mixedoscluster/...
+	@go test -timeout=45m -v ./entrypoint/mixedoscluster/... $(if ${SONOBUOYVERSION},-sonobuoyVersion ${SONOBUOYVERSION})
 
+.PHONY: test-create-dualstack
+test-create-dualstack:
+	@go test -timeout=45m -v ./entrypoint/dualstack/...
 
 .PHONY: test-version-bump
 test-version-bump:

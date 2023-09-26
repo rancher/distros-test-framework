@@ -7,27 +7,31 @@ EXPECTEDVALUE="${EXPECTEDVALUE}"
 VALUEUPGRADED="${VALUEUPGRADED}"
 CHANNEL="${CHANNEL}"
 INSTALLVERSIONORCOMMIT="${INSTALLVERSIONORCOMMIT}"
-UPGRADEVERSION="${UPGRADEVERSION}"
+SUCUPGRADEVERSION="${SUCUPGRADEVERSION}"
 TESTCASE="${TESTCASE}"
 WORKLOADNAME="${WORKLOADNAME}"
 DESCRIPTION="${DESCRIPTION}"
 DEPLOYWORKLOAD="${DEPLOYWORKLOAD}"
+SONOBUOYVERSION="${SONOBUOYVERSION}"
 
 if [ -z "${TESTDIR}" ]; then
     echo "Test Directory is not set"
     exit 1
 fi
 
-cd ./entrypoint || exit
+if [ -z "${TESTTAG}" ]; then IMGNAME=${IMGNAME}; fi;
+echo "Running test: ${TESTTAG} from ${TESTDIR} directory"
+
+
 if [ -n "${TESTDIR}" ]; then
     if [ "${TESTDIR}" = "upgradecluster" ]; then
         if [ "${TESTTAG}" = "upgrademanual" ]; then
-            go test -timeout=45m -v ./upgradecluster/... -tags=upgrademanual -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}"
-        else
-            go test -timeout=45m -v -tags=upgradesuc ./upgradecluster/... -upgradeVersion "${UPGRADEVERSION}"
+            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/.. -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
+        elif [ "${TESTTAG}" = "upgradesuc" ]; then
+            go test -timeout=45m -v -tags=upgradesuc ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
         fi
     elif [ "${TESTDIR}" = "versionbump" ]; then
-        go test -timeout=45m -v -tags=versionbump ./versionbump/... -cmd "${CMD}" \
+        go test -timeout=45m -v -tags=versionbump ./entrypoint/versionbump/... -cmd "${CMD}" \
             -expectedValue "${EXPECTEDVALUE}" \
             -expectedValueUpgrade "${VALUEUPGRADED}" \
             -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" \
@@ -37,11 +41,14 @@ if [ -n "${TESTDIR}" ]; then
             -workloadName "${WORKLOADNAME}" \
             -description "${DESCRIPTION}"
     elif [ "${TESTDIR}" = "mixedoscluster" ]; then
-        go test -timeout=45m -v -tags=mixedos ./mixedoscluster/...
+        go test -timeout=45m -v ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+    elif [ "${TESTDIR}" = "dualstack" ]; then
+        go test -timeout=45m -v ./entrypoint/dualstack/...
+    elif [  "${TESTDIR}" = "createcluster" ]; then
+        go test -timeout=45m -v ./entrypoint/createcluster/...
     fi
-elif [ -z "${TESTDIR}" ]; then
-    go test -timeout=45m -v ./createcluster/...
 fi
+
 
 tail -f /dev/null
 

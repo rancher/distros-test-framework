@@ -18,7 +18,7 @@ var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.StringVar(&customflag.ServiceFlag.TestConfig.externalTestConfig.SonobuoyVersion, "sonobuoyVersion", "", "Sonobuoy Version that will be executed on the cluster")
+	flag.Var(&customflag.ServiceFlag.SonobouyVersion, "sonobuoyVersion", "Sonobuoy Version that will be executed on the cluster")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 

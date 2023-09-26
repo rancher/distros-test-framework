@@ -140,7 +140,7 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := config.AddConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config/.env")
 	if err != nil {
 		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
@@ -214,7 +214,12 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	if err != nil {
 		return "", "", ReturnLogError("failed to create session: %v\n", err)
 	}
-	defer session.Close()
+	defer func(session *ssh.Session) {
+		err = session.Close()
+		if err != nil {
+
+		}
+	}(session)
 
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
