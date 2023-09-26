@@ -8,15 +8,9 @@
 
 #### Types of Changes ####
 
-<!-- What types of changes does your code introduce to RKE2? Bugfix, New Feature, Breaking Change, etc -->
-
-#### Verification ####
-
-<!-- How can the changes be verified? Please provide whatever additional information necessary to help verify the proposed changes. -->
+<!-- What types of changes does your code introduce to distro framework? Issue validation, Patch Validation, Fix, New functionality, Refactor or etc -->
 
 #### Testing ####
-
-<!-- Is this change covered by testing? If not, consider adding a Unit or Integration test. -->
 <!-- Answer the checklist bellow  -->
 
 Checklist:
@@ -35,18 +29,12 @@ Checklist:
 5. Run your tests at least 4 times with all configurations needed and possible.
 
 
+6. If needed test with different os types.
+
+
 #### Linked Issues ####
 
-<!-- Link any related issues, pull-requests, or commit hashes that are relevant to this pull request. If you are opening a PR without a corresponding issue please consider creating one first, at https://github.com/rancher/rke2/issues . A functional example will greatly help QA with verifying/reproducing a bug or testing new features. -->
-
-#### User-Facing Change ####
-<!--
-Does this PR introduce a user-facing change? If no, just write "NONE" in the release-note block below.
-If the PR requires additional action from users switching to the new release, include the string "action required".
--->
-```release-note
-
-```
+<!-- Link any related issues, pull-requests, qa-tasks repo issues or commit hashes that are relevant to this pull request. If you are opening a PR without a corresponding issue please consider creating one first, at https://github.com/rancher/distros-test-framework/issues . -->
 
 #### Further Comments ####
 
