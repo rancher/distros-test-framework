@@ -14,9 +14,7 @@ variable "instance_class" {}
 variable "ec2_instance_class" {}
 variable "db_group_name" {}
 variable "username" {}
-variable "password" {
-  default = "Pa$$w0rd"
-}
+variable "password" {}
 variable "k3s_version" {}
 variable "no_of_server_nodes" {}
 variable "server_flags" {}
