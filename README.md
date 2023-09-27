@@ -390,7 +390,7 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     ```
     iii. Sensitive variables to edit in tfvars file:
     ```
-    password      = "<password>"   
+    password      = "<password>"   # Note - this is needed if we run test locally using go test. Not needed from jenkins runs. 
     db_username   = "<db_user>"
     db_password   = "<db_password>"   
     ```

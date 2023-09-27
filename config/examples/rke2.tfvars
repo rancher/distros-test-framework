@@ -11,7 +11,6 @@ worker_flags   = "profile: cis\n"
 resource_name  = "<prefix_name_for_your_resources>"
 key_name       = "jenkins-rke-validation"
 access_key     = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
-password       = "<enter_your_password>"
 
 create_lb      = false
 arch           = "amd64"
