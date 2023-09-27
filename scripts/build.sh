@@ -14,9 +14,10 @@ fi
 
 count=0
 while [[ 3 -gt $count ]]; do
-    BUILD=docker build . -f scripts/Dockerfile.build -t acceptance-tests-"${TRIM_JOB_NAME}""${BUILD_NUMBER}"
+    docker build . -f scripts/Dockerfile.build -t acceptance-tests-"${TRIM_JOB_NAME}""${BUILD_NUMBER}"
 
-    if [[ $BUILD -eq 0 ]]; then break; fi
+    BUILD_EXIT_CODE=$?
+    if [[ $BUILD_EXIT_CODE -eq 0 ]]; then break; fi
     count=$((count + 1))
     echo "Repeating failed Docker build ${count} of 3..."
 done
