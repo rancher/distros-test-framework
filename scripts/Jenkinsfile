@@ -66,8 +66,8 @@ node {
                 }
                 dir("./config") {
                   //update product info
-                  def data = "ENV_PRODUCT: ${env.PRODUCT_NAME}\nENV_TFVARS: ${env.PRODUCT_NAME}.tfvars\n"
-                  writeFile(file: 'product.yaml', text: data)
+                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n"
+                  writeFile(file: '.env', text: data)
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS
@@ -84,9 +84,9 @@ node {
                 sh "./scripts/build.sh"
               }
               stage('Run TestCombination') {
-                sh "docker run --name ${testContainer} -t --env-file ${envFile} " +
+                sh "docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env " +
                   "${imageName} sh -c \"chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && " +
-                  "cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS}\""
+                  "go test -timeout=${timeout} -v ./entrypoint/${TEST_DIRECTORY}/... ${TEST_ARGS}\""
               }
             } finally {
               stage('Cleanup') {
@@ -96,9 +96,9 @@ node {
                 sh "docker rmi -f ${imageName} || true"
               }
             } // finally
-          } // dir 
+          } // dir
         } // withEnv
       } // withCredentials
     } // withFolderProperties
-  } // wrap 
+  } // wrap
 } // node

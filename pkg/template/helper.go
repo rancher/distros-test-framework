@@ -61,13 +61,15 @@ func AddTestCases(names []string) ([]testCase, error) {
 	var testCases []testCase
 
 	testCase := map[string]testCase{
-		"TestDaemonset":                   testcase.TestDaemonset,
-		"TestIngress":                     testcase.TestIngress,
-		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
-		"TestServiceNodePort":             testcase.TestServiceNodePort,
-		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
-		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,
+		"TestDaemonset":                    testcase.TestDaemonset,
+		"TestIngress":                      testcase.TestIngress,
+		"TestDnsAccess":                    testcase.TestDnsAccess,
+		"TestServiceClusterIP":             testcase.TestServiceClusterIp,
+		"TestServiceNodePort":              testcase.TestServiceNodePort,
+		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
+		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
+		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
 	}
 
 	for _, name := range names {

@@ -140,7 +140,7 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := config.AddConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config/.env")
 	if err != nil {
 		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
@@ -166,19 +166,10 @@ func GetProductVersion(product string) (string, error) {
 
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
-	installHelm := "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
 	update := "helm repo update"
 	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
 		name, name, name, KubeConfigFile)
-
-	nodeExternalIP := FetchNodeExternalIP()
-	for _, ip := range nodeExternalIP {
-		_, err := RunCommandOnNode(installHelm, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to install helm: %v", err)
-		}
-	}
 
 	return RunCommandHost(addRepo, update, installRepo)
 }

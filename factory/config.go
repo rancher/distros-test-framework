@@ -39,7 +39,7 @@ type clusterConfig struct {
 }
 
 func loadConfig() (*config.ProductConfig, error) {
-	cfg, err := config.AddConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config/.env")
 	if err != nil {
 		return nil, shared.ReturnLogError("error getting config: %w\n", err)
 	}

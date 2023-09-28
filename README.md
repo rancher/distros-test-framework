@@ -180,7 +180,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 
 - Before running the tests, you should creat file in `./config/{product}.tfvars`. There is some information there to get you started, but the empty variables should be filled in appropriately per your AWS environment.
 
-- Also before running on the config.yaml add your product name and tfvars product name
+- Also before running on the .env add your product name and tfvars product name
 
 - Please make sure to export your correct AWS credentials before running the tests. e.g:
 ```bash
@@ -394,12 +394,12 @@ To focus individual runs on specific test clauses, you can prefix with `F`. For 
     db_username   = "<db_user>"
     db_password   = "<db_password>"   
     ```
-4. Create `config/config.yaml` file with contents: 
+4. Create `config/.env` file with contents:
    ```
-   ENV_PRODUCT: k3s
-   ENV_TFVARS: k3s.tfvars
+   ENV_PRODUCT={product}
+   ENV_TFVARS={product}.tfvars
    ```
-   Please use `config/examples/config.yaml` for reference. 
+   Please use `config/examples/.env` for reference.
    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
 
 5.  Export the following variables:

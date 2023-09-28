@@ -39,7 +39,6 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "no_of_worker_nodes"))
 	if err != nil {
-
 		return nil, shared.ReturnLogError("error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
@@ -66,7 +65,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 // DestroyCluster destroys the cluster and returns it
 func DestroyCluster(g GinkgoTInterface) (string, error) {
 	var varDir string
-	cfg, err := config.AddConfigEnv("./config")
+	cfg, err := config.AddConfigEnv("./config/.env")
 	if err != nil {
 		return "", shared.ReturnLogError("error getting config: %w", err)
 	}

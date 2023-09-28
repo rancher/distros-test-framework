@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -36,7 +37,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 	err := shared.PrintFileContents(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("\nBASE64 ENCODED KUBECONFIG:")
+	fmt.Println("BASE64 ENCODED KUBECONFIG:")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
@@ -50,8 +51,9 @@ func TestBuildCluster(g GinkgoTInterface) {
 }
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
-func TestSonobuoyMixedOS(version string, delete bool) {
-	err := shared.SonobuoyMixedOS("install", version)
+func TestSonobuoyMixedOS(deleteWorkload bool) {
+	sonobuoyVersion := customflag.ServiceFlag.SonobouyVersion.String()
+	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
 	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
@@ -69,11 +71,11 @@ func TestSonobuoyMixedOS(version string, delete bool) {
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
-	if delete {
+	if deleteWorkload {
 		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
-		err = shared.SonobuoyMixedOS("delete", version)
+		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
 		if err != nil {
 			GinkgoT().Errorf("error: %v", err)
 			return

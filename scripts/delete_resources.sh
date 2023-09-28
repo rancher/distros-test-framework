@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#Get product from product.yaml file and validate
-PRODUCT_NAME=$(grep ENV_PRODUCT <../config/product.yaml | cut -d: -f2 | tr -d ' "')
+#Get resource name from tfvarslocal && change name to make more sense in this context
+PRODUCT_NAME=$(grep ENV_PRODUCT <../config/.env | cut -d= -f2 | tr -d ' "')
 if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
   echo "Wrong or empty product name found in product.yaml file for: $PRODUCT_NAME"
   exit 1
@@ -11,12 +11,6 @@ fi
 RESOURCE_NAME=$(grep resource_name <../config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
 if [[ -z "$RESOURCE_NAME" ]]; then
   echo "No resource name found for: $PRODUCT_NAME.tfvars file"
-  exit 1
-fi
-
-#validate path to the product.yaml file
-if [[ ! -f ../config/product.yaml ]]; then
-  echo "No product.yaml file found in config directory"
   exit 1
 fi
 

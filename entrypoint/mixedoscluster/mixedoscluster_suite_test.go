@@ -14,16 +14,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var sonobuoyVersion string
 var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.StringVar(&sonobuoyVersion, "sonobuoyVersion", "", "Sonobuoy Version that will be executed on the cluster")
+	flag.Var(&customflag.ServiceFlag.SonobouyVersion, "sonobuoyVersion", "Sonobuoy Version that will be executed on the cluster")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = config.AddConfigEnv("../../config")
+	cfg, err = config.AddConfigEnv("../../config/.env")
 	if err != nil {
 		return
 	}
