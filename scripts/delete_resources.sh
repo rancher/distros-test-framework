@@ -1,21 +1,21 @@
 #!/bin/bash
 
 #Get resource name from tfvarslocal && change name to make more sense in this context
-PRODUCT_NAME=$(grep ENV_PRODUCT <../config/.env | cut -d= -f2 | tr -d ' "')
+PRODUCT_NAME=$(grep ENV_PRODUCT <./config/.env | cut -d= -f2 | tr -d ' "')
 if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
-  echo "Wrong or empty product name found in product.yaml file for: $PRODUCT_NAME"
+  echo "Wrong or empty product name found in .env file for: $PRODUCT_NAME"
   exit 1
 fi
 
 #Get resource name from tfvars file and validate
-RESOURCE_NAME=$(grep resource_name <../config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
+RESOURCE_NAME=$(grep resource_name <./config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
 if [[ -z "$RESOURCE_NAME" ]]; then
   echo "No resource name found for: $PRODUCT_NAME.tfvars file"
   exit 1
 fi
 
 #Validate path to the tfvars file
-if [[ ! -f ../config/"$PRODUCT_NAME".tfvars ]]; then
+if [[ ! -f ./config/"$PRODUCT_NAME".tfvars ]]; then
   echo "No $PRODUCT_NAME.tfvars file found in config directory"
   exit 1
 fi
@@ -23,10 +23,8 @@ fi
 printf "This is going to delete all AWS resources with the prefix %s. Continue (yes/no)? " "$RESOURCE_NAME"
 read -r REPLY
 if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
-  echo "Deleting resources for $RESOURCE_NAME"
-
   NAME_PREFIX="$RESOURCE_NAME"
-  #Terminate instances
+
   echo "Terminating resources for $NAME_PREFIX if still up and running"
   # shellcheck disable=SC2046
   aws ec2 terminate-instances --instance-ids $(aws ec2 describe-instances \

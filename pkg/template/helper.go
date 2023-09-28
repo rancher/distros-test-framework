@@ -60,7 +60,7 @@ func executeTestCombination(v VersionTestTemplate) error {
 func AddTestCases(names []string) ([]testCase, error) {
 	var testCases []testCase
 
-	testCase := map[string]testCase{
+	tcs := map[string]testCase{
 		"TestDaemonset":                    testcase.TestDaemonset,
 		"TestIngress":                      testcase.TestIngress,
 		"TestDnsAccess":                    testcase.TestDnsAccess,
@@ -76,7 +76,7 @@ func AddTestCases(names []string) ([]testCase, error) {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			testCases = append(testCases, func(deployWorkload bool) {})
-		} else if test, ok := testCase[name]; ok {
+		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {
 			return nil, shared.ReturnLogError("invalid test case name")

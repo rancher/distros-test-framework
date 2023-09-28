@@ -15,18 +15,21 @@ DEPLOYWORKLOAD="${DEPLOYWORKLOAD}"
 SONOBUOYVERSION="${SONOBUOYVERSION}"
 
 if [ -z "${TESTDIR}" ]; then
-    echo "Test Directory is not set"
+    printf "\n\nTESTDIR is not set\n\n"
     exit 1
 fi
 
-if [ -z "${TESTTAG}" ]; then IMGNAME=${IMGNAME}; fi;
-echo "Running test: ${TESTTAG} from ${TESTDIR} directory"
+if [ -z "${IMGNAME}" ]; then
+   printf "\n\nIMGNAME is not set\n\n"
+   exit 1
+fi
 
+printf "\n\n\nRunning tests for %s\n\n\n" "${TESTDIR}"
 
 if [ -n "${TESTDIR}" ]; then
     if [ "${TESTDIR}" = "upgradecluster" ]; then
         if [ "${TESTTAG}" = "upgrademanual" ]; then
-            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/.. -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
+            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
         elif [ "${TESTTAG}" = "upgradesuc" ]; then
             go test -timeout=45m -v -tags=upgradesuc ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
         fi

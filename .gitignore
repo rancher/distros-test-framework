@@ -1,7 +1,6 @@
 .ssh/
 .DS_Store
 .vscode\
-app.env
 .env
 .idea/
 *.modules/.terraform/

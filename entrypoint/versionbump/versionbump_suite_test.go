@@ -51,11 +51,6 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	flag.VisitAll(func(f *flag.Flag) {
-		// PRINT FLAG VALUE
-		fmt.Printf("%s: %v\n", f.Name, f.Value)
-	})
-
 	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
 		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
 		os.Exit(1)

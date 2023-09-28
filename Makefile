@@ -15,11 +15,11 @@ test-run:
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-$${TAGNAME} sh ./scripts/test-runner.sh
+	  acceptance-test-${TAGNAME}
 
 test-run-state:
 	DOCKERCOMMIT=$$? \
-	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
+	CONTAINER_ID=$(shell docker ps -a -q --filter name=acceptance-test-${IMGNAME}); \
     	if [ -z "$$CONTAINER_ID" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
@@ -32,7 +32,6 @@ test-run-state:
     			-v $${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
     			teststate:latest \
-    			sh ./scripts/test-runner.sh \
     			echo "Docker run exit code: $$?"; \
     		else \
     			echo "Failed to commit container"; \
@@ -58,11 +57,11 @@ test-env-down:
 	@echo "Removing dangling images"
 	@docker images -q -f "dangling=true" | xargs -r docker rmi -f || true
 	@echo "Removing state images"
-	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f
+	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f || true
 
 .PHONY: test-env-clean
 test-env-clean:
-	@yes | ./scripts/delete_resources.sh
+	@./scripts/delete_resources.sh
 
 
 #========================= Run acceptance tests locally =========================#
@@ -134,6 +133,7 @@ test-runc-bump:
 
 
 .PHONY: test-cilium-bump
+test-cilium-bump:
 	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=cilium \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \

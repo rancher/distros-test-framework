@@ -13,7 +13,7 @@ var TestCaseNameFlag stringSlice
 
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
-	InstallMode       installTypeValueFlag
+	InstallMode       installModeFlag
 	TestConfig        testConfigFlag
 	ClusterConfig     clusterConfigFlag
 	SUCUpgradeVersion sucUpgradeVersion
@@ -25,7 +25,7 @@ type sucUpgradeVersion struct {
 	SucUpgradeVersion string
 }
 
-type installTypeValueFlag struct {
+type installModeFlag struct {
 	Version string
 	Commit  string
 }
@@ -94,11 +94,11 @@ func (c *channelFlag) Set(value string) error {
 	return nil
 }
 
-func (i *installTypeValueFlag) String() string {
+func (i *installModeFlag) String() string {
 	return fmt.Sprintf("%s%s", i.Version, i.Commit)
 }
 
-func (i *installTypeValueFlag) Set(value string) error {
+func (i *installModeFlag) Set(value string) error {
 	if strings.HasPrefix(value, "v") {
 		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
 			return shared.ReturnLogError("invalid version format: %s", value)

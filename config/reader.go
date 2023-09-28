@@ -22,7 +22,7 @@ type ProductConfig struct {
 func AddConfigEnv(path string) (*ProductConfig, error) {
 	once.Do(func() {
 		var err error
-		product, err = loadConfigEnv(path)
+		product, err = loadEnv(path)
 		if err != nil {
 			return
 		}
@@ -31,22 +31,43 @@ func AddConfigEnv(path string) (*ProductConfig, error) {
 	return product, nil
 }
 
-func loadConfigEnv(path string) (config *ProductConfig, err error) {
+func loadEnv(path string) (config *ProductConfig, err error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		fmt.Println("failed to get current working directory", err)
 		return nil, err
 	}
+
 	fullPath := filepath.Join(dir, path)
 
+	if err = setEnv(fullPath); err != nil {
+		return nil, err
+	}
+
+	config = &ProductConfig{}
+	config.TFVars = os.Getenv("ENV_TFVARS")
+	config.Product = os.Getenv("ENV_PRODUCT")
+
+	if config.TFVars == "" || (config.TFVars != "k3s.tfvars" && config.TFVars != "rke2.tfvars") {
+		fmt.Printf("unknown tfvars: %s\n", config.TFVars)
+		os.Exit(1)
+	}
+
+	if config.Product == "" || (config.Product != "k3s" && config.Product != "rke2") {
+		fmt.Printf("unknown product: %s\n", config.Product)
+		os.Exit(1)
+	}
+
+	return config, nil
+}
+
+func setEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
 		fmt.Println("failed to open file:", err)
-		return nil, err
+		return err
 	}
 	defer file.Close()
-
-	config = &ProductConfig{}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -59,29 +80,13 @@ func loadConfigEnv(path string) (config *ProductConfig, err error) {
 		key, value := parts[0], parts[1]
 		err = os.Setenv(key, value)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		switch key {
-		case "ENV_TFVARS":
-			if value == "" || (value != "k3s.tfvars" && value != "rke2.tfvars") {
-				fmt.Printf("unknown tfvars: %s\n", value)
-				os.Exit(1)
-			}
-		case "ENV_PRODUCT":
-			if value == "" || (value != "k3s" && value != "rke2") {
-				fmt.Printf("unknown product: %s\n", value)
-				os.Exit(1)
-			}
-		}
-
-		config.TFVars = os.Getenv("ENV_TFVARS")
-		config.Product = os.Getenv("ENV_PRODUCT")
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return config, nil
+	return nil
 }
