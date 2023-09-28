@@ -26,7 +26,7 @@ echo "Running test: ${TESTTAG} from ${TESTDIR} directory"
 if [ -n "${TESTDIR}" ]; then
     if [ "${TESTDIR}" = "upgradecluster" ]; then
         if [ "${TESTTAG}" = "upgrademanual" ]; then
-            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/.. -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
+            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
         elif [ "${TESTTAG}" = "upgradesuc" ]; then
             go test -timeout=45m -v -tags=upgradesuc ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
         fi

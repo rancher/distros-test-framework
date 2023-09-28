@@ -322,8 +322,6 @@ func GetPods(print bool) ([]Pod, error) {
 	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		fmt.Println("res from get pods!!!!!!!!,", res)
-		fmt.Println()
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
@@ -343,10 +341,6 @@ func parsePods(res string) []Pod {
 
 	for _, rec := range podList {
 		fields := strings.Fields(rec)
-		if len(fields) < 8 {
-			fmt.Printf("!!!!!!!!!!Skippin no total fields: !!!!!!!!!!!!!!!!!!!!! %v", fields)
-			continue
-		}
 		p := Pod{
 			NameSpace: fields[0],
 			Name:      fields[1],

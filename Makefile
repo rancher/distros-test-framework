@@ -19,7 +19,7 @@ test-run:
 
 test-run-state:
 	DOCKERCOMMIT=$$? \
-	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
+	CONTAINER_ID=$(shell docker ps -a -q --filter name=acceptance-test-${IMGNAME}); \
     	if [ -z "$$CONTAINER_ID" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
@@ -134,6 +134,7 @@ test-runc-bump:
 
 
 .PHONY: test-cilium-bump
+test-cilium-bump:
 	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=cilium \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
