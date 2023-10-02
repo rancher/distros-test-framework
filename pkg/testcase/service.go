@@ -54,10 +54,7 @@ func TestServiceNodePort(deleteWorkload bool) {
 		"--field-selector=status.phase=Running --kubeconfig="
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
-			assert.AsyncOpt{
-				Timeout: shared.PointerDuration(420 * time.Second),
-				Ticker:  time.NewTicker(5 * time.Second),
-			},
+			assert.AsyncOpt{},
 			getNodeport+shared.KubeConfigFile,
 			statusRunning,
 		)
@@ -91,10 +88,7 @@ func TestServiceLoadBalancer(deleteWorkload bool) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
-			assert.AsyncOpt{
-				Timeout: shared.PointerDuration(420 * time.Second),
-				Ticker:  time.NewTicker(5 * time.Second),
-			},
+			assert.AsyncOpt{},
 			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
 			"curl -sL --insecure http://"+ip+":"+port+"/name.html",

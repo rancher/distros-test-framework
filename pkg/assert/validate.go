@@ -20,7 +20,7 @@ func validate(exec func(string) (string, error), opt AsyncOpt, args ...string) e
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout, ticker := setAsyncTimer(opt)
+	timeout, ticker := asyncTimer(opt)
 	defer ticker.Stop()
 
 	for i := 0; i < len(args); i++ {
@@ -102,10 +102,8 @@ func ValidateOnNode(opt AsyncOpt, ip string, args ...string) error {
 	return validate(exec, opt, args...)
 }
 
-func setAsyncTimer(opt AsyncOpt) (<-chan time.Time, *time.Ticker) {
-	var timeout <-chan time.Time
-	var ticker *time.Ticker
-
+// asyncTimer sets the timeout and ticker for the async validation
+func asyncTimer(opt AsyncOpt) (timeout <-chan time.Time, ticker *time.Ticker) {
 	if opt.Timeout == nil {
 		timeout = time.After(420 * time.Second)
 	} else {

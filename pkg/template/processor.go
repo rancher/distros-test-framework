@@ -159,7 +159,7 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 
 	err = assert.ValidateOnHost(
 		assert.AsyncOpt{
-			Timeout: shared.PointerDuration(30 * time.Minute),
+			Timeout: shared.PointerDuration(30 * time.Second),
 			Ticker:  time.NewTicker(3 * time.Second),
 		},
 		fullCmd,

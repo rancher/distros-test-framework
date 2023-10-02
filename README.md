@@ -359,3 +359,108 @@ Or use break points in your IDE.
 ````
 The cluster and VMs can be retained after a test by passing `-destroy=false`. 
 To focus individual runs on specific test clauses, you can prefix with `F`. For example, in the [create cluster test](../tests/terraform/cases/createcluster_test.go), you can update the initial creation to be: `FIt("Starts up with no issues", func() {` in order to focus the run on only that clause.
+````
+
+### Your first steps - prep your setup to run tests:
+1. Fork your own git copy, clone it and create a branch in your local git repo.
+
+   Please note that example files can be found under `config/examples` directory for your reference.
+2. Create the following files in 'config' directory path: 
+
+    a. `k3s.tfvars`: Copy over `config/examples/k3s.tfvars` file into `config` directory and edit the same.
+
+    b. `rke2.tfvars`: Copy over `config/examples/rke2.tfvars` file into `config` directory and edit the same.
+
+3.  Edit the following vars in the tfvars file:
+
+    i. Generic variables:
+    ```
+    resource_name = "<name of aws resource you will create - your prefix name>"
+    key_name      = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
+    access_key    = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
+    ```
+    ii. AWS related mandatory variable values: 
+    ```
+    vpc_id             = "<vpc_id>"
+    subnets            = "<subnet_id>"
+    sg_id              = "<sg_id>"
+    iam_role           = "<iam_role>"
+    aws_ami            = "<ami_id>"
+    windows_aws_ami    = "<ami-id>"    # rke2.tfvars file only
+    ```
+    iii. Sensitive variables to edit in tfvars file:
+    ```
+    password      = "<password>"   # Note - this is needed if we run test locally using go test. Not needed from jenkins runs. 
+    db_username   = "<db_user>"
+    db_password   = "<db_password>"   
+    ```
+4. Create `config/config.yaml` file with contents: 
+   ```
+   ENV_PRODUCT: k3s
+   ENV_TFVARS: k3s.tfvars
+   ```
+   Please use `config/examples/config.yaml` for reference. 
+   Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
+
+5.  Export the following variables:
+    ```
+    export AWS_ACCESS_KEY_ID=xxx
+    export AWS_SECRET_ACCESS_KEY=xxxx
+    export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
+    ```
+6. Run these commands:
+
+    ````
+    cd config; mkdir .ssh; touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;
+    ````
+   Copy over contents of `jenkins-rke-validation.pem` file, or you own `.pem` file content. An example file can be found with permissions set.
+   There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file `key_name` variable.
+   Also, note the `access_key` var in tfvars file, is referring to your .pem file path we create in this step.
+   Ensure permissions to this file is set so no one else has access to the same.
+
+You are now set to use make commands or the go test commands 
+
+
+### Working with M2 chip on macOS:
+
+Docker and most virtualization solutions don't work well with M2 chip. 
+
+Solution: Use `lima+nerdctl` commands instead. 
+1. Install `lima`: 
+    ```
+    brew install lima
+    ```
+2. Can `cd` to your work directory, say: 
+    ```
+    cd ${HOME}/distro-test-framework
+    ```
+3. Start a lima VM default instance (we can use current config option). It has nerdctl pre-installed and ready to use. 
+    ``` 
+    limactl start 
+    ```
+4. Access lima VM shell with your current directory mounted already.  
+    ``` 
+    lima
+    ```
+    Remember to make any code changes before starting VM/building your image.
+5.  Build your image and run the same:
+    ```
+    nerdctl build -t k3s . -f ./scripts/Dockerfile.build
+    nerdctl run -it --rm k3s
+    ```
+6. Export variables in your lima VM:
+    ```
+    export AWS_ACCESS_KEY_ID=xxx
+    export AWS_SECRET_ACCESS_KEY=xxxx
+    export ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem
+    ```
+7. We are now ready to run a sample test: 
+    ```
+    cd entrypoint
+    go test -timeout=45m -v ./createcluster/...
+    ```
+8. FYI. To delete unused container/image:
+    ```
+    nerdctl container prune
+    nerdctl image rm < image name >
+    ```
