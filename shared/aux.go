@@ -72,7 +72,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
-		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
+		return cleanedStderr, fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
 
 	return stdout, err
