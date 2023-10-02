@@ -15,7 +15,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(420 * time.Second)
+	timeout := time.After(320 * time.Second)
 	ticker := time.NewTicker(3 * time.Second)
 
 	for i := 0; i < len(args); i++ {
@@ -50,20 +50,20 @@ func runAssertion(
 	errorsChan chan<- error,
 ) error {
 	for {
+		res, err := exec(cmd)
+		if err != nil {
+			errorsChan <- err
+			return fmt.Errorf("error from runCmd: %s\n %s", res, err)
+		}
 		select {
 		case <-timeout:
 			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n "+
-				"Trying to assert with:\n %s",
-				cmd, assert)
+				"Trying to assert with received value:\n%s\n",
+				cmd, res)
 			errorsChan <- timeoutErr
 			return timeoutErr
 
 		case <-ticker:
-			res, err := exec(cmd)
-			if err != nil {
-				errorsChan <- err
-				return fmt.Errorf("error from runCmd: %s\n %s", res, err)
-			}
 			if strings.Contains(res, assert) {
 				fmt.Printf("\nCommand:\n"+
 					"%s"+

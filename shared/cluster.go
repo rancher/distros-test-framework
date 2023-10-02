@@ -341,6 +341,9 @@ func parsePods(res string) []Pod {
 
 	for _, rec := range podList {
 		fields := strings.Fields(rec)
+		if len(fields) < 8 {
+			continue
+		}
 		p := Pod{
 			NameSpace: fields[0],
 			Name:      fields[1],

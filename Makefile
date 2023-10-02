@@ -15,7 +15,8 @@ test-run:
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-${TAGNAME}
+	  acceptance-test-${TAGNAME} && \
+	  make test-logs acceptance-test-${IMGNAME}
 
 test-run-state:
 	DOCKERCOMMIT=$$? \
@@ -26,12 +27,13 @@ test-run-state:
     	else \
     		docker commit $$CONTAINER_ID teststate:latest; \
     		if [ $$DOCKERCOMMIT -eq 0 ]; then \
-    			docker run -dt --name "${TESTSTATE}" --env-file ./config/.env \
+    			docker run -dt --name acceptance-test-${TESTSTATE} --env-file ./config/.env \
     			-e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
     			-e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
     			-v $${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-    			teststate:latest \
+    			teststate:latest && \
+    			make test-logs ${TESTSTATE}; \
     			echo "Docker run exit code: $$?"; \
     		else \
     			echo "Failed to commit container"; \
@@ -46,18 +48,18 @@ test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
 .PHONY: test-logs
 test-logs:
-	@docker logs -f acceptance-test${IMGNAME}
+	@docker logs -f acceptance-test-${IMGNAME}
 
 .PHONY: test-env-down
 test-env-down:
 	@echo "Removing containers"
-	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f || true
+	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_${IMGNAME}.log || true
 	@echo "Removing acceptance-test images"
-	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f || true
+	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log  || true
 	@echo "Removing dangling images"
-	@docker images -q -f "dangling=true" | xargs -r docker rmi -f || true
+	@docker images -q -f "dangling=true" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log || true
 	@echo "Removing state images"
-	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f || true
+	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log  || true
 
 .PHONY: test-env-clean
 test-env-clean:
