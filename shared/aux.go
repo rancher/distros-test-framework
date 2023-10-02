@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/log"
@@ -324,4 +325,8 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
+}
+
+func PointerDuration(d time.Duration) *time.Duration {
+	return &d
 }

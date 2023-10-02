@@ -19,6 +19,10 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	err = assert.ValidateOnHost(
+		assert.AsyncOpt{
+			Timeout: shared.PointerDuration(520 * time.Second),
+			Ticker:  time.NewTicker(5 * time.Second),
+		},
 		getPodVolumeTestRunning,
 		statusRunning,
 	)
@@ -59,7 +63,12 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 
 func readData() error {
 	deletePod := "kubectl delete -n local-path-storage  pod -l app=volume-test --kubeconfig="
-	err := assert.ValidateOnHost(deletePod+shared.KubeConfigFile, "deleted")
+	err := assert.ValidateOnHost(
+		assert.AsyncOpt{
+			Timeout: shared.PointerDuration(520 * time.Second),
+			Ticker:  time.NewTicker(5 * time.Second),
+		},
+		deletePod+shared.KubeConfigFile, "deleted")
 	if err != nil {
 		return err
 	}

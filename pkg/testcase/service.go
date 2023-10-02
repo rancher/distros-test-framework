@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"time"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,14 +15,24 @@ func TestServiceClusterIp(deleteWorkload bool) {
 
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	err = assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
+	err = assert.ValidateOnHost(
+		assert.AsyncOpt{
+			Timeout: shared.PointerDuration(420 * time.Second),
+			Ticker:  time.NewTicker(5 * time.Second),
+		},
+		getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
-		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
-			":"+port+"/name.html", "test-clusterip")
+		err = assert.ValidateOnNode(
+			assert.AsyncOpt{
+				Timeout: shared.PointerDuration(420 * time.Second),
+				Ticker:  time.NewTicker(5 * time.Second),
+			},
+			ip, "curl -sL --insecure http://"+clusterip+
+				":"+port+"/name.html", "test-clusterip")
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 
@@ -42,6 +54,10 @@ func TestServiceNodePort(deleteWorkload bool) {
 		"--field-selector=status.phase=Running --kubeconfig="
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
+			assert.AsyncOpt{
+				Timeout: shared.PointerDuration(420 * time.Second),
+				Ticker:  time.NewTicker(5 * time.Second),
+			},
 			getNodeport+shared.KubeConfigFile,
 			statusRunning,
 		)
@@ -75,6 +91,10 @@ func TestServiceLoadBalancer(deleteWorkload bool) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
+			assert.AsyncOpt{
+				Timeout: shared.PointerDuration(420 * time.Second),
+				Ticker:  time.NewTicker(5 * time.Second),
+			},
 			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
 			"curl -sL --insecure http://"+ip+":"+port+"/name.html",

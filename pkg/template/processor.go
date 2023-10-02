@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
@@ -110,6 +111,10 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 	cmds := strings.Split(cmd, ",")
 	for _, c := range cmds {
 		err = assert.ValidateOnNode(
+			assert.AsyncOpt{
+				Timeout: shared.PointerDuration(30 * time.Second),
+				Ticker:  time.NewTicker(3 * time.Second),
+			},
 			ip,
 			c,
 			expectedValue,
@@ -153,6 +158,10 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 		version, ip, cmd, expectedValue)
 
 	err = assert.ValidateOnHost(
+		assert.AsyncOpt{
+			Timeout: shared.PointerDuration(30 * time.Minute),
+			Ticker:  time.NewTicker(3 * time.Second),
+		},
 		fullCmd,
 		expectedValue,
 	)

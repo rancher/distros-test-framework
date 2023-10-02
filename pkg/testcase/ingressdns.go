@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"time"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -18,7 +20,11 @@ func TestIngress(deleteWorkload bool) {
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
-	err = assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
+	err = assert.ValidateOnHost(assert.AsyncOpt{
+		Timeout: shared.PointerDuration(420 * time.Second),
+		Ticker:  time.NewTicker(5 * time.Second),
+	},
+		getIngressRunning+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	ingressIps, err := shared.FetchIngressIP("test-ingress")
@@ -44,7 +50,11 @@ func TestDnsAccess(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
-	err = assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
+	err = assert.ValidateOnHost(assert.AsyncOpt{
+		Timeout: shared.PointerDuration(420 * time.Second),
+		Ticker:  time.NewTicker(5 * time.Second),
+	},
+		getPodDnsUtils+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
