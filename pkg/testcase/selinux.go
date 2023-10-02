@@ -112,7 +112,6 @@ func getVersion(osRelease, ip string) string {
 			if dotIndex := strings.Index(version, "."); dotIndex != -1 {
 				version = version[:dotIndex]
 			}
-			// Return version
 			return version
 		}
 	}
