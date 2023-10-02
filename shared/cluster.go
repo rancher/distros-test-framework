@@ -31,6 +31,7 @@ type Pod struct {
 	Ready     string
 	Status    string
 	Restarts  string
+	Age       string
 	NodeIP    string
 	Node      string
 }
@@ -326,7 +327,6 @@ func GetPods(print bool) ([]Pod, error) {
 	}
 
 	pods := parsePods(res)
-
 	if print {
 		fmt.Println(res)
 	}
@@ -341,12 +341,16 @@ func parsePods(res string) []Pod {
 
 	for _, rec := range podList {
 		fields := strings.Fields(rec)
+		if len(fields) < 8 {
+			continue
+		}
 		p := Pod{
 			NameSpace: fields[0],
 			Name:      fields[1],
 			Ready:     fields[2],
 			Status:    fields[3],
 			Restarts:  fields[4],
+			Age:       fields[5],
 			NodeIP:    fields[6],
 			Node:      fields[7],
 		}
