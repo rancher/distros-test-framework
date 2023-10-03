@@ -18,7 +18,6 @@ func TestPodStatus(
 	podAssertReady assert.PodAssertFunc,
 	podAssertStatus assert.PodAssertFunc,
 ) {
-
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())

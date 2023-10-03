@@ -29,12 +29,12 @@ printf "\n\n\nRunning tests for %s\n\n\n" "${TESTDIR}"
 if [ -n "${TESTDIR}" ]; then
     if [ "${TESTDIR}" = "upgradecluster" ]; then
         if [ "${TESTTAG}" = "upgrademanual" ]; then
-            go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
+            go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" -channel "${CHANNEL}"
         elif [ "${TESTTAG}" = "upgradesuc" ]; then
-            go test -timeout=45m -v -tags=upgradesuc ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
+            go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
         fi
     elif [ "${TESTDIR}" = "versionbump" ]; then
-        go test -timeout=45m -v -tags=versionbump ./entrypoint/versionbump/... -cmd "${CMD}" \
+        go test -timeout=45m -v -tags=versionbump -count=1 ./entrypoint/versionbump/... -cmd "${CMD}" \
             -expectedValue "${EXPECTEDVALUE}" \
             -expectedValueUpgrade "${VALUEUPGRADED}" \
             -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" \
@@ -44,11 +44,11 @@ if [ -n "${TESTDIR}" ]; then
             -workloadName "${WORKLOADNAME}" \
             -description "${DESCRIPTION}"
     elif [ "${TESTDIR}" = "mixedoscluster" ]; then
-        go test -timeout=45m -v ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+        go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
     elif [ "${TESTDIR}" = "dualstack" ]; then
-        go test -timeout=45m -v ./entrypoint/dualstack/...
+        go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TESTDIR}" = "createcluster" ]; then
-        go test -timeout=45m -v ./entrypoint/createcluster/...
+        go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     fi
 fi
 

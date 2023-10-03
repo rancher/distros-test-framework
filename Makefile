@@ -1,13 +1,13 @@
 include ./config/.env
 
-TAGNAME := $(if $(TAGNAME),$(TAGNAME),default)
+TAGNAME := $(if $(TAGNAME),$(TAGNAME),distros)
 
 .PHONY: test-env-up
 test-env-up:
 	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
 
 test-run:
-	if [ -z "$${IMGNAME}" ]; then IMGNAME=${IMGNAME}; fi; \
+	@if [ -z "$${IMGNAME}" ]; then IMGNAME=${IMGNAME}; fi; \
 	if [ -z "$${TAGNAME}" ]; then TAGNAME=${TAGNAME}; fi; \
 	  docker run -dt --name acceptance-test-$${IMGNAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
@@ -16,11 +16,11 @@ test-run:
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
 	  acceptance-test-${TAGNAME} && \
-	  make test-logs acceptance-test-${IMGNAME}
+	  make test-logs USE=IMGNAME acceptance-test-${IMGNAME}
 
 test-run-state:
 	DOCKERCOMMIT=$$? \
-	CONTAINER_ID=$(shell docker ps -a -q --filter name=acceptance-test-${IMGNAME}); \
+	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
     	if [ -z "$$CONTAINER_ID" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
@@ -33,7 +33,7 @@ test-run-state:
     			-v $${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
     			teststate:latest && \
-    			make test-logs ${TESTSTATE}; \
+    			 make test-logs USE=TESTSTATE acceptance-test-${TESTSTATE} \
     			echo "Docker run exit code: $$?"; \
     		else \
     			echo "Failed to commit container"; \
@@ -48,7 +48,12 @@ test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
 .PHONY: test-logs
 test-logs:
-	@docker logs -f acceptance-test-${IMGNAME}
+	@if [ "${USE}" = "IMGNAME" ]; then \
+		docker logs -f acceptance-test-${IMGNAME}; \
+	elif [ "${USE}" = "TESTSTATE" ]; then \
+		docker logs -f acceptance-test-${TESTSTATE}; \
+	fi;
+
 
 .PHONY: test-env-down
 test-env-down:
@@ -75,30 +80,30 @@ remove-tf-state:
 
 .PHONY: test-create
 test-create:
-	@go test -timeout=45m -v ./entrypoint/createcluster/...
+	@go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
 
 
 .PHONY: test-upgrade-suc
 test-upgrade-suc:
-	@go test -timeout=45m -v -tags=upgradesuc  ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUCUPGRADEVERSION}
+	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUCUPGRADEVERSION}
 
 
 .PHONY: test-upgrade-manual
 test-upgrade-manual:
-	@go test -timeout=45m -v -tags=upgrademanual ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLVERSIONORCOMMIT} -channel ${CHANNEL}
+	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLVERSIONORCOMMIT} -channel ${CHANNEL}
 
 
 .PHONY: test-create-mixedos
 test-create-mixedos:
-	@go test -timeout=45m -v ./entrypoint/mixedoscluster/... $(if ${SONOBUOYVERSION},-sonobuoyVersion ${SONOBUOYVERSION})
+	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOYVERSION},-sonobuoyVersion ${SONOBUOYVERSION})
 
 .PHONY: test-create-dualstack
 test-create-dualstack:
-	@go test -timeout=45m -v ./entrypoint/dualstack/...
+	@go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
 
 .PHONY: test-version-bump
 test-version-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=versionbump \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump \
 	-cmd "${CMD}" \
     -expectedValue ${EXPECTEDVALUE} \
     $(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
@@ -112,7 +117,7 @@ test-version-bump:
 
 .PHONY: test-etcd-bump
 test-etcd-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=etcd \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=etcd \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
@@ -124,7 +129,7 @@ test-etcd-bump:
 
 .PHONY: test-runc-bump
 test-runc-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=runc \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=runc \
 	-expectedValue ${VALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
@@ -136,7 +141,7 @@ test-runc-bump:
 
 .PHONY: test-cilium-bump
 test-cilium-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=cilium \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=cilium \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
@@ -148,7 +153,7 @@ test-cilium-bump:
 
 .PHONY: test-canal-bump
 test-canal-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=canal \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=canal \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
@@ -160,7 +165,7 @@ test-canal-bump:
 
 .PHONY: test-coredns-bump
 test-coredns-bump:
-	@go test -timeout=45m -v ./entrypoint/versionbump/... -tags=coredns \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=coredns \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
@@ -172,7 +177,7 @@ test-coredns-bump:
 
 .PHONY: test-cniplugin-bump
 test-cniplugin-bump:
-	@go test -timeout=45m -v ./entrypoint/cnipluginversionbump/... -tags=cniplugin \
+	@go test -timeout=45m -v -count=1 ./entrypoint/cnipluginversionbump/... -tags=cniplugin \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
