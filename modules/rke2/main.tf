@@ -31,6 +31,8 @@ module "master" {
   sg_id              = var.sg_id
   subnets            = var.subnets
   vpc_id             = var.vpc_id
+  enable_public_ip   = var.enable_public_ip
+  enable_ipv6        = var.enable_ipv6
 
   # RKE2 variables
   rke2_version   = var.rke2_version
@@ -67,6 +69,8 @@ module "worker" {
   sg_id              = var.sg_id
   subnets            = var.subnets
   vpc_id             = var.vpc_id
+  enable_public_ip   = var.enable_public_ip
+  enable_ipv6        = var.enable_ipv6
 
   # RKE2 variables
   rke2_version   = var.rke2_version
@@ -102,4 +106,30 @@ module "windows_worker" {
   # RKE2 variables
   rke2_version   = var.rke2_version
   install_mode   = var.install_mode
+}
+
+module "bastion" {
+   source     = "../bastion"
+   dependency = module.master
+
+   # Basic Variables
+   username   = var.username
+   password   = var.password
+
+   # AWS Variables
+   aws_ami            = var.aws_ami
+   aws_user           = var.aws_user
+   ec2_instance_class = var.ec2_instance_class
+   region             = var.region
+   vpc_id             = var.vpc_id
+   bastion_subnets    = var.bastion_subnets
+   availability_zone  = var.availability_zone
+   sg_id              = var.sg_id
+   enable_public_ip   = var.enable_public_ip
+   enable_ipv6        = var.enable_ipv6
+   key_name           = var.key_name
+   access_key         = var.access_key
+
+   resource_name       = var.resource_name
+   no_of_bastion_nodes = var.no_of_bastion_nodes
 }

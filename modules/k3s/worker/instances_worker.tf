@@ -8,7 +8,7 @@ resource "aws_instance" "worker" {
   connection {
     type                 = "ssh"
     user                 = var.aws_user
-    host                 = self.public_ip
+    host                 = "${self.public_ip}"
     private_key          = file(var.access_key)
   }
   root_block_device {
@@ -19,8 +19,10 @@ resource "aws_instance" "worker" {
   availability_zone      = var.availability_zone
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   tags = {
-    Name                 = "${var.resource_name}-worker"
+    Name                 = "${var.resource_name}-worker${count.index + 1}"
   }
   provisioner "file" {
     source = "../install/join_k3s_agent.sh"
@@ -33,7 +35,9 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_k3s_agent.sh",
-      "sudo /tmp/join_k3s_agent.sh ${var.node_os} ${var.install_mode} ${var.k3s_version} ${local.master_ip} ${local.node_token} ${self.public_ip} \"${var.worker_flags}\" ${var.username} ${var.password} ",
+      "sudo /tmp/join_k3s_agent.sh \\",
+      "\"${var.node_os}\" \"${local.master_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
+      "\"${var.install_mode}\" \"${var.k3s_version}\" \"${var.k3s_channel}\" \"${var.worker_flags}\" \"${var.username}\" \"${var.password}\"",
     ]
   }
 }

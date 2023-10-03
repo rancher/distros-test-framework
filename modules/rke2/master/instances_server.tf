@@ -12,12 +12,14 @@ resource "aws_instance" "master" {
     volume_size = var.volume_size
     volume_type = "standard"
   }
-  subnet_id              = var.subnets
-  availability_zone      = var.availability_zone
-  vpc_security_group_ids = [var.sg_id]
-  key_name               = var.key_name
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  subnet_id                   = var.subnets
+  availability_zone           = var.availability_zone
+  vpc_security_group_ids      = [var.sg_id]
+  key_name                    = var.key_name
   tags = {
-    Name                              = "${var.resource_name}-server"
+    Name                              = "${var.resource_name}-server-1"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -47,7 +49,9 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/rke2_master.sh",
-      "sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.server_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
+      "sudo /tmp/rke2_master.sh \\",
+      "${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
+      "${var.rke2_version} ${var.rke2_channel} ${var.install_mode} \"${var.install_method}\" \"${var.server_flags}\" ${var.username} ${var.password}",
     ]
   }
   provisioner "local-exec" {
@@ -79,12 +83,14 @@ resource "aws_instance" "master2" {
     volume_size = var.volume_size
     volume_type = "standard"
   }
-  subnet_id              = var.subnets
-  availability_zone      = var.availability_zone
-  vpc_security_group_ids = [var.sg_id]
-  key_name               = var.key_name
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  subnet_id                   = var.subnets
+  availability_zone           = var.availability_zone
+  vpc_security_group_ids      = [var.sg_id]
+  key_name                    = var.key_name
   tags  =                {
-    Name                 = "${var.resource_name}-server${count.index + 1}"
+    Name                 = "${var.resource_name}-server${count.index + 2}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   depends_on = [aws_instance.master]
@@ -115,7 +121,9 @@ resource "aws_instance" "master2" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_rke2_master.sh",
-      "sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.server_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
+      "sudo /tmp/join_rke2_master.sh \\",
+      "${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} \"${aws_instance.master.public_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
+      "${var.rke2_version} ${var.rke2_channel} ${var.install_mode} \"${var.install_method}\" \"${var.server_flags}\" ${var.username} ${var.password}",
     ]
   }
 }

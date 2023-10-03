@@ -16,14 +16,16 @@ resource "aws_instance" "worker" {
     volume_size = var.volume_size
     volume_type = "standard"
   }
-  subnet_id = var.subnets
-  availability_zone = var.availability_zone
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  subnet_id                   = var.subnets
+  availability_zone           = var.availability_zone
   vpc_security_group_ids = [
     var.sg_id
   ]
   key_name = var.key_name
   tags = {
-    Name = "${var.resource_name}-worker"
+    Name = "${var.resource_name}-worker${count.index + 1}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -33,7 +35,9 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_rke2_agent.sh",
-      "sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} \"${local.node_token}\" ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.worker_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
+      "sudo /tmp/join_rke2_agent.sh \\",
+      "${var.node_os} \"${local.master_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
+      "${var.rke2_version} ${var.rke2_channel} ${var.install_mode} \"${var.install_method}\" \"${var.worker_flags}\" ${var.username} ${var.password}",
     ]
   }
 }

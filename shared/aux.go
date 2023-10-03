@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"regexp"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
@@ -351,4 +352,60 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
+}
+
+func EncloseInBrackets(ip string)string {
+	return "["+ip+"]"
+}
+
+func GetNodeArgs(nodeType string) (map[string]string, error){
+	product,err := GetProduct()
+	if err != nil{
+		return nil, err
+	}
+	res,err := KubectlCommand(
+		"host",
+		"get",
+		"nodes " + 
+		fmt.Sprintf(`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`, product),
+	)
+	if err != nil{
+		return nil, err
+	}
+
+	argsMapSlice := processNodeArgsResponse(res)
+
+	for _, argsMap := range argsMapSlice {
+		if argsMap["node-type"] == nodeType {
+			return argsMap, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func processNodeArgsResponse(res string) ([]map[string]string){
+	nodeArgsMapSlice := []map[string]string{}
+	resSlice := strings.Split(res,"]")
+	
+	for _,resItem := range(resSlice[:(len(resSlice)-1)]){
+		resItemSlice := strings.Split(resItem,`","`)
+		nodeArgsMap := map[string]string{}
+
+		for range(resItemSlice[1:]){
+			nodeArgsMap["node-type"] = strings.Trim(resItemSlice[0],`["`)
+			regxCompile := regexp.MustCompile(`--|"`)
+
+			for i := 1; i < len(resItemSlice); i+=2{
+				if i < (len(resItemSlice)-1){
+					key := regxCompile.ReplaceAllString(resItemSlice[i],"")
+					value := regxCompile.ReplaceAllString(resItemSlice[i+1],"")
+					nodeArgsMap[key] = value
+				}
+			}
+		}
+		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)		
+	}
+
+	return nodeArgsMapSlice
 }

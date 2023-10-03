@@ -22,6 +22,8 @@ variable "server_flags" {}
 variable "sg_id" {}
 variable "subnets" {}
 variable "vpc_id" {}
+variable "enable_public_ip" {}
+variable "enable_ipv6" {}
 variable "username" {
   default = "username"
 }

@@ -96,6 +96,8 @@ func addClusterConfig(
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	shared.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
+	
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")

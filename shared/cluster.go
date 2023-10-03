@@ -14,6 +14,7 @@ var (
 	AwsUser        string
 	AccessKey      string
 	Arch           string
+	BastionIP	   string
 )
 
 type Node struct {
@@ -199,6 +200,23 @@ func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) 
 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
+	}
+
+	return ip, port, err
+}
+
+// FetchClusterIPs returns the cluster IPs and port of the service.
+func FetchClusterIPs(namespace string, svc string) (string, string, error) {
+	ip, err := RunCommandHost("kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile)
+	if err != nil {
+		return "", "", err
+	}
+
+	port, err := RunCommandHost("kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
+	if err != nil {
+		return "", "", err
 	}
 
 	return ip, port, err
@@ -405,7 +423,7 @@ func WriteDataPod(namespace string) (string, error) {
 	}
 
 	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +
-		" -- sh -c 'echo testing local path > /data/test' "
+		" -- sh -c 'echo testing local path > /data/test'"
 
 	return RunCommandHost(cmd)
 }

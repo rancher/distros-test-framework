@@ -17,3 +17,8 @@ output "kubeconfig" {
   value = module.master.kubeconfig
   description = "kubeconfig of the cluster created"
 }
+
+output "bastion_ip" {
+  value       = module.bastion.public_ip
+  description = "The public IP of the AWS node"
+}

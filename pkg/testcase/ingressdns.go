@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -57,5 +59,20 @@ func TestDnsAccess(deleteWorkload bool) {
 	if deleteWorkload {
 		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")
 		Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
+	}
+}
+
+func TestIngressDualStack(testinfo map[string]string) {
+	ingressIPs, err := shared.FetchIngressIP(testinfo["namespace"])
+	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
+
+	for _, ingressIP := range ingressIPs {
+		if strings.Contains(ingressIP,":") {
+			ingressIP = shared.EncloseInBrackets(ingressIP)
+		}
+		err := assert.ValidateOnNode(shared.BastionIP,
+			"curl -sL -H 'Host: test1.com' http://"+ ingressIP +"/name.html",
+			testinfo["expected"])
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }

@@ -16,3 +16,8 @@ output "kubeconfig" {
 output "rendered_template" {
   value = module.master.rendered_template
 }
+
+output "bastion_ip" {
+  value       = module.bastion.public_ip
+  description = "The public IP of the AWS node"
+}

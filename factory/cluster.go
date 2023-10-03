@@ -94,7 +94,7 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 	tfDir, err := filepath.Abs(shared.BasePath() +
 		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
 	if err != nil {
-		return "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
+		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
 	terraformOptions := terraform.Options{

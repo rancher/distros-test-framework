@@ -1,44 +1,54 @@
 #!/bin/bash
 # This script is used to join one or more nodes as masters to the first master
 
-#set -x
+set -x
 echo "$@"
 
-node_os=$1
-create_lb=$2
-initial_node_ip=$3
-token=$4
-rke2_version=$5
-public_ip=$6
-rke2_channel=$7
-server_flags=$8
-install_mode=$9
-rhel_username=${10}
-rhel_password=${11}
-install_method=${12}
+node_os=${1}
+fqdn=${2}
+server_ip=${3}
+token=${4}
+public_ip=${5}
+private_ip=${6}
+ipv6_ip=${7}
+version=${8}
+channel=${9}
+install_mode=${10}
+install_method=${11}
+server_flags=${12}
+rhel_username=${13}
+rhel_password=${14}
 
 hostname=$(hostname -f)
 mkdir -p /etc/rancher/rke2
 cat <<EOF >>/etc/rancher/rke2/config.yaml
 write-kubeconfig-mode: "0644"
 tls-san:
-  - ${create_lb}
-server: https://${initial_node_ip}:9345
+  - ${fqdn}
+server: "https://${server_ip}:9345"
 token:  "${token}"
 node-name: "${hostname}"
 EOF
 
 if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]
 then
-   echo "$server_flags"
-   echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
-   if [[ "$server_flags" != *"cloud-provider-name"* ]]
-   then
-     echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
-   fi
-   cat /etc/rancher/rke2/config.yaml
-else
-  echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
+  echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
+  if [[ "$server_flags" != *"cloud-provider-name"* ]]
+  then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
+    then
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
+    elif [ -n "$ipv6_ip" ]
+    then
+      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
+    else
+      echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip" >> /etc/rancher/rke2/config.yaml
+    fi
+  fi
+  cat /etc/rancher/rke2/config.yaml
 fi
 
 if [[ "$node_os" = "rhel" ]]
@@ -71,15 +81,15 @@ then
   sudo systemctl reload NetworkManager
 fi
 
-export "$install_mode"="$rke2_version"
+export "$install_mode"="$version"
 if [ -n "$install_method" ]
 then
   export INSTALL_RKE2_METHOD="$install_method"
 fi
 
-if [ "$rke2_channel" != "null" ]
+if [ "$channel" != "null" ]
 then
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$rke2_channel" sh -
+    curl -sfL https://get.rke2.io | INSTALL_channel="$channel" sh -
 else
     curl -sfL https://get.rke2.io | sh -
 fi

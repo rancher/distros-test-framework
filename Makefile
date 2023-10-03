@@ -3,8 +3,11 @@ include ./config/.env
 TAG_NAME := $(if $(TAG_NAME),$(TAG_NAME),distros)
 
 
+#========================= Run tests with Docker locally =========================#
+
+.PHONY: test-env-up
 test-env-up:
-	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAG_NAME}
+	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
 
 test-run:
 	@docker run -dt --name acceptance-test-${IMG_NAME} \

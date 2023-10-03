@@ -7,5 +7,8 @@
 *.terraform*
 *.tfstate*
 workloads/amd64/plan.yaml
-/config/.env
-/config/*.tfvars
+config/.env
+config/*.tfvars
+config/*.yaml
+*/.DS_Store
+.DS_Store

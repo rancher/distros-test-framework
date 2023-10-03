@@ -14,6 +14,7 @@ variable "create_lb" {
   default = false
 }
 variable "access_key" {}
+variable "arch" {}
 
 # AWS variables
 variable "key_name" {}
@@ -29,6 +30,8 @@ variable "resource_name" {}
 variable "sg_id" {}
 variable "subnets" {}
 variable "vpc_id" {}
+variable "enable_public_ip" {}
+variable "enable_ipv6" {}
 
 # Windows variables
 variable "no_of_windows_worker_nodes" {}
@@ -75,4 +78,10 @@ variable "cp_worker_nodes" {
 }
 variable "optional_files" {
   description = "File location and raw data url separate by commas, with a space for other pairs. E.g. file1,url1 file2,url2"
+}
+variable "bastion_subnets" {
+  default = ""  
+}
+variable "no_of_bastion_nodes" {
+  default = 0
 }
