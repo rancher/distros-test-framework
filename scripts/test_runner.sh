@@ -34,7 +34,8 @@ if [ -n "${TESTDIR}" ]; then
             go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUCUPGRADEVERSION}"
         fi
     elif [ "${TESTDIR}" = "versionbump" ]; then
-        go test -timeout=45m -v -tags=versionbump -count=1 ./entrypoint/versionbump/... -cmd "${CMD}" \
+        go test -timeout=45m -v -tags=versionbump -count=1 ./entrypoint/versionbump/... \
+            -cmd "${CMD}" \
             -expectedValue "${EXPECTEDVALUE}" \
             -expectedValueUpgrade "${VALUEUPGRADED}" \
             -installVersionOrCommit "${INSTALLVERSIONORCOMMIT}" \

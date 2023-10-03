@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/pkg/log"
+	"github.com/rancher/distros-test-framework/pkg/logger"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -259,16 +259,16 @@ func GetJournalLogs(product, ip string) (string, error) {
 
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
-	logger := log.AddLogger(false)
+	log := logger.AddLogger(false)
 	err := formatLogArgs(format, args...)
 
 	if err != nil {
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
 			funcName := runtime.FuncForPC(pc).Name()
-			logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
 		} else {
-			logger.Error(err.Error())
+			log.Error(err.Error())
 		}
 	}
 
@@ -277,22 +277,22 @@ func ReturnLogError(format string, args ...interface{}) error {
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	logger := log.AddLogger(false)
+	log := logger.AddLogger(false)
 	msg := formatLogArgs(format, args...)
 
 	switch level {
 	case "debug":
-		logger.Debug(msg)
+		log.Debug(msg)
 	case "info":
-		logger.Info(msg)
+		log.Info(msg)
 	case "warn":
-		logger.Warn(msg)
+		log.Warn(msg)
 	case "error":
-		logger.Error(msg)
+		log.Error(msg)
 	}
 }
 
-// formatLogArgs formats the log message.
+// formatLogArgs formats the logger message.
 func formatLogArgs(format string, args ...interface{}) error {
 	if len(args) == 0 {
 		return fmt.Errorf(format)

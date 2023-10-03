@@ -2,35 +2,37 @@ include ./config/.env
 
 TAGNAME := $(if $(TAGNAME),$(TAGNAME),distros)
 
-.PHONY: test-env-up
+
 test-env-up:
 	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
 
 test-run:
-	@if [ -z "$${IMGNAME}" ]; then IMGNAME=${IMGNAME}; fi; \
-	if [ -z "$${TAGNAME}" ]; then TAGNAME=${TAGNAME}; fi; \
-	  docker run -dt --name acceptance-test-$${IMGNAME} \
+	@docker run -dt --name acceptance-test-${IMGNAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
 	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-${TAGNAME} && \
+	  acceptance-test-${TAGAME} && \
+	  make docker-stats && \
 	  make test-logs USE=IMGNAME acceptance-test-${IMGNAME}
 
+
+## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
 test-run-state:
 	DOCKERCOMMIT=$$? \
 	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
-    	if [ -z "$$CONTAINER_ID" ]; then \
+    	if [ -z "${CONTAINER_ID}" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
     	else \
     		docker commit $$CONTAINER_ID teststate:latest; \
     		if [ $$DOCKERCOMMIT -eq 0 ]; then \
-    			docker run -dt --name acceptance-test-${TESTSTATE} --env-file ./config/.env \
-    			-e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
-    			-e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
-    			-v $${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
+    		  @docker run -dt \
+    		   	--name acceptance-test-${TESTSTATE} --env-file ./config/.env \
+    			-e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+    			-e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+    			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
     			teststate:latest && \
     			 make test-logs USE=TESTSTATE acceptance-test-${TESTSTATE} \
@@ -54,6 +56,10 @@ test-logs:
 		docker logs -f acceptance-test-${TESTSTATE}; \
 	fi;
 
+
+.PHONY: docker-stats
+docker-stats:
+	@./scripts/docker_stats.sh
 
 .PHONY: test-env-down
 test-env-down:
@@ -177,7 +183,7 @@ test-coredns-bump:
 
 .PHONY: test-cniplugin-bump
 test-cniplugin-bump:
-	@go test -timeout=45m -v -count=1 ./entrypoint/cnipluginversionbump/... -tags=cniplugin \
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=cniplugin \
 	-expectedValue ${EXPECTEDVALUE} \
 	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
 	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
