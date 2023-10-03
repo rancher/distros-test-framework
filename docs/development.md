@@ -7,9 +7,9 @@
    Please note that example files can be found under `config/examples` directory for your reference.
 2. Create the following files in 'config' directory path: 
 
-    a. `k3s.tfvars`: Copy over `docs/examples/k3s.tfvars` file into `config/k3s.tfvars` and edit it.
+    a. `k3s.tfvars`: Copy over `docs/examples/k3s.tfvars.example` file into `config/k3s.tfvars` and edit it.
 
-    b. `rke2.tfvars`: Copy over `docs/examples/rke2.tfvars` file into `config/rke2.tfvars` and edit it.
+    b. `rke2.tfvars`: Copy over `docs/examples/rke2.tfvars.example` file into `config/rke2.tfvars` and edit it.
 
 3.  Edit the following vars in the tfvars file:
 
@@ -39,7 +39,7 @@
    ENV_PRODUCT: k3s
    ENV_TFVARS: k3s.tfvars
    ```
-   Please use `config/examples/config.yaml` for reference. 
+   Please use `examples/config.yaml.example` for reference. 
    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
 
 5.  Export the following variables:
