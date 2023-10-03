@@ -88,15 +88,15 @@ resource "aws_eip" "master_with_eip2" {
         }
       depends_on = [aws_eip.master_with_eip ]
 }
-
-resource "aws_eip_association" "master-stop-association" { 
+  
+resource "aws_eip_association" "master_eip_association" { 
         count = var.create_eip ? 1 : 0
         instance_id = aws_instance.master.id
         allocation_id = aws_eip.master_with_eip[0].id
         depends_on = [aws_eip.master_with_eip]
 }
 
-resource "aws_eip_association" "master2-stop-association" {
+resource "aws_eip_association" "master2_eip_association" {
         for_each = local.master_with_eip
         instance_id = aws_instance.master2[each.key].id
         allocation_id = aws_eip.smaster_with_eip2[each.key].id
@@ -133,7 +133,7 @@ resource "null_resource" "master_eip" {
   }
 
    depends_on = [aws_instance.master, 
-                 aws_eip_association.master-stop-association]                 
+                 aws_eip_association.master_eip_association]                 
 }
 
 resource "null_resource" "master2_eip" {
@@ -154,7 +154,7 @@ resource "null_resource" "master2_eip" {
   }
 
  depends_on = [null_resource.master_eip, 
-                 aws_eip_association.master2-stop-association]
+                 aws_eip_association.master2_eip_association]
 }
 
 resource "aws_instance" "master2" {

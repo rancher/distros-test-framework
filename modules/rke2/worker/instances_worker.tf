@@ -39,39 +39,39 @@ resource "aws_instance" "worker" {
 }
 
 locals {
-        eip_index = { for i, v in aws_instance.worker : tonumber(i)  => v.id if var.create_eip}      
+        worker_with_eip = { for i, v in aws_instance.worker : tonumber(i)  => v.id if var.create_eip}      
 }
 
-resource "aws_eip" "worker-eip" {
+resource "aws_eip" "worker_with_eip" {
   depends_on = [var.dependency]
-  for_each = local.eip_index
+  for_each = local.worker_with_eip
   vpc = true
   tags = {
       Name ="${var.resource_name}-worker-${each.key}"
     }
 }
 
-resource "aws_eip_association" "worker-association" {
-        for_each = local.eip_index 
+resource "aws_eip_association" "worker_eip_association" {
+        for_each = local.worker_with_eip
         instance_id = aws_instance.worker[each.key].id
-        allocation_id = aws_eip.worker-eip[each.key].id
+        allocation_id = aws_eip.worker_with_eip[each.key].id
         depends_on = [aws_instance.worker]
 } 
 
 resource "null_resource" "worker_eip" {
 
-  for_each = local.eip_index
+  for_each = local.worker_with_eip
   connection {
     type = "ssh"
     user = var.aws_user
-    host = aws_eip.worker-eip[each.key].public_ip
+    host = aws_eip.worker_with_eip[each.key].public_ip
     private_key = "${file(var.access_key)}"
   }
 
   provisioner "remote-exec" { 
     inline = [
       "sudo sed -i s/${local.master_ip_prev}/${local.master_ip}/g /etc/rancher/rke2/config.yaml",
-      "sudo sed -i s/-ip:.*/\"-ip: ${aws_eip.worker-eip[each.key].public_ip}\"/g /etc/rancher/rke2/config.yaml",
+      "sudo sed -i s/-ip:.*/\"-ip: ${aws_eip.worker_with_eip[each.key].public_ip}\"/g /etc/rancher/rke2/config.yaml",
       "sudo systemctl restart rke2-agent"
     ]
   }
@@ -82,7 +82,7 @@ provisioner "local-exec" {
   }
 
    depends_on = [aws_instance.worker, 
-                 aws_eip_association.worker-association]
+                 aws_eip_association.worker_eip-association]
 }
 
 data "local_file" "master_ip" {
@@ -112,7 +112,7 @@ locals {
   node_token = trimspace("${data.local_file.token.content}")
 }
 
-resource "null_resource" "stop_resource" {
+resource "null_resource" "stop_all_nodes" {
   count = var.create_eip ? 1 : 0
   depends_on = [null_resource.worker_eip]
    provisioner "local-exec" {
@@ -126,7 +126,7 @@ resource "null_resource" "stop_resource" {
 resource "time_sleep" "wait_for_stop" {
   count = var.create_eip ? 1 : 0
   create_duration = "400s"
-  depends_on = [null_resource.stop_resource]
+  depends_on = [null_resource.stop_all_nodes]
 }
 
 resource "null_resource" "start_server1_server2" {

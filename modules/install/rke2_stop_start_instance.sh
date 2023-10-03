@@ -1,9 +1,6 @@
 #!/bin/bash  
 #set -x
 #echo "$@"
-#instanceState=$1
-#resource_name=$2
-
 
 output_files() {
     local instanceState="${1}"
@@ -11,22 +8,19 @@ output_files() {
 
     cd /tmp || exit
     if [ "${1}" == "stop" ]; then    
-        #output instances IDs
-
         aws ec2 describe-instances --filters "Name=tag:Name,Values=${resource_name}-server" \
          "Name=instance-state-name,Values=running" \
         --output text --query 'Reservations[*].Instances[*].InstanceId' > /tmp/ids_server_1_2.txt
-
         aws ec2 describe-instances --filters "Name=tag:Name,Values=${resource_name}-worker" \
          "Name=instance-state-name,Values=running" \
         --output text --query 'Reservations[*].Instances[*].InstanceId' > /tmp/ids_master_worker.txt    
-
         cat /tmp/ids_server_1_2.txt /tmp/ids_master_worker.txt > /tmp/ids_all.txt
     fi
 }
 
 assign_file(){
     local instanceState="${1}"
+
     if [ "${1}" == "stop" ]; then
         file="ids_all.txt" 
     elif [ "${1}" == "start_s1_s2" ]; then 
@@ -38,6 +32,7 @@ assign_file(){
 
 stop_start_nodes(){
     local instanceState="${1}" 
+
     i=1  
     while read -r line; do    
         if [ "${instanceState}" == "stop" ]; then 
