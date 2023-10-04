@@ -85,7 +85,7 @@ fi
 
 if [ "$channel" != "null" ]
 then
-    curl -sfL https://get.rke2.io | INSTALL_channel="$channel" INSTALL_RKE2_TYPE='agent' sh -
+    curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" INSTALL_RKE2_TYPE='agent' sh -
 else
     curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -
 fi

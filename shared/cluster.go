@@ -188,51 +188,91 @@ func kubectlCmdOnNode(cmd string) (string, error) {
 	return finalRes, nil
 }
 
-// FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
-	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
-	}
+func FetchSpecValByAttr(namespace, svc, attribute string) (string, error) {
+	if isStringInSlice(attribute) {
+		if attribute == "port" {
+			attribute = "ports[0].port"
+		}
+		if strings.EqualFold(attribute, "nodePort") {
+			attribute = "ports[0].nodePort"
+		}
+		if attribute == "clusterIPs" {
+			attribute = "clusterIPs[*]"
+		}
+	
+		cmd := "kubectl get svc "+ svc +" -n "+ namespace +
+			fmt.Sprintf(" -o jsonpath='{.spec.%s}' --kubeconfig=%s", attribute, KubeConfigFile)
+		
+		res, err := RunCommandHost(cmd)
+		if err != nil {
+			return "", ReturnLogError("failed to fetch spec attribute %s: %v\n", attribute, err)
+		}
 
-	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
-	}
+		return res, err
+	}	
 
-	return ip, port, err
+	return "", nil
 }
 
-// FetchClusterIPs returns the cluster IPs and port of the service.
-func FetchClusterIPs(namespace string, svc string) (string, string, error) {
-	ip, err := RunCommandHost("kubectl get svc " + svc + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", err
+func isStringInSlice(attr string) bool {
+	validAttr := []string{"clusterIP", "clusterIPs", "port", "nodePort"}
+	for _, s := range validAttr {
+		if s == attr {
+			return true
+		}
 	}
 
-	port, err := RunCommandHost("kubectl get svc " + svc + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", err
-	}
-
-	return ip, port, err
+	return false
 }
 
-// FetchServiceNodePort returns the node port of the service
-func FetchServiceNodePort(namespace, serviceName string) (string, error) {
-	cmd := "kubectl get service -n " + namespace + " " + serviceName + " --kubeconfig=" + KubeConfigFile +
-		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
-	nodeport, err := RunCommandHost(cmd)
-	if err != nil {
-		return "", ReturnLogError("failed to fetch service node port: %v", err)
-	}
+// // FetchClusterIP returns the cluster IP and port of the service.
+// func FetchClusterIP(namespace string, serviceName string) (string, string, error) {
+// 	ip, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
+// 		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
+// 	if err != nil {
+// 		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
+// 	}
 
-	return nodeport, nil
-}
+// 	port, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
+// 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
+// 	if err != nil {
+// 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
+// 	}
+
+// 	return ip, port, err
+// }
+
+// // FetchClusterIPs returns the cluster IPs and port of the service.
+// func FetchClusterIPs(namespace string, svc string) (string, string, error) {
+// 	cmd := "kubectl get svc " + svc + " -n " + namespace +
+// 		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile
+// 	ip, err := RunCommandHost(cmd)
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+
+// 	cmd = "kubectl get svc " + svc + " -n " + namespace +
+// 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
+// 	port, err := RunCommandHost(cmd)
+// 	if err != nil {
+// 		return "", "", err
+// 	}
+
+// 	return ip, port, err
+// }
+
+// // FetchServiceNodePort returns the node port of the service
+// func FetchServiceNodePort(namespace, serviceName string) (string, error) {
+// 	cmd := "kubectl get service -n " + namespace + " " + serviceName + 
+// 		" --kubeconfig=" + KubeConfigFile +
+// 		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
+// 	nodeport, err := RunCommandHost(cmd)
+// 	if err != nil {
+// 		return "", ReturnLogError("failed to fetch service node port: %v", err)
+// 	}
+
+// 	return nodeport, nil
+// }
 
 // FetchNodeExternalIP returns the external IP of the nodes.
 func FetchNodeExternalIP() []string {
@@ -243,12 +283,6 @@ func FetchNodeExternalIP() []string {
 	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
 
 	return nodeExternalIPs
-}
-
-// RestartCluster restarts the service on each node given by external IP.
-func RestartCluster(product, ip string) {
-	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	time.Sleep(20 * time.Second)
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
@@ -270,6 +304,12 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	ingressIPs = strings.Split(ingressIP, " ")
 
 	return ingressIPs, nil
+}
+
+// RestartCluster restarts the service on each node given by external IP.
+func RestartCluster(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
+	time.Sleep(20 * time.Second)
 }
 
 // SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script

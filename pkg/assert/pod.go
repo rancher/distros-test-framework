@@ -68,7 +68,7 @@ func PodAssertStatus() PodAssertFunc {
 				Equal(statusCompleted),
 			), pod.Name)
 		} else {
-			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
+			g.Expect(pod.Status).Should(Equal(statusRunning), pod.Name)
 		}
 	}
 }
@@ -76,7 +76,7 @@ func PodAssertStatus() PodAssertFunc {
 // CheckPodStatusRunning asserts that the pod is running with the specified label = app name.
 func CheckPodStatusRunning(name, namespace, assert string) {
 	cmd := "kubectl get pods -n " + namespace + " -o=name -l k8s-app=" + name +
-		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+		" --field-selector=status.phase=Running --kubeconfig="+shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		res, err := shared.RunCommandHost(cmd)
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -89,11 +89,10 @@ func ValidatePodIPByLabel(labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {
-				res, _ := shared.KubectlCommand(
-					"host",
-					"get",
-					fmt.Sprintf("pods -l %s", label),
-					`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
+				cmd := "kubectl get pods -l "+ label +
+					` -o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`+
+					"--kubeconfig="+shared.KubeConfigFile
+				res, _ := shared.RunCommandHost(cmd)
 				ips := strings.Split(res, " ")
 				if strings.Contains(ips[0], expected[i]) {
 					return nil
@@ -107,13 +106,11 @@ func ValidatePodIPByLabel(labels, expected []string) {
 
 // ValidatePodIPsByLabel validates expected pod IPs by label 
 func ValidatePodIPsByLabel(label string, expected []string) {
+	cmd := "kubectl get pods -l "+ label +
+		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
+		" --kubeconfig="+shared.KubeConfigFile
 	Eventually(func() error {
-		res, _ := shared.KubectlCommand(
-			"host",
-			"get",
-			"pods -l "+ label +
-			` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`,
-		)
+		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
 		Expect(len(ips)).ShouldNot(BeZero())
 		Expect(len(expected)).ShouldNot(BeZero())
@@ -125,16 +122,16 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 		}
 		return nil
 	}, "180s", "5s").Should(Succeed(), 
-	"failed to validate podIP in expected range %s for label  %s", 
+	"failed to validate podIPs in expected range %s for label  %s", 
 	expected, label)
 }
 
 // CheckPodStatusRunningByNSLabel checks status of pods is Running when searched by namespace and label 
 func CheckPodStatusRunningByNSLabel(namespace, label string) {
 	cmd := "kubectl get pods -n "+namespace+" -l "+label+
-		" --field-selector=status.phase=Running --kubeconfig="
+		" --field-selector=status.phase=Running --kubeconfig="+shared.KubeConfigFile
 	Eventually(func(g Gomega) {
-		err := ValidateOnHost(cmd+shared.KubeConfigFile, statusRunning)
+		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)
 	}, "30s", "5s").Should(Succeed())
 }

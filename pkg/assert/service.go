@@ -9,32 +9,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// CheckServiceSpecContainsSubstring retrives service specs and validates expected substring
 func CheckServiceSpecContainsSubstring(svc, expected string) {
-	// cmd := "kubectl get svc "+svc+" -n default"+
-	// 	" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
-
-	res, err := shared.KubectlCommand(
-		"host",
-		"get",
-		"svc",
-		svc,
-		"-n default",
-		"-o jsonpath='{range .items[*]}{.spec}' --kubeconfig=",
-		shared.KubeConfigFile,
-	)
-	//res, err := shared.RunCommandHost(cmd)
+	cmd := "kubectl get svc "+svc+" -n default"+
+		" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
+	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), err)
 	Expect(res).To(ContainSubstring(expected))
 }
 
-// ValidateClusterIPsBySVC validates expected pod IPs by svc 
+// ValidateClusterIPsBySVC retrives cluster IPs by svc and validates them in CIDR Range  
 func ValidateClusterIPsBySVC(svc string, expected []string) {
+	cmd := "kubectl get svc "+svc+
+		` -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=` + shared.KubeConfigFile
 	Eventually(func() error {
-		res, _ := shared.KubectlCommand(
-			"host",
-			"get",
-			"svc "+ svc +` -o jsonpath='{.spec.clusterIPs[*]}'`,
-		)
+		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
 		Expect(len(ips)).ShouldNot(BeZero())
 		Expect(len(expected)).ShouldNot(BeZero())

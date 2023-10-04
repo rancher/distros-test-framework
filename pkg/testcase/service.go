@@ -18,7 +18,8 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	err = assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
+	clusterip, _ := shared.FetchSpecValByAttr("test-clusterip", "nginx-clusterip-svc", "clusterIP")
+	port, _ := shared.FetchSpecValByAttr("test-clusterip", "nginx-clusterip-svc", "port")
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
@@ -37,7 +38,7 @@ func TestServiceNodePort(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
-	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
+	nodeport, err := shared.FetchSpecValByAttr("test-nodeport", "nginx-nodeport-svc", "nodeport")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getNodeport := "kubectl get pods -n test-nodeport -l k8s-app=nginx-app-nodeport " +
@@ -93,7 +94,7 @@ func TestServiceLoadBalancer(deleteWorkload bool) {
 
 func TestServiceNodePortDualStack(testinfo map[string]string) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
-	nodeport, err := shared.FetchServiceNodePort(testinfo["namespace"], testinfo["svc"])
+	nodeport, err := shared.FetchSpecValByAttr(testinfo["namespace"], testinfo["svc"], "nodePort")
 	Expect(err).NotTo(HaveOccurred(), err)
 	
 	for _, ip := range nodeExternalIP {
@@ -109,8 +110,9 @@ func TestServiceNodePortDualStack(testinfo map[string]string) {
 }
 
 func TestServiceClusterIPDualStack(testInfo map[string]string) {		
-	res, port, _ := shared.FetchClusterIPs(testInfo["namespace"], testInfo["svc"])
+	res, _ := shared.FetchSpecValByAttr(testInfo["namespace"], testInfo["svc"], "clusterIPs")
 	clusterIPs := strings.Split(res, " ")
+	port, _ := shared.FetchSpecValByAttr(testInfo["namespace"], testInfo["svc"], "port")
 	nodeExternalIPs := shared.FetchNodeExternalIP()
 	
 	for _, clusterIP := range clusterIPs {
