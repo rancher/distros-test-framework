@@ -39,7 +39,12 @@ type clusterConfig struct {
 }
 
 func loadConfig() (*config.ProductConfig, error) {
-	cfg, err := config.AddConfigEnv("./config/.env")
+	cfgPath, err := shared.EnvDir("factory")
+	if err != nil {
+		return nil, shared.ReturnLogError("error getting env path: %w\n", err)
+	}
+
+	cfg, err := config.AddConfigEnv(cfgPath)
 	if err != nil {
 		return nil, shared.ReturnLogError("error getting config: %w\n", err)
 	}
@@ -56,12 +61,14 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	var varDir string
 	var tfDir string
 
-	varDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+	varDir, err = filepath.Abs(shared.BasePath() +
+		fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
-	tfDir, err = filepath.Abs(shared.BasePath() + fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+	tfDir, err = filepath.Abs(shared.BasePath() +
+		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
@@ -126,23 +133,43 @@ func addClusterConfig(
 func addSplitRole(g GinkgoTInterface, varDir string, numServers int) (int, error) {
 	splitRoles := terraform.GetVariableAsStringFromVarFile(g, varDir, "split_roles")
 	if splitRoles == "true" {
-		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "etcd_only_nodes"))
+		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+			g,
+			varDir,
+			"etcd_only_nodes",
+		))
 		if err != nil {
 			return 0, shared.ReturnLogError("error getting etcd_only_nodes %w", err)
 		}
-		etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "etcd_cp_nodes"))
+		etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+			g,
+			varDir,
+			"etcd_cp_nodes",
+		))
 		if err != nil {
 			return 0, shared.ReturnLogError("error getting etcd_cp_nodes %w", err)
 		}
-		etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "etcd_worker_nodes"))
+		etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+			g,
+			varDir,
+			"etcd_worker_nodes",
+		))
 		if err != nil {
 			return 0, shared.ReturnLogError("error getting etcd_worker_nodes %w", err)
 		}
-		cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "cp_only_nodes"))
+		cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+			g,
+			varDir,
+			"cp_only_nodes",
+		))
 		if err != nil {
 			return 0, shared.ReturnLogError("error getting cp_only_nodes %w", err)
 		}
-		cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir, "cp_worker_nodes"))
+		cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+			g,
+			varDir,
+			"cp_worker_nodes",
+		))
 		if err != nil {
 			return 0, shared.ReturnLogError("error getting cp_worker_nodes %w", err)
 		}

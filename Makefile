@@ -13,8 +13,8 @@ test-run:
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-${TAGAME} && \
-	  make docker-stats && \
+	  acceptance-test-${TAGNAME} && \
+	  make image-stats IMGNAME=${IMGNAME} && \
 	  make test-logs USE=IMGNAME acceptance-test-${IMGNAME}
 
 
@@ -22,14 +22,13 @@ test-run:
 test-run-state:
 	DOCKERCOMMIT=$$? \
 	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
-    	if [ -z "${CONTAINER_ID}" ]; then \
+    	if [ -z "$${CONTAINER_ID}" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
     	else \
     		docker commit $$CONTAINER_ID teststate:latest; \
     		if [ $$DOCKERCOMMIT -eq 0 ]; then \
-    		  @docker run -dt \
-    		   	--name acceptance-test-${TESTSTATE} --env-file ./config/.env \
+    		  docker run -dt --name acceptance-test-${TESTSTATE} --env-file ./config/.env \
     			-e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
     			-e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
     			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
@@ -43,12 +42,9 @@ test-run-state:
     		fi; \
     	fi
 
-## USE THIS TO RUN TESTS IN A TOTALLY FRESH ENVIRONMENT IN DOCKER
-.PHONY: test-complete
+## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
-
-.PHONY: test-logs
 test-logs:
 	@if [ "${USE}" = "IMGNAME" ]; then \
 		docker logs -f acceptance-test-${IMGNAME}; \
@@ -56,10 +52,8 @@ test-logs:
 		docker logs -f acceptance-test-${TESTSTATE}; \
 	fi;
 
-
-.PHONY: docker-stats
-docker-stats:
-	@./scripts/docker_stats.sh
+image-stats:
+	@./scripts/docker_stats.sh $$IMGNAME 2>> /tmp/image-${IMGNAME}_stats_output.log &
 
 .PHONY: test-env-down
 test-env-down:

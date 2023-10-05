@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// CheckComponentCmdHost runs a command on the host and asserts that the value received contains the specified substring
-//
+// CheckComponentCmdHost runs a command on the host and asserts that the value
+// received contains the specified substring
 // you can send multiple asserts from a cmd but all of them must be true
 //
 // need to send sKubeconfigFile

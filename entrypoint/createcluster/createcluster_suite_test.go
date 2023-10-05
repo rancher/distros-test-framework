@@ -2,12 +2,14 @@ package createcluster
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -20,7 +22,12 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = config.AddConfigEnv("../../config/.env")
+	configPath, err := shared.EnvDir("entrypoint")
+	if err != nil {
+		return
+	}
+	fmt.Println("configPath: ", configPath)
+	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}

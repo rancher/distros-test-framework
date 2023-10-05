@@ -3,6 +3,9 @@ name: Run Distros Framework
 on:
   push:
 
+  pull_request:
+    branches: [ main ]
+
 permissions:
   contents: read
 

@@ -10,7 +10,8 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// TestInternodeConnectivityMixedOS Deploys services in the cluster and validates communication between linux and windows nodes
+// TestInternodeConnectivityMixedOS Deploys services in the cluster
+// and validates communication between linux and windows nodes
 func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
 	_, err := shared.ManageWorkload("apply",
 		"pod_client.yaml", "windows_app_deployment.yaml")

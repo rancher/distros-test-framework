@@ -46,7 +46,12 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	cfg, err = config.AddConfigEnv("../../config/.env")
+	configPath, err := shared.EnvDir("entrypoint")
+	if err != nil {
+		return
+	}
+
+	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}

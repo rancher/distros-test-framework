@@ -22,7 +22,12 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = config.AddConfigEnv("../../config/.env")
+	configPath, err := shared.EnvDir("entrypoint")
+	if err != nil {
+		return
+	}
+
+	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}

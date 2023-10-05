@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ENV_PRODUCT="${ENV_PRODUCT}"
+ENV_TFVARS="${ENV_TFVARS}"
 TESTDIR="${TESTDIR}"
 TESTTAG="${TESTTAG}"
 CMD="${CMD}"
@@ -24,7 +26,16 @@ if [ -z "${IMGNAME}" ]; then
    exit 1
 fi
 
-printf "\n\n\nRunning tests for %s\n\n\n" "${TESTDIR}"
+
+case "$TESTDIR" in
+     upgradecluster|versionbump|mixedoscluster|dualstack|createcluster)
+      printf "\n\nRunning tests for %s\n\n" "${TESTDIR} on ${ENV_PRODUCT}"
+        ;;
+    *)
+        printf "\n\nTESTDIR is not a go test package\n\n"
+        exit 1
+        ;;
+esac
 
 if [ -n "${TESTDIR}" ]; then
     if [ "${TESTDIR}" = "upgradecluster" ]; then

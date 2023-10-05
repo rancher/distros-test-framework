@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -24,7 +25,12 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	cfg, err = config.AddConfigEnv("../../config/.env")
+	configPath, err := shared.EnvDir("entrypoint")
+	if err != nil {
+		return
+	}
+
+	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}

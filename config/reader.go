@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -31,15 +30,7 @@ func AddConfigEnv(path string) (*ProductConfig, error) {
 	return product, nil
 }
 
-func loadEnv(path string) (config *ProductConfig, err error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("failed to get current working directory", err)
-		return nil, err
-	}
-
-	fullPath := filepath.Join(dir, path)
-
+func loadEnv(fullPath string) (config *ProductConfig, err error) {
 	if err = setEnv(fullPath); err != nil {
 		return nil, err
 	}

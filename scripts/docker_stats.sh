@@ -1,11 +1,15 @@
 #!/bin/bash
+# script to monitor docker stats
+# Usage: ./docker_stats.sh <$IMGNAME>
 
-CID="CONTAINER ID"
-LOGFILE="./logs/docker_stats.log"
+IMGNAME=$1
+echo "Monitoring docker stats for $IMGNAME"
+
+CID=$(docker ps -a -q --filter name=acceptance-test-"${IMGNAME}" | head -n 1)
+LOGFILE="/tmp/docker_stats-$IMGNAME.log"
 CPU_THRESHOLD=50.0
 MEM_THRESHOLD=1073741824
 
-# Check if the logger file exists
 if [ ! -f "$LOGFILE" ]; then
     touch "$LOGFILE"
 fi
@@ -14,16 +18,15 @@ DURATION=$(($(date +%s) + 2400))
 
 while [[ $(date +%s) -lt $DURATION ]]; do
     STATS=$(docker stats --no-stream --format "{{.CPUPerc}},{{.MemUsage}}" "$CID")
-    echo "$STATS" >> "$LOGFILE"
 
-    CPU=$(echo "$STATS" | cut -d ',' -f 1)
-    MEM=$(echo "$STATS" | cut -d ',' -f 2)
+    CPU=$(echo "$STATS" | cut -d ',' -f 1 | tr -d '%')
+    MEM=$(echo "$STATS" | cut -d ',' -f 2 | cut -d '/' -f 1 | tr -d 'GiB' | tr -d 'MiB' | tr -d 'KiB' | tr -d 'B')
 
     if (( $(echo "$CPU > $CPU_THRESHOLD" | bc -l) )); then
-        echo "Please check: CPU usage is above threshold"
+        echo "$STATS" >> "$LOGFILE"
     fi
     if (( $(echo "$MEM > $MEM_THRESHOLD" | bc -l) )); then
-        echo "Please check: Memory usage is above threshold"
+       echo "$STATS" >> "$LOGFILE"
     fi
     sleep 5
 done

@@ -85,6 +85,34 @@ func BasePath() string {
 	return filepath.Join(filepath.Dir(b), "../..")
 }
 
+// EnvDir returns the environment directory of the project based on the package passed.
+func EnvDir(pkg string) (string, error) {
+	_, callerFilePath, _, ok := runtime.Caller(1)
+	if !ok {
+		return "", ReturnLogError("failed to get caller file path")
+	}
+	callerDir := filepath.Dir(callerFilePath)
+
+	var env string
+	var c string
+
+	switch pkg {
+	case "factory":
+		c = filepath.Dir(filepath.Join(callerDir))
+		env = filepath.Join(c, "config/.env")
+	case "entrypoint":
+		c = filepath.Dir(filepath.Join(callerDir, ".."))
+		env = filepath.Join(c, "config/.env")
+	case ".":
+		c = filepath.Dir(filepath.Join(callerDir))
+		env = filepath.Join(callerDir, "config/.env")
+	default:
+		return "", ReturnLogError("unknown package: %s\n", pkg)
+	}
+
+	return env, nil
+}
+
 // PrintFileContents prints the contents of the file as [] string.
 func PrintFileContents(f ...string) error {
 	for _, file := range f {
@@ -99,8 +127,8 @@ func PrintFileContents(f ...string) error {
 }
 
 // PrintBase64Encoded prints the base64 encoded contents of the file as string.
-func PrintBase64Encoded(filepath string) error {
-	file, err := os.ReadFile(filepath)
+func PrintBase64Encoded(path string) error {
+	file, err := os.ReadFile(path)
 	if err != nil {
 		return ReturnLogError("failed to encode file %s: %w", file, err)
 	}
@@ -140,7 +168,12 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := config.AddConfigEnv("./config/.env")
+	cfgPath, err := EnvDir(".")
+	if err != nil {
+		return "", ReturnLogError("failed to get config path: %v\n", err)
+	}
+
+	cfg, err := config.AddConfigEnv(cfgPath)
 	if err != nil {
 		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
@@ -209,17 +242,13 @@ func configureSSH(host string) (*ssh.Client, error) {
 	return conn, nil
 }
 
-func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
+func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
 		return "", "", ReturnLogError("failed to create session: %v\n", err)
 	}
-	defer func(session *ssh.Session) {
-		err = session.Close()
-		if err != nil {
 
-		}
-	}(session)
+	defer session.Close()
 
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
@@ -227,12 +256,12 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	session.Stderr = &stderrBuf
 
 	errssh := session.Run(cmd)
-	stdoutStr := stdoutBuf.String()
-	stderrStr := stderrBuf.String()
+	stdoutStr = stdoutBuf.String()
+	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		LogLevel("error", "error: %v\n", stderrStr)
-		return stdoutStr, stderrStr, errssh
+		LogLevel("warn", "%v\n", stderrStr)
+		return "", stderrStr, errssh
 	}
 
 	return stdoutStr, stderrStr, nil
@@ -288,7 +317,13 @@ func LogLevel(level, format string, args ...interface{}) {
 	case "warn":
 		log.Warn(msg)
 	case "error":
-		log.Error(msg)
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
+		} else {
+			log.Error(msg)
+		}
 	}
 }
 
