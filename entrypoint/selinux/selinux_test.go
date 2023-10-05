@@ -17,14 +17,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	It("Validate Nodes pre upgrade", func() {
+	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validate Pods pre upgrade", func() {
+	It("Validate Pods", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -32,15 +32,15 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Validate selinux is enabled pre upgrade", func() {
+	It("Validate selinux is enabled", func() {
 		testcase.TestSelinuxEnabled()
 	})
 
-	It("Validate container, server and selinux version pre upgrade", func() {
+	It("Validate container, server and selinux version", func() {
 		testcase.TestSelinuxVersions()
 	})
 
-	It("Validate container security pre upgrade", func() {
+	It("Validate container security", func() {
 		testcase.TestSelinuxSpcT()
 	})
 
@@ -48,40 +48,9 @@ var _ = Describe("Test:", func() {
 		testcase.TestSelinuxContext()
 	})
 
-	/*It("Upgrade manual", func() {
-		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
-	})
-
-	It("Validate Nodes Post upgrade", func() {
-		testcase.TestNodeStatus(
-			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
-		)
-	})
-
-	It("Validate Pods Post upgrade", func() {
-		testcase.TestPodStatus(
-			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
-	})
-
-	It("Validate selinux is enabled Post upgrade", func() {
-		testcase.TestSelinuxEnabled()
-	})
-
-	It("Validate container, server and selinux version Post upgrade", func() {
-		testcase.TestSelinuxVersions()
-	})
-
-	It("Validate container security Post upgrade", func() {
-		testcase.TestSelinuxSpcT()
-	})
-
 	It("Validate uninstall selinux policies", func() {
 		testcase.TestUninstallPolicy()
-	})*/
+	})
 
 })
 

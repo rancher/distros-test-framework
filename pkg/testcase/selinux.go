@@ -87,6 +87,12 @@ func TestSelinuxContext() {
 			context, err := getContext(product, ip)
 			Expect(err).NotTo(HaveOccurred())
 
+			fmt.Print("\nThese are the whole commands to use in this context validation\n")
+			fmt.Print("Command to run || Context expected\n")
+			for cmdsToRun, contExpected := range context {
+				fmt.Println(cmdsToRun + " || " + contExpected)
+			}
+
 			for cmd, expectedContext := range context {
 				res, err := shared.RunCommandOnNode(cmd, ip)
 				fmt.Println("\nRunning cmd:", cmd, "\nExpected context:", expectedContext)
@@ -155,7 +161,6 @@ func getContext(product, ip string) (cmdCtx, error) {
 func selectPolicy(product, osType string) cmdCtx {
 	key := fmt.Sprintf("%s_%s", product, osType)
 
-	// Itera sobre las configuraciones en el slice conf
 	for _, config := range conf {
 		if config.distroName == key {
 			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
@@ -187,15 +192,18 @@ func TestUninstallPolicy() {
 	cluster := factory.AddCluster(GinkgoT())
 	var serverUninstallCmd string
 	var agentUninstallCmd string
+	var serverCmd string
 
 	switch product {
 	case "k3s":
 		serverUninstallCmd = "k3s-uninstall.sh"
 		agentUninstallCmd = "k3s-agent-uninstall.sh"
+		serverCmd = "rpm -qa container-selinux k3s-selinux"
 
 	default:
 		serverUninstallCmd = "sudo rke2-uninstall.sh"
 		agentUninstallCmd = "sudo rke2-uninstall.sh"
+		serverCmd = "rpm -qa container-selinux rke2-server rke2-selinux"
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -204,7 +212,7 @@ func TestUninstallPolicy() {
 		_, err := shared.RunCommandOnNode(serverUninstallCmd, serverIP)
 		Expect(err).NotTo(HaveOccurred())
 
-		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+product+"-server "+product+"-selinux", serverIP)
+		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
 		Expect(errSel).NotTo(HaveOccurred())
 		Expect(res).Should(BeEmpty())
 	}
