@@ -123,8 +123,8 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// GetVersion returns the rke2 or k3s version
-func GetVersion(cmd string) (string, error) {
+// getVersion returns the rke2 or k3s version
+func getVersion(cmd string) (string, error) {
 	var res string
 	var err error
 	ips := FetchNodeExternalIP()
@@ -156,7 +156,7 @@ func GetProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := GetVersion(product + " -v")
+	version, err := getVersion(product + " -v")
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
 	}
@@ -223,7 +223,12 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	if err != nil {
 		return "", "", ReturnLogError("failed to create session: %v\n", err)
 	}
-	defer session.Close()
+	defer func(session *ssh.Session) {
+		err = session.Close()
+		if err != nil {
+
+		}
+	}(session)
 
 	var stdoutBuf bytes.Buffer
 	var stderrBuf bytes.Buffer
@@ -265,12 +270,14 @@ func ReturnLogError(format string, args ...interface{}) error {
 	logger := log.AddLogger(false)
 	err := formatLogArgs(format, args...)
 
-	pc, file, line, ok := runtime.Caller(1)
-	if ok {
-		funcName := runtime.FuncForPC(pc).Name()
-		logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
-	} else {
-		logger.Error(err.Error())
+	if err != nil {
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+		} else {
+			logger.Error(err.Error())
+		}
 	}
 
 	return err

@@ -32,11 +32,11 @@ func TestBuildCluster(g GinkgoTInterface) {
 		}
 	}
 
-	fmt.Println("\nKUBECONFIG:\n")
+	fmt.Println("\nKUBECONFIG:")
 	err := shared.PrintFileContents(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("BASE64 ENCODED KUBECONFIG:\n")
+	fmt.Println("\nBASE64 ENCODED KUBECONFIG:")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 

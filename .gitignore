@@ -1,10 +1,11 @@
 .ssh/
 .DS_Store
-.vscode
+.vscode\
+.env
 .idea/
 *.modules/.terraform/
 *.terraform*
 *.tfstate*
 workloads/amd64/plan.yaml
-/config/config.yaml
+/config/product.yaml
 /config/*.tfvars

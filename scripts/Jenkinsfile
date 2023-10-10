@@ -67,7 +67,7 @@ node {
                 dir("./config") {
                   //update product info
                   def data = "ENV_PRODUCT: ${env.PRODUCT_NAME}\nENV_TFVARS: ${env.PRODUCT_NAME}.tfvars\n"
-                  writeFile(file: 'config.yaml', text: data)
+                  writeFile(file: 'product.yaml', text: data)
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS
@@ -86,7 +86,7 @@ node {
               stage('Run TestCombination') {
                 sh "docker run --name ${testContainer} -t --env-file ${envFile} " +
                   "${imageName} sh -c \"chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && " +
-                  "cd ./entrypoint && go test -timeout=${timeout} -v ./${TESTCASE}/... ${TEST_ARGS}\""
+                  "cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS}\""
               }
             } finally {
               stage('Cleanup') {
