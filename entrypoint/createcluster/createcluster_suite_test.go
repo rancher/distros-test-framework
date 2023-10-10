@@ -2,7 +2,6 @@ package createcluster
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
@@ -26,7 +25,6 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	fmt.Println("configPath: ", configPath)
 	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
