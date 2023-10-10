@@ -27,7 +27,6 @@ on:
 jobs:
     check_goMod:
         runs-on: ubuntu-latest
-        # runs-on: debian
         steps:
         - name: checkout latest
           uses: actions/checkout@v4
@@ -63,7 +62,7 @@ jobs:
         - name: rename go.mod
           run: |
                mv go.mod /tmp/comparisons/go-target2.mod
-        - name: comapre go.mod files
+        - name: compare go.mod files
           run: |
             target0=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/go-master.mod)
             target1=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/go-target1.mod)
