@@ -3,6 +3,10 @@ name: verify go.mod changes
 on: 
     workflow_dispatch:
       inputs:
+        repo: 
+          description: 'The repository you want to select ie k3s-io/k3s or rancher/rke2, the default is k3s-io/k3s.'
+          required: false
+          default: 'k3s-io/k3s'
         target0:
           description: 'Which release you want to check the go.mod for values.'
           required: true
@@ -31,7 +35,7 @@ jobs:
         - name: checkout latest
           uses: actions/checkout@v4
           with: 
-            repository: 'k3s-io/k3s'
+            repository: '${{github.event.inputs.repo}}'
             ref: '${{ github.event.inputs.target0 }}'
             sparse-checkout: |
                 go.mod
@@ -43,7 +47,7 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v4
           with:
-            repository: 'k3s-io/k3s'
+            repository: '${{github.event.inputs.repo}}'
             ref: "${{ github.event.inputs.target1 }}"
             sparse-checkout: |
                 go.mod
@@ -54,7 +58,7 @@ jobs:
         - name: Checkout tools repo
           uses: actions/checkout@v4
           with:
-            repository: 'k3s-io/k3s'
+            repository: '${{github.event.inputs.repo}}'
             ref: "${{ github.event.inputs.target2 }}"
             sparse-checkout: |
                 go.mod
