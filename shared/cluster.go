@@ -188,7 +188,7 @@ func kubectlCmdOnNode(cmd string) (string, error) {
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace string, serviceName string) (ip, port string, err error) {
+func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
 	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
