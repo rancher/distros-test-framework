@@ -1,4 +1,4 @@
-package createcluster
+package validatecluster
 
 import (
 	"flag"
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCreateClusterSuite(t *testing.T) {
+func TestValidateClusterSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Create Cluster Test Suite")
 }

@@ -1,40 +1,40 @@
 include ./config/.env
 
-TAGNAME := $(if $(TAGNAME),$(TAGNAME),distros)
+TAG_NAME := $(if $(TAG_NAME),$(TAG_NAME),distros)
 
 
 test-env-up:
-	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
+	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAG_NAME}
 
 test-run:
-	@docker run -dt --name acceptance-test-${IMGNAME} \
+	@docker run -dt --name acceptance-test-${IMG_NAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
 	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-${TAGNAME} && \
-	  make image-stats IMGNAME=${IMGNAME} && \
-	  make test-logs USE=IMGNAME acceptance-test-${IMGNAME}
+	  acceptance-test-${TAG_NAME} && \
+	  make image-stats IMG_NAME=${IMG_NAME} && \
+	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
 
 
 ## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
 test-run-state:
-	DOCKERCOMMIT=$$? \
-	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAGNAME} | head -n 1); \
+	DOCKER_COMMIT=$$? \
+	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAG_NAME} | head -n 1); \
     	if [ -z "$${CONTAINER_ID}" ]; then \
     		echo "No matching container found."; \
     		exit 1; \
     	else \
     		docker commit $$CONTAINER_ID teststate:latest; \
-    		if [ $$DOCKERCOMMIT -eq 0 ]; then \
-    		  docker run -dt --name acceptance-test-${TESTSTATE} --env-file ./config/.env \
+    		if [ $$DOCKER_COMMIT -eq 0 ]; then \
+    		  docker run -dt --name acceptance-test-${TEST_STATE} --env-file ./config/.env \
     			-e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
     			-e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
     			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
     			teststate:latest && \
-    			 make test-logs USE=TESTSTATE acceptance-test-${TESTSTATE} \
+    			 make test-logs USE=TEST_STATE acceptance-test-${TEST_STATE} \
     			echo "Docker run exit code: $$?"; \
     		else \
     			echo "Failed to commit container"; \
@@ -46,25 +46,25 @@ test-run-state:
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
 test-logs:
-	@if [ "${USE}" = "IMGNAME" ]; then \
-		docker logs -f acceptance-test-${IMGNAME}; \
-	elif [ "${USE}" = "TESTSTATE" ]; then \
-		docker logs -f acceptance-test-${TESTSTATE}; \
+	@if [ "${USE}" = "IMG_NAME" ]; then \
+		docker logs -f acceptance-test-${IMG_NAME}; \
+	elif [ "${USE}" = "TEST_STATE" ]; then \
+		docker logs -f acceptance-test-${TEST_STATE}; \
 	fi;
 
 image-stats:
-	@./scripts/docker_stats.sh $$IMGNAME 2>> /tmp/image-${IMGNAME}_stats_output.log &
+	@./scripts/docker_stats.sh $$IMG_NAME 2>> /tmp/image-${IMG_NAME}_stats_output.log &
 
 .PHONY: test-env-down
 test-env-down:
 	@echo "Removing containers"
-	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_${IMGNAME}.log || true
+	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_${IMG_NAME}.log || true
 	@echo "Removing acceptance-test images"
-	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log  || true
+	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log  || true
 	@echo "Removing dangling images"
-	@docker images -q -f "dangling=true" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log || true
+	@docker images -q -f "dangling=true" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log || true
 	@echo "Removing state images"
-	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f  2>/tmp/container_${IMGNAME}.log  || true
+	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log  || true
 
 .PHONY: test-env-clean
 test-env-clean:
@@ -85,17 +85,17 @@ test-create:
 
 .PHONY: test-upgrade-suc
 test-upgrade-suc:
-	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUCUPGRADEVERSION}
+	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUC_UPGRADE_VERSION}
 
 
 .PHONY: test-upgrade-manual
 test-upgrade-manual:
-	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALLVERSIONORCOMMIT} -channel ${CHANNEL}
+	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
 
 .PHONY: test-create-mixedos
 test-create-mixedos:
-	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOYVERSION},-sonobuoyVersion ${SONOBUOYVERSION})
+	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})
 
 .PHONY: test-create-dualstack
 test-create-dualstack:
@@ -105,89 +105,89 @@ test-create-dualstack:
 test-version-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump \
 	-cmd "${CMD}" \
-    -expectedValue ${EXPECTEDVALUE} \
-    $(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+    -expectedValue ${EXPECTED_VALUE} \
+    $(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
 	$(if ${DESCRIPTION},-description "${DESCRIPTION}") \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD}) \
 
 
 .PHONY: test-etcd-bump
 test-etcd-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=etcd \
-	-expectedValue ${EXPECTEDVALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 
 .PHONY: test-runc-bump
 test-runc-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=runc \
-	-expectedValue ${VALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 
 .PHONY: test-cilium-bump
 test-cilium-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=cilium \
-	-expectedValue ${EXPECTEDVALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 
 .PHONY: test-canal-bump
 test-canal-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=canal \
-	-expectedValue ${EXPECTEDVALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 
 .PHONY: test-coredns-bump
 test-coredns-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=coredns \
-	-expectedValue ${EXPECTEDVALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 
 .PHONY: test-cniplugin-bump
 test-cniplugin-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=cniplugin \
-	-expectedValue ${EXPECTEDVALUE} \
-	$(if ${VALUEUPGRADED},-expectedValueUpgrade ${VALUEUPGRADED}) \
-	$(if ${INSTALLVERSIONORCOMMIT},-installVersionOrCommit ${INSTALLVERSIONORCOMMIT}) \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
-	$(if ${TESTCASE},-testCase "${TESTCASE}") \
-	$(if ${WORKLOADNAME},-workloadName ${WORKLOADNAME}) \
-	$(if ${DEPLOYWORKLOAD},-deployWorkload ${DEPLOYWORKLOAD})
+	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
+	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
+	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
 #========================= TestCode Static Quality Check =========================#
 .PHONY: vet-lint
 vet-lint:
 	@echo "Running go vet and lint"
-	@go vet ./${TESTDIR} && golangci-lint run --tests
+	@go vet ./${TEST_DIR} && golangci-lint run --tests
