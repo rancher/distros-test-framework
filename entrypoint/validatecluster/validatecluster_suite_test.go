@@ -1,4 +1,4 @@
-package mixedoscluster
+package validatecluster
 
 import (
 	"flag"
@@ -18,7 +18,6 @@ var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.Var(&customflag.ServiceFlag.SonobouyVersion, "sonobuoyVersion", "Sonobuoy Version that will be executed on the cluster")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
@@ -26,24 +25,17 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-
 	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}
 
-	if cfg.Product == "k3s" {
-		shared.LogLevel("error", "\nproduct not supported: %s", cfg.Product)
-		os.Exit(1)
-	}
-
 	os.Exit(m.Run())
 }
 
-func TestMixedOSClusterCreateSuite(t *testing.T) {
+func TestValidateClusterSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecs(t, "Create Mixed OS Cluster Test Suite")
+	RunSpecs(t, "Create Cluster Test Suite")
 }
 
 var _ = AfterSuite(func() {

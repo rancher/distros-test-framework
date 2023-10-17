@@ -30,7 +30,7 @@ func VersionTemplate(test VersionTestTemplate) {
 		Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
 
 		if test.TestConfig != nil {
-			TestCaseWrapper(test)
+			testCaseWrapper(test)
 		}
 	}
 }

@@ -9,31 +9,32 @@ import (
 )
 
 var ServiceFlag FlagConfig
-var TestCaseNameFlag StringSlice
+var TestCaseNameFlag stringSlice
 
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
-	InstallMode       InstallTypeValueFlag
-	TestConfig        TestConfigFlag
-	ClusterConfig     ClusterConfigFlag
-	SUCUpgradeVersion SUCUpgradeVersion
-	Channel           ChannelFlag
+	InstallMode       installModeFlag
+	TestConfig        testConfigFlag
+	ClusterConfig     clusterConfigFlag
+	SUCUpgradeVersion sucUpgradeVersion
+	Channel           channelFlag
+	SonobouyVersion   externalConfigFlag
 }
 
-type SUCUpgradeVersion struct {
-	Version string
+type sucUpgradeVersion struct {
+	SucUpgradeVersion string
 }
 
-type InstallTypeValueFlag struct {
+type installModeFlag struct {
 	Version string
 	Commit  string
 }
 
-type ChannelFlag struct {
+type channelFlag struct {
 	Channel string
 }
 
-type TestConfigFlag struct {
+type testConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
 	DeployWorkload bool
@@ -41,41 +42,45 @@ type TestConfigFlag struct {
 	Description    string
 }
 
-type ClusterConfigFlag struct {
-	Destroy DestroyFlag
+type externalConfigFlag struct {
+	SonobuoyVersion string
 }
 
-type DestroyFlag bool
+type clusterConfigFlag struct {
+	Destroy destroyFlag
+}
+
+type destroyFlag bool
 
 type TestCaseFlag func(deployWorkload bool)
 
-type StringSlice []string
+type stringSlice []string
 
-func (s *StringSlice) String() string {
+func (s *stringSlice) String() string {
 	return strings.Join(*s, ",")
 }
 
-func (s *StringSlice) Set(value string) error {
+func (s *stringSlice) Set(value string) error {
 	*s = strings.Split(value, ",")
 
 	return nil
 }
 
-func (t *TestConfigFlag) String() string {
+func (t *testConfigFlag) String() string {
 	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
 }
 
-func (t *TestConfigFlag) Set(value string) error {
+func (t *testConfigFlag) Set(value string) error {
 	t.TestFuncNames = strings.Split(value, ",")
 
 	return nil
 
 }
-func (c *ChannelFlag) String() string {
+func (c *channelFlag) String() string {
 	return c.Channel
 }
 
-func (c *ChannelFlag) Set(value string) error {
+func (c *channelFlag) Set(value string) error {
 	if value == "" {
 		return nil
 	}
@@ -89,11 +94,11 @@ func (c *ChannelFlag) Set(value string) error {
 	return nil
 }
 
-func (i *InstallTypeValueFlag) String() string {
+func (i *installModeFlag) String() string {
 	return fmt.Sprintf("%s%s", i.Version, i.Commit)
 }
 
-func (i *InstallTypeValueFlag) Set(value string) error {
+func (i *installModeFlag) Set(value string) error {
 	if strings.HasPrefix(value, "v") {
 		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
 			return shared.ReturnLogError("invalid version format: %s", value)
@@ -109,30 +114,40 @@ func (i *InstallTypeValueFlag) Set(value string) error {
 	return nil
 }
 
-func (t *SUCUpgradeVersion) String() string {
-	return t.Version
+func (t *sucUpgradeVersion) String() string {
+	return t.SucUpgradeVersion
 }
 
-func (t *SUCUpgradeVersion) Set(value string) error {
+func (t *sucUpgradeVersion) Set(value string) error {
 	if !strings.HasPrefix(value, "v") ||
 		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
 		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
 	}
-	t.Version = value
+	t.SucUpgradeVersion = value
 
 	return nil
 }
 
-func (d *DestroyFlag) String() string {
+func (d *destroyFlag) String() string {
 	return fmt.Sprintf("%v", *d)
 }
 
-func (d *DestroyFlag) Set(value string) error {
+func (d *destroyFlag) Set(value string) error {
 	v, err := strconv.ParseBool(value)
 	if err != nil {
 		return err
 	}
-	*d = DestroyFlag(v)
+	*d = destroyFlag(v)
+
+	return nil
+}
+
+func (e *externalConfigFlag) String() string {
+	return e.SonobuoyVersion
+}
+
+func (e *externalConfigFlag) Set(value string) error {
+	e.SonobuoyVersion = value
 
 	return nil
 }

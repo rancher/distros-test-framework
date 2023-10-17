@@ -50,31 +50,33 @@ func executeTestCombination(v VersionTestTemplate) error {
 	}
 
 	if v.TestConfig != nil {
-		TestCaseWrapper(v)
+		testCaseWrapper(v)
 	}
 
 	return nil
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(names []string) ([]TestCase, error) {
-	var testCases []TestCase
+func AddTestCases(names []string) ([]testCase, error) {
+	var testCases []testCase
 
-	testCase := map[string]TestCase{
-		"TestDaemonset":                   testcase.TestDaemonset,
-		"TestIngress":                     testcase.TestIngress,
-		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
-		"TestServiceNodePort":             testcase.TestServiceNodePort,
-		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
-		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,
+	tcs := map[string]testCase{
+		"TestDaemonset":                    testcase.TestDaemonset,
+		"TestIngress":                      testcase.TestIngress,
+		"TestDnsAccess":                    testcase.TestDnsAccess,
+		"TestServiceClusterIP":             testcase.TestServiceClusterIp,
+		"TestServiceNodePort":              testcase.TestServiceNodePort,
+		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
+		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
+		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
 	}
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			testCases = append(testCases, func(deployWorkload bool) {})
-		} else if test, ok := testCase[name]; ok {
+		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {
 			return nil, shared.ReturnLogError("invalid test case name")

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/pkg/log"
+	"github.com/rancher/distros-test-framework/pkg/logger"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -85,6 +85,34 @@ func BasePath() string {
 	return filepath.Join(filepath.Dir(b), "../..")
 }
 
+// EnvDir returns the environment directory of the project based on the package passed.
+func EnvDir(pkg string) (string, error) {
+	_, callerFilePath, _, ok := runtime.Caller(1)
+	if !ok {
+		return "", ReturnLogError("failed to get caller file path")
+	}
+	callerDir := filepath.Dir(callerFilePath)
+
+	var env string
+	var c string
+
+	switch pkg {
+	case "factory":
+		c = filepath.Dir(filepath.Join(callerDir))
+		env = filepath.Join(c, "config/.env")
+	case "entrypoint":
+		c = filepath.Dir(filepath.Join(callerDir, ".."))
+		env = filepath.Join(c, "config/.env")
+	case ".":
+		c = filepath.Dir(filepath.Join(callerDir))
+		env = filepath.Join(callerDir, "config/.env")
+	default:
+		return "", ReturnLogError("unknown package: %s\n", pkg)
+	}
+
+	return env, nil
+}
+
 // PrintFileContents prints the contents of the file as [] string.
 func PrintFileContents(f ...string) error {
 	for _, file := range f {
@@ -99,8 +127,8 @@ func PrintFileContents(f ...string) error {
 }
 
 // PrintBase64Encoded prints the base64 encoded contents of the file as string.
-func PrintBase64Encoded(filepath string) error {
-	file, err := os.ReadFile(filepath)
+func PrintBase64Encoded(path string) error {
+	file, err := os.ReadFile(path)
 	if err != nil {
 		return ReturnLogError("failed to encode file %s: %w", file, err)
 	}
@@ -123,8 +151,8 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// GetVersion returns the rke2 or k3s version
-func GetVersion(cmd string) (string, error) {
+// getVersion returns the rke2 or k3s version
+func getVersion(cmd string) (string, error) {
 	var res string
 	var err error
 	ips := FetchNodeExternalIP()
@@ -140,7 +168,12 @@ func GetVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := config.AddConfigEnv("./config")
+	cfgPath, err := EnvDir(".")
+	if err != nil {
+		return "", ReturnLogError("failed to get config path: %v\n", err)
+	}
+
+	cfg, err := config.AddConfigEnv(cfgPath)
 	if err != nil {
 		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
@@ -156,7 +189,7 @@ func GetProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := GetVersion(product + " -v")
+	version, err := getVersion(product + " -v")
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
 	}
@@ -166,19 +199,10 @@ func GetProductVersion(product string) (string, error) {
 
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
-	installHelm := "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
 	update := "helm repo update"
 	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
 		name, name, name, KubeConfigFile)
-
-	nodeExternalIP := FetchNodeExternalIP()
-	for _, ip := range nodeExternalIP {
-		_, err := RunCommandOnNode(installHelm, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to install helm: %v", err)
-		}
-	}
 
 	return RunCommandHost(addRepo, update, installRepo)
 }
@@ -218,11 +242,12 @@ func configureSSH(host string) (*ssh.Client, error) {
 	return conn, nil
 }
 
-func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
+func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
 		return "", "", ReturnLogError("failed to create session: %v\n", err)
 	}
+
 	defer session.Close()
 
 	var stdoutBuf bytes.Buffer
@@ -231,11 +256,12 @@ func runsshCommand(cmd string, conn *ssh.Client) (string, string, error) {
 	session.Stderr = &stderrBuf
 
 	errssh := session.Run(cmd)
-	stdoutStr := stdoutBuf.String()
-	stderrStr := stderrBuf.String()
+	stdoutStr = stdoutBuf.String()
+	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		return stdoutStr, stderrStr, errssh
+		LogLevel("warn", "%v\n", stderrStr)
+		return "", stderrStr, errssh
 	}
 
 	return stdoutStr, stderrStr, nil
@@ -262,15 +288,17 @@ func GetJournalLogs(product, ip string) (string, error) {
 
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
-	logger := log.AddLogger(false)
+	log := logger.AddLogger(false)
 	err := formatLogArgs(format, args...)
 
-	pc, file, line, ok := runtime.Caller(1)
-	if ok {
-		funcName := runtime.FuncForPC(pc).Name()
-		logger.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
-	} else {
-		logger.Error(err.Error())
+	if err != nil {
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+		} else {
+			log.Error(err.Error())
+		}
 	}
 
 	return err
@@ -278,22 +306,28 @@ func ReturnLogError(format string, args ...interface{}) error {
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	logger := log.AddLogger(false)
+	log := logger.AddLogger(false)
 	msg := formatLogArgs(format, args...)
 
 	switch level {
 	case "debug":
-		logger.Debug(msg)
+		log.Debug(msg)
 	case "info":
-		logger.Info(msg)
+		log.Info(msg)
 	case "warn":
-		logger.Warn(msg)
+		log.Warn(msg)
 	case "error":
-		logger.Error(msg)
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
+		} else {
+			log.Error(msg)
+		}
 	}
 }
 
-// formatLogArgs formats the log message.
+// formatLogArgs formats the logger message.
 func formatLogArgs(format string, args ...interface{}) error {
 	if len(args) == 0 {
 		return fmt.Errorf(format)
