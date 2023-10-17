@@ -42,3 +42,20 @@ func TestNodeStatus(
 	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }
+
+func TestKillall(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("%s*-killall.sh", product), ip)
+}
+
+func StopServer(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl stop %s*", product), ip)
+}
+
+func StartServer(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl start %s*", product), ip)
+}
+
+// Deletes the Database Directories
+func DeleteDatabaseDirectories(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s*/server/db", product), ip)
+}

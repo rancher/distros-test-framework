@@ -101,3 +101,46 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 		Expect(agentIPs).Should(BeEmpty())
 	}
 }
+
+// RunCommandOnNode executes a command on the node SSH
+func RunCommandOnNode(cmd, ip string) (string, error) {
+	if cmd == "" {
+		return "", ReturnLogError("cmd should not be empty")
+	}
+
+	host := ip + ":22"
+	conn, err := configureSSH(host)
+	if err != nil {
+		return "", ReturnLogError("failed to configure SSH: %v\n", err)
+	}
+	stdout, stderr, err := runsshCommand(cmd, conn)
+	if err != nil && !strings.Contains(stderr, "restart") {
+		return "", fmt.Errorf(
+			"command: %s failed on run ssh: %s with error: %w\n",
+			cmd,
+			ip,
+			err,
+		)
+	}
+
+	stdout = strings.TrimSpace(stdout)
+	stderr = strings.TrimSpace(stderr)
+
+	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
+	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
+
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
+		!strings.Contains(cleanedStderr, "1") ||
+		!strings.Contains(cleanedStderr, "2")) {
+		return cleanedStderr, nil
+	} else if cleanedStderr != "" {
+		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
+	}
+
+	return stdout, err
+}
+
+// Resets the cluster
+func ClusterReset(product, ip string) {
+	_, _ = RunCommandOnNode(fmt.Sprintf("sudo %s* server --cluster-reset", product), ip)
+}
