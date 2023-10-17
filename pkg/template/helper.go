@@ -60,21 +60,23 @@ func executeTestCombination(v VersionTestTemplate) error {
 func AddTestCases(names []string) ([]testCase, error) {
 	var testCases []testCase
 
-	testCase := map[string]testCase{
-		"TestDaemonset":                   testcase.TestDaemonset,
-		"TestIngress":                     testcase.TestIngress,
-		"TestDnsAccess":                   testcase.TestDnsAccess,
-		"TestServiceClusterIP":            testcase.TestServiceClusterIp,
-		"TestServiceNodePort":             testcase.TestServiceNodePort,
-		"TestLocalPathProvisionerStorage": testcase.TestLocalPathProvisionerStorage,
-		"TestServiceLoadBalancer":         testcase.TestServiceLoadBalancer,
+	tcs := map[string]testCase{
+		"TestDaemonset":                    testcase.TestDaemonset,
+		"TestIngress":                      testcase.TestIngress,
+		"TestDnsAccess":                    testcase.TestDnsAccess,
+		"TestServiceClusterIP":             testcase.TestServiceClusterIp,
+		"TestServiceNodePort":              testcase.TestServiceNodePort,
+		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
+		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
+		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
 	}
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			testCases = append(testCases, func(deployWorkload bool) {})
-		} else if test, ok := testCase[name]; ok {
+		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {
 			return nil, shared.ReturnLogError("invalid test case name")

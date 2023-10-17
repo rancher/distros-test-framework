@@ -124,7 +124,7 @@ wait_nodes() {
   export PATH="$PATH:/usr/local/bin"
   timeElapsed=0
 
-  while (( timeElapsed < 300 )); do
+  while (( timeElapsed < 1200 )); do
     if kubectl get nodes >/dev/null 2>&1; then
       return
     fi
@@ -141,7 +141,7 @@ wait_ready_nodes() {
   timeElapsed=0
   sleep 10
 
-  while (( timeElapsed < 420 )); do
+  while (( timeElapsed < 800 )); do
     not_ready=false
     for rec in $(kubectl get nodes); do
       if [[ "$rec" == *"NotReady"* ]]; then

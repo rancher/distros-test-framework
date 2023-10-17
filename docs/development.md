@@ -34,12 +34,12 @@
     db_username   = "<db_user>"
     db_password   = "<db_password>"   
     ```
-4. Create `config/config.yaml` file with contents: 
+4. Create `config/.env` file with contents:
    ```
-   ENV_PRODUCT: k3s
-   ENV_TFVARS: k3s.tfvars
+   ENV_PRODUCT={{PRODUCT}}
+   ENV_TFVARS={{PRODUCT}}.tfvars
    ```
-   Please use `examples/config.yaml.example` for reference. 
+   Please use `examples/.env.example` for reference.
    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
 
 5.  Export the following variables:

@@ -12,13 +12,12 @@ import (
 
 const statusCompleted = "Completed"
 
-// TestPodStatus test the status of the pods in the cluster using 2 custom assert functions
+// TestPodStatus test the status of the pods in the cluster using custom assert functions
 func TestPodStatus(
 	podAssertRestarts assert.PodAssertFunc,
 	podAssertReady assert.PodAssertFunc,
 	podAssertStatus assert.PodAssertFunc,
 ) {
-
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())

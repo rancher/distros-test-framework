@@ -25,7 +25,8 @@ func validate(exec func(string) (string, error), args ...string) error {
 			i++
 
 			if assert == "" || cmd == "" {
-				return shared.ReturnLogError("should not send empty arg for assert:%s and/or cmd:%s",
+				return shared.ReturnLogError("should not send empty arg for assert:%s "+
+					"and/or cmd:%s",
 					assert, cmd)
 			}
 			err := runAssertion(cmd, assert, exec, ticker.C, timeout, errorsChan)
@@ -50,20 +51,21 @@ func runAssertion(
 	errorsChan chan<- error,
 ) error {
 	for {
+		res, err := exec(cmd)
+		if err != nil {
+			errorsChan <- err
+			return fmt.Errorf("error from runCmd: %s\n %s", cmd, res)
+		}
+
 		select {
 		case <-timeout:
 			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n "+
 				"Trying to assert with:\n %s",
-				cmd, assert)
+				cmd, res)
 			errorsChan <- timeoutErr
 			return timeoutErr
 
 		case <-ticker:
-			res, err := exec(cmd)
-			if err != nil {
-				errorsChan <- err
-				return fmt.Errorf("error from runCmd: %s\n %s", res, err)
-			}
 			if strings.Contains(res, assert) {
 				fmt.Printf("\nCommand:\n"+
 					"%s"+

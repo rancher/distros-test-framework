@@ -32,7 +32,3 @@ COPY . .
 RUN go mod download
 
 RUN go mod tidy
-
-RUN chmod +x $GOPATH/src/github.com/rancher/distros-test-framework/scripts/entrypoint.sh
-
-ENTRYPOINT ["/go/src/github.com/rancher/distros-test-framework/scripts/entrypoint.sh"]
