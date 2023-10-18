@@ -18,6 +18,7 @@ const (
 	ctxFile     = "system_u:object_r:container_file_t:s0"
 	ctxConfig   = "system_u:object_r:container_config_t:s0"
 	ctxShare    = "system_u:object_r:container_share_t:s0"
+	ctxRoFile   = "system_u:object_r:container_ro_file_t:s0"
 	ctxLog      = "system_u:object_r:container_log_t:s0"
 	ctxRunTmpfs = "system_u:object_r:container_var_run_t:s0"
 	ctxTmpfs    = "system_u:object_r:container_runtime_tmpfs_t:s0"
@@ -97,8 +98,8 @@ var conf = []configuration{
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:   ctxFile,
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter: ctxFile,
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + " " + grepFilter:          ctxNone,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:   ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter: ctxShare,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:   ctxRoFile,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter: ctxRoFile,
 			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                       ctxLog,
 			cmdPrefix + " " + rke2 + "/server/logs/* " + ignoreDir:                                     ctxLog,
 			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                        ctxTLS,
@@ -124,8 +125,8 @@ var conf = []configuration{
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/ " + ignoreDir + " " + grepFilter:     ctxFile,
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxShare,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
 			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                          ctxLog,
 			cmdPrefix + " " + rke2 + "/server/logs/* " + ignoreDir:                                        ctxLog,
 			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                           ctxTLS,
@@ -248,8 +249,8 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter:     ctxNone,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxShare,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxShare,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxRoFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxRoFile,
 			cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                     ctxData,
 			cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                                   ctxData,
 			cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
@@ -285,8 +286,8 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter:     ctxNone,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxShare,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxShare,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxRoFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxRoFile,
 			cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                     ctxData,
 			cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                                   ctxData,
 			cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,

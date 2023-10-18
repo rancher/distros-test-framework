@@ -124,6 +124,8 @@ func getVersion(osRelease, ip string) string {
 	return ""
 }
 
+var osPolicy string
+
 func getContext(product, ip string) (cmdCtx, error) {
 	res, err := shared.RunCommandOnNode("cat /etc/os-release", ip)
 	if err != nil {
@@ -164,6 +166,7 @@ func selectPolicy(product, osType string) cmdCtx {
 	for _, config := range conf {
 		if config.distroName == key {
 			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
+			osPolicy = osType
 			return config.cmdCtx
 		}
 	}
@@ -214,7 +217,14 @@ func TestUninstallPolicy() {
 
 		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
 		Expect(errSel).NotTo(HaveOccurred())
-		Expect(res).Should(BeEmpty())
+
+		if strings.Contains(osPolicy, "centos7") {
+			Expect(res).Should(ContainSubstring("container-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+		} else {
+			Expect(res).Should(BeEmpty())
+		}
+
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
@@ -225,6 +235,12 @@ func TestUninstallPolicy() {
 
 		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+product+"-selinux", agentIP)
 		Expect(errSel).NotTo(HaveOccurred())
-		Expect(res).Should(BeEmpty())
+
+		if osPolicy == "centos7" {
+			Expect(res).Should(ContainSubstring("container-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+		} else {
+			Expect(res).Should(BeEmpty())
+		}
 	}
 }
