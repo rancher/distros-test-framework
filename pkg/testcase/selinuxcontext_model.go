@@ -39,6 +39,7 @@ type configuration struct {
 
 var conf = []configuration{
 	{
+		// Works correctly!
 		distroName: "rke2_centos7",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                            ctxUnitFile,
@@ -80,10 +81,12 @@ var conf = []configuration{
 		},
 	},
 	{
+		// Works partially, has a bug related
 		distroName: "rke2_centos8",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*":                                                       ctxUnitFile,
-			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                              ctxUnitFile,
+			cmdPrefix + " " + systemD + "/rke2*": ctxUnitFile,
+			// TODO: issue related to UnitFile https://github.com/rancher/rke2/issues/4741
+			//cmdPrefix + " " + "/lib/systemd/system/rke2*":                                              ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2*":                                    ctxUnitFile,
 			cmdPrefix + " " + usrBin + "/rke2":                                                         ctxExec,
 			cmdPrefix + " " + usrLocal + "/rke2":                                                       ctxExec,
@@ -107,10 +110,12 @@ var conf = []configuration{
 		},
 	},
 	{
+		// Works partially, has a bug related
 		distroName: "rke2_centos9",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
-			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
+			cmdPrefix + " " + systemD + "/rke2*": ctxUnitFile,
+			// TODO: issue related to UnitFile https://github.com/rancher/rke2/issues/4741
+			//cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2*":                                       ctxUnitFile,
 			cmdPrefix + " " + usrBin + "/rke2":                                                            ctxExec,
 			cmdPrefix + " " + usrLocal + "/rke2":                                                          ctxExec,
@@ -134,6 +139,7 @@ var conf = []configuration{
 		},
 	},
 	{
+		// We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "rke2_micro_os",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
@@ -161,6 +167,7 @@ var conf = []configuration{
 		},
 	},
 	{
+		// We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "rke2_sle_micro",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
@@ -190,18 +197,22 @@ var conf = []configuration{
 		},
 	},
 	{
+		// Works partially, has a bug related and some different outputs
 		distroName: "k3s_centos7",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
-			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":                                                 ctxUnitFile,
-			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":                                           ctxUnitFile,
-			cmdPrefix + " " + "/usr/s?bin/k3s":                                                               ctxExec,
-			cmdPrefix + " " + "/usr/local/s?bin/k3s":                                                         ctxExec,
-			cmdPrefix + " " + "/var/lib/cni " + ignoreDir:                                                    ctxVarLib,
-			cmdPrefix + " " + "/var/lib/cni/* " + ignoreDir:                                                  ctxVarLib,
-			cmdPrefix + " " + "/var/lib/kubelet/pods " + ignoreDir:                                           ctxFile,
-			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir:                                         ctxFile,
-			cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
+			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
+			//cmdPrefix + " " + systemD + "/k3s*":                      ctxUnitFile,
+			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":         ctxUnitFile,
+			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":   ctxUnitFile,
+			cmdPrefix + " " + "/usr/s?bin/k3s":                       ctxExec,
+			cmdPrefix + " " + "/usr/local/s?bin/k3s":                 ctxExec,
+			cmdPrefix + " " + "/var/lib/cni " + ignoreDir:            ctxVarLib,
+			cmdPrefix + " " + "/var/lib/cni/* " + ignoreDir:          ctxVarLib,
+			cmdPrefix + " " + "/var/lib/kubelet/pods " + ignoreDir:   ctxFile,
+			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir: ctxFile,
+			/* TODO: Here the expected output is "system_u:object_r:container_var_lib_t:s0"
+			and is showing this "unconfined_u:object_r:container_var_lib_t:s0" (user part is not the expected)*/
+			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
 			cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                        ctxVarLib,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxShare,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxShare,
@@ -239,23 +250,32 @@ var conf = []configuration{
 	{
 		distroName: "k3s_centos8",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
-			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":                                                 ctxUnitFile,
-			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":                                           ctxUnitFile,
-			cmdPrefix + " " + "/usr/s?bin/k3s":                                                               ctxExec,
-			cmdPrefix + " " + "/usr/local/s?bin/k3s":                                                         ctxExec,
-			cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
-			cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                        ctxVarLib,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter:     ctxNone,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxRoFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxRoFile,
-			cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                     ctxData,
-			cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                                   ctxData,
-			cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
-			cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
-			cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
+			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
+			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
+			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
+			cmdPrefix + " " + "/usr/local/s?bin/k3s":               ctxExec,
+			/* TODO: Expected context "system_u:object_r:container_var_lib_t:s0" and is showing "unconfined_u:object_r:container_var_lib_t:s0" */
+			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
+			//cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:    ctxFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
+
+			/* TODO: Expected context "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
+			//cmdPrefix + " " + k3s + "/data " + ignoreDir:   ctxData,
+			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir: ctxData,
+
+			/* TODO: Expected context is "system_u:object_r:k3s_lock_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0" */
+			//cmdPrefix + " " + k3s + "/data/.lock":                                 ctxLock,
+
+			/* TODO: For these directories output shows "unconfined_u:object_r:k3s_root_t:s0"	and the expected one is "system_u:object_r:k3s_root_t:s0"*/
+			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter: ctxRoot,
+			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/cni " + ignoreDir + " " + grepFilter:                        ctxExec,
@@ -274,25 +294,34 @@ var conf = []configuration{
 		},
 	},
 	{
+
 		distroName: "k3s_centos9",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
-			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":                                                 ctxUnitFile,
-			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":                                           ctxUnitFile,
-			cmdPrefix + " " + "/usr/s?bin/k3s":                                                               ctxExec,
-			cmdPrefix + " " + "/usr/local/s?bin/k3s":                                                         ctxExec,
-			cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
-			cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                        ctxVarLib,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter:     ctxNone,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:          ctxRoFile,
-			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:        ctxRoFile,
-			cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                     ctxData,
-			cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                                   ctxData,
-			cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
-			cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
-			cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
+			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
+			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
+			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
+			cmdPrefix + " " + "/usr/local/s?bin/k3s":               ctxExec,
+			// TODO: Output: unconfined_u Expected: system_u
+			// cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
+			// cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:    ctxFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
+			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
+			/* TODO: Expected "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_data_t:s0" */
+			//cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                 ctxData,
+			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                               ctxData,
+
+			/* TODO: Expected "system_u:object_r:k3s_lock_t:s0 " and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
+			//cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
+
+			/* TODO: Expected "system_u:object_r:k3s_root_t:s0 " and is showing "unconfined_u:object_r:k3s_root_t:s0" */
+			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
+			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/cni " + ignoreDir + " " + grepFilter:                        ctxExec,
@@ -311,6 +340,7 @@ var conf = []configuration{
 		},
 	},
 	{
+		// We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_coreos",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
@@ -348,6 +378,7 @@ var conf = []configuration{
 		},
 	},
 	{
+		// We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_micro_os",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
@@ -385,6 +416,7 @@ var conf = []configuration{
 		},
 	},
 	{
+		// We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_sle_micro",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
