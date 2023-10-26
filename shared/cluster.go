@@ -31,6 +31,7 @@ type Pod struct {
 	Ready     string
 	Status    string
 	Restarts  string
+	Age       string
 	NodeIP    string
 	Node      string
 }
@@ -40,9 +41,6 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 	if action != "apply" && action != "delete" {
 		return "", ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
-
-	var res string
-	var err error
 
 	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
 
@@ -55,21 +53,27 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 		if !fileExists(files, workload) {
 			return "", ReturnLogError("workload %s not found", workload)
 		}
-		filename := filepath.Join(resourceDir, workload)
-		if action == "apply" {
-			err = applyWorkload(workload, filename)
-			if err != nil {
-				return "", ReturnLogError("failed to apply workload %s: \n", workload)
-			}
-		} else {
-			err = deleteWorkload(workload, filename)
-			if err != nil {
-				return "", ReturnLogError("failed to delete workload %s: \n", workload)
-			}
+
+		err := handleWorkload(action, resourceDir, workload)
+		if err != nil {
+			return "", err
 		}
 	}
 
-	return res, err
+	return "", nil
+}
+
+func handleWorkload(action, resourceDir, workload string) error {
+	filename := filepath.Join(resourceDir, workload)
+
+	switch action {
+	case "apply":
+		return applyWorkload(workload, filename)
+	case "delete":
+		return deleteWorkload(workload, filename)
+	default:
+		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
+	}
 }
 
 func applyWorkload(workload, filename string) error {
@@ -184,14 +188,14 @@ func kubectlCmdOnNode(cmd string) (string, error) {
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace string, serviceName string) (string, string, error) {
-	ip, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
+func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
+	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
 	}
 
-	port, err := RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
+	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
@@ -230,7 +234,7 @@ func RestartCluster(product, ip string) {
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
-func FetchIngressIP(namespace string) ([]string, error) {
+func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	res, err := RunCommandHost(
 		"kubectl get ingress -n " +
 			namespace +
@@ -245,7 +249,7 @@ func FetchIngressIP(namespace string) ([]string, error) {
 	if ingressIP == "" {
 		return nil, nil
 	}
-	ingressIPs := strings.Split(ingressIP, " ")
+	ingressIPs = strings.Split(ingressIP, " ")
 
 	return ingressIPs, nil
 }
@@ -277,7 +281,6 @@ func SonobuoyMixedOS(action, version string) error {
 func GetNodes(print bool) ([]Node, error) {
 	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		LogLevel("error", "\n%s", res)
 		return nil, err
 	}
 
@@ -326,7 +329,6 @@ func GetPods(print bool) ([]Pod, error) {
 	}
 
 	pods := parsePods(res)
-
 	if print {
 		fmt.Println(res)
 	}
@@ -341,12 +343,21 @@ func parsePods(res string) []Pod {
 
 	for _, rec := range podList {
 		fields := strings.Fields(rec)
+		if strings.TrimSpace(rec) == "" {
+			continue
+		}
+
+		if len(fields) < 9 {
+			continue
+		}
+
 		p := Pod{
 			NameSpace: fields[0],
 			Name:      fields[1],
 			Ready:     fields[2],
 			Status:    fields[3],
 			Restarts:  fields[4],
+			Age:       fields[5],
 			NodeIP:    fields[6],
 			Node:      fields[7],
 		}
@@ -375,8 +386,7 @@ func ReadDataPod(namespace string) (string, error) {
 
 	res, err := RunCommandHost(cmd)
 	if err != nil {
-		LogLevel("error", "failed to read data from pod: \n%w", err)
-		os.Exit(1)
+		return "", err
 	}
 
 	return res, nil

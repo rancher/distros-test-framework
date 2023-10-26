@@ -1,3 +1,0 @@
-ENV_PRODUCT: "{{PRODUCT}}"
-ENV_TFVARS: "{{PRODUCT}}".tfvars
-# Note: PRODUCT can be k3s or rke2

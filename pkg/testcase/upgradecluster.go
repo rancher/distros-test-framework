@@ -34,7 +34,8 @@ func TestUpgradeClusterSUC(version string) error {
 	product, err := shared.GetProduct()
 	Expect(err).NotTo(HaveOccurred())
 
-	originalFilePath := shared.BasePath() + fmt.Sprintf("/distros-test-framework/workloads/amd64/%s-upgrade-plan.yaml", product)
+	originalFilePath := shared.BasePath() +
+		fmt.Sprintf("/distros-test-framework/workloads/amd64/%s-upgrade-plan.yaml", product)
 	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)

@@ -30,11 +30,12 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 	Eventually(func(g Gomega) {
 		var res string
 		fmt.Println("Writing and reading data from pod")
+
 		res, err = shared.ReadDataPod(lps)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
-	}, "300s", "2s").Should(Succeed())
+	}, "300s", "5s").Should(Succeed())
 
 	ips := shared.FetchNodeExternalIP()
 	for _, ip := range ips {

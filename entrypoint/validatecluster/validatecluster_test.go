@@ -1,4 +1,4 @@
-package createcluster
+package validatecluster
 
 import (
 	"fmt"
@@ -29,6 +29,36 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertStatus(),
 		)
 	})
+
+	It("Verifies ClusterIP Service", func() {
+		testcase.TestServiceClusterIp(true)
+	})
+
+	It("Verifies NodePort Service", func() {
+		testcase.TestServiceNodePort(true)
+	})
+
+	It("Verifies Ingress", func() {
+		testcase.TestIngress(true)
+	})
+
+	It("Verifies Daemonset", func() {
+		testcase.TestDaemonset(true)
+	})
+
+	It("Verifies dns access", func() {
+		testcase.TestDnsAccess(true)
+	})
+
+	if cfg.Product == "k3s" {
+		It("Verifies Local Path Provisioner storage", func() {
+			testcase.TestLocalPathProvisionerStorage(true)
+		})
+
+		It("Verifies LoadBalancer Service", func() {
+			testcase.TestServiceLoadBalancer(true)
+		})
+	}
 })
 
 var _ = AfterEach(func() {

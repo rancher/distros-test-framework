@@ -36,7 +36,7 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1200s", "20s").Should(Succeed())
+	}, "1500s", "20s").Should(Succeed())
 
 	fmt.Println("\n\nCluster nodes:")
 	_, err := shared.GetNodes(true)

@@ -3,6 +3,9 @@ name: Run Distros Framework
 on:
   push:
 
+  pull_request:
+    branches: [ main ]
+
 permissions:
   contents: read
 
@@ -37,5 +40,5 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
-          args: --timeout 5m --issues-exit-code=0
+          args: --timeout 10m --issues-exit-code=0
 

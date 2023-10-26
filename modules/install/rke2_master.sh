@@ -96,7 +96,7 @@ sudo systemctl enable rke2-server
 sudo systemctl start rke2-server
 
 timeElapsed=0
-while [[ $timeElapsed -lt 600 ]]
+while [[ $timeElapsed -lt 1200 ]]
 do
   notready=false
   if [[ ! -f /var/lib/rancher/rke2/server/node-token ]] || [[ ! -f /etc/rancher/rke2/rke2.yaml ]]
