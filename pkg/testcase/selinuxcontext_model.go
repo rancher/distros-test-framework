@@ -39,7 +39,6 @@ type configuration struct {
 
 var conf = []configuration{
 	{
-		// Works correctly!
 		distroName: "rke2_centos7",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                            ctxUnitFile,
@@ -139,7 +138,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// We are not able to execute this because our framework does not support the reboot part for this OS.
+		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "rke2_micro_os",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
@@ -167,7 +166,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// We are not able to execute this because our framework does not support the reboot part for this OS.
+		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "rke2_sle_micro",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
@@ -340,7 +339,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// We are not able to execute this because our framework does not support the reboot part for this OS.
+		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_coreos",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
@@ -378,7 +377,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// We are not able to execute this because our framework does not support the reboot part for this OS.
+		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_micro_os",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,
@@ -416,7 +415,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// We are not able to execute this because our framework does not support the reboot part for this OS.
+		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.
 		distroName: "k3s_sle_micro",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/k3s*":                                                              ctxUnitFile,

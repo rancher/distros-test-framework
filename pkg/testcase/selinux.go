@@ -13,7 +13,7 @@ import (
 )
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
-func TestSelinuxEnabled() {
+func TestSelinuxEnabled(deleteWorkload bool) {
 	product, err := shared.GetProduct()
 	if err != nil {
 		return
@@ -33,8 +33,8 @@ func TestSelinuxEnabled() {
 	}
 }
 
-// TestSelinuxVersions Validates container-selinux version, rke2-selinux version and rke2-selinux version
-func TestSelinuxVersions() {
+// TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version
+func TestSelinux(deleteWorkload bool) {
 	cluster := factory.AddCluster(GinkgoT())
 	product, err := shared.GetProduct()
 	if err != nil {
@@ -74,7 +74,7 @@ func TestSelinuxVersions() {
 // Based on this info, this is the way to validate the correct context
 
 // TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created
-func TestSelinuxContext() {
+func TestSelinuxContext(deleteWorkload bool) {
 	cluster := factory.AddCluster(GinkgoT())
 	product, err := shared.GetProduct()
 	if err != nil {
@@ -142,7 +142,7 @@ func getContext(product, ip string) (cmdCtx, error) {
 
 	for k, v := range policyMapping {
 		if strings.Contains(res, k) {
-			return selectPolicy(product, v), nil
+			return selectSelinuxPolicy(product, v), nil
 		}
 	}
 
@@ -154,13 +154,13 @@ func getContext(product, ip string) (cmdCtx, error) {
 	}
 
 	if policy, ok := versionMapping[version]; ok {
-		return selectPolicy(product, policy), nil
+		return selectSelinuxPolicy(product, policy), nil
 	}
 
 	return nil, fmt.Errorf("unable to determine policy for %s on os: %s", ip, res)
 }
 
-func selectPolicy(product, osType string) cmdCtx {
+func selectSelinuxPolicy(product, osType string) cmdCtx {
 	key := fmt.Sprintf("%s_%s", product, osType)
 
 	for _, config := range conf {
@@ -176,7 +176,7 @@ func selectPolicy(product, osType string) cmdCtx {
 }
 
 // TestSelinuxSpcT Validate that containers don't run with spc_t
-func TestSelinuxSpcT() {
+func TestSelinuxSpcT(deleteWorkload bool) {
 	cluster := factory.AddCluster(GinkgoT())
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -187,8 +187,9 @@ func TestSelinuxSpcT() {
 }
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
-func TestUninstallPolicy() {
+func TestUninstallPolicy(deleteWorkload bool) {
 	product, err := shared.GetProduct()
+	//product, err := shared.GetProduct()
 	if err != nil {
 		log.Println(err)
 	}

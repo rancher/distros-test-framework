@@ -34,19 +34,19 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled pre upgrade", func() {
-		testcase.TestSelinuxEnabled()
+		testcase.TestSelinuxEnabled(false)
 	})
 
 	It("Validate container, server and selinux version pre upgrade", func() {
-		testcase.TestSelinuxVersions()
+		testcase.TestSelinux(false)
 	})
 
 	It("Validate container security pre upgrade", func() {
-		testcase.TestSelinuxSpcT()
+		testcase.TestSelinuxSpcT(false)
 	})
 
 	It("Validate context", func() {
-		testcase.TestSelinuxContext()
+		testcase.TestSelinuxContext(false)
 	})
 
 	It("Upgrade manual", func() {
@@ -69,23 +69,23 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled Post upgrade", func() {
-		testcase.TestSelinuxEnabled()
+		testcase.TestSelinuxEnabled(false)
 	})
 
 	It("Validate container, server and selinux version Post upgrade", func() {
-		testcase.TestSelinuxVersions()
+		testcase.TestSelinux(false)
 	})
 
 	It("Validate container security Post upgrade", func() {
-		testcase.TestSelinuxSpcT()
+		testcase.TestSelinuxSpcT(false)
 	})
 
 	It("Validate context Post Upgrade", func() {
-		testcase.TestSelinuxContext()
+		testcase.TestSelinuxContext(false)
 	})
 
 	It("Validate uninstall selinux policies Post Upgrade", func() {
-		testcase.TestUninstallPolicy()
+		testcase.TestUninstallPolicy(false)
 	})
 
 })

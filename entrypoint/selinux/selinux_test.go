@@ -33,23 +33,23 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled", func() {
-		testcase.TestSelinuxEnabled()
+		testcase.TestSelinuxEnabled(false)
 	})
 
 	It("Validate container, server and selinux version", func() {
-		testcase.TestSelinuxVersions()
+		testcase.TestSelinux(false)
 	})
 
 	It("Validate container security", func() {
-		testcase.TestSelinuxSpcT()
+		testcase.TestSelinuxSpcT(false)
 	})
 
 	It("Validate context", func() {
-		testcase.TestSelinuxContext()
+		testcase.TestSelinuxContext(false)
 	})
 
 	It("Validate uninstall selinux policies", func() {
-		testcase.TestUninstallPolicy()
+		testcase.TestUninstallPolicy(false)
 	})
 
 })
