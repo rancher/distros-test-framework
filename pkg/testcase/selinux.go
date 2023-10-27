@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/model"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -126,7 +127,7 @@ func getVersion(osRelease, ip string) string {
 
 var osPolicy string
 
-func getContext(product, ip string) (cmdCtx, error) {
+func getContext(product, ip string) (model.CmdCtx, error) {
 	res, err := shared.RunCommandOnNode("cat /etc/os-release", ip)
 	if err != nil {
 		return nil, err
@@ -160,14 +161,14 @@ func getContext(product, ip string) (cmdCtx, error) {
 	return nil, fmt.Errorf("unable to determine policy for %s on os: %s", ip, res)
 }
 
-func selectSelinuxPolicy(product, osType string) cmdCtx {
+func selectSelinuxPolicy(product, osType string) model.CmdCtx {
 	key := fmt.Sprintf("%s_%s", product, osType)
 
-	for _, config := range conf {
-		if config.distroName == key {
+	for _, config := range model.Conf {
+		if config.DistroName == key {
 			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
 			osPolicy = osType
-			return config.cmdCtx
+			return config.CmdCtx
 		}
 	}
 
