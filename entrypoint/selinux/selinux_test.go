@@ -34,19 +34,19 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled", func() {
-		testcase.TestSelinuxEnabled(false)
+		testcase.TestSelinuxEnabled()
 	})
 
 	It("Validate container, server and selinux version", func() {
-		testcase.TestSelinux(false)
+		testcase.TestSelinux()
 	})
 
 	It("Validate container security", func() {
-		testcase.TestSelinuxSpcT(false)
+		testcase.TestSelinuxSpcT()
 	})
 
 	It("Validate context", func() {
-		testcase.TestSelinuxContext(false)
+		testcase.TestSelinuxContext()
 	})
 
 	if customflag.ServiceFlag.InstallMode.String() != "" {
@@ -70,24 +70,24 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Validate selinux is enabled Post upgrade", func() {
-			testcase.TestSelinuxEnabled(false)
+			testcase.TestSelinuxEnabled()
 		})
 
 		It("Validate container, server and selinux version Post upgrade", func() {
-			testcase.TestSelinux(false)
+			testcase.TestSelinux()
 		})
 
 		It("Validate container security Post upgrade", func() {
-			testcase.TestSelinuxSpcT(false)
+			testcase.TestSelinuxSpcT()
 		})
 
 		It("Validate context", func() {
-			testcase.TestSelinuxContext(false)
+			testcase.TestSelinuxContext()
 		})
 	}
 
 	It("Validate uninstall selinux policies", func() {
-		testcase.TestUninstallPolicy(false)
+		testcase.TestUninstallPolicy()
 	})
 
 })
