@@ -19,7 +19,6 @@ variable "install_mode" {}
 variable "install_method" {}
 variable "rke2_channel" {}
 variable "server_flags" {}
-variable "create_eip" {}
 variable "sg_id" {}
 variable "subnets" {}
 variable "vpc_id" {}

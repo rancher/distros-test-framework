@@ -9,10 +9,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func VersionTemplate(test VersionTestTemplate) {
+func Template(test TestTemplate) {
 	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
 		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
-		_, err := shared.ManageWorkload(
+		err := shared.ManageWorkload(
 			"apply",
 			customflag.ServiceFlag.TestConfig.WorkloadName,
 		)
@@ -30,7 +30,7 @@ func VersionTemplate(test VersionTestTemplate) {
 		Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
 
 		if test.TestConfig != nil {
-			testCaseWrapper(test)
+			wrapper(test)
 		}
 	}
 }

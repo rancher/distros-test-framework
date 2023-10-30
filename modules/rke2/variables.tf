@@ -19,7 +19,6 @@ variable "access_key" {}
 variable "key_name" {}
 variable "availability_zone" {}
 variable "aws_ami" {}
-variable "create_eip" {}
 variable "aws_user" {}
 variable "ec2_instance_class" {}
 variable "volume_size" {}

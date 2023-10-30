@@ -8,12 +8,12 @@ import (
 )
 
 func TestServiceClusterIp(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "clusterip.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	workloadErr := shared.ManageWorkload("apply", "clusterip.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
 
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	err = assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
@@ -25,14 +25,14 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	}
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "clusterip.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
 	}
 }
 
 func TestServiceNodePort(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
-	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+	workloadErr := shared.ManageWorkload("apply", "nodeport.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deployed")
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
@@ -55,14 +55,14 @@ func TestServiceNodePort(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "nodeport.yaml")
-		Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deleted")
 	}
 }
 
 func TestServiceLoadBalancer(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
+	workloadErr := shared.ManageWorkload("apply", "loadbalancer.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
@@ -84,7 +84,7 @@ func TestServiceLoadBalancer(deleteWorkload bool) {
 	}
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "loadbalancer.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "loadbalancer.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
 	}
 }

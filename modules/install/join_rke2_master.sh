@@ -4,6 +4,8 @@
 #set -x
 echo "$@"
 
+set -e
+
 node_os=$1
 create_lb=$2
 initial_node_ip=$3

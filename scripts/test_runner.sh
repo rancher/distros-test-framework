@@ -12,10 +12,15 @@ fi
 
 case "$TEST_DIR" in
      upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster)
-      printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
+     if [[ "$TEST_TAG" != "" ]];
+      then
+        printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
+      else
+        printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
+      fi
         ;;
     *)
-        printf "\n%s is not a go test package\n\n" "${TEST_DIR}"
+        printf "\n\n%s is not a go test package\n\n" "${TEST_DIR}"
         exit 1
         ;;
 esac

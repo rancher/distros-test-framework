@@ -2,8 +2,10 @@
 # This script installs the first master, ensuring first master is installed
 # and ready before proceeding to install other nodes
 #!/bin/bash
-set -x
+#set -x
 echo "$@"
+
+set -e
 
 node_os=$1
 create_lb=$2
@@ -27,7 +29,7 @@ EOF
 
 if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]
 then
-   echo "$server_flags"
+   echo -e "$server_flags"
    echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
    if [[ "$server_flags" != *"cloud-provider-name"* ]]
    then
@@ -69,6 +71,7 @@ then
 fi
 
 export "$install_mode"="$rke2_version"
+
 if [ -n "$install_method" ]
 then
   export INSTALL_RKE2_METHOD="$install_method"

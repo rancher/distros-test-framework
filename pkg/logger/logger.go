@@ -31,14 +31,16 @@ func newLogger(json bool) *log.Logger {
 			ForceColors:   true,
 			FullTimestamp: true,
 			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+				link := fmt.Sprintf("file://%s:%d", f.File, f.Line)
+				return f.Function, link
 			},
 			QuoteEmptyFields: true,
 		})
 	} else {
 		logger.SetFormatter(&log.JSONFormatter{
 			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+				link := fmt.Sprintf("file://%s:%d", f.File, f.Line)
+				return f.Function, link
 			},
 			PrettyPrint: true,
 		})

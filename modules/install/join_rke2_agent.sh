@@ -3,6 +3,8 @@
 #set -x
 echo "$@"
 
+set -e
+
 node_os=$1
 server_ip=$2
 token=$3

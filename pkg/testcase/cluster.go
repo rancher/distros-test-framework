@@ -24,13 +24,17 @@ func TestBuildCluster(g GinkgoTInterface) {
 		fmt.Println("Backend:", cluster.Config.ExternalDb)
 	}
 
-	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "" {
-		for i := 0; i > len(cluster.ServerIPs); i++ {
-			cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
-			res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
-			Expect(err).NotTo(HaveOccurred())
-			Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
-		}
+	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
+		cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
+		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
+
+		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
+			cluster.ServerIPs[0])
+		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
+		Expect(etcd).Should(BeEmpty())
+		Expect(err).To(HaveOccurred())
 	}
 
 	fmt.Println("\nKUBECONFIG:")

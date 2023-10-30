@@ -4,6 +4,8 @@
 #set -x
 # PS4='+(${LINENO}): '
 
+set -e
+
 mkdir -p /etc/rancher/k3s
 
 create_config() {

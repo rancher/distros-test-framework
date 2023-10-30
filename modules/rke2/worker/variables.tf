@@ -12,7 +12,6 @@ variable "volume_size" {}
 variable "iam_role" {}
 variable "node_os" {}
 variable "no_of_worker_nodes" {}
-variable "create_eip" {}
 variable "password" {
   default = "password"
 }

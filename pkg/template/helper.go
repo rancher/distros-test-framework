@@ -9,7 +9,7 @@ import (
 )
 
 // upgradeVersion upgrades the product version
-func upgradeVersion(template VersionTestTemplate, version string) error {
+func upgradeVersion(template TestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
 		return err
@@ -21,7 +21,7 @@ func upgradeVersion(template VersionTestTemplate, version string) error {
 }
 
 // updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
-func updateExpectedValue(template VersionTestTemplate) {
+func updateExpectedValue(template TestTemplate) {
 	for i := range template.TestCombination.Run {
 		template.TestCombination.Run[i].ExpectedValue =
 			template.TestCombination.Run[i].ExpectedValueUpgrade
@@ -29,7 +29,7 @@ func updateExpectedValue(template VersionTestTemplate) {
 }
 
 // executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
-func executeTestCombination(v VersionTestTemplate) error {
+func executeTestCombination(v TestTemplate) error {
 	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
@@ -50,7 +50,7 @@ func executeTestCombination(v VersionTestTemplate) error {
 	}
 
 	if v.TestConfig != nil {
-		testCaseWrapper(v)
+		wrapper(v)
 	}
 
 	return nil

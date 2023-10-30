@@ -12,8 +12,8 @@ import (
 )
 
 func TestDaemonset(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "daemonset.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	workloadErr := shared.ManageWorkload("apply", "daemonset.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
 
 	pods, _ := shared.GetPods(false)
 
@@ -55,10 +55,9 @@ func TestDaemonset(deleteWorkload bool) {
 		"Daemonset pod count does not match node count")
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "daemonset.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
-
 }
 
 // validateNodesEqual checks if the nodes in the two strings are equal (ignoring order through sorting).

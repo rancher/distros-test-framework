@@ -4,10 +4,14 @@
 #set -x
 # PS4='+(${LINENO}): '
 
+set -e
+
 create_directories() {
   sudo mkdir -p /etc/rancher/k3s
   sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
   sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+  echo "alias k=kubectl" >> ~/.bashrc
+  source ~/.bashrc
 }
 
 create_config() {
@@ -15,6 +19,7 @@ create_config() {
   local server_ip="${2}"
   local token="${3}"
   local node_external_ip="${4}"
+
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 write-kubeconfig-mode: "0644"
 tls-san:
@@ -116,9 +121,8 @@ install() {
         fi
     fi
 }
-export alias k=kubectl
-main() {
 
+main() {
   create_directories
   create_config "$2" "$7" "$8" "$6"
   add_config  "${10}"

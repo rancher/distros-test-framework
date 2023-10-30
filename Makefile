@@ -2,7 +2,6 @@ include ./config/.env
 
 TAG_NAME := $(if $(TAG_NAME),$(TAG_NAME),distros)
 
-
 test-env-up:
 	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAG_NAME}
 
@@ -17,6 +16,23 @@ test-run:
 	  make image-stats IMG_NAME=${IMG_NAME} && \
 	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
 
+## Use this to run automatically without need to change image name
+test-run-new:
+	@NEW_IMG_NAME=$$(LC_ALL=C < /dev/urandom tr -dc 'a-z' | head -c3) && \
+	docker run -dt --name acceptance-test-${IMG_NAME}-$$NEW_IMG_NAME \
+	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
+	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
+	  --env-file ./config/.env \
+	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
+	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
+	  acceptance-test-${TAG_NAME} && \
+	  make image-stats IMG_NAME=${IMG_NAME}-$$NEW_IMG_NAME && \
+	  docker logs -f acceptance-test-${IMG_NAME}-$$NEW_IMG_NAME
+
+## Use this to build and run automatically
+test-build-run:
+	@make test-env-up && \
+	make test-run-new
 
 ## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
 test-run-state:
@@ -35,7 +51,7 @@ test-run-state:
     			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
     			teststate:latest && \
     			 make test-logs USE=TEST_STATE acceptance-test-${TEST_STATE} \
-    			echo "Docker run exit code: $$?"; \
+    			echo "Docker run exit code: ${$?}"; \
     		else \
     			echo "Failed to commit container"; \
     			exit 1; \
@@ -44,6 +60,12 @@ test-run-state:
 
 ## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
+
+## use this to skip tests
+test-skip:
+	ifdef SKIP
+		SKIP_FLAG=--ginkgo.skip="${SKIP}"
+	endif
 
 test-logs:
 	@if [ "${USE}" = "IMG_NAME" ]; then \
@@ -81,6 +103,11 @@ remove-tf-state:
 .PHONY: test-create
 test-create:
 	@go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
+
+
+.PHONY: test-validate
+test-validate:
+	@go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
 
 
 .PHONY: test-upgrade-suc
