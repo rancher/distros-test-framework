@@ -1,5 +1,3 @@
-//go:build selinux
-
 package selinux
 
 import (
