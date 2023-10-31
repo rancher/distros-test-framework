@@ -186,6 +186,12 @@ test-cniplugin-bump:
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
 	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
 
+.PHONY: test-validate-selinux
+test-validate-selinux:
+	@go test -timeout=45m -v -count=1 ./entrypoint/selinux/... \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
+	$(if ${CHANNEL},-channel ${CHANNEL})
+
 #========================= TestCode Static Quality Check =========================#
 .PHONY: vet-lint
 vet-lint:

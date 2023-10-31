@@ -74,18 +74,29 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 
 // CheckComponentCmdNode runs a command on a node and asserts that the value received
 // contains the specified substring.
-func CheckComponentCmdNode(cmd, assert, ip string) error {
-	if cmd == "" || assert == "" {
-		return shared.ReturnLogError("cmd and/or assert should not be sent empty")
+func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
+	if cmd == "" {
+		return shared.ReturnLogError("cmd should not be sent empty")
+	}
+	for _, assert := range asserts {
+		if assert == "" {
+			return shared.ReturnLogError("asserts should not be sent empty")
+		}
 	}
 
-	Eventually(func(g Gomega) {
+	Eventually(func(g Gomega) error {
+		fmt.Println("\nExecuting cmd: ", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
 		Expect(err).ToNot(HaveOccurred())
-		g.Expect(res).Should(ContainSubstring(assert))
 
-		fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
-	}, "420s", "3s").Should(Succeed())
+		for _, assert := range asserts {
+			g.Expect(res).Should(ContainSubstring(assert))
+			fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
+		}
+
+		return nil
+
+	}, "420s", "5s").Should(Succeed())
 
 	return nil
 }
