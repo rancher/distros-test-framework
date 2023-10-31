@@ -73,7 +73,7 @@ jobs:
             target2=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target2-go.mod) 
             echo "The versions present in these go.mod files are below" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- ${ target0 }" >> $GITHUB_STEP_SUMMARY
-            echo "- ${ target1 }" >> $GITHUB_STEP_SUMMARY
-            echo "- ${ target2 }" >> $GITHUB_STEP_SUMMARY
+            echo "- ${target0}" >> $GITHUB_STEP_SUMMARY
+            echo "- ${target1}" >> $GITHUB_STEP_SUMMARY
+            echo "- ${target2}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY 
