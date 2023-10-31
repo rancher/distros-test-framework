@@ -35,7 +35,7 @@ jobs:
         - name: checkout latest
           uses: actions/checkout@v4
           with: 
-            repository: '${{github.event.inputs.repo}}'
+            repository: '${{ github.event.inputs.repo }}'
             ref: '${{ github.event.inputs.target0 }}'
             sparse-checkout: |
                 go.mod
@@ -43,37 +43,37 @@ jobs:
         - name: rename go.mod
           run: |
             mkdir -p /tmp/comparisons/
-             mv go.mod /tmp/comparisons/go-master.mod
+             mv go.mod /tmp/comparisons/target0-go.mod
         - name: Checkout
           uses: actions/checkout@v4
           with:
-            repository: '${{github.event.inputs.repo}}'
+            repository: '${{ github.event.inputs.repo }}'
             ref: "${{ github.event.inputs.target1 }}"
             sparse-checkout: |
                 go.mod
             sparse-checkout-cone-mode: false
         - name: rename go.mod
           run: |
-               mv go.mod /tmp/comparisons/go-target1.mod
+               mv go.mod /tmp/comparisons/target1-go.mod
         - name: Checkout tools repo
           uses: actions/checkout@v4
           with:
-            repository: '${{github.event.inputs.repo}}'
+            repository: '${{ github.event.inputs.repo }}'
             ref: "${{ github.event.inputs.target2 }}"
             sparse-checkout: |
                 go.mod
             sparse-checkout-cone-mode: false
         - name: rename go.mod
           run: |
-               mv go.mod /tmp/comparisons/go-target2.mod
+               mv go.mod /tmp/comparisons/target2-go.mod
         - name: compare go.mod files
           run: |
-            target0=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/go-master.mod)
-            target1=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/go-target1.mod)
-            target2=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/go-target2.mod) 
+            target0=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target0-go.mod)
+            target1=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target1-go.mod)
+            target2=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target2-go.mod) 
             echo "The versions present in these go.mod files are below" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- ${target0}" >> $GITHUB_STEP_SUMMARY
-            echo "- ${target1}" >> $GITHUB_STEP_SUMMARY
-            echo "- ${target2}" >> $GITHUB_STEP_SUMMARY
+            echo "- ${ target0 }" >> $GITHUB_STEP_SUMMARY
+            echo "- ${ target1 }" >> $GITHUB_STEP_SUMMARY
+            echo "- ${ target2 }" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY 
