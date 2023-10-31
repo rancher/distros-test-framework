@@ -326,12 +326,10 @@ var conf = []configuration{
 		},
 	},
 	{
-		// Works partially, has a bug related
 		distroName: "rke2_centos8",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*": ctxUnitFile,
-			// TODO: issue related to UnitFile https://github.com/rancher/rke2/issues/4741
-			//cmdPrefix + " " + "/lib/systemd/system/rke2*":                                              ctxUnitFile,
+			cmdPrefix + " " + systemD + "/rke2*":                                                       ctxUnitFile,
+			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                              ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2*":                                    ctxUnitFile,
 			cmdPrefix + " " + usrBin + "/rke2":                                                         ctxExec,
 			cmdPrefix + " " + usrLocal + "/rke2":                                                       ctxExec,
@@ -355,12 +353,10 @@ var conf = []configuration{
 		},
 	},
 	{
-		// Works partially, has a bug related
 		distroName: "rke2_centos9",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*": ctxUnitFile,
-			// TODO: issue related to UnitFile https://github.com/rancher/rke2/issues/4741
-			//cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
+			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
+			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2*":                                       ctxUnitFile,
 			cmdPrefix + " " + usrBin + "/rke2":                                                            ctxExec,
 			cmdPrefix + " " + usrLocal + "/rke2":                                                          ctxExec,
