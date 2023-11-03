@@ -373,7 +373,7 @@ func parsePods(res string) []Pod {
 			continue
 		}
 
-		if len(fields) == 8 {
+		if len(fields) == 9 {
 			p := Pod{
 				Name:      fields[0],
 				Ready:     fields[1],
@@ -384,7 +384,7 @@ func parsePods(res string) []Pod {
 				Node:      fields[6],
 			}
 			pods = append(pods, p)
-		} else if len(fields) < 8 {
+		} else if len(fields) < 9 {
 			continue
 		} else {
 			p := Pod{
