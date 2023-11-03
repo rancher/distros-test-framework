@@ -126,7 +126,7 @@ func TestIngressRoute(deleteWorkload bool) {
 				"404 page not found",
 			)
 			Expect(err).NotTo(HaveOccurred(), err)
-		}, "90s", "5s").Should(Succeed())
+		}, "30s", "5s").Should(Succeed())
 	}
 
 	if deleteWorkload {
