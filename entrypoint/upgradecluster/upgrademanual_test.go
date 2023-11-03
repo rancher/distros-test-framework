@@ -33,33 +33,33 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(false)
+	It("Verifies ClusterIP Service pre-upgrade", func() {
+		testcase.TestServiceClusterIp(true, false)
 	})
 
-	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(false)
+	It("Verifies NodePort Service pre-upgrade", func() {
+		testcase.TestServiceNodePort(true, false)
 	})
 
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(false)
+	It("Verifies Ingress pre-upgrade", func() {
+		testcase.TestIngress(true, false)
 	})
 
-	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(false)
+	It("Verifies Daemonset pre-upgrade", func() {
+		testcase.TestDaemonset(true, false)
 	})
 
-	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(false)
+	It("Verifies dns access pre-upgrade", func() {
+		testcase.TestDnsAccess(true, false)
 	})
 
 	if cfg.Product == "k3s" {
-		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(false)
+		It("Verifies LoadBalancer Service pre-upgrade", func() {
+			testcase.TestServiceLoadBalancer(true, false)
 		})
 
-		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(false)
+		It("Verifies Local Path Provisioner storage pre-upgrade", func() {
+			testcase.TestLocalPathProvisionerStorage(true, false)
 		})
 	}
 
@@ -67,14 +67,14 @@ var _ = Describe("Test:", func() {
 		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
 
-	It("Checks Node Status pos upgrade and validate version", func() {
+	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
 		)
 	})
 
-	It("Checks Pod Status pos upgrade", func() {
+	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -83,32 +83,32 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(false, true)
 	})
 
 	It("Verifies NodePort Service after upgrade", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(false, true)
 	})
 
 	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(false, true)
 	})
 
 	It("Verifies Daemonset after upgrade", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(false, true)
 	})
 
 	It("Verifies dns access after upgrade", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(false, true)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(true)
+			testcase.TestServiceLoadBalancer(false, true)
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(true)
+			testcase.TestLocalPathProvisionerStorage(false, true)
 		})
 	}
 })

@@ -31,7 +31,7 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(true)
+		testcase.TestInternodeConnectivityMixedOS(true, true)
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {

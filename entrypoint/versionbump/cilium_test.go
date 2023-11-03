@@ -54,23 +54,23 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(true, true)
 	})
 
 	It("Verifies Ingress", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(true, true)
 	})
 
 	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(true, true)
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(true, true)
 	})
 })
 

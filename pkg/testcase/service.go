@@ -7,13 +7,15 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIp(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "clusterip.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
+	if applyWorkload {
+		_, err := shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
 
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	err = assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
@@ -30,9 +32,11 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	}
 }
 
-func TestServiceNodePort(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
-	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
+	if applyWorkload {
+		_, err := shared.ManageWorkload("apply", "nodeport.yaml")
+		Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+	}
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
@@ -60,9 +64,11 @@ func TestServiceNodePort(deleteWorkload bool) {
 	}
 }
 
-func TestServiceLoadBalancer(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
+func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
+	if applyWorkload {
+		_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
+		Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
+	}
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
