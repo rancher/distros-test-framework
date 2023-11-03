@@ -58,6 +58,10 @@ var _ = Describe("Test:", func() {
 		It("Verifies LoadBalancer Service", func() {
 			testcase.TestServiceLoadBalancer(true, true)
 		})
+
+		It("Verifies Traefik IngressRoute", func() {
+			testcase.TestIngressRoute(true)
+		})
 	}
 })
 

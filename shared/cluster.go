@@ -346,6 +346,22 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
+// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace with a specific label
+func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s", namespace, label, KubeConfigFile)
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
+	}
+
+	pods := parsePods(res)
+	if print {
+		fmt.Println(res)
+	}
+
+	return pods, nil
+}
+
 // parsePods parses the pods from the kubeclt get pods command.
 func parsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
@@ -357,21 +373,32 @@ func parsePods(res string) []Pod {
 			continue
 		}
 
-		if len(fields) < 9 {
+		if len(fields) == 8 {
+			p := Pod{
+				Name:      fields[0],
+				Ready:     fields[1],
+				Status:    fields[2],
+				Restarts:  fields[3],
+				Age:       fields[4],
+				NodeIP:    fields[5],
+				Node:      fields[6],
+			}
+			pods = append(pods, p)
+		} else if len(fields) < 8 {
 			continue
+		} else {
+			p := Pod{
+				NameSpace: fields[0],
+				Name:      fields[1],
+				Ready:     fields[2],
+				Status:    fields[3],
+				Restarts:  fields[4],
+				Age:       fields[5],
+				NodeIP:    fields[6],
+				Node:      fields[7],
+			}
+			pods = append(pods, p)
 		}
-
-		p := Pod{
-			NameSpace: fields[0],
-			Name:      fields[1],
-			Ready:     fields[2],
-			Status:    fields[3],
-			Restarts:  fields[4],
-			Age:       fields[5],
-			NodeIP:    fields[6],
-			Node:      fields[7],
-		}
-		pods = append(pods, p)
 	}
 
 	return pods
