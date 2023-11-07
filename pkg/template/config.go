@@ -36,15 +36,15 @@ type TestConfig struct {
 // testCase is a custom type representing the test function.
 type testCase func(deployWorkload bool)
 
-// wrapper wraps a test function and calls it with the given GinkgoTInterface and TestTemplate.
-func wrapper(v TestTemplate) {
+// testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and TestTemplate.
+func testCaseWrapper(v TestTemplate) {
 	for _, testFunc := range v.TestConfig.TestFunc {
 		testFunc(v.TestConfig.DeployWorkload)
 	}
 }
 
-// ToTestCase converts the TestCaseFlag to testCase
-func ToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
+// ConvertToTestCase converts the TestCaseFlag to testCase
+func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
 	var testCases []testCase
 	for _, tcf := range testCaseFlags {
 		tc := testCase(tcf)

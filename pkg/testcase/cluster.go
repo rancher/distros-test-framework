@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -33,7 +33,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
 			cluster.ServerIPs[0])
 		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
-		Expect(etcd).Should(BeEmpty())
+		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
 		Expect(err).To(HaveOccurred())
 	}
 

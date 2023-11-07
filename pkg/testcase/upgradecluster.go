@@ -62,7 +62,7 @@ func TestUpgradeClusterManually(version string) error {
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")

@@ -45,7 +45,7 @@ var _ = Describe("CoreDNS Version Upgrade:", func() {
 			},
 			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &TestConfig{
-				TestFunc:       ToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
+				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},

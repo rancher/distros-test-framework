@@ -27,8 +27,8 @@ func TestIngress(deleteWorkload bool) {
 	for _, ip := range ingressIps {
 		err = assert.CheckComponentCmdNode("curl -s --header host:foo1.bar.com"+
 			" http://"+ip+"/name.html",
-			"test-ingress",
 			ip,
+			"test-ingress",
 		)
 	}
 	Expect(err).NotTo(HaveOccurred(), err)

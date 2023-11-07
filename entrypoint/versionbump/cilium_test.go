@@ -13,7 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Cillium Version Upgrade:", func() {
+var _ = Describe("Cilium Version Upgrade:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
@@ -45,7 +45,7 @@ var _ = Describe("Cillium Version Upgrade:", func() {
 			},
 			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &TestConfig{
-				TestFunc:       ToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
+				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},

@@ -31,7 +31,7 @@ func newLogger(json bool) *log.Logger {
 			ForceColors:   true,
 			FullTimestamp: true,
 			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				link := fmt.Sprintf("file://%s:%d", f.File, f.Line)
+				link := fmt.Sprintf("%s:%d", f.File, f.Line)
 				return f.Function, link
 			},
 			QuoteEmptyFields: true,

@@ -50,7 +50,7 @@ func executeTestCombination(v TestTemplate) error {
 	}
 
 	if v.TestConfig != nil {
-		wrapper(v)
+		testCaseWrapper(v)
 	}
 
 	return nil

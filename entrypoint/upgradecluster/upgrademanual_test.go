@@ -67,14 +67,14 @@ var _ = Describe("Test:", func() {
 		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
 
-	It("Checks Node Status pos upgrade and validate version", func() {
+	It("Checks Node status pos upgrade and validate version", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
 		)
 	})
 
-	It("Checks Pod Status pos upgrade", func() {
+	It("Checks Pod status pos upgrade", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),

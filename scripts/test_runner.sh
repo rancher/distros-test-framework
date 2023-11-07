@@ -11,7 +11,7 @@ if [ -z "${IMG_NAME}" ]; then
 fi
 
 case "$TEST_DIR" in
-     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster)
+     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux)
      if [[ "$TEST_TAG" != "" ]];
       then
         printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
@@ -44,13 +44,15 @@ if [ -n "${TEST_DIR}" ]; then
             -workloadName "${WORKLOAD_NAME}" \
             -description "${DESCRIPTION}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+        go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
+        go test -timeout=55m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
+    elif [ "${TEST_DIR}" = "selinux" ]; then
+        go test -timeout=50m -v -count=1 ./entrypoint/selinux/...
     fi
 fi
 

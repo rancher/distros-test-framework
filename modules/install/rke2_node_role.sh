@@ -1,7 +1,11 @@
 #!/bin/bash
 # This script defines which role this node will be and writes that to a file
 # that is readable by rke2
+
+set -x
+PS4='+(${LINENO}): '
 set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 if [ $# != 8 ]; then
   echo "Usage: rke2_node_roles.sh node_index role_order all_role_nodes etcd_only_nodes etcd_cp_nodes etcd_worker_nodes cp_only_nodes cp_worker_nodes"
