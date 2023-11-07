@@ -89,7 +89,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies DNS Access post-upgrade", func() {
-		testcase.TestDnsAccess(false, true)
+		testcase.TestDnsAccess(true, true)
 	})
 })
 
