@@ -30,16 +30,17 @@ type TestMap struct {
 type TestConfig struct {
 	TestFunc       []testCase
 	DeployWorkload bool
+	DeleteWorkload bool
 	WorkloadName   string
 }
 
 // testCase is a custom type representing the test function.
-type testCase func(deployWorkload bool)
+type testCase func(applyWorkload, deleteWorkload bool)
 
 // testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and VersionTestTemplate.
 func testCaseWrapper(v VersionTestTemplate) {
 	for _, testFunc := range v.TestConfig.TestFunc {
-		testFunc(v.TestConfig.DeployWorkload)
+		testFunc(v.TestConfig.DeployWorkload, v.TestConfig.DeleteWorkload)
 	}
 }
 

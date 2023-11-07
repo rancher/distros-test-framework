@@ -23,6 +23,7 @@ Available arguments to create your command with examples:
 - $ -expectedValueUpgrade "v0.0.24"
 - $ -installVersionOrCommit INSTALL_K3S_COMMIT=257fa2c54cda332e42b8aae248c152f4d1898218
 - $ -deployWorkload true
+- $ -deleteWorkload true
 - $ -testCase "TestLocalPathProvisionerStorage"
 - $ -workloadName "bandwidth-annotations.yaml"
 - $ -description "Description of your test"
@@ -45,6 +46,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
 -testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
 -deployWorkload=true \
+-deleteWorkload=false \
 -workloadName "bandwidth-annotations.yaml"
 ```
 Example of an execution with multiple values on rke2:
@@ -56,6 +58,7 @@ go test -v -timeout=45m -tags=versionbump ./entrypoint/versionbump/... \
 -installVersionOrCommit INSTALL_RKE2_VERSION=v1.25.9+rke2r1 \
 -testCase "TestServiceClusterIP, TestIngress" \
 -deployWorkload true \
+-deleteWorkload true \
 -workloadName "ingress.yaml" \
 -description "Testing ingress and service cluster ip"
 ```

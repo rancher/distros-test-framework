@@ -36,6 +36,7 @@ if [ -n "${TEST_DIR}" ]; then
             -channel "${CHANNEL}" \
             -testCase "${TEST_CASE}" \
             -deployWorkload "${DEPLOY_WORKLOAD}" \
+            -deleteWorkload "${DELETE_WORKLOAD}" \
             -workloadName "${WORKLOAD_NAME}" \
             -description "${DESCRIPTION}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then

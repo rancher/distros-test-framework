@@ -47,6 +47,7 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 			TestConfig: &template.TestConfig{
 				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
 				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,
+				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},
 			Description: customflag.ServiceFlag.TestConfig.Description,

@@ -38,6 +38,7 @@ type testConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
 	DeployWorkload bool
+	DeleteWorkload bool
 	WorkloadName   string
 	Description    string
 }
@@ -52,7 +53,7 @@ type clusterConfigFlag struct {
 
 type destroyFlag bool
 
-type TestCaseFlag func(deployWorkload bool)
+type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
 type stringSlice []string
 
