@@ -25,7 +25,7 @@ func TestPodStatus(
 		for _, pod := range pods {
 			processPodStatus(g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
 		}
-	}, "1500s", "10s").Should(Succeed())
+	}, "2500s", "10s").Should(Succeed())
 
 	fmt.Println("\n\nCluster Pods:")
 	_, err := shared.GetPods(true)

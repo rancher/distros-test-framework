@@ -23,4 +23,4 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 
 awk '!/^#|^$|access_key|key_name|username|password|region|qa_space/' "$CONFIG_PATH"
 
-exec sh ./scripts/test_runner.sh "$@"
+exec bash ./scripts/test_runner.sh "$@"

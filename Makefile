@@ -9,25 +9,32 @@ test-run:
 	@docker run -dt --name acceptance-test-${IMG_NAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
 	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
+	  -e TEST_DIR=${TEST_DIR} \
+	  -e IMG_NAME=${IMG_NAME} \
+	  -e TEST_TAG=${TEST_TAG} \
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
 	  acceptance-test-${TAG_NAME} && \
 	  make image-stats IMG_NAME=${IMG_NAME} && \
 	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
 
 ## Use this to run automatically without need to change image name
 test-run-new:
-	@NEW_IMG_NAME=$$(LC_ALL=C < /dev/urandom tr -dc 'a-z' | head -c3) && \
-	docker run -dt --name acceptance-test-${IMG_NAME}-$$NEW_IMG_NAME \
-	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
-	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
+	$(eval RANDOM_SUFFIX := $(shell LC_ALL=C < /dev/urandom tr -dc 'a-z' | head -c3))
+	@NEW_IMG_NAME="" ; \
+	if [[ ! -z "${RKE2_VERSION}" ]]; then \
+		NEW_IMG_NAME=$$(echo ${RKE2_VERSION} | sed 's/+.*//'); \
+	elif [[ ! -z "${K3S_VERSION}" ]]; then \
+		NEW_IMG_NAME=$$(echo ${K3S_VERSION} | sed 's/+.*//'); \
+	fi; \
+	docker run -dt --name acceptance-test-${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX} \
+	  -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+	  -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
 	  acceptance-test-${TAG_NAME} && \
-	  make image-stats IMG_NAME=${IMG_NAME}-$$NEW_IMG_NAME && \
-	  docker logs -f acceptance-test-${IMG_NAME}-$$NEW_IMG_NAME
+	  make image-stats IMG_NAME=${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX} && \
+	  docker logs -f acceptance-test-${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX}
 
 ## Use this to build and run automatically
 test-build-run:
@@ -212,6 +219,12 @@ test-cniplugin-bump:
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
 	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+
+.PHONY: test-validate-selinux
+test-validate-selinux:
+	@go test -timeout=45m -v -count=1 ./entrypoint/selinux/... \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
+	$(if ${CHANNEL},-channel ${CHANNEL})
 
 #========================= TestCode Static Quality Check =========================#
 .PHONY: vet-lint

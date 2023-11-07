@@ -48,7 +48,7 @@ func TestServiceNodePort(deleteWorkload bool) {
 		Expect(err).NotTo(HaveOccurred(), err)
 
 		err = assert.CheckComponentCmdNode(
-			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
 			ip,
 			"test-nodeport")
 	}
