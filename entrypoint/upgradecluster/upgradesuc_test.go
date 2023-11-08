@@ -54,6 +54,20 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service", func() {
+			testcase.TestServiceLoadBalancer(false)
+		})
+
+		It("Verifies Local Path Provisioner storage", func() {
+			testcase.TestLocalPathProvisionerStorage(false)
+		})
+
+		It("Verifies Traefik IngressRoute before upgrade", func() {
+			testcase.TestIngressRoute(false)
+		})
+	}
+
 	It("\nUpgrade via SUC", func() {
 		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
@@ -94,6 +108,20 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Verifies DNS Access post-upgrade", func() {
 		testcase.TestDnsAccess(true, true)
 	})
+
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service after upgrade", func() {
+			testcase.TestServiceLoadBalancer(true)
+		})
+
+		It("Verifies Local Path Provisioner storage after upgrade", func() {
+			testcase.TestLocalPathProvisionerStorage(true)
+		})
+
+		It("Verifies Traefik IngressRoute after upgrade", func() {
+			testcase.TestIngressRoute(true)
+		})
+	}
 })
 
 var _ = AfterEach(func() {

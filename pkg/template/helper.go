@@ -69,6 +69,7 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestIngressRoute": 								testcase.TestIngressRoute,
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},

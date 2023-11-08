@@ -70,31 +70,34 @@ func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestIngressRoute(deleteWorkload bool) {
-	// Update base IngressRoute manifest to use one of the Node External IPs
-	originalFilePath := shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/workloads/%s/ingressroute.yaml", shared.Arch)
-	newFilePath := shared.BasePath() + 
-		fmt.Sprintf("/distros-test-framework/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
-	content, err := os.ReadFile(originalFilePath)
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
-	}
-
+func TestIngressRoute(applyWorkload, deleteWorkload bool) {
 	publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
-	newContent := strings.ReplaceAll(string(content), "$YOURDNS", publicIp)
-	err = os.WriteFile(newFilePath, []byte(newContent), 0644)
-	if err != nil {
-		Expect(err).NotTo(HaveOccurred(), "failed to update file for ingressroute resource to use one of the node external ips")
-	}
+	if applyWorkload {
+		// Update base IngressRoute manifest to use one of the Node External IPs
+		originalFilePath := shared.BasePath() +
+		fmt.Sprintf("/distros-test-framework/workloads/%s/ingressroute.yaml", shared.Arch)
+		newFilePath := shared.BasePath() + 
+			fmt.Sprintf("/distros-test-framework/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
+		content, err := os.ReadFile(originalFilePath)
+		if err != nil {
+			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
+		}
 
-	// Deploy manifest and ensure pods are running
-	_, err = shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
-	Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
+		newContent := strings.ReplaceAll(string(content), "$YOURDNS", publicIp)
+		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
+		if err != nil {
+			Expect(err).NotTo(HaveOccurred(), "failed to update file for ingressroute resource to use one of the node external ips")
+		}
+
+		// Deploy manifest and ensure pods are running
+		var workloadErr error
+		err = shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
+	}
 
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami" +
 		" --field-selector=status.phase=Running --kubeconfig=%s", shared.KubeConfigFile)
-	err = assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
+	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	// Query the IngressRoute Host
@@ -130,7 +133,7 @@ func TestIngressRoute(deleteWorkload bool) {
 	}
 
 	if deleteWorkload {
-		_, err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
+		err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
 		Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deleted")
 	}
 }
