@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,6 +10,246 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 )
+
+type cmdCtx map[string]string
+
+type configuration struct {
+	distroName string
+	cmdCtx
+}
+
+// setHelper returns the cluster and product
+func setHelper() (*factory.Cluster, string, error) {
+	cluster := factory.AddCluster(GinkgoT())
+	product, err := shared.GetProduct()
+	if err != nil {
+		err = shared.ReturnLogError("error getting product: %v", err)
+		return nil, "", err
+	}
+
+	return cluster, product, nil
+}
+
+// TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
+func TestSelinuxEnabled() {
+	_, product, err := setHelper()
+	Expect(err).NotTo(HaveOccurred())
+
+	ips := shared.FetchNodeExternalIP()
+	selinuxConfigAssert := "selinux: true"
+	selinuxContainerdAssert := "enable_selinux = true"
+
+	for _, ip := range ips {
+		err = assert.CheckComponentCmdNode("cat /etc/rancher/"+
+			product+"/config.yaml", ip, selinuxConfigAssert)
+		Expect(err).NotTo(HaveOccurred())
+		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
+			product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
+		Expect(errCont).NotTo(HaveOccurred())
+	}
+}
+
+// TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version
+func TestSelinux() {
+	cluster, product, err := setHelper()
+	Expect(err).NotTo(HaveOccurred())
+
+	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
+	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
+	agentAsserts := []string{"container-selinux", product + "-selinux"}
+
+	if product == "k3s" {
+		serverCmd = "rpm -qa container-selinux k3s-selinux"
+		serverAsserts = []string{"container-selinux", "k3s-selinux"}
+	}
+
+	if cluster.NumServers > 0 {
+		for _, serverIP := range cluster.ServerIPs {
+			err = assert.CheckComponentCmdNode(serverCmd, serverIP, serverAsserts...)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	}
+
+	if cluster.NumAgents > 0 {
+		for _, agentIP := range cluster.AgentIPs {
+			err = assert.CheckComponentCmdNode("rpm -qa container-selinux "+product+"-selinux", agentIP, agentAsserts...)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	}
+}
+
+func getVersion(osRelease, ip string) (string, error) {
+	if !strings.Contains(osRelease, "VERSION_ID") {
+		return "", shared.ReturnLogError("VERSION_ID not found in: %s", osRelease)
+	}
+	res, err := shared.RunCommandOnNode("cat /etc/os-release | grep 'VERSION_ID'", ip)
+	Expect(err).NotTo(HaveOccurred())
+
+	parts := strings.Split(res, "=")
+	if len(parts) != 2 {
+		return "", shared.ReturnLogError("unexpected format for VERSION_ID")
+	}
+	version := strings.Trim(parts[1], "\"")
+	if dotIndex := strings.Index(version, "."); dotIndex != -1 {
+		version = version[:dotIndex]
+
+	}
+
+	return version, nil
+}
+
+var osPolicy string
+
+func getContext(product, ip string) (cmdCtx, error) {
+	res, err := shared.RunCommandOnNode("cat /etc/os-release", ip)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("OS Release: \n", res)
+	policyMapping := map[string]string{
+		"ID_LIKE='suse' VARIANT_ID='sle-micro'": "sle_micro",
+		"ID_LIKE='suse'":                        "micro_os",
+		"ID_LIKE='coreos'":                      "coreos",
+		"VARIANT_ID='coreos'":                   "coreos",
+	}
+
+	for k, v := range policyMapping {
+		if strings.Contains(res, k) {
+			return selectSelinuxPolicy(product, v), nil
+		}
+	}
+
+	version, err := getVersion(res, ip)
+	if err != nil {
+		return nil, shared.ReturnLogError("failed to get version: %v", err)
+	}
+	if version == "" {
+		return nil, shared.ReturnLogError("could not determine version for os: %s", res)
+	}
+
+	versionMapping := map[string]string{
+		"7": "centos7",
+		"8": "centos8",
+		"9": "centos9",
+	}
+
+	if policy, ok := versionMapping[version]; ok {
+		return selectSelinuxPolicy(product, policy), nil
+	}
+
+	return nil, fmt.Errorf("unable to determine policy for %s on os: %s", ip, res)
+}
+
+func selectSelinuxPolicy(product, osType string) cmdCtx {
+	key := fmt.Sprintf("%s_%s", product, osType)
+
+	for _, config := range conf {
+		if config.distroName == key {
+			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
+			osPolicy = osType
+			return config.cmdCtx
+		}
+	}
+
+	fmt.Printf("Configuration for %s not found!\n", key)
+
+	return nil
+}
+
+// TestSelinuxSpcT Validate that containers don't run with spc_t
+func TestSelinuxSpcT() {
+	cluster, _, err := setHelper()
+	Expect(err).NotTo(HaveOccurred())
+
+	for _, serverIP := range cluster.ServerIPs {
+		// removing err here since this is actually returning exit 1
+		res, _ := shared.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
+		Expect(res).ShouldNot(ContainSubstring("spc_t"))
+	}
+}
+
+// TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
+func TestUninstallPolicy() {
+	cluster, product, err := setHelper()
+	Expect(err).NotTo(HaveOccurred())
+
+	serverUninstallCmd := "sudo rke2-uninstall.sh"
+	agentUninstallCmd := "sudo rke2-uninstall.sh"
+	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
+
+	if product == "k3s" {
+		serverUninstallCmd = "k3s-uninstall.sh"
+		agentUninstallCmd = "k3s-agent-uninstall.sh"
+		serverCmd = "rpm -qa container-selinux k3s-selinux"
+	}
+
+	for _, serverIP := range cluster.ServerIPs {
+		fmt.Println("Uninstalling "+product+" on server: ", serverIP)
+
+		_, err := shared.RunCommandOnNode(serverUninstallCmd, serverIP)
+		Expect(err).NotTo(HaveOccurred())
+
+		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
+		Expect(errSel).NotTo(HaveOccurred())
+
+		if strings.Contains(osPolicy, "centos7") {
+			Expect(res).Should(ContainSubstring("container-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+		} else {
+			Expect(res).Should(BeEmpty())
+		}
+	}
+
+	for _, agentIP := range cluster.AgentIPs {
+		fmt.Println("Uninstalling "+product+" on agent: ", agentIP)
+
+		_, err := shared.RunCommandOnNode(agentUninstallCmd, agentIP)
+		Expect(err).NotTo(HaveOccurred())
+
+		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+product+"-selinux", agentIP)
+		Expect(errSel).NotTo(HaveOccurred())
+
+		if osPolicy == "centos7" {
+			Expect(res).Should(ContainSubstring("container-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+		} else {
+			Expect(res).Should(BeEmpty())
+		}
+	}
+}
+
+// https://github.com/k3s-io/k3s/blob/master/install.sh
+// https://github.com/rancher/rke2/blob/master/install.sh
+// Based on this info, this is the way to validate the correct context
+
+// TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created
+func TestSelinuxContext() {
+	var err error
+	var product string
+
+	cluster, product, err := setHelper()
+	Expect(err).NotTo(HaveOccurred())
+
+	if cluster.NumServers > 0 {
+		for _, ip := range cluster.ServerIPs {
+			var context map[string]string
+			context, err = getContext(product, ip)
+			Expect(err).NotTo(HaveOccurred())
+
+			var res string
+			for cmd, expectedContext := range context {
+				res, err = shared.RunCommandOnNode(cmd, ip)
+				fmt.Printf("\nCommand:\n%s \nContext expected:\n%s\nResult:\n%s\n", cmd, expectedContext, res)
+				if res != "" {
+					Expect(res).Should(ContainSubstring(expectedContext),
+						"error on cmd %v \n Context %v \nnot found on ", cmd, expectedContext, res)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			}
+		}
+	}
+}
 
 var (
 	cmdPrefix  = "sudo ls -laZ"
@@ -42,247 +281,7 @@ const (
 	ctxRke2TLS  = "system_u:object_r:rke2_tls_t:s0"
 )
 
-type cmdCtx map[string]string
-
-type configuration struct {
-	distroName string
-	cmdCtx
-}
-
-// TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
-func TestSelinuxEnabled() {
-	product, err := shared.GetProduct()
-	if err != nil {
-		return
-	}
-
-	ips := shared.FetchNodeExternalIP()
-	selinuxConfigAssert := "selinux: true"
-	selinuxContainerdAssert := "enable_selinux = true"
-
-	for _, ip := range ips {
-		err := assert.CheckComponentCmdNode("cat /etc/rancher/"+
-			product+"/config.yaml", ip, selinuxConfigAssert)
-		Expect(err).NotTo(HaveOccurred())
-		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
-			product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
-		Expect(errCont).NotTo(HaveOccurred())
-	}
-}
-
-// TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version
-func TestSelinux() {
-	cluster := factory.AddCluster(GinkgoT())
-	product, err := shared.GetProduct()
-	if err != nil {
-		return
-	}
-
-	var serverCmd string
-	var serverAsserts []string
-	agentAsserts := []string{"container-selinux", product + "-selinux"}
-
-	switch product {
-	case "k3s":
-		serverCmd = "rpm -qa container-selinux k3s-selinux"
-		serverAsserts = []string{"container-selinux", "k3s-selinux"}
-	default:
-		serverCmd = "rpm -qa container-selinux rke2-server rke2-selinux"
-		serverAsserts = []string{"container-selinux", "rke2-selinux", "rke2-server"}
-	}
-
-	if cluster.NumServers > 0 {
-		for _, serverIP := range cluster.ServerIPs {
-			err := assert.CheckComponentCmdNode(serverCmd, serverIP, serverAsserts...)
-			Expect(err).NotTo(HaveOccurred())
-		}
-	}
-
-	if cluster.NumAgents > 0 {
-		for _, agentIP := range cluster.AgentIPs {
-			err := assert.CheckComponentCmdNode("rpm -qa container-selinux "+product+"-selinux", agentIP, agentAsserts...)
-			Expect(err).NotTo(HaveOccurred())
-		}
-	}
-}
-
-// https://github.com/k3s-io/k3s/blob/master/install.sh
-// https://github.com/rancher/rke2/blob/master/install.sh
-// Based on this info, this is the way to validate the correct context
-
-// TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created
-func TestSelinuxContext() {
-	cluster := factory.AddCluster(GinkgoT())
-	product, err := shared.GetProduct()
-	if err != nil {
-		log.Println(err)
-	}
-
-	if cluster.NumServers > 0 {
-		for _, ip := range cluster.ServerIPs {
-			var context map[string]string
-			context, err := getContext(product, ip)
-			Expect(err).NotTo(HaveOccurred())
-
-			fmt.Print("\nThese are the whole commands to use in this context validation\n")
-			fmt.Print("Command to run || Context expected\n")
-			for cmdsToRun, contExpected := range context {
-				fmt.Println(cmdsToRun + " || " + contExpected)
-			}
-
-			for cmd, expectedContext := range context {
-				res, err := shared.RunCommandOnNode(cmd, ip)
-				fmt.Println("\nRunning cmd:", cmd, "\nExpected context:", expectedContext)
-				fmt.Println("Result: \n", res)
-				if res != "" {
-					Expect(res).Should(ContainSubstring(expectedContext), "Error on cmd %v \n Context %v \nnot found on ", cmd, expectedContext, res)
-					Expect(err).NotTo(HaveOccurred())
-				}
-			}
-		}
-	}
-}
-
-func getVersion(osRelease, ip string) string {
-	if strings.Contains(osRelease, "VERSION_ID") {
-		res, err := shared.RunCommandOnNode("cat /etc/os-release | grep 'VERSION_ID'", ip)
-		Expect(err).NotTo(HaveOccurred())
-		parts := strings.Split(res, "=")
-		if len(parts) == 2 {
-			// Get version
-			version := strings.Trim(parts[1], "\"")
-			// if dot exist get the first number
-			if dotIndex := strings.Index(version, "."); dotIndex != -1 {
-				version = version[:dotIndex]
-			}
-			return version
-		}
-	}
-	return ""
-}
-
-var osPolicy string
-
-func getContext(product, ip string) (cmdCtx, error) {
-	res, err := shared.RunCommandOnNode("cat /etc/os-release", ip)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("OS Release: \n", res)
-	policyMapping := map[string]string{
-		"ID_LIKE='suse' VARIANT_ID='sle-micro'": "sle_micro",
-		"ID_LIKE='suse'":                        "micro_os",
-		"ID_LIKE='coreos'":                      "coreos",
-		"VARIANT_ID='coreos'":                   "coreos",
-	}
-
-	for k, v := range policyMapping {
-		if strings.Contains(res, k) {
-			return selectSelinuxPolicy(product, v), nil
-		}
-	}
-
-	version := getVersion(res, ip)
-	versionMapping := map[string]string{
-		"7": "centos7",
-		"8": "centos8",
-		"9": "centos9",
-	}
-
-	if policy, ok := versionMapping[version]; ok {
-		return selectSelinuxPolicy(product, policy), nil
-	}
-
-	return nil, fmt.Errorf("unable to determine policy for %s on os: %s", ip, res)
-}
-
-func selectSelinuxPolicy(product, osType string) cmdCtx {
-	key := fmt.Sprintf("%s_%s", product, osType)
-
-	for _, config := range conf {
-		if config.distroName == key {
-			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
-			osPolicy = osType
-			return config.cmdCtx
-		}
-	}
-
-	fmt.Printf("Configuration for %s not found!\n", key)
-	return nil
-}
-
-// TestSelinuxSpcT Validate that containers don't run with spc_t
-func TestSelinuxSpcT() {
-	cluster := factory.AddCluster(GinkgoT())
-
-	for _, serverIP := range cluster.ServerIPs {
-		res, err := shared.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(res).ShouldNot(ContainSubstring("spc_t"))
-	}
-}
-
-// TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
-func TestUninstallPolicy() {
-	product, err := shared.GetProduct()
-	//product, err := shared.GetProduct()
-	if err != nil {
-		log.Println(err)
-	}
-	cluster := factory.AddCluster(GinkgoT())
-	var serverUninstallCmd string
-	var agentUninstallCmd string
-	var serverCmd string
-
-	switch product {
-	case "k3s":
-		serverUninstallCmd = "k3s-uninstall.sh"
-		agentUninstallCmd = "k3s-agent-uninstall.sh"
-		serverCmd = "rpm -qa container-selinux k3s-selinux"
-
-	default:
-		serverUninstallCmd = "sudo rke2-uninstall.sh"
-		agentUninstallCmd = "sudo rke2-uninstall.sh"
-		serverCmd = "rpm -qa container-selinux rke2-server rke2-selinux"
-	}
-
-	for _, serverIP := range cluster.ServerIPs {
-		fmt.Println("Uninstalling "+product+" on server: ", serverIP)
-
-		_, err := shared.RunCommandOnNode(serverUninstallCmd, serverIP)
-		Expect(err).NotTo(HaveOccurred())
-
-		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
-		Expect(errSel).NotTo(HaveOccurred())
-
-		if strings.Contains(osPolicy, "centos7") {
-			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-		} else {
-			Expect(res).Should(BeEmpty())
-		}
-
-	}
-
-	for _, agentIP := range cluster.AgentIPs {
-		fmt.Println("Uninstalling "+product+" on agent: ", agentIP)
-
-		_, err := shared.RunCommandOnNode(agentUninstallCmd, agentIP)
-		Expect(err).NotTo(HaveOccurred())
-
-		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+product+"-selinux", agentIP)
-		Expect(errSel).NotTo(HaveOccurred())
-
-		if osPolicy == "centos7" {
-			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-		} else {
-			Expect(res).Should(BeEmpty())
-		}
-	}
-}
-
+//nolint:dupl // this is expected
 var conf = []configuration{
 	{
 		distroName: "rke2_centos7",
@@ -442,7 +441,7 @@ var conf = []configuration{
 		distroName: "k3s_centos7",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                      ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                      ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":         ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":   ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                       ctxExec,
@@ -453,7 +452,7 @@ var conf = []configuration{
 			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir: ctxFile,
 			/* TODO: Here the expected output is "system_u:object_r:container_var_lib_t:s0"
 			and is showing this "unconfined_u:object_r:container_var_lib_t:s0" (user part is not the expected)*/
-			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
+			// cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
 			cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                        ctxVarLib,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxShare,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxShare,
@@ -492,14 +491,14 @@ var conf = []configuration{
 		distroName: "k3s_centos8",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
 			cmdPrefix + " " + "/usr/local/s?bin/k3s":               ctxExec,
 			/* TODO: Expected context "system_u:object_r:container_var_lib_t:s0" and is showing "unconfined_u:object_r:container_var_lib_t:s0" */
-			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
-			//cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
+			// cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
+			// cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:    ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
@@ -507,15 +506,15 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
 
 			/* TODO: Expected context "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data " + ignoreDir:   ctxData,
-			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir: ctxData,
+			// cmdPrefix + " " + k3s + "/data " + ignoreDir:   ctxData,
+			// cmdPrefix + " " + k3s + "/data/* " + ignoreDir: ctxData,
 
 			/* TODO: Expected context is "system_u:object_r:k3s_lock_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0" */
-			//cmdPrefix + " " + k3s + "/data/.lock":                                 ctxLock,
+			// cmdPrefix + " " + k3s + "/data/.lock":                                 ctxLock,
 
 			/* TODO: For these directories output shows "unconfined_u:object_r:k3s_root_t:s0"	and the expected one is "system_u:object_r:k3s_root_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter: ctxRoot,
-			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter: ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
 
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,
@@ -535,11 +534,10 @@ var conf = []configuration{
 		},
 	},
 	{
-
 		distroName: "k3s_centos9",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
@@ -553,15 +551,15 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
 			/* TODO: Expected "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_data_t:s0" */
-			//cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                 ctxData,
-			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                               ctxData,
+			// cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                 ctxData,
+			// cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                               ctxData,
 
 			/* TODO: Expected "system_u:object_r:k3s_lock_t:s0 " and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
+			// cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
 
 			/* TODO: Expected "system_u:object_r:k3s_root_t:s0 " and is showing "unconfined_u:object_r:k3s_root_t:s0" */
-			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
-			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
 
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,

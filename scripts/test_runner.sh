@@ -11,7 +11,7 @@ if [ -z "${IMG_NAME}" ]; then
 fi
 
 case "$TEST_DIR" in
-     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster)
+     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux)
       printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
         ;;
     *)
@@ -23,9 +23,9 @@ esac
 if [ -n "${TEST_DIR}" ]; then
     if [ "${TEST_DIR}" = "upgradecluster" ]; then
         if [ "${TEST_TAG}" = "upgrademanual" ]; then
-            go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
+            go test -timeout=65m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradesuc" ]; then
-            go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}"
+            go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
         go test -timeout=45m -v -tags=versionbump -count=1 ./entrypoint/versionbump/... \
@@ -46,6 +46,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
+    elif [ "${TEST_DIR}" = "selinux" ]; then
+        go test -timeout=45m -v -count=1 ./entrypoint/selinux/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
     fi
 fi
 

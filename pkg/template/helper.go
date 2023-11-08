@@ -70,6 +70,21 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
 		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
+		"TestSelinuxEnabled": func(deployWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinux": func(deployWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinuxSpcT": func(deployWorkload bool) {
+			testcase.TestSelinuxSpcT()
+		},
+		"TestUninstallPolicy": func(deployWorkload bool) {
+			testcase.TestUninstallPolicy()
+		},
+		"TestSelinuxContext": func(deployWorkload bool) {
+			testcase.TestSelinuxContext()
+		},
 	}
 
 	for _, name := range names {
