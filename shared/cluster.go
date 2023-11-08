@@ -277,6 +277,16 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
+// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide
+func PrintClusterState() {
+	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + KubeConfigFile
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		_ = ReturnLogError("failed to print cluster state: %w\n", err)
+	}
+	fmt.Println(res)
+}
+
 // GetNodes returns nodes parsed from kubectl get nodes.
 func GetNodes(print bool) ([]Node, error) {
 	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
