@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
@@ -226,7 +227,7 @@ func TestSelinuxSpcT() {
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
 func TestUninstallPolicy() {
 	product, err := shared.GetProduct()
-	//product, err := shared.GetProduct()
+	// product, err := shared.GetProduct()
 	if err != nil {
 		log.Println(err)
 	}
@@ -442,7 +443,7 @@ var conf = []configuration{
 		distroName: "k3s_centos7",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                      ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                      ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":         ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*":   ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                       ctxExec,
@@ -453,7 +454,7 @@ var conf = []configuration{
 			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir: ctxFile,
 			/* TODO: Here the expected output is "system_u:object_r:container_var_lib_t:s0"
 			and is showing this "unconfined_u:object_r:container_var_lib_t:s0" (user part is not the expected)*/
-			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
+			// cmdPrefix + " " + k3s + " " + ignoreDir:                                                          ctxVarLib,
 			cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                        ctxVarLib,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:          ctxShare,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:        ctxShare,
@@ -492,14 +493,14 @@ var conf = []configuration{
 		distroName: "k3s_centos8",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
 			cmdPrefix + " " + "/usr/local/s?bin/k3s":               ctxExec,
 			/* TODO: Expected context "system_u:object_r:container_var_lib_t:s0" and is showing "unconfined_u:object_r:container_var_lib_t:s0" */
-			//cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
-			//cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
+			// cmdPrefix + " " + k3s + " " + ignoreDir:                                                      ctxVarLib,
+			// cmdPrefix + " " + k3s + "/* " + ignoreDir:                                                    ctxVarLib,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:    ctxFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
@@ -507,15 +508,15 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
 
 			/* TODO: Expected context "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data " + ignoreDir:   ctxData,
-			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir: ctxData,
+			// cmdPrefix + " " + k3s + "/data " + ignoreDir:   ctxData,
+			// cmdPrefix + " " + k3s + "/data/* " + ignoreDir: ctxData,
 
 			/* TODO: Expected context is "system_u:object_r:k3s_lock_t:s0" and is showing "unconfined_u:object_r:k3s_lock_t:s0" */
-			//cmdPrefix + " " + k3s + "/data/.lock":                                 ctxLock,
+			// cmdPrefix + " " + k3s + "/data/.lock":                                 ctxLock,
 
 			/* TODO: For these directories output shows "unconfined_u:object_r:k3s_root_t:s0"	and the expected one is "system_u:object_r:k3s_root_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter: ctxRoot,
-			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter: ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
 
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,
@@ -539,7 +540,7 @@ var conf = []configuration{
 		distroName: "k3s_centos9",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317
-			//cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
+			// cmdPrefix + " " + systemD + "/k3s*":                                                          ctxUnitFile,
 			cmdPrefix + " " + "/usr/lib/systemd/system/k3s*":       ctxUnitFile,
 			cmdPrefix + " " + "/usr/local/lib/systemd/system/k3s*": ctxUnitFile,
 			cmdPrefix + " " + "/usr/s?bin/k3s":                     ctxExec,
@@ -553,15 +554,15 @@ var conf = []configuration{
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
 			cmdPrefix + " " + k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
 			/* TODO: Expected "system_u:object_r:k3s_data_t:s0" and is showing "unconfined_u:object_r:k3s_data_t:s0" */
-			//cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                 ctxData,
-			//cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                               ctxData,
+			// cmdPrefix + " " + k3s + "/data " + ignoreDir:                                                 ctxData,
+			// cmdPrefix + " " + k3s + "/data/* " + ignoreDir:                                               ctxData,
 
 			/* TODO: Expected "system_u:object_r:k3s_lock_t:s0 " and is showing "unconfined_u:object_r:k3s_lock_t:s0"*/
-			//cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
+			// cmdPrefix + " " + k3s + "/data/.lock":                                                            ctxLock,
 
 			/* TODO: Expected "system_u:object_r:k3s_root_t:s0 " and is showing "unconfined_u:object_r:k3s_root_t:s0" */
-			//cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
-			//cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin " + ignoreDir + " " + grepFilter:                            ctxRoot,
+			// cmdPrefix + " " + k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter:                          ctxRoot,
 
 			cmdPrefix + " " + k3s + "/data/*/bin/.*links " + ignoreDir + " " + grepFilter:                    ctxData,
 			cmdPrefix + " " + k3s + "/data/*/bin/.*sha256sums " + ignoreDir + " " + grepFilter:               ctxData,

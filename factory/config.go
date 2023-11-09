@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -38,15 +39,10 @@ type clusterConfig struct {
 	Arch             string
 }
 
-func loadConfig() (*config.ProductConfig, error) {
-	cfgPath, err := shared.EnvDir("factory")
+func loadConfig() (*config.Product, error) {
+	cfg, err := shared.EnvConfig("factory")
 	if err != nil {
-		return nil, shared.ReturnLogError("error getting env path: %w\n", err)
-	}
-
-	cfg, err := config.AddConfigEnv(cfgPath)
-	if err != nil {
-		return nil, shared.ReturnLogError("error getting config: %w\n", err)
+		return nil, err
 	}
 
 	return cfg, nil

@@ -10,9 +10,10 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
-	"golang.org/x/crypto/ssh"
 )
 
 // RunCommandHost executes a command on the host
@@ -85,8 +86,8 @@ func BasePath() string {
 	return filepath.Join(filepath.Dir(b), "../..")
 }
 
-// EnvDir returns the environment directory of the project based on the package passed.
-func EnvDir(pkg string) (string, error) {
+// envDir returns the environment directory of the project based on the dir package passed.
+func envDir(dir string) (string, error) {
 	_, callerFilePath, _, ok := runtime.Caller(1)
 	if !ok {
 		return "", ReturnLogError("failed to get caller file path")
@@ -96,18 +97,35 @@ func EnvDir(pkg string) (string, error) {
 	var env string
 	var c string
 
-	switch pkg {
+	switch dir {
 	case "factory":
 		c = filepath.Dir(filepath.Join(callerDir))
 		env = filepath.Join(c, "config/.env")
 	case "entrypoint":
-		c = filepath.Dir(filepath.Join(callerDir, ".."))
+		c = filepath.Dir(filepath.Join(callerDir, "."))
+		env = filepath.Join(c, "config/.env")
+	case "pkg":
+		c = filepath.Dir(filepath.Join(callerDir, "."))
 		env = filepath.Join(c, "config/.env")
 	case ".":
 		c = filepath.Dir(filepath.Join(callerDir))
 		env = filepath.Join(callerDir, "config/.env")
 	default:
-		return "", ReturnLogError("unknown package: %s\n", pkg)
+		return "", ReturnLogError("unknown package: %s\n", dir)
+	}
+
+	return env, nil
+}
+
+func EnvConfig(dir string) (*config.Product, error) {
+	path, err := envDir(dir)
+	if err != nil {
+		return nil, ReturnLogError("error getting env path: %w\n", err)
+	}
+
+	env, err := config.AddConfigEnv(path)
+	if err != nil {
+		return nil, ReturnLogError("error getting config: %w\n", err)
 	}
 
 	return env, nil
@@ -168,14 +186,9 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfgPath, err := EnvDir(".")
+	cfg, err := EnvConfig("factory")
 	if err != nil {
-		return "", ReturnLogError("failed to get config path: %v\n", err)
-	}
-
-	cfg, err := config.AddConfigEnv(cfgPath)
-	if err != nil {
-		return "", ReturnLogError("failed to get config: %v\n", err)
+		return "", ReturnLogError("error loading config: %w\n", err)
 	}
 	if cfg.Product != "k3s" && cfg.Product != "rke2" {
 		return "", ReturnLogError("unknown product")
@@ -321,9 +334,17 @@ func LogLevel(level, format string, args ...interface{}) {
 		if ok {
 			funcName := runtime.FuncForPC(pc).Name()
 			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
-		} else {
-			log.Error(msg)
 		}
+		log.Error(msg)
+	case "fatal":
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			log.Fatal(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
+		}
+		log.Fatal(msg)
+	default:
+		log.Info(msg)
 	}
 }
 
