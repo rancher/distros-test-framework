@@ -284,7 +284,7 @@ func PrintClusterState() {
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
 	}
-	fmt.Println(res)
+	fmt.Println("\n", res)
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
