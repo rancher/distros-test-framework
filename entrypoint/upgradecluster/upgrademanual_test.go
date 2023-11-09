@@ -65,6 +65,7 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
+		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
 		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
 	})
