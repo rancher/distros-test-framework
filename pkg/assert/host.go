@@ -9,6 +9,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type CommandAssertions struct {
+	Command    string
+	Assertions []string
+}
+
 // CheckComponentCmdHost runs a command on the host and asserts that the value
 // received contains the specified substring
 // you can send multiple asserts from a cmd but all of them must be true
@@ -35,4 +40,15 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 	}, "420s", "5s").Should(Succeed())
 
 	return nil
+}
+
+func CheckMultipleCmdHost(cmdAsserts []CommandAssertions) {
+	var errArr []error
+	for _, ca := range cmdAsserts {
+		err := CheckComponentCmdHost(ca.Command, ca.Assertions...)
+		if err != nil {
+			errArr = append(errArr, err)
+		}
+	}
+	Expect(errArr).To(BeEmpty())
 }
