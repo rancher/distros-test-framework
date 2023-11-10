@@ -46,7 +46,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("info", fmt.Sprintf("EXECUTE: %s on %s", cmd, ip))
+	LogLevel("debug", fmt.Sprintf("EXECUTE: %s on %s", cmd, ip))
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
@@ -75,7 +75,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v", cmd, stderr)
 	}
-	LogLevel("info", fmt.Sprintf("StdOut: %s StdErr: %s", stdout, cleanedStderr))
+	LogLevel("debug", fmt.Sprintf("StdOut: %s StdErr: %s", stdout, cleanedStderr))
 	return stdout, err
 }
 
@@ -351,21 +351,4 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
-}
-
-// Compare TLS Directories before and after cert rotation to display identical files
-func CompareTLSDir(product string, ip string) (string, error) {
-	dataDir := fmt.Sprintf("/var/lib/rancher/%s", product)
-	serverDir := fmt.Sprintf("%s/server", dataDir)
-	origTLSDir := fmt.Sprintf("%s/tls", serverDir)
-	cmd := fmt.Sprintf("sudo ls -lt %s/ | grep tls | awk {'print $9'} | sed -n '2 p'", serverDir)
-	tlsDir, error := RunCommandOnNode(cmd, ip)
-	if error != nil {
-		LogLevel("warn", "Unable to get new TLS Directory name")
-	}
-	LogLevel("info", fmt.Sprintf("TLS Directory name: %s", tlsDir))
-	newTLSDir := fmt.Sprintf("%s/%s", serverDir, tlsDir)
-	LogLevel("info", "Comparing Directories: %s and %s", origTLSDir, newTLSDir)
-	cmd2 := fmt.Sprintf("sudo diff -sr %s/ %s/ | grep -i identical | awk '{print $2}' | xargs basename -a | awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
-	return RunCommandOnNode(cmd2, ip)
 }

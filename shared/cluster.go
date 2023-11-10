@@ -418,7 +418,7 @@ func getServiceName(product string, serviceType string) string {
 	} else { // k3s-agent, rke2-server, rke2-agent
 		serviceName = fmt.Sprintf("%s-%s", product, serviceType)
 	}
-	LogLevel("info", fmt.Sprintf("Service Name: %s", serviceName))
+	LogLevel("debug", fmt.Sprintf("Service Name: %s", serviceName))
 	return serviceName
 }
 
