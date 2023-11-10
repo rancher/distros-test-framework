@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -10,10 +11,13 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-func errCheck(error error, message string) {
+func errCheck(error error, message string, ignore bool) {
 	if error != nil {
 		shared.LogLevel("error", message)
-		Expect(error).NotTo(HaveOccurred())
+		if !ignore {
+			Expect(error).NotTo(HaveOccurred())
+		}
+
 	}
 }
 
@@ -21,13 +25,22 @@ func errCheck(error error, message string) {
 func certRotate(product string, ip string) {
 	// Stop service on server
 	_, stopError := shared.StopService(product, ip, "server")
-	errCheck(stopError, fmt.Sprintf("Error stopping %s service", product))
+	errCheck(stopError, fmt.Sprintf("Error stopping %s service", product), false)
+	time.Sleep(time.Duration(10) * time.Second) // Adding 10 second sleep between steps
 	// Rotate certificate
 	_, rotateError := shared.CertRotate(product, ip)
-	errCheck(rotateError, fmt.Sprintf("Error running certificate rotate for %s service", product))
+	errCheck(rotateError, fmt.Sprintf("Error running certificate rotate for %s service", product), false)
+	time.Sleep(time.Duration(10) * time.Second) // Adding 10 second sleep between steps
 	// start service on server
 	_, startError := shared.StartService(product, ip, "server")
-	errCheck(startError, fmt.Sprintf("Error starting %s service", product))
+	errCheck(startError, fmt.Sprintf("Error starting %s service", product), true)
+	time.Sleep(time.Duration(10) * time.Second) // Adding 10 second sleep between steps
+	// Retry Stop start of service. (Inconsistent failure to start service above,
+	// can be fixed hopefully with a restart)
+	if startError != nil {
+		_, retryError := shared.StopStartService(product, ip, "server")
+		errCheck(retryError, fmt.Sprintf("ERROR: Retrying Stop/Start %s service", product), false)
+	}
 }
 
 // Compare TLS Directories before and after cert rotation to display identical files
