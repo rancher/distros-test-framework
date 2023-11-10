@@ -104,30 +104,25 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool) {
 	pods, err := shared.GetPodsByNamespaceAndLabel("test-ingressroute", "app=whoami", false)
 	Expect(err).NotTo(HaveOccurred(), err)
 	
+	negativeAsserts := "404 page not found"
 	for _, pod := range pods {
+		positiveAsserts := []string{
+			fmt.Sprintf("Hostname: %s", pod.Name),
+			fmt.Sprintf("IP: %s", pod.NodeIP),
+		}
 		Eventually(func(g Gomega) {
 			// Positive test cases
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls",
-				fmt.Sprintf("Hostname: %s", pod.Name),
-				fmt.Sprintf("IP: %s", pod.NodeIP),
-			)
+			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
 			Expect(err).NotTo(HaveOccurred(), err)
 
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls",
-				fmt.Sprintf("Hostname: %s", pod.Name),
-				fmt.Sprintf("IP: %s", pod.NodeIP),
-			)
+			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
 			Expect(err).NotTo(HaveOccurred(), err)
 
 			// Negative test cases
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls",
-				"404 page not found",
-			)
+			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
 			Expect(err).NotTo(HaveOccurred(), err)
 
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls",
-				"404 page not found",
-			)
+			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
 			Expect(err).NotTo(HaveOccurred(), err)
 		}, "30s", "5s").Should(Succeed())
 	}
