@@ -10,9 +10,9 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-func errCheck(error error, product string) {
+func errCheck(error error, message string) {
 	if error != nil {
-		shared.LogLevel("error", fmt.Sprintf("Error stopping %s service", product))
+		shared.LogLevel("error", message)
 		Expect(error).NotTo(HaveOccurred())
 	}
 }
@@ -21,13 +21,13 @@ func errCheck(error error, product string) {
 func certRotate(product string, ip string) {
 	// Stop service on server
 	_, stopError := shared.StopService(product, ip, "server")
-	errCheck(stopError, product)
+	errCheck(stopError, fmt.Sprintf("Error stopping %s service", product))
 	// Rotate certificate
 	_, rotateError := shared.CertRotate(product, ip)
-	errCheck(rotateError, product)
+	errCheck(rotateError, fmt.Sprintf("Error running certificate rotate for %s service", product))
 	// start service on server
 	_, startError := shared.StartService(product, ip, "server")
-	errCheck(startError, product)
+	errCheck(startError, fmt.Sprintf("Error starting %s service", product))
 }
 
 // Compare TLS Directories before and after cert rotation to display identical files
