@@ -19,20 +19,14 @@ type configuration struct {
 }
 
 // setHelper returns the cluster and product
-func setHelper() (*factory.Cluster, string, error) {
+func fetchCluster() (*factory.Cluster, error) {
 	cluster := factory.AddCluster(GinkgoT())
-	product, err := shared.GetProduct()
-	if err != nil {
-		err = shared.ReturnLogError("error getting product: %v", err)
-		return nil, "", err
-	}
-
-	return cluster, product, nil
+	return cluster, nil
 }
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
 func TestSelinuxEnabled() {
-	_, product, err := setHelper()
+	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
 	ips := shared.FetchNodeExternalIP()
@@ -41,24 +35,25 @@ func TestSelinuxEnabled() {
 
 	for _, ip := range ips {
 		err = assert.CheckComponentCmdNode("cat /etc/rancher/"+
-			product+"/config.yaml", ip, selinuxConfigAssert)
+			cluster.Config.Product+"/config.yaml", ip, selinuxConfigAssert)
 		Expect(err).NotTo(HaveOccurred())
+
 		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
-			product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
+			cluster.Config.Product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
 		Expect(errCont).NotTo(HaveOccurred())
 	}
 }
 
 // TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version
 func TestSelinux() {
-	cluster, product, err := setHelper()
+	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
-	agentAsserts := []string{"container-selinux", product + "-selinux"}
+	agentAsserts := []string{"container-selinux", cluster.Config.Product + "-selinux"}
 
-	if product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
 		serverAsserts = []string{"container-selinux", "k3s-selinux"}
 	}
@@ -72,7 +67,11 @@ func TestSelinux() {
 
 	if cluster.NumAgents > 0 {
 		for _, agentIP := range cluster.AgentIPs {
-			err = assert.CheckComponentCmdNode("rpm -qa container-selinux "+product+"-selinux", agentIP, agentAsserts...)
+			err = assert.CheckComponentCmdNode(
+				"rpm -qa container-selinux "+cluster.Config.Product+"-selinux",
+				agentIP,
+				agentAsserts...,
+			)
 			Expect(err).NotTo(HaveOccurred())
 		}
 	}
@@ -159,7 +158,7 @@ func selectSelinuxPolicy(product, osType string) cmdCtx {
 
 // TestSelinuxSpcT Validate that containers don't run with spc_t
 func TestSelinuxSpcT() {
-	cluster, _, err := setHelper()
+	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -171,23 +170,18 @@ func TestSelinuxSpcT() {
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
 func TestUninstallPolicy() {
-	cluster, product, err := setHelper()
+	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
-	serverUninstallCmd := "sudo rke2-uninstall.sh"
-	agentUninstallCmd := "sudo rke2-uninstall.sh"
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
-
-	if product == "k3s" {
-		serverUninstallCmd = "k3s-uninstall.sh"
-		agentUninstallCmd = "k3s-agent-uninstall.sh"
+	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
-		fmt.Println("Uninstalling "+product+" on server: ", serverIP)
+		fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
 
-		_, err := shared.RunCommandOnNode(serverUninstallCmd, serverIP)
+		err = shared.UninstallProduct(cluster.Config.Product, "server", serverIP)
 		Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
@@ -195,24 +189,24 @@ func TestUninstallPolicy() {
 
 		if strings.Contains(osPolicy, "centos7") {
 			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
 		} else {
 			Expect(res).Should(BeEmpty())
 		}
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
-		fmt.Println("Uninstalling "+product+" on agent: ", agentIP)
+		fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
 
-		_, err := shared.RunCommandOnNode(agentUninstallCmd, agentIP)
+		err = shared.UninstallProduct(cluster.Config.Product, "agent", agentIP)
 		Expect(err).NotTo(HaveOccurred())
 
-		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+product+"-selinux", agentIP)
+		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
 		Expect(errSel).NotTo(HaveOccurred())
 
 		if osPolicy == "centos7" {
 			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+			Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
 		} else {
 			Expect(res).Should(BeEmpty())
 		}
@@ -226,15 +220,13 @@ func TestUninstallPolicy() {
 // TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created
 func TestSelinuxContext() {
 	var err error
-	var product string
-
-	cluster, product, err := setHelper()
+	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
 	if cluster.NumServers > 0 {
 		for _, ip := range cluster.ServerIPs {
 			var context map[string]string
-			context, err = getContext(product, ip)
+			context, err = getContext(cluster.Config.Product, ip)
 			Expect(err).NotTo(HaveOccurred())
 
 			var res string
