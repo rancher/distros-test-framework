@@ -10,14 +10,24 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
+func errCheck(error error, product string) {
+	if error != nil {
+		shared.LogLevel("error", fmt.Sprintf("Error stopping %s service", product))
+		Expect(error).NotTo(HaveOccurred())
+	}
+}
+
 // Rotate certificate for etcd only and cp only nodes
 func certRotate(product string, ip string) {
 	// Stop service on server
-	shared.StopService(product, ip, "server")
+	_, stopError := shared.StopService(product, ip, "server")
+	errCheck(stopError, product)
 	// Rotate certificate
-	shared.CertRotate(product, ip)
+	_, rotateError := shared.CertRotate(product, ip)
+	errCheck(rotateError, product)
 	// start service on server
-	shared.StartService(product, ip, "server")
+	_, startError := shared.StartService(product, ip, "server")
+	errCheck(startError, product)
 }
 
 // Compare TLS Directories before and after cert rotation to display identical files
@@ -33,7 +43,9 @@ func compareTLSDir(product string, ip string) (string, error) {
 	shared.LogLevel("info", fmt.Sprintf("TLS Directory name: %s", tlsDir))
 	newTLSDir := fmt.Sprintf("%s/%s", serverDir, tlsDir)
 	shared.LogLevel("info", "Comparing Directories: %s and %s", origTLSDir, newTLSDir)
-	cmd2 := fmt.Sprintf("sudo diff -sr %s/ %s/ | grep -i identical | awk '{print $2}' | xargs basename -a | awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
+	cmd2 := fmt.Sprintf("sudo diff -sr %s/ %s/ | grep -i identical | "+
+		"awk '{print $2}' | xargs basename -a | "+
+		"awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
 	return shared.RunCommandOnNode(cmd2, ip)
 }
 
@@ -61,14 +73,16 @@ func TestCertRotate() {
 		shared.LogLevel("error", error.Error())
 		Expect(error).NotTo(HaveOccurred())
 	}
-	shared.LogLevel("debug", fmt.Sprintf("Etcd Only Server: %s \nIdentical Files Output: %s", server1, idFiles))
+	shared.LogLevel("debug", fmt.Sprintf("Etcd Only Server: %s \n"+
+		"Identical Files Output: %s", server1, idFiles))
 	// compare and display identical files for server2
 	idFiles2, error2 := compareTLSDir(product, server2)
 	if error2 != nil {
 		shared.LogLevel("error", error2.Error())
 		Expect(error2).NotTo(HaveOccurred())
 	}
-	shared.LogLevel("debug", fmt.Sprintf("Control Plane Only Server Node: %s \nIdentical Files Output: %s", server2, idFiles2))
+	shared.LogLevel("debug", fmt.Sprintf("Control Plane Only Server Node: %s \n"+
+		"Identical Files Output: %s", server2, idFiles2))
 
 	fileNames := []string{"client-ca.crt",
 		"client-ca.key",
