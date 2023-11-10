@@ -409,3 +409,43 @@ func WriteDataPod(namespace string) (string, error) {
 
 	return RunCommandHost(cmd)
 }
+
+// Get service name. Used to work with stop/start k3s/rke2 services
+func getServiceName(product string, serviceType string) string {
+	var serviceName string
+	if product == "k3s" && serviceType == "server" {
+		serviceName = product // k3s
+	} else { // k3s-agent, rke2-server, rke2-agent
+		serviceName = fmt.Sprintf("%s-%s", product, serviceType)
+	}
+	LogLevel("info", fmt.Sprintf("Service Name: %s", serviceName))
+	return serviceName
+}
+
+// stop k3s or rke2 service on the node
+func StopService(product string, ip string, serviceType string) (string, error) {
+	// serviceType values can be server | agent
+	cmd := fmt.Sprintf("sudo systemctl stop %s", getServiceName(product, serviceType))
+	return RunCommandOnNode(cmd, ip)
+}
+
+// start k3s or rke2 service on the node
+// timeout of start command is set to 2 minutes
+func StartService(product string, ip string, serviceType string) (string, error) {
+	// serviceType values can be server | agent
+	cmd := fmt.Sprintf("timeout 2m sudo systemctl start %s", getServiceName(product, serviceType))
+	return RunCommandOnNode(cmd, ip)
+}
+
+// stop_start k3s or rke2 service on the node
+func StopStartService(product string, ip string, serviceType string) (error, error) {
+	_, stopError := StopService(product, ip, serviceType)
+	_, startError := StartService(product, ip, serviceType)
+	return stopError, startError
+}
+
+// certificate rotate for k3s or rke2
+func CertRotate(product string, ip string) (string, error) {
+	cmd := fmt.Sprintf("sudo %s certificate rotate", product)
+	return RunCommandOnNode(cmd, ip)
+}

@@ -10,9 +10,10 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
-	"golang.org/x/crypto/ssh"
 )
 
 // RunCommandHost executes a command on the host
@@ -45,7 +46,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-
+	LogLevel("info", fmt.Sprintf("EXECUTE: %s on %s", cmd, ip))
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
@@ -54,7 +55,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
-			"command: %s failed on run ssh: %s with error: %w\n",
+			"command: %s failed on run ssh: %s with error: %w",
 			cmd,
 			ip,
 			err,
@@ -72,9 +73,9 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
-		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
+		return "", fmt.Errorf("command: %s failed with error: %v", cmd, stderr)
 	}
-
+	LogLevel("info", fmt.Sprintf("StdOut: %s StdErr: %s", stdout, cleanedStderr))
 	return stdout, err
 }
 
@@ -104,7 +105,6 @@ func EnvDir(pkg string) (string, error) {
 		c = filepath.Dir(filepath.Join(callerDir, ".."))
 		env = filepath.Join(c, "config/.env")
 	case ".":
-		c = filepath.Dir(filepath.Join(callerDir))
 		env = filepath.Join(callerDir, "config/.env")
 	default:
 		return "", ReturnLogError("unknown package: %s\n", pkg)
@@ -159,7 +159,7 @@ func getVersion(cmd string) (string, error) {
 	for _, ip := range ips {
 		res, err = RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
+			return "", ReturnLogError("failed to run command on node: %v", err)
 		}
 	}
 
@@ -351,4 +351,21 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
+}
+
+// Compare TLS Directories before and after cert rotation to display identical files
+func CompareTLSDir(product string, ip string) (string, error) {
+	dataDir := fmt.Sprintf("/var/lib/rancher/%s", product)
+	serverDir := fmt.Sprintf("%s/server", dataDir)
+	origTLSDir := fmt.Sprintf("%s/tls", serverDir)
+	cmd := fmt.Sprintf("sudo ls -lt %s/ | grep tls | awk {'print $9'} | sed -n '2 p'", serverDir)
+	tlsDir, error := RunCommandOnNode(cmd, ip)
+	if error != nil {
+		LogLevel("warn", "Unable to get new TLS Directory name")
+	}
+	LogLevel("info", fmt.Sprintf("TLS Directory name: %s", tlsDir))
+	newTLSDir := fmt.Sprintf("%s/%s", serverDir, tlsDir)
+	LogLevel("info", "Comparing Directories: %s and %s", origTLSDir, newTLSDir)
+	cmd2 := fmt.Sprintf("sudo diff -sr %s/ %s/ | grep -i identical | awk '{print $2}' | xargs basename -a | awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
+	return RunCommandOnNode(cmd2, ip)
 }
