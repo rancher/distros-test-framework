@@ -459,13 +459,6 @@ func (s ServiceAction) isStartAction() bool {
 	return false
 }
 
-// func (s ServiceAction) getServiceActionCmd(serviceName string) string {
-// 	if s.isStartAction() {
-// 		return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s; sleep 60", s, serviceName)
-// 	}
-// 	return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s", s, serviceName)
-// }
-
 type Product string
 
 const (
