@@ -11,7 +11,7 @@ import (
 )
 
 func TestCertRotate() {
-	// Please refer to docs/test_related.md for instructions on setup for this test
+	// Please refer to docs/testing.md for instructions on setup for this test
 
 	cluster := factory.AddCluster(GinkgoT())
 	serverIPs := cluster.ServerIPs
