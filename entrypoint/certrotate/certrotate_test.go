@@ -30,7 +30,7 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Certificate Rotate", func() {
+	It("Validate Certificate Rotation", func() {
 		testcase.TestCertRotate()
 	})
 })
