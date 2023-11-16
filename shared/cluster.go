@@ -410,42 +410,145 @@ func WriteDataPod(namespace string) (string, error) {
 	return RunCommandHost(cmd)
 }
 
-// Get service name. Used to work with stop/start k3s/rke2 services
-func getServiceName(product string, serviceType string) string {
+type ServiceType string
+
+const (
+	Server ServiceType = "server"
+	Agent  ServiceType = "agent"
+)
+
+func (s ServiceType) IsValidServiceType() bool {
+	valid := []ServiceType{Server, Agent}
+	for _, i := range valid {
+		if s == i {
+			return true
+		}
+	}
+
+	return false
+}
+
+type ServiceAction string
+
+const (
+	Stop    ServiceAction = "stop"
+	Start   ServiceAction = "start"
+	Restart ServiceAction = "restart"
+	Status  ServiceAction = "status"
+)
+
+func (s ServiceAction) IsValidServiceAction() bool {
+	valid := []ServiceAction{Stop, Start, Restart, Status}
+	for _, i := range valid {
+		if s == i {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s ServiceAction) isStartAction() bool {
+	startAction := []ServiceAction{Start, Restart}
+	for _, i := range startAction {
+		if s == i {
+			return true
+		}
+	}
+
+	return false
+}
+
+// func (s ServiceAction) getServiceActionCmd(serviceName string) string {
+// 	if s.isStartAction() {
+// 		return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s; sleep 60", s, serviceName)
+// 	}
+// 	return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s", s, serviceName)
+// }
+
+type Product string
+
+const (
+	K3S  Product = "k3s"
+	RKE2 Product = "rke2"
+)
+
+func (p Product) IsValidProduct() bool {
+	valid := []Product{K3S, RKE2}
+	for _, i := range valid {
+		if p == i {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p Product) getString() string {
+	if p == K3S {
+		return "k3s"
+	}
+
+	return "rke2"
+}
+
+// getServiceName Get service name. Used to work with stop/start k3s/rke2 services
+func (product Product) getServiceName(serviceType ServiceType) string {
+	if !serviceType.IsValidServiceType() {
+		ReturnLogError("serviceType is not valid; has to be set to ONLY: server | agent")
+	}
 	var serviceName string
-	if product == "k3s" && serviceType == "server" {
-		serviceName = product // k3s
+	if product == K3S && serviceType == Server {
+		serviceName = product.getString() // k3s
 	} else { // k3s-agent, rke2-server, rke2-agent
 		serviceName = fmt.Sprintf("%s-%s", product, serviceType)
 	}
-	LogLevel("debug", fmt.Sprintf("Service Name: %s", serviceName))
+
 	return serviceName
 }
 
-// stop k3s or rke2 service on the node
-func StopService(product string, ip string, serviceType string) (string, error) {
-	// serviceType values can be server | agent
-	cmd := fmt.Sprintf("sudo systemctl stop %s", getServiceName(product, serviceType))
-	return RunCommandOnNode(cmd, ip)
+func (product Product) GetServiceCmd(action ServiceAction, serviceType ServiceType) string {
+	if action.isStartAction() {
+		return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s; sleep 60", action, product.getServiceName(serviceType))
+	}
+	return fmt.Sprintf("timeout 2m sudo systemctl --no-block %s %s", action, product.getServiceName(serviceType))
 }
 
-// start k3s or rke2 service on the node
-// timeout of start command is set to 2 minutes
-func StartService(product string, ip string, serviceType string) (string, error) {
-	// serviceType values can be server | agent
-	cmd := fmt.Sprintf("timeout 2m sudo systemctl start %s", getServiceName(product, serviceType))
-	return RunCommandOnNode(cmd, ip)
+// ManageClusterService action:stop/start/restart/status product:rke2/k3s ips:ips array for serviceType:agent/server
+func (product Product) ManageClusterService(action ServiceAction, serviceType ServiceType, ips []string) error {
+	if !product.IsValidProduct() {
+		ReturnLogError("product needs to be one of: k3s | rke2")
+	}
+	if !action.IsValidServiceAction() {
+		ReturnLogError("action needs to be one of: start | stop | restart | status")
+	}
+	if !serviceType.IsValidServiceType() {
+		ReturnLogError("serviceType needs to be one of: server | agent")
+	}
+
+	for _, ip := range ips {
+		cmd := product.GetServiceCmd(action, serviceType)
+		_, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-// stop_start k3s or rke2 service on the node
-func StopStartService(product string, ip string, serviceType string) (error, error) {
-	_, stopError := StopService(product, ip, serviceType)
-	_, startError := StartService(product, ip, serviceType)
-	return stopError, startError
-}
+// CertRotate certificate rotate for k3s or rke2
+func (product Product) CertRotate(ips []string) (string, error) {
+	if !product.IsValidProduct() {
+		ReturnLogError("Product needs to be one of: k3s | rke2")
+	}
+	for _, ip := range ips {
+		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
+		_, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return ip, err
+		}
+	}
 
-// certificate rotate for k3s or rke2
-func CertRotate(product string, ip string) (string, error) {
-	cmd := fmt.Sprintf("sudo %s certificate rotate", product)
-	return RunCommandOnNode(cmd, ip)
+	return "", nil
 }

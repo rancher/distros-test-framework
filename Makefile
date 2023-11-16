@@ -83,7 +83,7 @@ test-create:
 	@go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
 
 .PHONY: test-cert-rotate
-test-create:
+test-cert-rotate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
 
 

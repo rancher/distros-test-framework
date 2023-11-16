@@ -55,7 +55,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
-			"command: %s failed on run ssh: %s with error: %w",
+			"command: %s failed on run ssh: %s with error: %w\n",
 			cmd,
 			ip,
 			err,
@@ -73,7 +73,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
-		return "", fmt.Errorf("command: %s failed with error: %v", cmd, stderr)
+		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
 	LogLevel("debug", fmt.Sprintf("StdOut: %s StdErr: %s", stdout, cleanedStderr))
 	return stdout, err
@@ -159,7 +159,7 @@ func getVersion(cmd string) (string, error) {
 	for _, ip := range ips {
 		res, err = RunCommandOnNode(cmd, ip)
 		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v", err)
+			return "", ReturnLogError("failed to run command on node: %v\n", err)
 		}
 	}
 
