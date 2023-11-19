@@ -81,51 +81,15 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 
 // BasePath returns the base path of the project.
 func BasePath() string {
-	_, b, _, _ := runtime.Caller(0)
-
-	return filepath.Join(filepath.Dir(b), "../..")
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(callerFilePath), "..")
 }
 
-// envDir returns the environment directory of the project based on the dir package passed.
-func envDir(dir string) (string, error) {
-	_, callerFilePath, _, ok := runtime.Caller(1)
-	if !ok {
-		return "", ReturnLogError("failed to get caller file path")
-	}
-	callerDir := filepath.Dir(callerFilePath)
-
-	var env string
-	var c string
-
-	switch dir {
-	case "factory":
-		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(c, "config/.env")
-	case "entrypoint":
-		c = filepath.Dir(filepath.Join(callerDir, "."))
-		env = filepath.Join(c, "config/.env")
-	case "pkg":
-		c = filepath.Dir(filepath.Join(callerDir, "."))
-		env = filepath.Join(c, "config/.env")
-	case ".":
-		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(callerDir, "config/.env")
-	default:
-		return "", ReturnLogError("unknown package: %s\n", dir)
-	}
-
-	return env, nil
-}
-
-func EnvConfig(dir string) (*config.Product, error) {
-	path, err := envDir(dir)
-	if err != nil {
-		return nil, ReturnLogError("error getting env path: %w\n", err)
-	}
-
+func EnvConfig() (*config.Product, error) {
+	path := BasePath() + "/config/.env"
 	env, err := config.AddConfigEnv(path)
 	if err != nil {
-		return nil, ReturnLogError("error getting config: %w\n", err)
+		return nil, ReturnLogError("error getting env config: %w\n", err)
 	}
 
 	return env, nil
@@ -186,7 +150,7 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfg, err := EnvConfig("factory")
+	cfg, err := EnvConfig()
 	if err != nil {
 		return "", ReturnLogError("error loading config: %w\n", err)
 	}

@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig("entrypoint")
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}

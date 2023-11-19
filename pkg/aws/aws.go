@@ -1,5 +1,6 @@
 package aws
 
+import "C"
 import (
 	"fmt"
 	"strconv"
@@ -10,13 +11,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
 )
 
 type Client struct {
-	c   *config.Infra
-	aws *ec2.EC2
+	infra *factory.Cluster
+	ec2   *ec2.EC2
 }
 
 type response struct {
@@ -25,28 +28,28 @@ type response struct {
 }
 
 func AddAwsNode() (*Client, error) {
-	env, err := shared.EnvConfig("pkg")
-	if err != nil {
-		return nil, shared.ReturnLogError(fmt.Sprintf("error getting env config: %v\n", err))
-	}
+	c := factory.AddCluster(GinkgoT())
+
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(env.Region)})
+		Region: aws.String(c.Infra.Region)})
 	if err != nil {
 		return nil, shared.ReturnLogError("fatal", fmt.Sprintf("error creating AWS session: %v\n", err))
 	}
 
 	return &Client{
-		c: &config.Infra{
-			Ami:              env.Ami,
-			Region:           env.Region,
-			VolumeSize:       env.VolumeSize,
-			InstanceClass:    env.InstanceClass,
-			Subnets:          env.Subnets,
-			AvailabilityZone: env.AvailabilityZone,
-			SgId:             env.SgId,
-			KeyName:          env.KeyName,
+		infra: &factory.Cluster{
+			Infra: factory.Infra{
+				Ami:              c.Infra.Ami,
+				Region:           c.Infra.Region,
+				VolumeSize:       c.Infra.VolumeSize,
+				InstanceClass:    c.Infra.InstanceClass,
+				Subnets:          c.Infra.Subnets,
+				AvailabilityZone: c.Infra.AvailabilityZone,
+				SgId:             c.Infra.SgId,
+				KeyName:          c.Infra.KeyName,
+			},
 		},
-		aws: ec2.New(sess),
+		ec2: ec2.New(sess),
 	}, nil
 }
 
@@ -120,7 +123,7 @@ func (a Client) DeleteInstance(ip string) error {
 		},
 	}
 
-	res, err := a.aws.DescribeInstances(data)
+	res, err := a.ec2.DescribeInstances(data)
 	if err != nil {
 		return shared.ReturnLogError("error describing instances: %w\n", err)
 	}
@@ -134,7 +137,7 @@ func (a Client) DeleteInstance(ip string) error {
 					InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
 				}
 
-				_, err := a.aws.TerminateInstances(terminateInput)
+				_, err := a.ec2.TerminateInstances(terminateInput)
 				if err != nil {
 					return fmt.Errorf("error terminating instance: %w", err)
 				}
@@ -168,7 +171,7 @@ func (a Client) WaitForInstanceRunning(instanceId string) error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for instance to be in running state and pass status checks")
 		case <-ticker.C:
-			statusRes, err := a.aws.DescribeInstanceStatus(input)
+			statusRes, err := a.ec2.DescribeInstanceStatus(input)
 			if err != nil {
 				return fmt.Errorf("error describing instance status: %w", err)
 			}
@@ -187,23 +190,23 @@ func (a Client) WaitForInstanceRunning(instanceId string) error {
 }
 
 func (a Client) create(name string) (*ec2.Reservation, error) {
-	volume, err := strconv.ParseInt(a.c.VolumeSize, 10, 64)
+	volume, err := strconv.ParseInt(a.infra.VolumeSize, 10, 64)
 	if err != nil {
 		return nil, shared.ReturnLogError("error converting volume size to int64: %w\n", err)
 	}
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(a.c.Ami),
-		InstanceType: aws.String(a.c.InstanceClass),
+		ImageId:      aws.String(a.infra.Ami),
+		InstanceType: aws.String(a.infra.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(a.c.KeyName),
+		KeyName:      aws.String(a.infra.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(a.c.Subnets),
-				Groups:                   aws.StringSlice([]string{a.c.SgId}),
+				SubnetId:                 aws.String(a.infra.Subnets),
+				Groups:                   aws.StringSlice([]string{a.infra.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -216,7 +219,7 @@ func (a Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(a.c.AvailabilityZone),
+			AvailabilityZone: aws.String(a.infra.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{
@@ -233,7 +236,7 @@ func (a Client) create(name string) (*ec2.Reservation, error) {
 
 	shared.LogLevel("info", fmt.Sprintf("\nCreating instance: %s\n", name))
 
-	return a.aws.RunInstances(input)
+	return a.ec2.RunInstances(input)
 }
 
 func (a Client) fetchIP(nodeID string) (string, error) {
@@ -245,7 +248,7 @@ func (a Client) fetchIP(nodeID string) (string, error) {
 	id := &ec2.DescribeInstancesInput{
 		InstanceIds: aws.StringSlice([]string{nodeID}),
 	}
-	result, err := a.aws.DescribeInstances(id)
+	result, err := a.ec2.DescribeInstances(id)
 	if err != nil {
 		return "", shared.ReturnLogError("error describing instances: %w\n", err)
 	}

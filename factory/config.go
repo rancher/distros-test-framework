@@ -29,6 +29,18 @@ type Cluster struct {
 	NumServers   int
 	NumAgents    int
 	Config       clusterConfig
+	Infra
+}
+
+type Infra struct {
+	Ami              string
+	Region           string
+	VolumeSize       string
+	InstanceClass    string
+	Subnets          string
+	AvailabilityZone string
+	SgId             string
+	KeyName          string
 }
 
 type clusterConfig struct {
@@ -40,7 +52,7 @@ type clusterConfig struct {
 }
 
 func loadConfig() (*config.Product, error) {
-	cfg, err := shared.EnvConfig("factory")
+	cfg, err := shared.EnvConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +70,13 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	var tfDir string
 
 	varDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
 	tfDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
@@ -92,8 +104,19 @@ func addClusterConfig(
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+
+	c.Infra.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
+	c.Infra.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
+	c.Infra.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
+	c.Infra.InstanceClass = terraform.GetVariableAsStringFromVarFile(g, varDir, "instance_class")
+	c.Infra.Subnets = terraform.GetVariableAsStringFromVarFile(g, varDir, "subnets")
+	c.Infra.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(g, varDir, "availability_zone")
+	c.Infra.SgId = terraform.GetVariableAsStringFromVarFile(g, varDir, "sg_id")
+	c.Infra.KeyName = terraform.GetVariableAsStringFromVarFile(g, varDir, "key_name")
+
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
+
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {

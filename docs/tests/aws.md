@@ -1,10 +1,15 @@
-#### How to use aws sdk wrapper:
+#### How to test aws sdk wrapper:
 
 #### Example:
 
 ```go
-    package main
+package main
 
+import (
+"fmt"
+
+"github.com/rancher/distros-test-framework/pkg/aws"
+)
 
 type Whatever interface {
 CreateInstances(names ...string) (ids, ips []string, err error)

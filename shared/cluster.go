@@ -42,7 +42,7 @@ func ManageWorkload(action string, workloads ...string) (string, error) {
 		return "", ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
-	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
+	resourceDir := BasePath() + "/workloads/" + Arch
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
@@ -262,7 +262,7 @@ func SonobuoyMixedOS(action, version string) error {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
-	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"
+	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)

@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	cfg, err = shared.EnvConfig("entrypoint")
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}

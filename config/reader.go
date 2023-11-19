@@ -16,18 +16,6 @@ var (
 type Product struct {
 	TFVars  string
 	Product string
-	Infra
-}
-
-type Infra struct {
-	Ami              string
-	Region           string
-	VolumeSize       string
-	InstanceClass    string
-	Subnets          string
-	AvailabilityZone string
-	SgId             string
-	KeyName          string
 }
 
 func AddConfigEnv(path string) (*Product, error) {
@@ -50,15 +38,6 @@ func loadEnv(fullPath string) (config *Product, err error) {
 	config = &Product{}
 	config.TFVars = os.Getenv("ENV_TFVARS")
 	config.Product = os.Getenv("ENV_PRODUCT")
-	config.Infra.Ami = os.Getenv("AWS_AMI")
-	config.Infra.Region = os.Getenv("REGION")
-	config.Infra.VolumeSize = os.Getenv("VOLUME_SIZE")
-	config.Infra.InstanceClass = os.Getenv("EC2_INSTANCE_CLASS")
-	config.Infra.Subnets = os.Getenv("SUBNETS")
-	config.Infra.AvailabilityZone = os.Getenv("AVAILABILITY_ZONE")
-	config.Infra.SgId = os.Getenv("SG_ID")
-	config.Infra.KeyName = os.Getenv("KEY_NAME")
-
 	if config.TFVars == "" || (config.TFVars != "k3s.tfvars" && config.TFVars != "rke2.tfvars") {
 		fmt.Printf("unknown tfvars: %s\n", config.TFVars)
 		os.Exit(1)

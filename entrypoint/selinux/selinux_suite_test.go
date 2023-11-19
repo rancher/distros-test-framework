@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig("entrypoint")
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}
