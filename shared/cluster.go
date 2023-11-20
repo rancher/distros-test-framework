@@ -367,42 +367,32 @@ func parsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")
 
+	offset := 1
 	for _, rec := range podList {
 		fields := strings.Fields(rec)
-		if strings.TrimSpace(rec) == "" {
+		if strings.TrimSpace(rec) == "" || len(fields) < 9 {
 			continue
 		}
-
+		var p *Pod
 		if len(fields) == 9 {
-			p := Pod{
-				Name:      fields[0],
-				Ready:     fields[1],
-				Status:    fields[2],
-				Restarts:  fields[3],
-				Age:       fields[4],
-				NodeIP:    fields[5],
-				Node:      fields[6],
-			}
-			pods = append(pods, p)
-		} else if len(fields) < 9 {
-			continue
+			offset = offset - 1
 		} else {
-			p := Pod{
-				NameSpace: fields[0],
-				Name:      fields[1],
-				Ready:     fields[2],
-				Status:    fields[3],
-				Restarts:  fields[4],
-				Age:       fields[5],
-				NodeIP:    fields[6],
-				Node:      fields[7],
+			p = &Pod{
+				NameSpace: fields[offset],
 			}
-			pods = append(pods, p)
 		}
+		p = &Pod{
+			Name:      fields[offset],
+			Ready:     fields[offset + 1],
+			Status:    fields[offset + 2],
+			Restarts:  fields[offset + 3],
+			Age:       fields[offset + 4],
+			NodeIP:    fields[offset + 5],
+			Node:      fields[offset + 6],
+		}
+		pods = append(pods, *p)
 	}
-
 	return pods
-
 }
 
 // ReadDataPod reads the data from the pod
