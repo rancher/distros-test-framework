@@ -46,7 +46,7 @@ func (p Product) getServiceName(nodeType string) (string, error) {
 	}
 	serviceName, ok := serviceNameMap[fmt.Sprintf("%s-%s", p, nodeType)]
 	if !ok {
-		ReturnLogError("nodeType needs to be one of: server | agent")
+		return "", ReturnLogError("nodeType needs to be one of: server | agent")
 	}
 
 	return serviceName, nil
@@ -62,12 +62,12 @@ func (p Product) GetSystemCtlCmd(action, nodeType string) (string, error) {
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		ReturnLogError("action value should be: start | stop | restart | status")
+		return "", ReturnLogError("action value should be: start | stop | restart | status")
 	}
 
 	serviceName, err := p.getServiceName(nodeType)
 	if err != nil {
-		ReturnLogError("error getting service name")
+		return "", ReturnLogError("error getting service name")
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, serviceName), nil
