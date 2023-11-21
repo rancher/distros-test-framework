@@ -208,7 +208,7 @@ $go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -expectedValueUpgrade "CNI plugins plugin v1.2.0-k3s1,1M, v1.27" \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
 -testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
--APPLYWORKLOAD true \
+-applyWorkload true \
 -deleteWorkload false \
 -workloadName "bandwidth-annotations.yaml"
 
