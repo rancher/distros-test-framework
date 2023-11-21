@@ -10,10 +10,14 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/exp/slices"
+
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
+
+	. "github.com/onsi/gomega"
 )
 
 // RunCommandHost executes a command on the host
@@ -46,7 +50,8 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", fmt.Sprintf("EXECUTE: %s on %s", cmd, ip))
+	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
+
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
@@ -75,7 +80,8 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
-	LogLevel("debug", fmt.Sprintf("StdOut: %s StdErr: %s", stdout, cleanedStderr))
+	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
+
 	return stdout, err
 }
 
@@ -351,4 +357,21 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
+}
+
+// VerifyFileMatchWithPath verify actual file list matches the expected file list
+func VerifyFileMatchWithPath(actualFileList []string, expectedFileList []string, path string) {
+	equalLength := Expect(len(actualFileList)).To(Equal(len(expectedFileList)))
+	if !equalLength {
+		LogLevel("error", fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
+			"%d vs %d", len(actualFileList), len(expectedFileList)))
+	}
+	slices.Sort(actualFileList)
+	slices.Sort(expectedFileList)
+	for i := 0; i < len(expectedFileList); i++ {
+		actualFilePath := fmt.Sprintf("%s/%s", path, actualFileList[i])
+		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedFileList[i])
+		Expect(actualFilePath).To(Equal(expectedFilePath))
+		LogLevel("info", fmt.Sprintf("PASS: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+	}
 }
