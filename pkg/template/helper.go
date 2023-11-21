@@ -69,7 +69,6 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
-		"TestIngressRoute": 								testcase.TestIngressRoute,
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},
@@ -87,6 +86,9 @@ func AddTestCases(names []string) ([]testCase, error) {
 		},
 		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxContext()
+		},
+		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestIngressRoute(applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
 		},
 	}
 

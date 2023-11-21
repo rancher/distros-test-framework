@@ -70,7 +70,7 @@ func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestIngressRoute(applyWorkload, deleteWorkload bool) {
+func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 	publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs
@@ -83,15 +83,16 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool) {
 			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
-		newContent := strings.ReplaceAll(string(content), "$YOURDNS", publicIp)
+		publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
+		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
+		newContent := replacer.Replace(string(content))
 		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
 		if err != nil {
 			Expect(err).NotTo(HaveOccurred(), "failed to update file for ingressroute resource to use one of the node external ips")
 		}
 
 		// Deploy manifest and ensure pods are running
-		var workloadErr error
-		err = shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
+		workloadErr := shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
 
