@@ -24,7 +24,6 @@ func TestCertRotate() {
 	Expect(manageError).NotTo(HaveOccurred(), fmt.Sprintf("error restarting agent node ip %s", ip))
 
 	verifyTLSDirContent(product, serverIPs)
-
 }
 
 // certRotate Rotate certificate for etcd only and cp only nodes
@@ -35,8 +34,8 @@ func certRotate(product shared.Product, ips []string) {
 	ip, rotateError := product.CertRotate(ips)
 	Expect(rotateError).NotTo(HaveOccurred(), fmt.Sprintf("error running certificate rotate for %s service on %s", product, ip))
 
-	ip, restartError := product.ManageService("restart", "server", ips)
-	Expect(restartError).NotTo(HaveOccurred(), fmt.Sprintf("error restarting %s service for node ip: %s", product, ip))
+	ip, startError := product.ManageService("start", "server", ips)
+	Expect(startError).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
 }
 
 // verifyIdenticalFiles Verify the actual and expected identical file lists match
@@ -50,7 +49,7 @@ func verifyIdenticalFiles(identicalFileList string) {
 		"request-header-ca.crt", "request-header-ca.key",
 		"server-ca.crt", "server-ca.key", "server-ca.nochain.crt",
 		"service.current.key", "service.key"}
-	// shared.VerifyFileMatch(identicalFileList, expectedFileList)
+
 	identicalFileList = strings.TrimSpace(identicalFileList)
 	newSlice := strings.Split(identicalFileList, "\n")
 	shared.VerifyFileMatchWithPath(newSlice[1:], expectedFileList, "")

@@ -33,6 +33,21 @@ var _ = Describe("Test:", func() {
 	It("Validate Certificate Rotation", func() {
 		testcase.TestCertRotate()
 	})
+
+	It("Validate Nodes", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus(),
+		)
+	})
 })
 
 var _ = AfterEach(func() {
