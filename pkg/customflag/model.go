@@ -37,7 +37,7 @@ type channelFlag struct {
 type testConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
-	DeployWorkload bool
+	ApplyWorkload bool
 	DeleteWorkload bool
 	WorkloadName   string
 	Description    string

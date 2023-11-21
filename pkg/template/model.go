@@ -29,7 +29,7 @@ type TestMap struct {
 // TestConfig represents the testcase function configuration
 type TestConfig struct {
 	TestFunc       []testCase
-	DeployWorkload bool
+	ApplyWorkload bool
 	DeleteWorkload bool
 	WorkloadName   string
 }
@@ -40,7 +40,7 @@ type testCase func(applyWorkload, deleteWorkload bool)
 // testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and VersionTestTemplate.
 func testCaseWrapper(v VersionTestTemplate) {
 	for _, testFunc := range v.TestConfig.TestFunc {
-		testFunc(v.TestConfig.DeployWorkload, v.TestConfig.DeleteWorkload)
+		testFunc(v.TestConfig.ApplyWorkload, v.TestConfig.DeleteWorkload)
 	}
 }
 
