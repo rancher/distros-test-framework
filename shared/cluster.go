@@ -374,9 +374,9 @@ func parsePods(res string) []Pod {
 			continue
 		}
 		var p Pod
-		if len(fields) != 9 {
+		if len(fields) == 10 {
+			p.NameSpace = fields[0]
 			offset = 1
-			p.NameSpace = fields[offset - 1]
 		}
 		p.Name = fields[offset]
 		p.Ready = fields[offset + 1]
