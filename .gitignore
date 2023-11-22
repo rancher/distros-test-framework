@@ -9,3 +9,4 @@
 workloads/amd64/plan.yaml
 /config/.env
 /config/*.tfvars
+tmp/
