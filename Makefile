@@ -42,6 +42,31 @@ test-run-state:
     		fi; \
     	fi
 
+## Use this to run code changes on the same cluster from the previous run. Useful for debugging new code.
+test-run-updates:
+	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAG_NAME} | head -n 1); \
+	if [ -z "$${CONTAINER_ID}" ]; then \
+		echo "No matching container found."; \
+		exit 1; \
+	else \
+		rm -rf modules/ tmp/ && \
+		docker cp $${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/ modules/ && \
+		docker cp $${CONTAINER_ID}:/tmp/ tmp/ && \
+		make test-env-up && \
+		docker run -dt --name acceptance-test-${IMG_NAME} \
+			-e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
+			-e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
+			--env-file ./config/.env \
+			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
+			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
+			-v ${PWD}/tmp/:/tmp \
+			acceptance-test-${TAG_NAME} && \
+			make image-stats IMG_NAME=${IMG_NAME} && \
+			make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}; \
+	fi
+
+
+
 ## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
