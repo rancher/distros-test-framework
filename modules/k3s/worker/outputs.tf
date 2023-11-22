@@ -1,5 +1,5 @@
 output "Registration_address" {
-  value = data.local_file.master_ip.content
+  value = data.local_file.server_ip.content
 }
 
 output "master_node_token" {

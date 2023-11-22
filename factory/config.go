@@ -29,10 +29,10 @@ type Cluster struct {
 	NumServers   int
 	NumAgents    int
 	Config       clusterConfig
-	Infra
+	AwsEc2       awsEc2Config
 }
 
-type Infra struct {
+type awsEc2Config struct {
 	Ami              string
 	Region           string
 	VolumeSize       string
@@ -105,14 +105,14 @@ func addClusterConfig(
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
 
-	c.Infra.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
-	c.Infra.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
-	c.Infra.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
-	c.Infra.InstanceClass = terraform.GetVariableAsStringFromVarFile(g, varDir, "instance_class")
-	c.Infra.Subnets = terraform.GetVariableAsStringFromVarFile(g, varDir, "subnets")
-	c.Infra.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(g, varDir, "availability_zone")
-	c.Infra.SgId = terraform.GetVariableAsStringFromVarFile(g, varDir, "sg_id")
-	c.Infra.KeyName = terraform.GetVariableAsStringFromVarFile(g, varDir, "key_name")
+	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
+	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
+	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
+	c.AwsEc2.InstanceClass = terraform.GetVariableAsStringFromVarFile(g, varDir, "ec2_instance_class")
+	c.AwsEc2.Subnets = terraform.GetVariableAsStringFromVarFile(g, varDir, "subnets")
+	c.AwsEc2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(g, varDir, "availability_zone")
+	c.AwsEc2.SgId = terraform.GetVariableAsStringFromVarFile(g, varDir, "sg_id")
+	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(g, varDir, "key_name")
 
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product

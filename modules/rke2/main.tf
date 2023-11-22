@@ -1,6 +1,6 @@
 # Server Nodes
-module "master" {
-  source = "./master"
+module "server" {
+  source = "server"
 
   # Basic variables
   node_os            = var.node_os
@@ -45,7 +45,7 @@ module "master" {
 # Agent Nodes
 module "worker" {
   source     = "./worker"
-  dependency = module.master
+  dependency = module.server
 
   # Basic variables
   node_os            = var.node_os
@@ -78,7 +78,7 @@ module "worker" {
 
 module "windows_worker" {
   source     = "./windows_worker"
-  dependency = module.master
+  dependency = module.server
 
   # Basic variables
   no_of_worker_nodes = var.no_of_windows_worker_nodes

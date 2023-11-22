@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script is used to join one or more nodes as masters to the first master
+# This script is used to join one or more nodes as masters to the first server
 
 #set -x
 echo "$@"

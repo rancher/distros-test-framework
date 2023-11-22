@@ -31,7 +31,7 @@ func AddConfigEnv(path string) (*Product, error) {
 }
 
 func loadEnv(fullPath string) (config *Product, err error) {
-	if err = setEnv(fullPath); err != nil {
+	if err = SetEnv(fullPath); err != nil {
 		return nil, err
 	}
 
@@ -51,7 +51,7 @@ func loadEnv(fullPath string) (config *Product, err error) {
 	return config, nil
 }
 
-func setEnv(fullPath string) error {
+func SetEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
 		fmt.Println("failed to open file:", err)
@@ -67,8 +67,9 @@ func setEnv(fullPath string) error {
 			continue
 		}
 
-		key, value := parts[0], parts[1]
-		err = os.Setenv(key, value)
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		err = os.Setenv(strings.Trim(key, "\""), strings.Trim(value, "\""))
 		if err != nil {
 			return err
 		}

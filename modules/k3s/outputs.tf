@@ -1,5 +1,5 @@
-output "master_ips" {
-  value       = module.master.master_ips
+output "server_ips" {
+  value       = module.server.server_ips
   description = "The public IP of the AWS node"
 }
 

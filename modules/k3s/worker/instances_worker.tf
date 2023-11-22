@@ -38,13 +38,13 @@ resource "aws_instance" "worker" {
   }
 }
 
-data "local_file" "master_ip" {
+data "local_file" "server_ip" {
   depends_on = [var.dependency]
-  filename = "/tmp/${var.resource_name}_master_ip"
+  filename = "/tmp/${var.resource_name}_server_ip"
 }
 
 locals {
-  master_ip = trimspace(data.local_file.master_ip.content)
+  master_ip = trimspace(data.local_file.server_ip.content)
 }
 
 data "local_file" "token" {

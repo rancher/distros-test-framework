@@ -31,29 +31,18 @@ func AddAwsNode() (*Client, error) {
 	c := factory.AddCluster(GinkgoT())
 
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(c.Infra.Region)})
+		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
 		return nil, shared.ReturnLogError("fatal", fmt.Sprintf("error creating AWS session: %v\n", err))
 	}
 
 	return &Client{
-		infra: &factory.Cluster{
-			Infra: factory.Infra{
-				Ami:              c.Infra.Ami,
-				Region:           c.Infra.Region,
-				VolumeSize:       c.Infra.VolumeSize,
-				InstanceClass:    c.Infra.InstanceClass,
-				Subnets:          c.Infra.Subnets,
-				AvailabilityZone: c.Infra.AvailabilityZone,
-				SgId:             c.Infra.SgId,
-				KeyName:          c.Infra.KeyName,
-			},
-		},
-		ec2: ec2.New(sess),
+		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		ec2:   ec2.New(sess),
 	}, nil
 }
 
-func (a Client) CreateInstances(names ...string) (ids, ips []string, err error) {
+func (c Client) CreateInstances(names ...string) (ids, ips []string, err error) {
 	if len(names) == 0 {
 		return nil, nil, shared.ReturnLogError("must sent a name: %s\n", names)
 	}
@@ -67,7 +56,7 @@ func (a Client) CreateInstances(names ...string) (ids, ips []string, err error) 
 		go func(n string) {
 			defer wg.Done()
 
-			res, err := a.create(n)
+			res, err := c.create(n)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error creating instance: %w\n", err)
 				return
@@ -79,7 +68,7 @@ func (a Client) CreateInstances(names ...string) (ids, ips []string, err error) 
 				return
 			}
 
-			externalIp, err := a.fetchIP(nodeID)
+			externalIp, err := c.fetchIP(nodeID)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error fetching ip: %w\n", err)
 				return
@@ -109,7 +98,7 @@ func (a Client) CreateInstances(names ...string) (ids, ips []string, err error) 
 	return nodeIps, nodeIds, nil
 }
 
-func (a Client) DeleteInstance(ip string) error {
+func (c Client) DeleteInstance(ip string) error {
 	if ip == "" {
 		return shared.ReturnLogError("must sent a ip: %s\n", ip)
 	}
@@ -123,7 +112,7 @@ func (a Client) DeleteInstance(ip string) error {
 		},
 	}
 
-	res, err := a.ec2.DescribeInstances(data)
+	res, err := c.ec2.DescribeInstances(data)
 	if err != nil {
 		return shared.ReturnLogError("error describing instances: %w\n", err)
 	}
@@ -137,7 +126,7 @@ func (a Client) DeleteInstance(ip string) error {
 					InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
 				}
 
-				_, err := a.ec2.TerminateInstances(terminateInput)
+				_, err := c.ec2.TerminateInstances(terminateInput)
 				if err != nil {
 					return fmt.Errorf("error terminating instance: %w", err)
 				}
@@ -156,7 +145,7 @@ func (a Client) DeleteInstance(ip string) error {
 	return nil
 }
 
-func (a Client) WaitForInstanceRunning(instanceId string) error {
+func (c Client) WaitForInstanceRunning(instanceId string) error {
 	input := &ec2.DescribeInstanceStatusInput{
 		InstanceIds:         aws.StringSlice([]string{instanceId}),
 		IncludeAllInstances: aws.Bool(true),
@@ -171,7 +160,7 @@ func (a Client) WaitForInstanceRunning(instanceId string) error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for instance to be in running state and pass status checks")
 		case <-ticker.C:
-			statusRes, err := a.ec2.DescribeInstanceStatus(input)
+			statusRes, err := c.ec2.DescribeInstanceStatus(input)
 			if err != nil {
 				return fmt.Errorf("error describing instance status: %w", err)
 			}
@@ -189,24 +178,24 @@ func (a Client) WaitForInstanceRunning(instanceId string) error {
 	}
 }
 
-func (a Client) create(name string) (*ec2.Reservation, error) {
-	volume, err := strconv.ParseInt(a.infra.VolumeSize, 10, 64)
+func (c Client) create(name string) (*ec2.Reservation, error) {
+	volume, err := strconv.ParseInt(c.infra.AwsEc2.VolumeSize, 10, 64)
 	if err != nil {
 		return nil, shared.ReturnLogError("error converting volume size to int64: %w\n", err)
 	}
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(a.infra.Ami),
-		InstanceType: aws.String(a.infra.InstanceClass),
+		ImageId:      aws.String(c.infra.AwsEc2.Ami),
+		InstanceType: aws.String(c.infra.AwsEc2.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(a.infra.KeyName),
+		KeyName:      aws.String(c.infra.AwsEc2.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(a.infra.Subnets),
-				Groups:                   aws.StringSlice([]string{a.infra.SgId}),
+				SubnetId:                 aws.String(c.infra.AwsEc2.Subnets),
+				Groups:                   aws.StringSlice([]string{c.infra.AwsEc2.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -219,7 +208,7 @@ func (a Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(a.infra.AvailabilityZone),
+			AvailabilityZone: aws.String(c.infra.AwsEc2.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{
@@ -236,11 +225,11 @@ func (a Client) create(name string) (*ec2.Reservation, error) {
 
 	shared.LogLevel("info", fmt.Sprintf("\nCreating instance: %s\n", name))
 
-	return a.ec2.RunInstances(input)
+	return c.ec2.RunInstances(input)
 }
 
-func (a Client) fetchIP(nodeID string) (string, error) {
-	waitErr := a.WaitForInstanceRunning(nodeID)
+func (c Client) fetchIP(nodeID string) (string, error) {
+	waitErr := c.WaitForInstanceRunning(nodeID)
 	if waitErr != nil {
 		return "", shared.ReturnLogError("error waiting for instance to be in running state: %w\n", waitErr)
 	}
@@ -248,7 +237,7 @@ func (a Client) fetchIP(nodeID string) (string, error) {
 	id := &ec2.DescribeInstancesInput{
 		InstanceIds: aws.StringSlice([]string{nodeID}),
 	}
-	result, err := a.ec2.DescribeInstances(id)
+	result, err := c.ec2.DescribeInstances(id)
 	if err != nil {
 		return "", shared.ReturnLogError("error describing instances: %w\n", err)
 	}
