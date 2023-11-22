@@ -8,9 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	"golang.org/x/crypto/ssh"
 
@@ -366,12 +365,19 @@ func VerifyFileMatchWithPath(actualFileList []string, expectedFileList []string,
 		LogLevel("error", fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
 			"%d vs %d", len(actualFileList), len(expectedFileList)))
 	}
-	slices.Sort(actualFileList)
-	slices.Sort(expectedFileList)
-	for i := 0; i < len(expectedFileList); i++ {
-		actualFilePath := fmt.Sprintf("%s/%s", path, actualFileList[i])
-		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedFileList[i])
-		Expect(actualFilePath).To(Equal(expectedFilePath))
-		LogLevel("info", fmt.Sprintf("PASS: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+
+	actualSorted := sort.StringSlice(actualFileList)
+	expectedSorted := sort.StringSlice(expectedFileList)
+	actualSorted.Sort()
+	expectedSorted.Sort()
+	for i := 0; i < len(actualSorted); i++ {
+		actualFilePath := fmt.Sprintf("%s/%s", path, actualSorted[i])
+		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedSorted[i])
+		match := Expect(actualFilePath).To(Equal(expectedFilePath))
+		if !match {
+			LogLevel("error", fmt.Sprintf("FAIL: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+		} else {
+			LogLevel("info", fmt.Sprintf("PASS: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+		}
 	}
 }
