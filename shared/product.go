@@ -6,8 +6,8 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 )
 
-// GetProductObject returns the distro "Product" object based on the config file
-func GetProductObject() (Product, error) {
+// GetProduct returns the distro product based on the config file
+func GetProduct() (string, error) {
 	cfgPath, err := EnvDir(".")
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
@@ -17,34 +17,35 @@ func GetProductObject() (Product, error) {
 	if err != nil {
 		return "", ReturnLogError("failed to get config: %v\n", err)
 	}
-
-	var product Product
-	if cfg.Product == "k3s" {
-		product = K3S
-	}
-	if cfg.Product == "rke2" {
-		product = RKE2
+	if cfg.Product != "k3s" && cfg.Product != "rke2" {
+		return "", ReturnLogError("unknown product")
 	}
 
-	return product, nil
+	return cfg.Product, nil
 }
 
-type Product string
+// GetProductVersion return the version for a specific distro product
+func GetProductVersion(product string) (string, error) {
+	if product != "rke2" && product != "k3s" {
+		return "", ReturnLogError("unsupported product: %s\n", product)
+	}
+	version, err := getVersion(product + " -v")
+	if err != nil {
+		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
+	}
 
-const (
-	K3S  Product = "k3s"
-	RKE2 Product = "rke2"
-)
+	return version, nil
+}
 
 // getServiceName Get service name. Used to work with stop/start k3s/rke2 services
-func (p Product) getServiceName(nodeType string) (string, error) {
+func getServiceName(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
 		"k3s-agent":   "k3s-agent",
 		"rke2-server": "rke2-server",
 		"rke2-agent":  "rke2-agent",
 	}
-	serviceName, ok := serviceNameMap[fmt.Sprintf("%s-%s", p, nodeType)]
+	serviceName, ok := serviceNameMap[fmt.Sprintf("%s-%s", product, nodeType)]
 	if !ok {
 		return "", ReturnLogError("nodeType needs to be one of: server | agent")
 	}
@@ -52,7 +53,7 @@ func (p Product) getServiceName(nodeType string) (string, error) {
 	return serviceName, nil
 }
 
-func (p Product) GetSystemCtlCmd(action, nodeType string) (string, error) {
+func GetSystemCtlCmd(product, action, nodeType string) (string, error) {
 	systemctlCmdMap := map[string]string{
 		"stop":    "sudo systemctl --no-block stop",
 		"start":   "sudo systemctl --no-block start",
@@ -65,7 +66,7 @@ func (p Product) GetSystemCtlCmd(action, nodeType string) (string, error) {
 		return "", ReturnLogError("action value should be: start | stop | restart | status")
 	}
 
-	serviceName, err := p.getServiceName(nodeType)
+	serviceName, err := getServiceName(product, nodeType)
 	if err != nil {
 		return "", ReturnLogError("error getting service name")
 	}
@@ -74,9 +75,9 @@ func (p Product) GetSystemCtlCmd(action, nodeType string) (string, error) {
 }
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server
-func (p Product) ManageService(action, nodeType string, ips []string) (string, error) {
+func ManageService(product, action, nodeType string, ips []string) (string, error) {
 	for _, ip := range ips {
-		cmd, getError := p.GetSystemCtlCmd(action, nodeType)
+		cmd, getError := GetSystemCtlCmd(product, action, nodeType)
 		if getError != nil {
 			return ip, getError
 		}
@@ -90,9 +91,9 @@ func (p Product) ManageService(action, nodeType string, ips []string) (string, e
 }
 
 // CertRotate certificate rotate for k3s or rke2
-func (p Product) CertRotate(ips []string) (string, error) {
+func CertRotate(product string, ips []string) (string, error) {
 	for _, ip := range ips {
-		cmd := fmt.Sprintf("sudo %s certificate rotate", p)
+		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
 		_, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err

@@ -13,10 +13,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
-
-	. "github.com/onsi/gomega"
 )
 
 // RunCommandHost executes a command on the host
@@ -169,37 +166,6 @@ func getVersion(cmd string) (string, error) {
 	}
 
 	return res, nil
-}
-
-// GetProduct returns the distro product based on the config file
-func GetProduct() (string, error) {
-	cfgPath, err := EnvDir(".")
-	if err != nil {
-		return "", ReturnLogError("failed to get config path: %v\n", err)
-	}
-
-	cfg, err := config.AddConfigEnv(cfgPath)
-	if err != nil {
-		return "", ReturnLogError("failed to get config: %v\n", err)
-	}
-	if cfg.Product != "k3s" && cfg.Product != "rke2" {
-		return "", ReturnLogError("unknown product")
-	}
-
-	return cfg.Product, nil
-}
-
-// GetProductVersion return the version for a specific distro product
-func GetProductVersion(product string) (string, error) {
-	if product != "rke2" && product != "k3s" {
-		return "", ReturnLogError("unsupported product: %s\n", product)
-	}
-	version, err := getVersion(product + " -v")
-	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
-	}
-
-	return version, nil
 }
 
 // AddHelmRepo adds a helm repo to the cluster.
@@ -359,10 +325,9 @@ func fileExists(files []os.DirEntry, workload string) bool {
 }
 
 // VerifyFileMatchWithPath verify actual file list matches the expected file list
-func VerifyFileMatchWithPath(actualFileList []string, expectedFileList []string, path string) {
-	equalLength := Expect(len(actualFileList)).To(Equal(len(expectedFileList)))
-	if !equalLength {
-		LogLevel("error", fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
+func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path string) error {
+	if len(actualFileList) != len(expectedFileList) {
+		ReturnLogError(fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
 			"%d vs %d", len(actualFileList), len(expectedFileList)))
 	}
 
@@ -373,11 +338,12 @@ func VerifyFileMatchWithPath(actualFileList []string, expectedFileList []string,
 	for i := 0; i < len(actualSorted); i++ {
 		actualFilePath := fmt.Sprintf("%s/%s", path, actualSorted[i])
 		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedSorted[i])
-		match := Expect(actualFilePath).To(Equal(expectedFilePath))
-		if !match {
-			LogLevel("error", fmt.Sprintf("FAIL: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+		if actualFilePath != expectedFilePath {
+			ReturnLogError(fmt.Sprintf("FAIL: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
 		} else {
 			LogLevel("info", fmt.Sprintf("PASS: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
 		}
 	}
+
+	return nil
 }

@@ -15,26 +15,26 @@ func TestCertRotate() {
 	cluster := factory.AddCluster(GinkgoT())
 	serverIPs := cluster.ServerIPs
 	agentIPs := cluster.AgentIPs
-	product, err := shared.GetProductObject()
+	product, err := shared.GetProduct()
 	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
 
 	certRotate(product, serverIPs)
 
-	ip, manageError := product.ManageService("restart", "agent", agentIPs)
+	ip, manageError := shared.ManageService(product, "restart", "agent", agentIPs)
 	Expect(manageError).NotTo(HaveOccurred(), fmt.Sprintf("error restarting agent node ip %s", ip))
 
 	verifyTLSDirContent(product, serverIPs)
 }
 
 // certRotate Rotate certificate for etcd only and cp only nodes
-func certRotate(product shared.Product, ips []string) {
-	ip, stopError := product.ManageService("stop", "server", ips)
+func certRotate(product string, ips []string) {
+	ip, stopError := shared.ManageService(product, "stop", "server", ips)
 	Expect(stopError).NotTo(HaveOccurred(), fmt.Sprintf("error stopping %s service for node ip: %s", product, ip))
 
-	ip, rotateError := product.CertRotate(ips)
+	ip, rotateError := shared.CertRotate(product, ips)
 	Expect(rotateError).NotTo(HaveOccurred(), fmt.Sprintf("error running certificate rotate for %s service on %s", product, ip))
 
-	ip, startError := product.ManageService("start", "server", ips)
+	ip, startError := shared.ManageService(product, "start", "server", ips)
 	Expect(startError).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
 }
 
@@ -50,13 +50,13 @@ func verifyIdenticalFiles(identicalFileList string) {
 		"server-ca.crt", "server-ca.key", "server-ca.nochain.crt",
 		"service.current.key", "service.key"}
 
-	identicalFileList = strings.TrimSpace(identicalFileList)
-	newSlice := strings.Split(identicalFileList, "\n")
-	shared.VerifyFileMatchWithPath(newSlice[1:], expectedFileList, "")
+	newFileList := strings.Split(strings.TrimSpace(identicalFileList), "\n")
+	err := shared.VerifyFileMatchWithPath(newFileList[1:], expectedFileList, "")
+	Expect(err).NotTo(HaveOccurred(), "FAIL: Verifying identical file list match")
 }
 
 // verifyTLSDirContent Compare TLS Directories before and after cert rotation to display identical files
-func verifyTLSDirContent(product shared.Product, ips []string) {
+func verifyTLSDirContent(product string, ips []string) {
 	dataDir := fmt.Sprintf("/var/lib/rancher/%s", product)
 	serverDir := fmt.Sprintf("%s/server", dataDir)
 	origTLSDir := fmt.Sprintf("%s/tls", serverDir)
@@ -77,11 +77,11 @@ func verifyTLSDirContent(product shared.Product, ips []string) {
 			"awk '{print $2}' | xargs basename -a | "+
 			"awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
 
-		idFiles, err := shared.RunCommandOnNode(cmd2, ip)
+		identicalFileList, err := shared.RunCommandOnNode(cmd2, ip)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error getting identical files on %s", ip))
 
-		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, idFiles))
+		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, identicalFileList))
 
-		verifyIdenticalFiles(idFiles)
+		verifyIdenticalFiles(identicalFileList)
 	}
 }
