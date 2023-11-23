@@ -327,7 +327,7 @@ func fileExists(files []os.DirEntry, workload string) bool {
 // VerifyFileMatchWithPath verify actual file list matches the expected file list
 func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path string) error {
 	if len(actualFileList) != len(expectedFileList) {
-		ReturnLogError(fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
+		return ReturnLogError(fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
 			"%d vs %d", len(actualFileList), len(expectedFileList)))
 	}
 
@@ -339,9 +339,11 @@ func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path str
 		actualFilePath := fmt.Sprintf("%s/%s", path, actualSorted[i])
 		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedSorted[i])
 		if actualFilePath != expectedFilePath {
-			ReturnLogError(fmt.Sprintf("FAIL: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+			return ReturnLogError(fmt.Sprintf("FAIL: Looking for file:"+
+				"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
 		} else {
-			LogLevel("info", fmt.Sprintf("PASS: Looking for file: Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+			LogLevel("info", fmt.Sprintf("PASS: Looking for file:"+
+				"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
 		}
 	}
 
