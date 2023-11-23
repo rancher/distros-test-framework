@@ -29,13 +29,16 @@ func TestCertRotate() {
 // certRotate Rotate certificate for etcd only and cp only nodes
 func certRotate(product string, ips []string) {
 	ip, stopError := shared.ManageService(product, "stop", "server", ips)
-	Expect(stopError).NotTo(HaveOccurred(), fmt.Sprintf("error stopping %s service for node ip: %s", product, ip))
+	Expect(stopError).NotTo(HaveOccurred(),
+		fmt.Sprintf("error stopping %s service for node ip: %s", product, ip))
 
 	ip, rotateError := shared.CertRotate(product, ips)
-	Expect(rotateError).NotTo(HaveOccurred(), fmt.Sprintf("error running certificate rotate for %s service on %s", product, ip))
+	Expect(rotateError).NotTo(HaveOccurred(),
+		fmt.Sprintf("error running certificate rotate for %s service on %s", product, ip))
 
 	ip, startError := shared.ManageService(product, "start", "server", ips)
-	Expect(startError).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
+	Expect(startError).NotTo(HaveOccurred(),
+		fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
 }
 
 // verifyIdenticalFiles Verify the actual and expected identical file lists match
