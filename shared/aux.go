@@ -341,10 +341,10 @@ func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path str
 		if actualFilePath != expectedFilePath {
 			return ReturnLogError(fmt.Sprintf("FAIL: Looking for file:"+
 				"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
-		} else {
-			LogLevel("info", fmt.Sprintf("PASS: Looking for file:"+
-				"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
 		}
+		LogLevel("info", fmt.Sprintf("PASS: Looking for file:"+
+			"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+
 	}
 
 	return nil
