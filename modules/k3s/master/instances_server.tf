@@ -63,6 +63,16 @@ resource "aws_instance" "master" {
     Name                 = "${var.resource_name}-server"
   }
   provisioner "file" {
+    source      = "../install/k3s_node_role.sh"
+    destination = "/tmp/k3s_node_role.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/k3s_node_role.sh",
+      "sudo /tmp/k3s_node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes}",
+    ]
+  }
+  provisioner "file" {
     source = "../install/k3s_master.sh"
     destination = "/tmp/k3s_master.sh"
   }
@@ -141,7 +151,8 @@ locals {
 resource "aws_instance" "master2-ha" {
   ami                    = var.aws_ami
   instance_type          = var.ec2_instance_class
-  count                  = var.no_of_server_nodes - 1
+  count                  = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
+  # count                  = var.no_of_server_nodes - 1
   connection {
     type                 = "ssh"
     user                 = var.aws_user
@@ -159,6 +170,16 @@ resource "aws_instance" "master2-ha" {
   depends_on             = [aws_instance.master]
   tags = {
     Name                 = "${var.resource_name}-server-ha${count.index + 1}"
+  }
+  provisioner "file" {
+    source      = "../install/k3s_node_role.sh"
+    destination = "/tmp/k3s_node_role.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/k3s_node_role.sh",
+      "sudo /tmp/k3s_node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes}",
+    ]
   }
   provisioner "file" {
     source = "../install/join_k3s_master.sh"
@@ -213,7 +234,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_80" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_80[0].arn
   target_id          = aws_instance.master.id
   port               = 80
@@ -221,7 +242,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_80" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_80_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_id          = aws_instance.master2-ha[count.index].id
   target_group_arn   = aws_lb_target_group.aws_tg_80[0].arn
   port               = 80
@@ -248,7 +269,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_443" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_443[0].arn
   target_id          = aws_instance.master.id
   port               = 443
@@ -256,7 +277,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_443_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_443[0].arn
   target_id          = aws_instance.master2-ha[count.index].id
   port               = 443
@@ -272,7 +293,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_6443[0].arn
   target_id          = aws_instance.master.id
   port               = 6443
@@ -280,7 +301,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_6443[0].arn
   target_id          = aws_instance.master2-ha[count.index].id
   port               = 6443
@@ -329,7 +350,7 @@ resource "aws_lb_listener" "aws_nlb_listener_6443" {
 
 resource "aws_route53_record" "aws_route53" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = ["aws_lb_listener.aws_nlb_listener_6443"]
+  depends_on         = [aws_lb_listener.aws_nlb_listener_6443]
   zone_id            = data.aws_route53_zone.selected.zone_id
   name               = "${var.resource_name}${local.random_string}-r53"
   type               = "CNAME"
