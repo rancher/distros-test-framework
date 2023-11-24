@@ -153,21 +153,6 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// getVersion returns the rke2 or k3s version
-func getVersion(cmd string) (string, error) {
-	var res string
-	var err error
-	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err = RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
-		}
-	}
-
-	return res, nil
-}
-
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)

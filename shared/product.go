@@ -37,6 +37,21 @@ func GetProductVersion(product string) (string, error) {
 	return version, nil
 }
 
+// getVersion returns the rke2 or k3s version
+func getVersion(cmd string) (string, error) {
+	var res string
+	var err error
+	ips := FetchNodeExternalIP()
+	for _, ip := range ips {
+		res, err = RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return "", ReturnLogError("failed to run command on node: %v\n", err)
+		}
+	}
+
+	return res, nil
+}
+
 // getServiceName Get service name. Used to work with stop/start k3s/rke2 services
 func getServiceName(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
