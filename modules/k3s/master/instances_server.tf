@@ -97,10 +97,9 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [ <<-EOT
-      chmod +x /tmp/k3s_master.sh
-      sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} ${var.k3s_channel}
-    EOT
+    inline = [
+      "chmod +x /tmp/k3s_master.sh",
+      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel} ${var.etcd_only_nodes}",
     ]
   }
   provisioner "local-exec" {
@@ -234,7 +233,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_80" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = [aws_instance.master]
+  depends_on         = ["aws_instance.master"]
   target_group_arn   = aws_lb_target_group.aws_tg_80[0].arn
   target_id          = aws_instance.master.id
   port               = 80
@@ -242,7 +241,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_80" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_80_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = [aws_instance.master]
+  depends_on         = ["aws_instance.master"]
   target_id          = aws_instance.master2-ha[count.index].id
   target_group_arn   = aws_lb_target_group.aws_tg_80[0].arn
   port               = 80
@@ -269,7 +268,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_443" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = [aws_instance.master]
+  depends_on         = ["aws_instance.master"]
   target_group_arn   = aws_lb_target_group.aws_tg_443[0].arn
   target_id          = aws_instance.master.id
   port               = 443
@@ -293,7 +292,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = [aws_instance.master]
+  depends_on         = ["aws_instance.master"]
   target_group_arn   = aws_lb_target_group.aws_tg_6443[0].arn
   target_id          = aws_instance.master.id
   port               = 6443
@@ -301,7 +300,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = [aws_instance.master]
+  depends_on         = ["aws_instance.master"]
   target_group_arn   = aws_lb_target_group.aws_tg_6443[0].arn
   target_id          = aws_instance.master2-ha[count.index].id
   port               = 6443
@@ -350,7 +349,7 @@ resource "aws_lb_listener" "aws_nlb_listener_6443" {
 
 resource "aws_route53_record" "aws_route53" {
   count              = var.create_lb ? 1 : 0
-  depends_on         = [aws_lb_listener.aws_nlb_listener_6443]
+  depends_on         = ["aws_lb_listener.aws_nlb_listener_6443"]
   zone_id            = data.aws_route53_zone.selected.zone_id
   name               = "${var.resource_name}${local.random_string}-r53"
   type               = "CNAME"
