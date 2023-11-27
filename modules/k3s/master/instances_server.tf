@@ -361,3 +361,27 @@ data "aws_route53_zone" "selected" {
   name               = var.qa_space
   private_zone       = false
 }
+
+locals {
+  serverIp   = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
+  depends_on = [aws_instance.master]
+}
+resource "null_resource" "update_kubeconfig" {
+  count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  depends_on = [aws_instance.master, aws_instance.master2-ha]
+
+  provisioner "local-exec" {
+    command    = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
+    on_failure = continue
+  }
+  provisioner "local-exec" {
+    command    = "test -f /tmp/${var.resource_name}_control_plane_${count.index} && grep '6444' /tmp/${var.resource_name}_config && sed s/127.0.0.1:6444/\"${count.index == 0 ? local.serverIp : aws_instance.master2-ha[count.index - 1].public_ip}:6443\"/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+    on_failure = continue
+  }
+
+  provisioner "local-exec" {
+    command    = "test -f /tmp/${var.resource_name}_control_plane_${count.index} && grep '6443' /tmp/${var.resource_name}_config && sed s/127.0.0.1:6443/\"${count.index == 0 ? local.serverIp : aws_instance.master2-ha[count.index - 1].public_ip}:6443\"/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+    on_failure = continue
+  }
+
+}
