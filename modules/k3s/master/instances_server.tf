@@ -151,7 +151,6 @@ resource "aws_instance" "master2-ha" {
   ami                    = var.aws_ami
   instance_type          = var.ec2_instance_class
   count                  = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
-  # count                  = var.no_of_server_nodes - 1
   connection {
     type                 = "ssh"
     user                 = var.aws_user

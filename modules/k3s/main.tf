@@ -56,7 +56,7 @@ module "worker" {
    ec2_instance_class   = var.ec2_instance_class
    access_key           = var.access_key
    worker_flags         = var.worker_flags
-availability_zone       = var.availability_zone
+   availability_zone       = var.availability_zone
    sg_id                = var.sg_id
    volume_size          = var.volume_size
    resource_name        = var.resource_name
