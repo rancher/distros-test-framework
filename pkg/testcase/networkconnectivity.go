@@ -16,8 +16,9 @@ import (
 func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply",
+			"pod_client.yaml", "windows_app_deployment.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
 	}
 
 	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})

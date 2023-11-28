@@ -45,7 +45,8 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 			InstallMode: customflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &TestConfig{
 				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
-				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,
+				ApplyWorkload:  customflag.ServiceFlag.TestConfig.ApplyWorkload,
+				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},
 			Description: customflag.ServiceFlag.TestConfig.Description,

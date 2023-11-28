@@ -15,8 +15,8 @@ var lps = "local-path-storage"
 func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
 	}
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +

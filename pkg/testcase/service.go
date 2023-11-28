@@ -35,8 +35,8 @@ func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
 func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "nodeport manifest not deployed")
 	}
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
@@ -68,8 +68,8 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply", "loadbalancer.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "loadbalancer manifest not deployed")
 	}
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +

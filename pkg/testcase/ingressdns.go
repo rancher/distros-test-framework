@@ -15,8 +15,8 @@ const (
 func TestIngress(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
 	}
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
@@ -45,8 +45,8 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
-		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+		workloadErr = shared.ManageWorkload("apply", "dnsutils.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
 	}
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
