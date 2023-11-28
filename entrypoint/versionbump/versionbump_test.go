@@ -7,14 +7,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/template"
+	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("VersionTemplate Upgrade:", func() {
-
+var _ = Describe("Version Bump Template Upgrade:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
@@ -33,20 +32,20 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Test Bump version", func() {
-		template.VersionTemplate(template.VersionTestTemplate{
-			TestCombination: &template.RunCmd{
-				Run: []template.TestMap{
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMap{
 					{
-						Cmd:                  template.TestMapTemplate.Cmd,
-						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
+						Cmd:                  TestMapTemplate.Cmd,
+						ExpectedValue:        TestMapTemplate.ExpectedValue,
+						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
 					},
 				},
 			},
 			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			TestConfig: &template.TestConfig{
-				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
-				ApplyWorkload: customflag.ServiceFlag.TestConfig.ApplyWorkload,
+			TestConfig: &TestConfig{
+				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
+				ApplyWorkload:  customflag.ServiceFlag.TestConfig.ApplyWorkload,
 				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},

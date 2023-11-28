@@ -19,6 +19,8 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 [ -n "$NODE_OS" ] && sed -i "s/node_os\s*=\s*.*/node_os = \"$NODE_OS\"/" "$CONFIG_PATH"
 [ -n "$AWS_AMI" ] && sed -i "s/aws_ami\s*=\s*.*/aws_ami = \"$AWS_AMI\"/" "$CONFIG_PATH"
 [ -n "$AWS_USER" ] && sed -i "s/aws_user\s*=\s*.*/aws_user = \"$AWS_USER\"/" "$CONFIG_PATH"
+[ -n "$DATASTORE_TYPE" ] && sed -i "s/datastore_type\s*=\s*.*/datastore_type = \"$DATASTORE_TYPE\"/" "$CONFIG_PATH"
 
-cat "$CONFIG_PATH"
-exec sh ./scripts/test_runner.sh "$@"
+awk '!/^#|^$|access_key|key_name|username|password|region|qa_space/' "$CONFIG_PATH"
+
+exec bash ./scripts/test_runner.sh "$@"

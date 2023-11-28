@@ -1,8 +1,10 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-#set -x
-# PS4='+(${LINENO}): '
+set -x
+PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 create_directories() {
   mkdir -p /etc/rancher/k3s
@@ -66,7 +68,7 @@ rhel() {
 disable_cloud_setup() {
    local node_os="${1}"
 
-if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = *"centos"* ]]
+if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]]
   then
     NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
     NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
@@ -79,7 +81,6 @@ if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = *"centos"* ]]
     systemctl disable nm-cloud-setup.timer
     fi
 fi
-
 }
 
 export "${3}"="${4}"
@@ -92,7 +93,6 @@ install() {
 
   if [ "$datastore_type" = "etcd" ]
   then
-     echo "CLUSTER TYPE is ETCD and channel is $channel"
      if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]
      then
          curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
@@ -104,8 +104,8 @@ install() {
              curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
          fi
      fi
-  else
-    echo "CLUSTER TYPE is external db and channel is $channel"
+  elif  [[ "$datastore_type" = "external" ]]
+   then
     if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]
     then
         curl -sfL https://get.k3s.io | sh -s - server --datastore-endpoint="$datastore_endpoint"
@@ -194,7 +194,6 @@ config_files() {
   cat /etc/rancher/k3s/k3s.yaml >/tmp/config
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   sudo chmod 644 /etc/rancher/k3s/k3s.yaml
-  export alias k=kubectl
 }
 
 main() {

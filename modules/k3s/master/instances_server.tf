@@ -1,5 +1,5 @@
 resource "aws_db_instance" "db" {
-  count                  = (var.datastore_type == "etcd" || var.external_db == "" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
+  count                  = (var.datastore_type == "etcd" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
   identifier             = "${var.resource_name}${local.random_string}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
@@ -18,7 +18,7 @@ resource "aws_db_instance" "db" {
 }
 
 resource "aws_rds_cluster" "db" {
-  count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "" ? 1 : 0)
+  count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
   cluster_identifier     = "${var.resource_name}${local.random_string}-db"
   engine                 = var.external_db
   engine_version         = var.external_db_version
@@ -34,7 +34,7 @@ resource "aws_rds_cluster" "db" {
 }
 
 resource "aws_rds_cluster_instance" "db" {
- count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "" ? 1 : 0)
+ count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
  cluster_identifier      = aws_rds_cluster.db[0].id
  identifier              = "${var.resource_name}${local.random_string}-instance1"
  instance_class          = var.instance_class
@@ -87,9 +87,10 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/k3s_master.sh",
-      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel}",
+    inline = [ <<-EOT
+      chmod +x /tmp/k3s_master.sh
+      sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} ${var.k3s_channel}
+    EOT
     ]
   }
   provisioner "local-exec" {
@@ -117,6 +118,7 @@ data "template_file" "test" {
 data "template_file" "test_status" {
   template = (var.datastore_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
 }
+
 data "local_file" "token" {
   filename   = "/tmp/${var.resource_name}_nodetoken"
   depends_on = [aws_instance.master]
@@ -183,9 +185,10 @@ resource "aws_instance" "master2-ha" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/join_k3s_master.sh",
-      "sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} ${aws_instance.master.public_ip} ${local.node_token} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} ${var.k3s_channel} ",
+    inline = [ <<-EOT
+    chmod +x /tmp/join_k3s_master.sh
+    sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} ${aws_instance.master.public_ip} ${local.node_token} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} ${var.k3s_channel}
+  EOT
     ]
   }
 }

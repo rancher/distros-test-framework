@@ -3,7 +3,7 @@
 # Usage: ./docker_stats.sh <$IMGNAME>
 
 IMGNAME=$1
-echo "Monitoring docker stats for $IMGNAME"
+printf  "\nMonitoring docker stats for %s\n\n" "$IMGNAME"
 
 CID=$(docker ps -a -q --filter name=acceptance-test-"${IMGNAME}" | head -n 1)
 LOGFILE="/tmp/docker_stats-$IMGNAME.log"

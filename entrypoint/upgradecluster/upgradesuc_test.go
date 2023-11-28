@@ -60,14 +60,14 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
-	It("Checks Node Status post-upgrade", func() {
+	It("Checks Node status post-upgrade", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
 	})
 
-	It("Checks Pod Status post-upgrade", func() {
+	It("Checks Pod status post-upgrade", func() {
 		testcase.TestPodStatus(
 			nil,
 			assert.PodAssertReady(),

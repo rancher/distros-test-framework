@@ -103,9 +103,9 @@ func EnvDir(pkg string) (string, error) {
 	case "entrypoint":
 		c = filepath.Dir(filepath.Join(callerDir, ".."))
 		env = filepath.Join(c, "config/.env")
-	case ".":
+	case "shared":
 		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(callerDir, "config/.env")
+		env = filepath.Join(c, "config/.env")
 	default:
 		return "", ReturnLogError("unknown package: %s\n", pkg)
 	}
@@ -168,7 +168,7 @@ func getVersion(cmd string) (string, error) {
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfgPath, err := EnvDir(".")
+	cfgPath, err := EnvDir("shared")
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}

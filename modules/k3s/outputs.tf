@@ -16,3 +16,13 @@ output "kubeconfig" {
 output "rendered_template" {
   value = module.master.rendered_template
 }
+
+output "server_flags" {
+  value = var.server_flags
+  description = "The server flags:"
+}
+
+output "worker_flags" {
+  value = var.worker_flags
+  description = "The worker flags:"
+}

@@ -16,7 +16,7 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
