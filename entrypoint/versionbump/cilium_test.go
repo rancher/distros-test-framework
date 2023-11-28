@@ -7,13 +7,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/template"
+	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("VersionTemplate Upgrade:", func() {
+var _ = Describe("Cilium Version Upgrade:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
@@ -32,21 +32,22 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Verifies bump version on rke2 for cilium version", func() {
-		template.VersionTemplate(template.VersionTestTemplate{
-			TestCombination: &template.RunCmd{
-				Run: []template.TestMap{
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMap{
 					{
 						Cmd: "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml " +
 							"images | grep cilium , rke2 -v",
-						ExpectedValue:        template.TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: template.TestMapTemplate.ExpectedValueUpgrade,
+						ExpectedValue:        TestMapTemplate.ExpectedValue,
+						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
 					},
 				},
 			},
 			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			TestConfig: &template.TestConfig{
-				TestFunc:       template.ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
-				DeployWorkload: customflag.ServiceFlag.TestConfig.DeployWorkload,
+			TestConfig: &TestConfig{
+				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
+				ApplyWorkload:  customflag.ServiceFlag.TestConfig.ApplyWorkload,
+				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
 				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
 			},
 			Description: customflag.ServiceFlag.TestConfig.Description,
@@ -54,23 +55,23 @@ var _ = Describe("VersionTemplate Upgrade:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(true, true)
 	})
 
 	It("Verifies Ingress", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(true, true)
 	})
 
 	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(true, true)
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(true, true)
 	})
 })
 

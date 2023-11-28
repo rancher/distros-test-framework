@@ -1,25 +1,35 @@
 #!/bin/bash
 
-if [ -z "${TEST_DIR}" ]; then
-    printf "\n\nTEST DIR: %s is not set\n\n" "${TEST_DIR}"
+function validateTestAndImage() {
+ if [ -z "${TEST_DIR}" ]; then
+     printf "\n\nTEST DIR: %s is not set\n\n" "${TEST_DIR}"
+     exit 1
+ fi
+
+ if [ -z "${IMG_NAME}" ]; then
+    printf "\n\nIMG NAME: %s is not set\n\n" "${IMG_NAME}"
     exit 1
-fi
+ fi
+}
 
-if [ -z "${IMG_NAME}" ]; then
-   printf "\n\nIMG NAME: %s is not set\n\n" "${IMG_NAME}"
-   exit 1
-fi
+function validateDirName(){
+  case "$TEST_DIR" in
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux)
+       if [[ "$TEST_TAG" != "" ]];
+        then
+          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
+        else
+          printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
+        fi
+          ;;
+      *)
+          printf "\n\n%s is not a go test package\n\n" "${TEST_DIR}"
+          exit 1
+          ;;
+  esac
+}
 
-case "$TEST_DIR" in
-     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux)
-      printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
-        ;;
-    *)
-        printf "\n%s is not a go test package\n\n" "${TEST_DIR}"
-        exit 1
-        ;;
-esac
-
+function run() {
 if [ -n "${TEST_DIR}" ]; then
     if [ "${TEST_DIR}" = "upgradecluster" ]; then
         if [ "${TEST_TAG}" = "upgrademanual" ]; then
@@ -28,28 +38,40 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
-        go test -timeout=45m -v -tags=versionbump -count=1 ./entrypoint/versionbump/... \
-            -cmd "${CMD}" \
-            -expectedValue "${EXPECTED_VALUE}" \
-            -expectedValueUpgrade "${VALUE_UPGRADED}" \
-            -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" \
-            -channel "${CHANNEL}" \
-            -testCase "${TEST_CASE}" \
-            -deployWorkload "${DEPLOY_WORKLOAD}" \
-            -workloadName "${WORKLOAD_NAME}" \
-            -description "${DESCRIPTION}"
+       declare -a OPTS
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump)
+            OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
+             [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
+             [ -n "${INSTALL_VERSION_OR_COMMIT}" ] && OPTS+=(-installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}")
+             [ -n "${CHANNEL}" ] && OPTS+=(-channel "${CHANNEL}")
+             [ -n "${TEST_CASE}" ] && OPTS+=(-testCase "${TEST_CASE}")
+             [ -n "${WORKLOAD_NAME}" ] && OPTS+=(-workloadName "${WORKLOAD_NAME}")
+             [ -n "${APPLY_WORKLOAD}" ] && OPTS+=(-applyWorkload "${APPLY_WORKLOAD}")
+             [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
+             [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
+      go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+         if [ -n "${SONOBUOYVERSION}" ]; then
+                go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+            else
+                go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
+         fi
     elif [ "${TEST_DIR}" = "dualstack" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
+        go test -timeout=55m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
     elif [ "${TEST_DIR}" = "selinux" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/selinux/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
+        go test -timeout=50m -v -count=1 ./entrypoint/selinux/...
     fi
 fi
+}
 
-tail -f /dev/null
-
+main() {
+  validateTestAndImage
+  validateDirName
+  run
+  tail -f /dev/null
+}
+main "$@"

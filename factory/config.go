@@ -90,6 +90,7 @@ func addClusterConfig(
 	if err != nil {
 		return nil, shared.ReturnLogError("error loading config: %w", err)
 	}
+
 	c := &Cluster{}
 
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
@@ -102,9 +103,11 @@ func addClusterConfig(
 
 	if cfg.Product == "k3s" {
 		c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
-		if c.Config.DataStore == "" {
+		if c.Config.DataStore == "external" {
 			c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
 			c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		} else if c.Config.DataStore == "" {
+			return nil, shared.ReturnLogError("datastore should not be empty \n%w", err)
 		}
 	}
 

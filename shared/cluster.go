@@ -37,30 +37,30 @@ type Pod struct {
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
-func ManageWorkload(action string, workloads ...string) (string, error) {
+func ManageWorkload(action string, workloads ...string) error {
 	if action != "apply" && action != "delete" {
-		return "", ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
+		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
 	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
-		return "", ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
+		return ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
 	}
 
 	for _, workload := range workloads {
 		if !fileExists(files, workload) {
-			return "", ReturnLogError("workload %s not found", workload)
+			return ReturnLogError("workload %s not found", workload)
 		}
 
 		err := handleWorkload(action, resourceDir, workload)
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 
-	return "", nil
+	return nil
 }
 
 func handleWorkload(action, resourceDir, workload string) error {
@@ -275,6 +275,16 @@ func SonobuoyMixedOS(action, version string) error {
 	}
 
 	return err
+}
+
+// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide
+func PrintClusterState() {
+	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + KubeConfigFile
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		_ = ReturnLogError("failed to print cluster state: %w\n", err)
+	}
+	fmt.Println("\n", res)
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
