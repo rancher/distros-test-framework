@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
@@ -20,7 +21,7 @@ type configuration struct {
 
 // setHelper returns the cluster and product
 func fetchCluster() (*factory.Cluster, error) {
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 	return cluster, nil
 }
 

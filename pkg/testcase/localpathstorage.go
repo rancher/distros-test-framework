@@ -57,7 +57,7 @@ func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
 
 	if deleteWorkload {
 		workloadErr = shared.ManageWorkload("delete", "local-path-provisioner.yaml")
-		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
+		Expect(workloadErr).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
 	}
 }
 

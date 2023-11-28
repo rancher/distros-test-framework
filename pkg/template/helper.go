@@ -69,20 +69,22 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
-		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
-		"TestSelinuxEnabled": func(deployWorkload bool) {
+		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSonobuoyMixedOS(deleteWorkload)
+		},
+		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux()
 		},
-		"TestSelinux": func(deployWorkload bool) {
+		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux()
 		},
-		"TestSelinuxSpcT": func(deployWorkload bool) {
+		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxSpcT()
 		},
-		"TestUninstallPolicy": func(deployWorkload bool) {
+		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestUninstallPolicy()
 		},
-		"TestSelinuxContext": func(deployWorkload bool) {
+		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxContext()
 		},
 	}
