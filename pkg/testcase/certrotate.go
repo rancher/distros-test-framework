@@ -46,7 +46,6 @@ func verifyIdenticalFiles(identicalFileList string) {
 	expectedFileList := []string{
 		"client-ca.crt", "client-ca.key", "client-ca.nochain.crt",
 		"client-supervisor.crt", "client-supervisor.key",
-		"dynamic-cert.json",
 		"peer-ca.crt", "peer-ca.key",
 		"server-ca.crt", "server-ca.key",
 		"request-header-ca.crt", "request-header-ca.key",
