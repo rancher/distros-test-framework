@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -33,27 +34,29 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		)
 	})
 
-	It("Verifies ClusterIP Service pre upgrade", func() {
-		testcase.TestServiceClusterIp(false)
+	It("Verifies ClusterIP Service pre-upgrade", func() {
+		testcase.TestServiceClusterIp(true, false)
 	})
 
 	It("Verifies NodePort Service pre-upgrade", func() {
-		testcase.TestServiceNodePort(false)
+		testcase.TestServiceNodePort(true, false)
 	})
 
 	It("Verifies Ingress pre-upgrade", func() {
-		testcase.TestIngress(false)
+		testcase.TestIngress(true, false)
 	})
 
 	It("Verifies Daemonset pre-upgrade", func() {
-		testcase.TestDaemonset(false)
+		testcase.TestDaemonset(true, false)
 	})
 
 	It("Verifies DNS Access pre-upgrade", func() {
-		testcase.TestDnsAccess(false)
+		testcase.TestDnsAccess(true, false)
 	})
 
 	It("\nUpgrade via SUC", func() {
+		fmt.Println("Current cluster state before upgrade:")
+		shared.PrintClusterState()
 		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
@@ -73,23 +76,23 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies ClusterIP Service post-upgrade", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(false, true)
 	})
 
 	It("Verifies NodePort Service post-upgrade", func() {
-		testcase.TestServiceNodePort(true)
+		testcase.TestServiceNodePort(false, true)
 	})
 
 	It("Verifies Ingress post-upgrade", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(false, true)
 	})
 
 	It("Verifies Daemonset post-upgrade", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(false, true)
 	})
 
 	It("Verifies DNS Access post-upgrade", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(true, true)
 	})
 })
 

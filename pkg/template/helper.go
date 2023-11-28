@@ -69,13 +69,12 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
-		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
 	}
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			testCases = append(testCases, func(deployWorkload bool) {})
+			testCases = append(testCases, func(applyWorkload, deleteWorkload bool) {})
 		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {

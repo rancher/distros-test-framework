@@ -7,10 +7,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIp(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "clusterip.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
-
+func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
 	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
@@ -30,9 +32,12 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	}
 }
 
-func TestServiceNodePort(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "nodeport.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
@@ -60,9 +65,12 @@ func TestServiceNodePort(deleteWorkload bool) {
 	}
 }
 
-func TestServiceLoadBalancer(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "loadbalancer.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
+func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="

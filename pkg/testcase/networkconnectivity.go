@@ -5,17 +5,20 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/gomega"
 )
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster
 // and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply",
-		"pod_client.yaml", "windows_app_deployment.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred())
+func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 
 	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 

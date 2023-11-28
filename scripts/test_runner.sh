@@ -46,7 +46,8 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${CHANNEL}" ] && OPTS+=(-channel "${CHANNEL}")
              [ -n "${TEST_CASE}" ] && OPTS+=(-testCase "${TEST_CASE}")
              [ -n "${WORKLOAD_NAME}" ] && OPTS+=(-workloadName "${WORKLOAD_NAME}")
-             [ -n "${DEPLOY_WORKLOAD}" ] && OPTS+=(-deployWorkload "${DEPLOY_WORKLOAD}")
+             [ -n "${APPLY_WORKLOAD}" ] && OPTS+=(-applyWorkload "${APPLY_WORKLOAD}")
+             [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then

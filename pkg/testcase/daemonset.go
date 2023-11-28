@@ -11,10 +11,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDaemonset(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "daemonset.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
-
+func TestDaemonset(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 	pods, _ := shared.GetPods(false)
 
 	cmd := fmt.Sprintf(`
@@ -58,6 +60,7 @@ func TestDaemonset(deleteWorkload bool) {
 		workloadErr = shared.ManageWorkload("delete", "daemonset.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
+
 }
 
 // validateNodesEqual checks if the nodes in the two strings are equal (ignoring order through sorting).

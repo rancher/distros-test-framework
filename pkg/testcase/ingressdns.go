@@ -12,9 +12,12 @@ const (
 	nslookup      = "kubernetes.default.svc.cluster.local"
 )
 
-func TestIngress(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "ingress.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deployed")
+func TestIngress(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
@@ -39,9 +42,12 @@ func TestIngress(deleteWorkload bool) {
 	}
 }
 
-func TestDnsAccess(deleteWorkload bool) {
-	workloadErr := shared.ManageWorkload("apply", "dnsutils.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
+func TestDnsAccess(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
 	err := assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
