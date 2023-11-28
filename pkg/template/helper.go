@@ -69,6 +69,24 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSonobuoyMixedOS(deleteWorkload)
+		},
+		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinuxSpcT()
+		},
+		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestUninstallPolicy()
+		},
+		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinuxContext()
+		},
 	}
 
 	for _, name := range names {
