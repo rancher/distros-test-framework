@@ -35,7 +35,8 @@ if [ -n "${TEST_DIR}" ]; then
             -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" \
             -channel "${CHANNEL}" \
             -testCase "${TEST_CASE}" \
-            -deployWorkload "${DEPLOY_WORKLOAD}" \
+            -applyWorkload "${APPLY_WORKLOAD}" \
+            -deleteWorkload "${DELETE_WORKLOAD}" \
             -workloadName "${WORKLOAD_NAME}" \
             -description "${DESCRIPTION}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then

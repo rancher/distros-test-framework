@@ -12,14 +12,16 @@ import (
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster
 // and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply",
-		"pod_client.yaml", "windows_app_deployment.yaml")
-	Expect(err).NotTo(HaveOccurred())
+func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+	if applyWorkload {
+		_, err := shared.ManageWorkload("apply",
+			"pod_client.yaml", "windows_app_deployment.yaml")
+		Expect(err).NotTo(HaveOccurred())
+	}
 
 	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
-	err = testCrossNodeService(
+	err := testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
 		[]string{"8080", "3000"},
 		[]string{"Welcome to nginx", "Welcome to PSTools"})

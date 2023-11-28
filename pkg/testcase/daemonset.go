@@ -11,9 +11,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDaemonset(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "daemonset.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+func TestDaemonset(applyWorkload, deleteWorkload bool) {
+	if applyWorkload {
+		_, err := shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 
 	pods, _ := shared.GetPods(false)
 

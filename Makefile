@@ -112,7 +112,8 @@ test-version-bump:
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
 	$(if ${DESCRIPTION},-description "${DESCRIPTION}") \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD}) \
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-etcd-bump
@@ -124,7 +125,8 @@ test-etcd-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-runc-bump
@@ -136,7 +138,8 @@ test-runc-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-cilium-bump
@@ -148,7 +151,8 @@ test-cilium-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-canal-bump
@@ -160,7 +164,8 @@ test-canal-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-coredns-bump
@@ -172,7 +177,8 @@ test-coredns-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 
 .PHONY: test-cniplugin-bump
@@ -184,7 +190,8 @@ test-cniplugin-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL}) \
 	$(if ${TEST_CASE},-testCase "${TEST_CASE}") \
 	$(if ${WORKLOAD_NAME},-workloadName ${WORKLOAD_NAME}) \
-	$(if ${DEPLOY_WORKLOAD},-deployWorkload ${DEPLOY_WORKLOAD})
+	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
+	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
 .PHONY: test-validate-selinux
 test-validate-selinux:
