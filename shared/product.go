@@ -8,7 +8,7 @@ import (
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfgPath, err := EnvDir(".")
+	cfgPath, err := EnvDir("shared")
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}
