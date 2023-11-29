@@ -14,8 +14,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.ProductConfig
-
 func TestMain(m *testing.M) {
 	var err error
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
@@ -25,7 +23,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	cfg, err = config.AddConfigEnv(configPath)
+
+	_, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}

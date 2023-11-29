@@ -145,7 +145,8 @@ Args:
 - ${TESTFILE}              path to the test file
 - ${TAGTEST}               name of the tag function from suite ( -tags=upgradesuc or -tags=upgrademanual )
 - ${TESTCASE}              name of the testcase to run
-- ${DEPLOYWORKLOAD}        true or false to deploy workload
+- ${APPLYWORKLOAD}        true or false to deploy workload
+- ${DELETEWORKLOAD}        true or false to delete workload that is deployed. Only applicable if APPLYWORKLOAD=true
 - ${CMD}                   command to run
 - ${VALUE}                 value to check on host
 - ${INSTALLTYPE}           type of installation (version or commit) + desired value
@@ -187,7 +188,8 @@ CMD="k3s --version, kubectl get image..." \
 VALUE="v1.26.2+k3s1, v0.0.21" " \
 INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218 \
 TESTCASE=TestLocalPathProvisionerStorage \
-DEPLOYWORKLOAD=true \
+APPLYWORKLOAD=true \
+DELETEWORKLOAD=false \
 WORKLOADNAME="someWorkload.yaml"
 ```
 
@@ -206,7 +208,8 @@ $go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -expectedValueUpgrade "CNI plugins plugin v1.2.0-k3s1,1M, v1.27" \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
 -testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
--deployWorkload true \
+-applyWorkload true \
+-deleteWorkload false \
 -workloadName "bandwidth-annotations.yaml"
 
  - Logs from test

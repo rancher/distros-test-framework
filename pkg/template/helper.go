@@ -9,7 +9,7 @@ import (
 )
 
 // upgradeVersion upgrades the product version
-func upgradeVersion(template VersionTestTemplate, version string) error {
+func upgradeVersion(template TestTemplate, version string) error {
 	err := testcase.TestUpgradeClusterManually(version)
 	if err != nil {
 		return err
@@ -21,7 +21,7 @@ func upgradeVersion(template VersionTestTemplate, version string) error {
 }
 
 // updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
-func updateExpectedValue(template VersionTestTemplate) {
+func updateExpectedValue(template TestTemplate) {
 	for i := range template.TestCombination.Run {
 		template.TestCombination.Run[i].ExpectedValue =
 			template.TestCombination.Run[i].ExpectedValueUpgrade
@@ -29,7 +29,7 @@ func updateExpectedValue(template VersionTestTemplate) {
 }
 
 // executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
-func executeTestCombination(v VersionTestTemplate) error {
+func executeTestCombination(v TestTemplate) error {
 	ips := shared.FetchNodeExternalIP()
 
 	var wg sync.WaitGroup
@@ -69,13 +69,30 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
 		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
 		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
-		"TestSonobuoyMixedOS":              testcase.TestSonobuoyMixedOS,
+		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSonobuoyMixedOS(deleteWorkload)
+		},
+		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinux()
+		},
+		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinuxSpcT()
+		},
+		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestUninstallPolicy()
+		},
+		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSelinuxContext()
+		},
 	}
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			testCases = append(testCases, func(deployWorkload bool) {})
+			testCases = append(testCases, func(applyWorkload, deleteWorkload bool) {})
 		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {

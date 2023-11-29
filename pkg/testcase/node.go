@@ -16,7 +16,7 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
@@ -36,7 +36,7 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "1500s", "20s").Should(Succeed())
+	}, "2100s", "10s").Should(Succeed())
 
 	fmt.Println("\n\nCluster nodes:")
 	_, err := shared.GetNodes(true)

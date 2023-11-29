@@ -10,3 +10,8 @@ output "worker_ips" {
   value = join("," , aws_instance.worker.*.public_ip)
   description = "The public IP of the AWS node"
 }
+
+output "worker_flags" {
+  value = var.worker_flags
+  description = "The worker flags:"
+}

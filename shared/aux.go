@@ -106,8 +106,9 @@ func EnvDir(pkg string) (string, error) {
 	case "entrypoint":
 		c = filepath.Dir(filepath.Join(callerDir, ".."))
 		env = filepath.Join(c, "config/.env")
-	case ".":
-		env = filepath.Join(callerDir, "config/.env")
+	case "shared":
+		c = filepath.Dir(filepath.Join(callerDir))
+		env = filepath.Join(c, "config/.env")
 	default:
 		return "", ReturnLogError("unknown package: %s\n", pkg)
 	}

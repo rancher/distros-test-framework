@@ -76,4 +76,5 @@ main() {
   run
   tail -f /dev/null
 }
+
 main "$@"
