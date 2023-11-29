@@ -53,7 +53,7 @@ func verifyIdenticalFiles(identicalFileList string) {
 		"service.current.key", "service.key"}
 
 	newFileList := strings.Split(strings.TrimSpace(identicalFileList), "\n")
-	err := shared.VerifyFileMatchWithPath(newFileList[1:], expectedFileList, "")
+	err := shared.VerifyFileMatchWithPath(newFileList[1:], expectedFileList)
 	Expect(err).NotTo(HaveOccurred(), "FAIL: Verifying identical file list match")
 }
 

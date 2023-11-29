@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/rancher/distros-test-framework/pkg/logger"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // RunCommandHost executes a command on the host
@@ -378,7 +378,7 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 }
 
 // VerifyFileMatchWithPath verify expected files found in the actual file list
-func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path string) error {
+func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
 			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
