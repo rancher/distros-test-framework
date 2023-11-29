@@ -42,7 +42,7 @@ func certRotate(product string, ips []string) {
 }
 
 // verifyIdenticalFiles Verify the actual and expected identical file lists match
-func verifyIdenticalFiles(identicalFileList, product string) {
+func verifyIdenticalFiles(identicalFileList string) {
 	expectedFileList := []string{
 		"client-ca.crt", "client-ca.key", "client-ca.nochain.crt",
 		"client-supervisor.crt", "client-supervisor.key",
@@ -51,11 +51,7 @@ func verifyIdenticalFiles(identicalFileList, product string) {
 		"request-header-ca.crt", "request-header-ca.key",
 		"server-ca.crt", "server-ca.key", "server-ca.nochain.crt",
 		"service.current.key", "service.key"}
-	if product == "k3s" {
-		expectedFileList = append(expectedFileList,
-			"apiserver-loopback-client__.crt",
-			"apiserver-loopback-client__.key")
-	}
+
 	newFileList := strings.Split(strings.TrimSpace(identicalFileList), "\n")
 	err := shared.VerifyFileMatchWithPath(newFileList[1:], expectedFileList)
 	Expect(err).NotTo(HaveOccurred(), "FAIL: Verifying identical file list match")
@@ -88,6 +84,6 @@ func verifyTLSDirContent(product string, ips []string) {
 
 		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, identicalFileList))
 
-		verifyIdenticalFiles(identicalFileList, product)
+		verifyIdenticalFiles(identicalFileList)
 	}
 }
