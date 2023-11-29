@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -19,7 +18,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	_, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}

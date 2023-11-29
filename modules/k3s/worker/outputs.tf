@@ -2,7 +2,7 @@ output "Registration_address" {
   value = data.local_file.server_ip.content
 }
 
-output "master_node_token" {
+output "server_node_token" {
   value = data.local_file.token.content
 }
 

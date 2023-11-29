@@ -14,6 +14,6 @@ output "windows_worker_ips" {
 }
 
 output "kubeconfig" {
-  value = module.master.kubeconfig
+  value = module.server.kubeconfig
   description = "kubeconfig of the cluster created"
 }
