@@ -12,7 +12,7 @@ import (
 )
 
 func TestCertRotate() {
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 	serverIPs := cluster.ServerIPs
 	agentIPs := cluster.AgentIPs
 	product, err := shared.GetProduct()
