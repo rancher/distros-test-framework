@@ -340,7 +340,7 @@ func GetPods(print bool) ([]Pod, error) {
 
 	pods := parsePods(res)
 	if print {
-		fmt.Println(res)
+		fmt.Println("\nCluster pods:\n", res)
 	}
 
 	return pods, nil

@@ -24,8 +24,8 @@ resource "aws_rds_cluster" "db" {
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
   database_name          = "mydb"
-  server_username        = var.db_username
-  server_password        = var.db_password
+  master_username        = var.db_username
+  master_password        = var.db_password
   engine_mode            = var.engine_mode
   tags = {
     Environment          = var.environment
@@ -111,7 +111,7 @@ resource "aws_instance" "server" {
 }
 
 data "template_file" "test" {
-  template   = (var.datastore_type == "etcd" ? "NULL": (var.external_db == "postgres" ? "postgres://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@${aws_db_instance.db[0].endpoint}/${aws_db_instance.db[0].db_name}" : (var.external_db == "aurora-mysql" ? "mysql://${aws_rds_cluster.db[0].server_username}:${aws_rds_cluster.db[0].server_password}@tcp(${aws_rds_cluster.db[0].endpoint})/${aws_rds_cluster.db[0].database_name}" : "mysql://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@tcp(${aws_db_instance.db[0].endpoint})/${aws_db_instance.db[0].db_name}")))
+  template   = (var.datastore_type == "etcd" ? "NULL": (var.external_db == "postgres" ? "postgres://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@${aws_db_instance.db[0].endpoint}/${aws_db_instance.db[0].db_name}" : (var.external_db == "aurora-mysql" ? "mysql://${aws_rds_cluster.db[0].master_username}:${aws_rds_cluster.db[0].master_password}@tcp(${aws_rds_cluster.db[0].endpoint})/${aws_rds_cluster.db[0].database_name}" : "mysql://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@tcp(${aws_db_instance.db[0].endpoint})/${aws_db_instance.db[0].db_name}")))
   depends_on = [data.template_file.test_status]
 }
 

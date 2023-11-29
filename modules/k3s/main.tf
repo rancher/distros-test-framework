@@ -1,5 +1,5 @@
 module "server" {
-   source="server"
+   source="./server"
    aws_ami=var.aws_ami
    aws_user=var.aws_user
    key_name=var.key_name

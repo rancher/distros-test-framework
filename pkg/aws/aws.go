@@ -1,6 +1,5 @@
 package aws
 
-import "C"
 import (
 	"fmt"
 	"strconv"
@@ -28,7 +27,7 @@ type response struct {
 }
 
 func AddAwsNode() (*Client, error) {
-	c := factory.AddCluster(GinkgoT())
+	c := factory.ClusterConfig(GinkgoT())
 
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})

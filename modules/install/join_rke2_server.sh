@@ -50,7 +50,7 @@ then
    subscription-manager repos --enable=rhel-7-server-extras-rpms
 fi
 
-if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == "centos8" ]]
+if [[ "$node_os" == "rhel" ]] || [[ "$node_os" == "centos8" ]]
 then
     NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
     NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)

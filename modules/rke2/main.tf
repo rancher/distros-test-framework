@@ -1,6 +1,6 @@
 # Server Nodes
 module "server" {
-  source = "server"
+  source = "./server"
 
   # Basic variables
   node_os            = var.node_os

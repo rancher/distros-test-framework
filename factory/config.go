@@ -118,7 +118,7 @@ func addClusterConfig(
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
 
-	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
+	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "server_ips"), ",")
 
 	if cfg.Product == "k3s" {
 		c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
