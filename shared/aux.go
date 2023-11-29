@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -378,28 +377,30 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	return filepath.Dir(fullPath), nil
 }
 
-// VerifyFileMatchWithPath verify actual file list matches the expected file list
+// VerifyFileMatchWithPath verify expected files found in the actual file list
 func VerifyFileMatchWithPath(actualFileList, expectedFileList []string, path string) error {
-	if len(actualFileList) != len(expectedFileList) {
-		return ReturnLogError(fmt.Sprintf("actual file and expected file lists size are NOT equal: "+
-			"%d vs %d", len(actualFileList), len(expectedFileList)))
+	for i := 0; i < len(expectedFileList); i++ {
+		if !stringInSlice(expectedFileList[i], actualFileList) {
+			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
+		}
+		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
 	}
 
-	actualSorted := sort.StringSlice(actualFileList)
-	expectedSorted := sort.StringSlice(expectedFileList)
-	actualSorted.Sort()
-	expectedSorted.Sort()
-	for i := 0; i < len(actualSorted); i++ {
-		actualFilePath := fmt.Sprintf("%s/%s", path, actualSorted[i])
-		expectedFilePath := fmt.Sprintf("%s/%s", path, expectedSorted[i])
-		if actualFilePath != expectedFilePath {
-			return ReturnLogError(fmt.Sprintf("FAIL: Looking for file:"+
-				"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
+	for i := 0; i < len(actualFileList); i++ {
+		if !stringInSlice(actualFileList[i], expectedFileList) {
+			LogLevel("info", "Actual file %s found as well which was not in the expected list", actualFileList[i])
 		}
-		LogLevel("info", fmt.Sprintf("PASS: Looking for file:"+
-			"Actual: %s Expected: %s", actualFilePath, expectedFilePath))
-
 	}
 
 	return nil
+}
+
+// stringInSlice verify if a string is found in the list of strings
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
