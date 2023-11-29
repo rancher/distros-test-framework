@@ -75,9 +75,5 @@ func SetEnv(fullPath string) error {
 		}
 	}
 
-	if err = scanner.Err(); err != nil {
-		return err
-	}
-
-	return nil
+	return scanner.Err()
 }

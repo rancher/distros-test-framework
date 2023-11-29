@@ -337,3 +337,71 @@ func fileExists(files []os.DirEntry, workload string) bool {
 
 	return false
 }
+
+func UninstallProduct(product, nodeType, ip string) error {
+	var scriptName string
+	paths := []string{
+		"/usr/local/bin",
+		"/opt/local/bin",
+		"/usr/bin",
+		"/usr/sbin",
+		"/usr/local/sbin",
+		"/bin",
+		"/sbin",
+	}
+
+	switch product {
+	case "k3s":
+		if nodeType == "agent" {
+			scriptName = "k3s-agent-uninstall.sh"
+		} else {
+			scriptName = "k3s-uninstall.sh"
+		}
+	case "rke2":
+		scriptName = "rke2-uninstall.sh"
+	default:
+		return fmt.Errorf("unsupported product: %s", product)
+	}
+
+	foundPath, err := findScriptPath(paths, scriptName, ip)
+	if err != nil {
+		return fmt.Errorf("failed to find uninstall script for %s: %v", product, err)
+	}
+
+	pathName := fmt.Sprintf("%s-uninstall.sh", product)
+	if product == "k3s" && nodeType == "agent" {
+		pathName = "k3s-agent-uninstall.sh"
+	}
+
+	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
+	_, err = RunCommandOnNode(uninstallCmd, ip)
+
+	return err
+}
+
+func findScriptPath(paths []string, pathName, ip string) (string, error) {
+	for _, path := range paths {
+		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi", path, pathName)
+		output, err := RunCommandOnNode(checkCmd, ip)
+		if err != nil {
+			return "", err
+		}
+		output = strings.TrimSpace(output)
+		if output == "found" {
+			return path, nil
+		}
+	}
+
+	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
+	fullPath, err := RunCommandOnNode(searchPath, ip)
+	if err != nil {
+		return "", err
+	}
+
+	fullPath = strings.TrimSpace(fullPath)
+	if fullPath == "" {
+		return "", fmt.Errorf("script %s not found", pathName)
+	}
+
+	return filepath.Dir(fullPath), nil
+}

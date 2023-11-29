@@ -2,6 +2,7 @@
 # This script pulls raw files and writes to specified locations.
 # For example, it can be used to write HelmChartConfig or custom PSA files.
 
+set -e
 
 files=$1
 

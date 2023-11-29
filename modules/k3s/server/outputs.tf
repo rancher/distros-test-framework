@@ -16,3 +16,8 @@ output "kubeconfig" {
 output "rendered_template" {
   value = data.template_file.test.rendered
 }
+
+output "server_flags" {
+  value = var.server_flags
+  description = "The server flags:"
+}

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/config"
+
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -13,8 +13,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-var cfg *config.Product
 
 func TestMain(m *testing.M) {
 	var err error

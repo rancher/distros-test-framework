@@ -1,13 +1,18 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-#set -x
-# PS4='+(${LINENO}): '
+set -x
+ PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+
 
 create_directories() {
   sudo mkdir -p /etc/rancher/k3s
   sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
   sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+  echo "alias k=kubectl" >> ~/.bashrc
+  source ~/.bashrc
 }
 
 create_config() {
@@ -15,6 +20,7 @@ create_config() {
   local server_ip="${2}"
   local token="${3}"
   local node_external_ip="${4}"
+
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 write-kubeconfig-mode: "0644"
 tls-san:
@@ -51,7 +57,7 @@ rhel() {
 disable_cloud_setup() {
    local node_os="${1}"
 
-if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]]
+if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == "centos8" ]]
   then
     NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
     NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
@@ -72,7 +78,7 @@ policy_files() {
 
   if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
     then
-      cat /tmp/cis_server_config.yaml >> /etc/rancher/k3s/config.yaml
+      cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
       printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
       sysctl -p /etc/sysctl.d/90-kubelet.conf
       systemctl restart systemd-sysctl
@@ -118,7 +124,6 @@ install() {
 }
 
 main() {
-
   create_directories
   create_config "$2" "$7" "$8" "$6"
   add_config  "${10}"

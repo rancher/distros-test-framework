@@ -12,8 +12,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-// AddCluster returns a singleton cluster with all terraform config and vars
-func AddCluster(g GinkgoTInterface) *Cluster {
+// ClusterConfig returns a singleton cluster with all terraform config and vars
+func ClusterConfig(g GinkgoTInterface) *Cluster {
 	once.Do(func() {
 		var err error
 		cluster, err = newCluster(g)
@@ -53,7 +53,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
-	fmt.Println("Creating Cluster")
+	shared.LogLevel("info", "\nCreating cluster\n")
 	terraform.InitAndApply(g, terraformOptions)
 
 	numServers, err = addSplitRole(g, varDir, numServers)

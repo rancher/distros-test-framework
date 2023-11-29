@@ -12,13 +12,16 @@ const (
 	nslookup      = "kubernetes.default.svc.cluster.local"
 )
 
-func TestIngress(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "ingress.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deployed")
+func TestIngress(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
+	}
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
-	err = assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	ingressIps, err := shared.FetchIngressIP("test-ingress")
@@ -34,17 +37,20 @@ func TestIngress(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "ingress.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deleted")
 	}
 }
 
-func TestDnsAccess(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
-	Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
+func TestDnsAccess(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "dnsutils.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
+	}
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
-	err = assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
@@ -55,7 +61,7 @@ func TestDnsAccess(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")
-		Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "dnsutils.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
 	}
 }
