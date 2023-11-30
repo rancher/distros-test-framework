@@ -61,3 +61,6 @@ variable "cp_only_nodes" {
 variable "cp_worker_nodes" {
   default = 0
 }
+variable product {
+  default = "k3s"
+}
