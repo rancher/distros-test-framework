@@ -1,10 +1,10 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
- PS4='+(${LINENO}): '
-set -e
-trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+#set -x
+# PS4='+(${LINENO}): '
+#set -e
+#trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 
 create_directories() {
@@ -57,7 +57,7 @@ rhel() {
 disable_cloud_setup() {
    local node_os="${1}"
 
-if [[ "$node_os" == "rhel" ]] || [[ "$node_os" == "centos8" ]]
+if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == "centos8" ]]
   then
     NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
     NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)

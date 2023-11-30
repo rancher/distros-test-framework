@@ -14,6 +14,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
+
 )
 
 // RunCommandHost executes a command on the host
@@ -46,6 +47,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
+	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)
@@ -75,6 +77,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
+	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
 
 	return stdout, err
 }
@@ -131,47 +134,6 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	}
 
 	return count
-}
-
-// getVersion returns the rke2 or k3s version
-func getVersion(cmd string) (string, error) {
-	var res string
-	var err error
-	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err = RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
-		}
-	}
-
-	return res, nil
-}
-
-// GetProduct returns the distro product based on the config file
-func GetProduct() (string, error) {
-	cfg, err := EnvConfig()
-	if err != nil {
-		return "", ReturnLogError("error loading config: %w\n", err)
-	}
-	if cfg.Product != "k3s" && cfg.Product != "rke2" {
-		return "", ReturnLogError("unknown product")
-	}
-
-	return cfg.Product, nil
-}
-
-// GetProductVersion return the version for a specific distro product
-func GetProductVersion(product string) (string, error) {
-	if product != "rke2" && product != "k3s" {
-		return "", ReturnLogError("unsupported product: %s\n", product)
-	}
-	version, err := getVersion(product + " -v")
-	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
-	}
-
-	return version, nil
 }
 
 // AddHelmRepo adds a helm repo to the cluster.
@@ -404,4 +366,32 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	}
 
 	return filepath.Dir(fullPath), nil
+}
+
+// VerifyFileMatchWithPath verify expected files found in the actual file list
+func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
+	for i := 0; i < len(expectedFileList); i++ {
+		if !stringInSlice(expectedFileList[i], actualFileList) {
+			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
+		}
+		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
+	}
+
+	for i := 0; i < len(actualFileList); i++ {
+		if !stringInSlice(actualFileList[i], expectedFileList) {
+			LogLevel("info", "Actual file %s found as well which was not in the expected list", actualFileList[i])
+		}
+	}
+
+	return nil
+}
+
+// stringInSlice verify if a string is found in the list of strings
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
