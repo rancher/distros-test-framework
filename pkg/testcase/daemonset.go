@@ -11,10 +11,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDaemonset(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "daemonset.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
-
+func TestDaemonset(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
+	}
 	pods, _ := shared.GetPods(false)
 
 	cmd := fmt.Sprintf(`
@@ -55,8 +57,8 @@ func TestDaemonset(deleteWorkload bool) {
 		"Daemonset pod count does not match node count")
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "daemonset.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "daemonset.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
 
 }

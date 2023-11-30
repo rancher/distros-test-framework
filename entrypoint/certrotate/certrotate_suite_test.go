@@ -1,18 +1,20 @@
-package createcluster
+package certrotate
 
 import (
 	"flag"
 	"os"
 	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
+
+var cfg *config.ProductConfig
 
 func TestMain(m *testing.M) {
 	var err error
@@ -23,8 +25,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-
-	_, err = config.AddConfigEnv(configPath)
+	cfg, err = config.AddConfigEnv(configPath)
 	if err != nil {
 		return
 	}
@@ -32,9 +33,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCreateClusterSuite(t *testing.T) {
+func TestCertRotateSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Create Cluster Test Suite")
+	RunSpecs(t, "Certificate Rotate Test Suite")
 }
 
 var _ = AfterSuite(func() {

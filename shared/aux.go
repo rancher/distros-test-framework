@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,6 +45,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
+	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)
@@ -74,6 +75,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
+	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
 
 	return stdout, err
 }
@@ -103,9 +105,9 @@ func EnvDir(pkg string) (string, error) {
 	case "entrypoint":
 		c = filepath.Dir(filepath.Join(callerDir, ".."))
 		env = filepath.Join(c, "config/.env")
-	case ".":
+	case "shared":
 		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(callerDir, "config/.env")
+		env = filepath.Join(c, "config/.env")
 	default:
 		return "", ReturnLogError("unknown package: %s\n", pkg)
 	}
@@ -149,52 +151,6 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	}
 
 	return count
-}
-
-// getVersion returns the rke2 or k3s version
-func getVersion(cmd string) (string, error) {
-	var res string
-	var err error
-	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err = RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
-		}
-	}
-
-	return res, nil
-}
-
-// GetProduct returns the distro product based on the config file
-func GetProduct() (string, error) {
-	cfgPath, err := EnvDir(".")
-	if err != nil {
-		return "", ReturnLogError("failed to get config path: %v\n", err)
-	}
-
-	cfg, err := config.AddConfigEnv(cfgPath)
-	if err != nil {
-		return "", ReturnLogError("failed to get config: %v\n", err)
-	}
-	if cfg.Product != "k3s" && cfg.Product != "rke2" {
-		return "", ReturnLogError("unknown product")
-	}
-
-	return cfg.Product, nil
-}
-
-// GetProductVersion return the version for a specific distro product
-func GetProductVersion(product string) (string, error) {
-	if product != "rke2" && product != "k3s" {
-		return "", ReturnLogError("unsupported product: %s\n", product)
-	}
-	version, err := getVersion(product + " -v")
-	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
-	}
-
-	return version, nil
 }
 
 // AddHelmRepo adds a helm repo to the cluster.
@@ -350,5 +306,101 @@ func fileExists(files []os.DirEntry, workload string) bool {
 		}
 	}
 
+	return false
+}
+
+func UninstallProduct(product, nodeType, ip string) error {
+	var scriptName string
+	paths := []string{
+		"/usr/local/bin",
+		"/opt/local/bin",
+		"/usr/bin",
+		"/usr/sbin",
+		"/usr/local/sbin",
+		"/bin",
+		"/sbin",
+	}
+
+	switch product {
+	case "k3s":
+		if nodeType == "agent" {
+			scriptName = "k3s-agent-uninstall.sh"
+		} else {
+			scriptName = "k3s-uninstall.sh"
+		}
+	case "rke2":
+		scriptName = "rke2-uninstall.sh"
+	default:
+		return fmt.Errorf("unsupported product: %s", product)
+	}
+
+	foundPath, err := findScriptPath(paths, scriptName, ip)
+	if err != nil {
+		return fmt.Errorf("failed to find uninstall script for %s: %v", product, err)
+	}
+
+	pathName := fmt.Sprintf("%s-uninstall.sh", product)
+	if product == "k3s" && nodeType == "agent" {
+		pathName = "k3s-agent-uninstall.sh"
+	}
+
+	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
+	_, err = RunCommandOnNode(uninstallCmd, ip)
+
+	return err
+}
+
+func findScriptPath(paths []string, pathName, ip string) (string, error) {
+	for _, path := range paths {
+		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi", path, pathName)
+		output, err := RunCommandOnNode(checkCmd, ip)
+		if err != nil {
+			return "", err
+		}
+		output = strings.TrimSpace(output)
+		if output == "found" {
+			return path, nil
+		}
+	}
+
+	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
+	fullPath, err := RunCommandOnNode(searchPath, ip)
+	if err != nil {
+		return "", err
+	}
+
+	fullPath = strings.TrimSpace(fullPath)
+	if fullPath == "" {
+		return "", fmt.Errorf("script %s not found", pathName)
+	}
+
+	return filepath.Dir(fullPath), nil
+}
+
+// VerifyFileMatchWithPath verify expected files found in the actual file list
+func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
+	for i := 0; i < len(expectedFileList); i++ {
+		if !stringInSlice(expectedFileList[i], actualFileList) {
+			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
+		}
+		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
+	}
+
+	for i := 0; i < len(actualFileList); i++ {
+		if !stringInSlice(actualFileList[i], expectedFileList) {
+			LogLevel("info", "Actual file %s found as well which was not in the expected list", actualFileList[i])
+		}
+	}
+
+	return nil
+}
+
+// stringInSlice verify if a string is found in the list of strings
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
 	return false
 }

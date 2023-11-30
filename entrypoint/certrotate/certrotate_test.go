@@ -1,21 +1,21 @@
-package mixedoscluster
+package certrotate
 
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test: Mixed OS Cluster", func() {
+var _ = Describe("Test:", func() {
 
-	It("Starts Up with no issues", func() {
+	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	It("Validates Node", func() {
+	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,
@@ -30,12 +30,23 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 		)
 	})
 
-	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(true, true)
+	It("Validate Certificate Rotation", func() {
+		testcase.TestCertRotate()
 	})
 
-	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS(true)
+	It("Validate Nodes", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus(),
+		)
 	})
 })
 
