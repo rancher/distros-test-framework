@@ -5,10 +5,10 @@
 
 echo "$@"
 
-set -x
-PS4='+(${LINENO}): '
-set -e
-trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+# set -x
+# PS4='+(${LINENO}): '
+# set -e
+# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 node_os=$1
 create_lb=$2
