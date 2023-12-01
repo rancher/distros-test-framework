@@ -75,8 +75,8 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs
 		originalFilePath := shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/workloads/%s/ingressroute.yaml", shared.Arch)
-		newFilePath := shared.BasePath() + 
+			fmt.Sprintf("/distros-test-framework/workloads/%s/ingressroute.yaml", shared.Arch)
+		newFilePath := shared.BasePath() +
 			fmt.Sprintf("/distros-test-framework/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
 		content, err := os.ReadFile(originalFilePath)
 		if err != nil {
@@ -96,7 +96,7 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
 
-	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami" +
+	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
 		" --field-selector=status.phase=Running --kubeconfig=%s", shared.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -104,7 +104,7 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 	// Query the IngressRoute Host
 	pods, err := shared.GetPodsByNamespaceAndLabel("test-ingressroute", "app=whoami", false)
 	Expect(err).NotTo(HaveOccurred(), err)
-	
+
 	negativeAsserts := "404 page not found"
 	for _, pod := range pods {
 		positiveAsserts := []string{

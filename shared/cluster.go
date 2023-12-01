@@ -26,14 +26,16 @@ type Node struct {
 }
 
 type Pod struct {
-	NameSpace string
-	Name      string
-	Ready     string
-	Status    string
-	Restarts  string
-	Age       string
-	NodeIP    string
-	Node      string
+	NameSpace      string
+	Name           string
+	Ready          string
+	Status         string
+	Restarts       string
+	Age            string
+	NodeIP         string
+	Node           string
+	NominatedNode  string
+	ReadinessGates string
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
@@ -379,12 +381,14 @@ func parsePods(res string) []Pod {
 			offset = 1
 		}
 		p.Name = fields[offset]
-		p.Ready = fields[offset + 1]
-		p.Status = fields[offset + 2]
-		p.Restarts = fields[offset + 3]
-		p.Age = fields[offset + 4]
-		p.NodeIP = fields[offset + 5]
-		p.Node = fields[offset + 6]
+		p.Ready = fields[offset+1]
+		p.Status = fields[offset+2]
+		p.Restarts = fields[offset+3]
+		p.Age = fields[offset+4]
+		p.NodeIP = fields[offset+5]
+		p.Node = fields[offset+6]
+		p.NominatedNode = fields[offset+7]
+		p.ReadinessGates = fields[offset+8]
 
 		pods = append(pods, p)
 	}

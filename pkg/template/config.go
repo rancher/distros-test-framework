@@ -29,7 +29,7 @@ type TestMap struct {
 // TestConfig represents the testcase function configuration
 type TestConfig struct {
 	TestFunc       []testCase
-	ApplyWorkload bool
+	ApplyWorkload  bool
 	DeleteWorkload bool
 	WorkloadName   string
 }
