@@ -1,10 +1,10 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
- PS4='+(${LINENO}): '
-set -e
-trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+# set -x
+#  PS4='+(${LINENO}): '
+# set -e
+# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 
 create_directories() {
