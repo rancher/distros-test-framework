@@ -14,7 +14,7 @@ function validateTestAndImage() {
 
 function validateDirName(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate)
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restart)
        if [[ "$TEST_TAG" != "" ]];
         then
           printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"

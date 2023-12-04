@@ -237,9 +237,32 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 }
 
 // GetJournalLogs returns the journal logs for a specific product
-func GetJournalLogs(product, ip string) (string, error) {
-	cmd := fmt.Sprintf("journalctl -u %s* --no-pager", product)
-	return RunCommandOnNode(cmd, ip)
+// GetJournalLogs returns the journal logs for a specific product
+func GetJournalLogs(level, ip string) string {
+	if level == "" {
+		LogLevel("warn", "level should not be empty")
+		return ""
+	}
+
+	levels := map[string]bool{"info": true, "debug": true, "warn": true, "error": true, "fatal": true}
+	if _, ok := levels[level]; !ok {
+		LogLevel("warn", "Invalid log level: %s\n", level)
+		return ""
+	}
+
+	product, err := GetProduct()
+	if err != nil {
+		return ""
+	}
+
+	cmd := fmt.Sprintf("journalctl -u %s* --no-pager | grep -i '%s'", product, level)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		LogLevel("warn", "failed to get journal logs for product: %s, error: %v\n", product, err)
+		return ""
+	}
+
+	return fmt.Sprintf("Journal logs for product: %s (level: %s):\n%s", product, level, res)
 }
 
 // ReturnLogError logs the error and returns it.
