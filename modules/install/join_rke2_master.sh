@@ -1,7 +1,7 @@
 #!/bin/bash
-# This script is used to join one or more nodes as servers to the first sertver
+# This script is used to join one or more nodes as servers to the first server
 echo "$@"
-#
+#Uncomment the following lines to enable debug mode
 #set -x
 #PS4='+(${LINENO}): '
 #set -e

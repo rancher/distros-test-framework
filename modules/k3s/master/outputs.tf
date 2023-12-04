@@ -3,8 +3,8 @@ output "Route53_info" {
   description = "List of DNS records"
 }
 
-output "server_ips" {
-  value = join("," , aws_instance.server.*.public_ip,aws_instance.server2-ha.*.public_ip)
+output "master_ips" {
+  value = join("," , aws_instance.master.*.public_ip,aws_instance.master2-ha.*.public_ip)
   description = "The public IP of the AWS node"
 }
 

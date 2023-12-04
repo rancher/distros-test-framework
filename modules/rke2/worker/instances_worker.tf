@@ -33,18 +33,18 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_rke2_agent.sh",
-      "sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.server_ip} \"${local.node_token}\" ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.worker_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
+      "sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} \"${local.node_token}\" ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.worker_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
     ]
   }
 }
 
-data "local_file" "server_ip" {
+data "local_file" "master_ip" {
   depends_on = [var.dependency]
-  filename = "/tmp/${var.resource_name}_server_ip"
+  filename = "/tmp/${var.resource_name}_master_ip"
 }
 
 locals {
-  server_ip = trimspace("${data.local_file.server_ip.content}")
+  master_ip = trimspace("${data.local_file.master_ip.content}")
 }
 
 data "local_file" "token" {

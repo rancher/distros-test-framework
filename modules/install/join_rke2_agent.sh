@@ -1,11 +1,11 @@
 #!/bin/bash
 # This script is used to join one or more nodes as agents
 echo "$@"
-
-# set -x
-# PS4='+(${LINENO}): '
-# set -e
-# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+#Uncomment the following lines to enable debug mode
+#set -x
+#PS4='+(${LINENO}): '
+#set -e
+#trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 node_os=$1
 server_ip=$2

@@ -33,18 +33,18 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/join_k3s_agent.sh",
-      "sudo /tmp/join_k3s_agent.sh ${var.node_os} ${var.install_mode} ${var.k3s_version} ${local.server_ip} ${local.node_token} ${self.public_ip} \"${var.worker_flags}\" ${var.username} ${var.password} ",
+      "sudo /tmp/join_k3s_agent.sh ${var.node_os} ${var.install_mode} ${var.k3s_version} ${local.master_ip} ${local.node_token} ${self.public_ip} \"${var.worker_flags}\" ${var.username} ${var.password} ",
     ]
   }
 }
 
-data "local_file" "server_ip" {
+data "local_file" "master_ip" {
   depends_on = [var.dependency]
-  filename = "/tmp/${var.resource_name}_server_ip"
+  filename = "/tmp/${var.resource_name}_master_ip"
 }
 
 locals {
-  server_ip = trimspace(data.local_file.server_ip.content)
+  master_ip = trimspace(data.local_file.master_ip.content)
 }
 
 data "local_file" "token" {

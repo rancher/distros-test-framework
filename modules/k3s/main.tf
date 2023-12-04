@@ -1,5 +1,5 @@
-module "server" {
-   source="./server"
+module "master" {
+   source="./master"
    aws_ami=var.aws_ami
    aws_user=var.aws_user
    key_name=var.key_name
@@ -34,7 +34,7 @@ module "server" {
 }
 module "worker" {
    source="./worker"
-   dependency = module.server
+   dependency = module.master
    aws_ami=var.aws_ami
    aws_user=var.aws_user
    key_name=var.key_name

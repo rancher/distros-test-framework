@@ -1,10 +1,10 @@
 #!/bin/bash
 
-## Uncomment the following lines to enable debug mode
-# set -x
-#  PS4='+(${LINENO}): '
-# set -e
-# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+#Uncomment the following lines to enable debug mode
+#set -x
+#PS4='+(${LINENO}): '
+#set -e
+#trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 
 create_directories() {
@@ -78,7 +78,7 @@ policy_files() {
 
   if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
     then
-      cat /tmp/cis_server_config.yaml >> /etc/rancher/k3s/config.yaml
+      cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
       printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
       sysctl -p /etc/sysctl.d/90-kubelet.conf
       systemctl restart systemd-sysctl

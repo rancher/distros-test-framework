@@ -1,5 +1,5 @@
-output "server_ips" {
-  value       = module.server.server_ips
+output "master_ips" {
+  value       = module.master.master_ips
   description = "The public IP of the AWS node"
 }
 
@@ -9,12 +9,12 @@ output "worker_ips" {
 }
 
 output "kubeconfig" {
-  value = module.server.kubeconfig
+  value = module.master.kubeconfig
   description = "kubeconfig of the cluster created"
 }
 
 output "rendered_template" {
-  value = module.server.rendered_template
+  value = module.master.rendered_template
 }
 
 output "server_flags" {

@@ -1,10 +1,10 @@
 #!/bin/bash
-# This script installs the first server, ensuring first server is installed
+# This script installs the first master, ensuring first master is installed
 # and ready before proceeding to install other nodes
 #!/bin/bash
 
 echo "$@"
-
+#Uncomment the following lines to enable debug mode
 #set -x
 #PS4='+(${LINENO}): '
 #set -e

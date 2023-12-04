@@ -8,6 +8,6 @@ output "kubeconfig" {
   description = "kubeconfig of the cluster created"
 }
 
-output "server_ips" {
-  value = join("," , aws_instance.server.*.public_ip,aws_instance.server2.*.public_ip)
+output "master_ips" {
+  value = join("," , aws_instance.master.*.public_ip,aws_instance.master2.*.public_ip)
 }
