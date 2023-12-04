@@ -1,4 +1,4 @@
-package restart
+package restartservice
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestRestartService()
 	})
 
-	It("Validate Nodes after restart", func() {
+	It("Validate Nodes after restartservice", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,

@@ -1,4 +1,4 @@
-package restart
+package restartservice
 
 import (
 	"os"
