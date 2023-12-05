@@ -31,13 +31,13 @@ resource "aws_instance" "master" {
     ]
   }
   provisioner "file" {
-    source      = "../install/rke2_node_role.sh"
-    destination = "/tmp/rke2_node_role.sh"
+    source      = "../install/node_role.sh"
+    destination = "/tmp/node_role.sh"
   }
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/rke2_node_role.sh",
-      "sudo /tmp/rke2_node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes}",
+      "chmod +x /tmp/node_role.sh",
+      "sudo /tmp/node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
     ]
   }
   provisioner "file" {
@@ -99,13 +99,13 @@ resource "aws_instance" "master2" {
     ]
   }
   provisioner "file" {
-    source      = "../install/rke2_node_role.sh"
-    destination = "/tmp/rke2_node_role.sh"
+    source      = "../install/node_role.sh"
+    destination = "/tmp/node_role.sh"
   }
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/rke2_node_role.sh",
-      "sudo /tmp/rke2_node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes}",
+      "chmod +x /tmp/node_role.sh",
+      "sudo /tmp/node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
     ]
   }
   provisioner "file" {
