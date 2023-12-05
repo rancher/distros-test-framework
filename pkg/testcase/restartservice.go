@@ -13,9 +13,10 @@ func TestRestartService() {
 	Expect(err).NotTo(HaveOccurred(), "failed to get product")
 	c := factory.ClusterConfig(GinkgoT())
 
-	_, err = shared.ManageService(product, "restart", "server", c.ServerIPs)
-	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", c.ServerIPs)
+	var ip string
+	ip, err = shared.ManageService(product, "restart", "server", c.ServerIPs)
+	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", ip)
 
-	_, err = shared.ManageService(product, "restart", "agent", c.AgentIPs)
-	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", c.AgentIPs)
+	ip, err = shared.ManageService(product, "restart", "agent", c.AgentIPs)
+	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", ip)
 }
