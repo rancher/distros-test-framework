@@ -200,14 +200,14 @@ resource "aws_lb_target_group" "aws_tg_80" {
   vpc_id             = var.vpc_id
   name               = "${var.resource_name}${local.random_string}-tg-80"
   health_check {
-    protocol            = "HTTP"
-    port                = "traffic-port"
-    path                = "/ping"
-    interval            = 10
-    timeout             = 6
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    matcher             = "200-399"
+        protocol            = "HTTP"
+        port                = "traffic-port"
+        path                = "/ping"
+        interval            = 10
+        timeout             = 6
+        healthy_threshold   = 3
+        unhealthy_threshold = 3
+        matcher             = "200-399"
   }
 }
 
@@ -235,14 +235,14 @@ resource "aws_lb_target_group" "aws_tg_443" {
   vpc_id             = var.vpc_id
   name               = "${var.resource_name}${local.random_string}-tg-443"
   health_check {
-    protocol            = "HTTP"
-    port                = 80
-    path                = "/ping"
-    interval            = 10
-    timeout             = 6
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-    matcher             = "200-399"
+        protocol            = "HTTP"
+        port                = 80
+        path                = "/ping"
+        interval            = 10
+        timeout             = 6
+        healthy_threshold   = 3
+        unhealthy_threshold = 3
+        matcher             = "200-399"
   }
 }
 
