@@ -26,3 +26,5 @@ The role_order determines the order of nodes in the server ip array that will ge
 server1 -> etcd only
 server2 -> control plane only
 agent1 ->  agent/worker node
+
+Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha

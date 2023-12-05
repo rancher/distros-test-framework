@@ -189,9 +189,9 @@ wait_pods() {
 }
 
 config_files() {
-  cat /etc/rancher/k3s/config.yaml> /tmp/joinflags
-  cat /var/lib/rancher/k3s/server/node-token >/tmp/nodetoken
-  cat /etc/rancher/k3s/k3s.yaml >/tmp/config
+  cat /etc/rancher/k3s/config.yaml > /tmp/joinflags
+  cat /var/lib/rancher/k3s/server/node-token > /tmp/nodetoken
+  cat /etc/rancher/k3s/k3s.yaml > /tmp/config
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   sudo chmod 644 /etc/rancher/k3s/k3s.yaml
 }
@@ -204,9 +204,17 @@ main() {
   subscription_manager "$1" "$9" "${10}"
   disable_cloud_setup "$1"
   install "$5" "$4" "${11}" "$7"
-  wait_nodes
-  wait_ready_nodes
-  wait_pods
+  if [ "${12}" -eq 0 ]; then
+    # If etcd only node count is 0, then wait for nodes/pods to come up. 
+    # etcd only node needs api server to come up fully, which is in control plane node. 
+    # and hence we cannot wait for node/pod status in this case. 
+    wait_nodes
+    wait_ready_nodes
+    wait_pods
+  else
+    # add sleep to make sure install finished and the node token file is present on the node for a copy
+    sleep 30
+  fi
   config_files
 }
 main "$@"
