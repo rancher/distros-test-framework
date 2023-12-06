@@ -15,8 +15,8 @@ func TestRestartService() {
 
 	var ip string
 	ip, err = shared.ManageService(product, "restart", "server", c.ServerIPs)
-	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", ip)
+	Expect(err).NotTo(HaveOccurred(), "failed restart server for ip %s", ip)
 
 	ip, err = shared.ManageService(product, "restart", "agent", c.AgentIPs)
-	Expect(err).NotTo(HaveOccurred(), "failed to get systemctl command for ip %s", ip)
+	Expect(err).NotTo(HaveOccurred(), "failed to restart agent for ip %s", ip)
 }
