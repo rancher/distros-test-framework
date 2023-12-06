@@ -44,3 +44,6 @@ variable "etcd_worker_nodes" {}
 variable "cp_only_nodes" {}
 variable "cp_worker_nodes" {}
 variable "optional_files" {}
+variable product {
+  default = "rke2"
+}

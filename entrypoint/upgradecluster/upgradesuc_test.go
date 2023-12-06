@@ -54,6 +54,20 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service before upgrade", func() {
+			testcase.TestServiceLoadBalancer(true, false)
+		})
+
+		It("Verifies Local Path Provisioner storage before upgrade", func() {
+			testcase.TestLocalPathProvisionerStorage(true, false)
+		})
+
+		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
+			testcase.TestIngressRoute(true, false, "traefik.containo.us/v1alpha1")
+		})
+	}
+
 	It("\nUpgrade via SUC", func() {
 		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
@@ -94,6 +108,20 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Verifies DNS Access post-upgrade", func() {
 		testcase.TestDnsAccess(true, true)
 	})
+
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service after upgrade", func() {
+			testcase.TestServiceLoadBalancer(false, true)
+		})
+
+		It("Verifies Local Path Provisioner storage after upgrade", func() {
+			testcase.TestLocalPathProvisionerStorage(false, true)
+		})
+
+		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
+			testcase.TestIngressRoute(false, true, "traefik.containo.us/v1alpha1")
+		})
+	}
 })
 
 var _ = AfterEach(func() {
