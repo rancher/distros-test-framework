@@ -1,4 +1,4 @@
-package validatecluster
+package restartservice
 
 import (
 	"fmt"
@@ -30,6 +30,17 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
+	It("Restart server and agent service", func() {
+		testcase.TestRestartService()
+	})
+
+	It("Validate Nodes after restartservice", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIp(true, true)
 	})
@@ -57,14 +68,6 @@ var _ = Describe("Test:", func() {
 
 		It("Verifies LoadBalancer Service", func() {
 			testcase.TestServiceLoadBalancer(true, true)
-		})
-
-		It("Verifies Traefik IngressRoute using old GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.containo.us/v1alpha1")
-		})
-
-		It("Verifies Traefik IngressRoute using new GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.io/v1alpha1")
 		})
 	}
 })

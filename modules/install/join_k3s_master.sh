@@ -1,11 +1,10 @@
 #!/bin/bash
 
-## Uncomment the following lines to enable debug mode
-# set -x
-#  PS4='+(${LINENO}): '
-# set -e
-# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
-
+# the following lines are to enable debug mode
+set -x
+PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 create_directories() {
   sudo mkdir -p /etc/rancher/k3s
@@ -42,34 +41,34 @@ add_config() {
   alias k=kubectl
 }
 
-rhel() {
+subscription_manager() {
    local node_os="${1}"
    local username="${2}"
    local password="${3}"
 
-  if [ "$node_os" = "rhel" ]
-    then
-      subscription-manager register --auto-attach --username="$username" --password="$password"
-      subscription-manager repos --enable=rhel-7-server-extras-rpms
-  fi
+   if [ "$node_os" = "rhel" ]; then
+      subscription-manager register --auto-attach --username="$username" --password="$password" || echo "Failed to register or attach subscription."
+
+      subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
+   fi
 }
 
 disable_cloud_setup() {
    local node_os="${1}"
 
-if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == "centos8" ]]
-  then
-    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
-    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
+   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]]; then
+      if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
+         systemctl disable nm-cloud-setup.service
+      else
+         echo "nm-cloud-setup.service not found or not enabled"
+      fi
 
-    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.service
-    fi
-
-    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.timer
-    fi
-fi
+      if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
+         systemctl disable nm-cloud-setup.timer
+      else
+         echo "nm-cloud-setup.timer not found or not enabled"
+      fi
+   fi
 }
 
 policy_files() {
@@ -128,7 +127,7 @@ main() {
   create_config "$2" "$7" "$8" "$6"
   add_config  "${10}"
   policy_files "${10}" "$4"
-  rhel "$1" "${11}" "${12}"
+  subscription_manager "$1" "${11}" "${12}"
   disable_cloud_setup "$1"
   install "$5" "$4" "${13}" "$9"
 }

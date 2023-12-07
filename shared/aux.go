@@ -14,7 +14,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
-
 )
 
 // RunCommandHost executes a command on the host
@@ -220,9 +219,32 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 }
 
 // GetJournalLogs returns the journal logs for a specific product
-func GetJournalLogs(product, ip string) (string, error) {
-	cmd := fmt.Sprintf("journalctl -u %s* --no-pager", product)
-	return RunCommandOnNode(cmd, ip)
+// GetJournalLogs returns the journal logs for a specific product
+func GetJournalLogs(level, ip string) string {
+	if level == "" {
+		LogLevel("warn", "level should not be empty")
+		return ""
+	}
+
+	levels := map[string]bool{"info": true, "debug": true, "warn": true, "error": true, "fatal": true}
+	if _, ok := levels[level]; !ok {
+		LogLevel("warn", "Invalid log level: %s\n", level)
+		return ""
+	}
+
+	product, err := GetProduct()
+	if err != nil {
+		return ""
+	}
+
+	cmd := fmt.Sprintf("journalctl -u %s* --no-pager | grep -i '%s'", product, level)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		LogLevel("warn", "failed to get journal logs for product: %s, error: %v\n", product, err)
+		return ""
+	}
+
+	return fmt.Sprintf("Journal logs for product: %s (level: %s):\n%s", product, level, res)
 }
 
 // ReturnLogError logs the error and returns it.
@@ -343,7 +365,8 @@ func UninstallProduct(product, nodeType, ip string) error {
 
 func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	for _, path := range paths {
-		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi", path, pathName)
+		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
+			path, pathName)
 		output, err := RunCommandOnNode(checkCmd, ip)
 		if err != nil {
 			return "", err
@@ -372,14 +395,16 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
-			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
+			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",
+				expectedFileList[i]))
 		}
 		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
 	}
 
 	for i := 0; i < len(actualFileList); i++ {
 		if !stringInSlice(actualFileList[i], expectedFileList) {
-			LogLevel("info", "Actual file %s found as well which was not in the expected list", actualFileList[i])
+			LogLevel("info", "Actual file %s found as well which was not in the expected list",
+				actualFileList[i])
 		}
 	}
 

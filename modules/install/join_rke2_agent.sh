@@ -1,11 +1,11 @@
 #!/bin/bash
 # This script is used to join one or more nodes as agents
 echo "$@"
-
-# set -x
-# PS4='+(${LINENO}): '
-# set -e
-# trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+# the following lines are to enable debug mode
+set -x
+PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 node_os=$1
 server_ip=$2
@@ -40,24 +40,25 @@ else
   echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
 fi
 
-if [[ "$node_os" = "rhel" ]]
+if [ "$node_os" = "rhel" ]
 then
-   subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password"
-   subscription-manager repos --enable=rhel-7-server-extras-rpms
+    subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
+
+    subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
 fi
 
-if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == "centos8" ]]
-then
-    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
-    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
-
-    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.service
+if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]]; then
+    if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
+       systemctl disable nm-cloud-setup.service
+    else
+       echo "nm-cloud-setup.service not found or not enabled"
     fi
 
-    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.timer
-    fi
+    if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
+       systemctl disable nm-cloud-setup.timer
+    else
+       echo "nm-cloud-setup.timer not found or not enabled"
+fi
 
   yum install tar -y
   yum install iptables -y

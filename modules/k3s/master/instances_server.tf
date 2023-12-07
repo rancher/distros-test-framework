@@ -63,6 +63,16 @@ resource "aws_instance" "master" {
     Name                 = "${var.resource_name}-server"
   }
   provisioner "file" {
+    source      = "../install/node_role.sh"
+    destination = "/tmp/node_role.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/node_role.sh",
+      "sudo /tmp/node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
+    ]
+  }
+  provisioner "file" {
     source = "../install/k3s_master.sh"
     destination = "/tmp/k3s_master.sh"
   }
@@ -87,10 +97,9 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [ <<-EOT
-      chmod +x /tmp/k3s_master.sh
-      sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} ${var.k3s_channel}
-    EOT
+    inline = [
+      "chmod +x /tmp/k3s_master.sh",
+      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel} ${var.etcd_only_nodes}",
     ]
   }
   provisioner "local-exec" {
@@ -141,7 +150,7 @@ locals {
 resource "aws_instance" "master2-ha" {
   ami                    = var.aws_ami
   instance_type          = var.ec2_instance_class
-  count                  = var.no_of_server_nodes - 1
+  count                  = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
   connection {
     type                 = "ssh"
     user                 = var.aws_user
@@ -159,6 +168,16 @@ resource "aws_instance" "master2-ha" {
   depends_on             = [aws_instance.master]
   tags = {
     Name                 = "${var.resource_name}-server-ha${count.index + 1}"
+  }
+  provisioner "file" {
+    source      = "../install/node_role.sh"
+    destination = "/tmp/node_role.sh"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/node_role.sh",
+      "sudo /tmp/node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
+    ]
   }
   provisioner "file" {
     source = "../install/join_k3s_master.sh"
@@ -256,7 +275,7 @@ resource "aws_lb_target_group_attachment" "aws_tg_attachment_443" {
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_443_2" {
   count              = var.create_lb ? length(aws_instance.master2-ha) : 0
-  depends_on         = ["aws_instance.master"]
+  depends_on         = [aws_instance.master]
   target_group_arn   = aws_lb_target_group.aws_tg_443[0].arn
   target_id          = aws_instance.master2-ha[count.index].id
   port               = 443
@@ -340,4 +359,28 @@ resource "aws_route53_record" "aws_route53" {
 data "aws_route53_zone" "selected" {
   name               = var.qa_space
   private_zone       = false
+}
+
+locals {
+  serverIp   = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
+  depends_on = [aws_instance.master]
+}
+resource "null_resource" "update_kubeconfig" {
+  count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  depends_on = [aws_instance.master, aws_instance.master2-ha]
+
+  provisioner "local-exec" {
+    command    = "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
+    on_failure = continue
+  }
+  provisioner "local-exec" {
+    command    = "test -f /tmp/${var.resource_name}_control_plane_${count.index} && grep '6444' /tmp/${var.resource_name}_config && sed s/127.0.0.1:6444/\"${count.index == 0 ? local.serverIp : aws_instance.master2-ha[count.index - 1].public_ip}:6443\"/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+    on_failure = continue
+  }
+
+  provisioner "local-exec" {
+    command    = "test -f /tmp/${var.resource_name}_control_plane_${count.index} && grep '6443' /tmp/${var.resource_name}_config && sed s/127.0.0.1:6443/\"${count.index == 0 ? local.serverIp : aws_instance.master2-ha[count.index - 1].public_ip}:6443\"/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+    on_failure = continue
+  }
+
 }

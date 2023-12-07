@@ -262,8 +262,19 @@ test-validate-selinux:
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL})
 
+.PHONY: test-restart-service
+test-restart-service:
+	@go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
+
 #========================= TestCode Static Quality Check =========================#
-.PHONY: vet-lint
-vet-lint:
-	@echo "Running go vet and lint"
-	@go vet ./${TEST_DIR} && golangci-lint run --tests
+#.PHONY: vet-lint
+#vet-lint:
+#	@echo "Running go vet and lint"
+#	@go vet ./${TEST_DIR} && golangci-lint run --tests
+
+.PHONY: pre-commit
+pre-commit:
+	@gofmt -s -w .
+	@goimports -w .
+	@go vet ./...
+	@golangci-lint run --tests ./...

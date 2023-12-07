@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -26,14 +27,16 @@ type Node struct {
 }
 
 type Pod struct {
-	NameSpace string
-	Name      string
-	Ready     string
-	Status    string
-	Restarts  string
-	Age       string
-	NodeIP    string
-	Node      string
+	NameSpace      string
+	Name           string
+	Ready          string
+	Status         string
+	Restarts       string
+	Age            string
+	NodeIP         string
+	Node           string
+	NominatedNode  string
+	ReadinessGates string
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
@@ -346,36 +349,53 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
+// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace
+// with a specific label
+func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s",
+		namespace, label, KubeConfigFile)
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
+	}
+
+	pods := parsePods(res)
+	if print {
+		fmt.Println(res)
+	}
+
+	return pods, nil
+}
+
 // parsePods parses the pods from the kubeclt get pods command.
 func parsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")
 
 	for _, rec := range podList {
-		fields := strings.Fields(rec)
-		if strings.TrimSpace(rec) == "" {
+		offset := 0
+		fields := regexp.MustCompile(`\s{2,}`).Split(rec, -1)
+		if strings.TrimSpace(rec) == "" || len(fields) < 9 {
 			continue
 		}
-
-		if len(fields) < 9 {
-			continue
+		var p Pod
+		if len(fields) == 10 {
+			p.NameSpace = fields[0]
+			offset = 1
 		}
+		p.Name = fields[offset]
+		p.Ready = fields[offset+1]
+		p.Status = fields[offset+2]
+		p.Restarts = regexp.MustCompile(`\([^\)]+\)`).Split(fields[offset+3], -1)[0]
+		p.Age = fields[offset+4]
+		p.NodeIP = fields[offset+5]
+		p.Node = fields[offset+6]
+		p.NominatedNode = fields[offset+7]
+		p.ReadinessGates = fields[offset+8]
 
-		p := Pod{
-			NameSpace: fields[0],
-			Name:      fields[1],
-			Ready:     fields[2],
-			Status:    fields[3],
-			Restarts:  fields[4],
-			Age:       fields[5],
-			NodeIP:    fields[6],
-			Node:      fields[7],
-		}
 		pods = append(pods, p)
 	}
-
 	return pods
-
 }
 
 // ReadDataPod reads the data from the pod

@@ -20,6 +20,7 @@ func TestPodStatus(
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
 			processPodStatus(g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
