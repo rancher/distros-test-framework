@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-ingressroute
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.25
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: v1.25
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: v1.25
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  namespace: test-ingressroute
+spec:
+  ports:
+    - protocol: TCP
+      name: web
+      port: 8000
+    - protocol: TCP
+      name: admin
+      port: 8080
+    - protocol: TCP
+      name: websecure
+      port: 4443
+  selector:
+    app: traefik
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami
+  namespace: test-ingressroute
+spec:
+  ports:
+    - protocol: TCP
+      name: web
+      port: 80
+  selector:
+    app: whoami
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: test-ingressroute
+  name: traefik-ingress-controller
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  namespace: test-ingressroute
+  name: whoami
+  labels:
+    app: whoami
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: whoami
+  template:
+    metadata:
+      labels:
+        app: whoami
+    spec:
+      containers:
+        - name: whoami
+          image: traefik/whoami
+          ports:
+            - name: web
+              containerPort: 80
+---
+apiVersion: $APIVERSION
+kind: IngressRoute
+metadata:
+  name: simpleingressroute
+  namespace: test-ingressroute
+spec:
+  entryPoints:
+    - web
+  routes:
+  - match: Host(`$YOURDNS`) && PathPrefix(`/notls`)
+    kind: Rule
+    services:
+    - name: whoami
+      port: 80
+---
+apiVersion: $APIVERSION
+kind: IngressRoute
+metadata:
+  name: ingressroutetls
+  namespace: test-ingressroute
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`$YOURDNS`) && PathPrefix(`/tls`)
+    kind: Rule
+    services:
+    - name: whoami
+      port: 80
+  tls:
+    certResolver: myresolver

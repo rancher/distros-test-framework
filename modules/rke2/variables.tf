@@ -36,6 +36,9 @@ variable "windows_aws_ami" {}
 variable "windows_ec2_instance_class" {}
 
 # RKE2 variables
+variable product {
+  default = "rke2"
+}
 variable "rke2_version" {}
 variable "install_mode" {
   default = "INSTALL_RKE2_VERSION"

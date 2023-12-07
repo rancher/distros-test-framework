@@ -87,6 +87,9 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxContext()
 		},
+		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestIngressRoute(applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
+		},
 	}
 
 	for _, name := range names {
