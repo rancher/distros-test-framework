@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -371,7 +372,7 @@ func parsePods(res string) []Pod {
 
 	for _, rec := range podList {
 		offset := 0
-		fields := strings.Fields(rec)
+		fields := regexp.MustCompile(`\s{2,}`).Split(rec, -1)
 		if strings.TrimSpace(rec) == "" || len(fields) < 9 {
 			continue
 		}
@@ -383,7 +384,7 @@ func parsePods(res string) []Pod {
 		p.Name = fields[offset]
 		p.Ready = fields[offset+1]
 		p.Status = fields[offset+2]
-		p.Restarts = fields[offset+3]
+		p.Restarts = regexp.MustCompile(`\([^\)]+\)`).Split(fields[offset+3], -1)[0]
 		p.Age = fields[offset+4]
 		p.NodeIP = fields[offset+5]
 		p.Node = fields[offset+6]
