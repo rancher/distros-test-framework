@@ -14,7 +14,7 @@ function validateTestAndImage() {
 
 function validateDirName(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate)
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
        if [[ "$TEST_TAG" != "" ]];
         then
           printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
@@ -66,6 +66,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=50m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
+    elif [ "${TEST_DIR}" = "restartservice" ]; then
+        go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     fi
 fi
 }

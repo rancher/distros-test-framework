@@ -23,7 +23,7 @@ func TestNodeStatus(
 		expectedNodeCount += cluster.NumWinAgents
 	}
 
-	Eventually(func(g Gomega) {
+	Eventually(func(g Gomega) bool {
 		nodes, err := shared.GetNodes(false)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(len(nodes)).To(Equal(expectedNodeCount),
@@ -36,7 +36,17 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
-	}, "2100s", "10s").Should(Succeed())
+		return true
+	}, "2500s", "10s").Should(BeTrue(), func() string {
+		shared.LogLevel("error", "\ntimeout for nodes to be ready gathering journal logs...\n")
+		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
+
+		if cluster.NumAgents > 0 {
+			logs += shared.GetJournalLogs("error", cluster.AgentIPs[0])
+		}
+
+		return logs
+	})
 
 	fmt.Println("\n\nCluster nodes:")
 	_, err := shared.GetNodes(true)
