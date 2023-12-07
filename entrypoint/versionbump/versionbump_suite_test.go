@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.ProductConfig
+var cfg *config.Product
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -47,12 +47,7 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	configPath, err := shared.EnvDir("entrypoint")
-	if err != nil {
-		return
-	}
-
-	cfg, err = config.AddConfigEnv(configPath)
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}

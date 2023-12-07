@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 type cmdCtx map[string]string
@@ -17,12 +17,6 @@ type cmdCtx map[string]string
 type configuration struct {
 	distroName string
 	cmdCtx
-}
-
-// setHelper returns the cluster and product
-func fetchCluster() (*factory.Cluster, error) {
-	cluster := factory.ClusterConfig(GinkgoT())
-	return cluster, nil
 }
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
@@ -685,4 +679,10 @@ var conf = []configuration{
 			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm/* " + ignoreDir + " " + grepFilter:  ctxTmpfs,
 		},
 	},
+}
+
+// setHelper returns the cluster and product
+func fetchCluster() (*factory.Cluster, error) {
+	cluster := factory.ClusterConfig(GinkgoT())
+	return cluster, nil
 }

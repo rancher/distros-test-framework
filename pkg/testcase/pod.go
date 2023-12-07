@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -28,7 +27,6 @@ func TestPodStatus(
 		}
 	}, "2500s", "10s").Should(Succeed())
 
-	fmt.Println("\n\nCluster Pods:")
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
 }

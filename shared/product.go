@@ -2,21 +2,15 @@ package shared
 
 import (
 	"fmt"
-
-	"github.com/rancher/distros-test-framework/config"
 )
 
 // GetProduct returns the distro product based on the config file
 func GetProduct() (string, error) {
-	cfgPath, err := EnvDir("shared")
+	cfg, err := EnvConfig()
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}
 
-	cfg, err := config.AddConfigEnv(cfgPath)
-	if err != nil {
-		return "", ReturnLogError("failed to get config: %v\n", err)
-	}
 	if cfg.Product != "k3s" && cfg.Product != "rke2" {
 		return "", ReturnLogError("unknown product")
 	}

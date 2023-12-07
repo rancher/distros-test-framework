@@ -106,7 +106,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies dns access after upgrade", func() {
-		testcase.TestDnsAccess(true, true)
+		testcase.TestDnsAccess(false, true)
 	})
 
 	if cfg.Product == "k3s" {

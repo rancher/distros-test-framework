@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -77,24 +76,18 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 // DestroyCluster destroys the cluster and returns it
 func DestroyCluster(g GinkgoTInterface) (string, error) {
 	var varDir string
-	configPath, err := shared.EnvDir("factory")
+	cfg, err := shared.EnvConfig()
 	if err != nil {
-		return "", shared.ReturnLogError("error getting config path: %w", err)
+		return "", err
 	}
-
-	cfg, err := config.AddConfigEnv(configPath)
-	if err != nil {
-		return "", shared.ReturnLogError("error getting config: %w", err)
-	}
-
 	varDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
 	tfDir, err := filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", cfg.Product))
 	if err != nil {
 		return "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}

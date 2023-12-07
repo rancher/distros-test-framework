@@ -34,10 +34,10 @@ resource "aws_rds_cluster" "db" {
 }
 
 resource "aws_rds_cluster_instance" "db" {
- count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
- cluster_identifier      = aws_rds_cluster.db[0].id
- identifier              = "${var.resource_name}${local.random_string}-instance1"
- instance_class          = var.instance_class
+  count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
+  cluster_identifier      = aws_rds_cluster.db[0].id
+  identifier              = "${var.resource_name}${local.random_string}-instance1"
+  instance_class          = var.instance_class
   engine                 = aws_rds_cluster.db[0].engine
   engine_version         = aws_rds_cluster.db[0].engine_version
 }

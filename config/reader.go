@@ -9,16 +9,16 @@ import (
 )
 
 var (
-	product *ProductConfig
+	product *Product
 	once    sync.Once
 )
 
-type ProductConfig struct {
+type Product struct {
 	TFVars  string
 	Product string
 }
 
-func AddConfigEnv(path string) (*ProductConfig, error) {
+func AddConfigEnv(path string) (*Product, error) {
 	once.Do(func() {
 		var err error
 		product, err = loadEnv(path)
@@ -30,15 +30,14 @@ func AddConfigEnv(path string) (*ProductConfig, error) {
 	return product, nil
 }
 
-func loadEnv(fullPath string) (config *ProductConfig, err error) {
-	if err = setEnv(fullPath); err != nil {
+func loadEnv(fullPath string) (config *Product, err error) {
+	if err = SetEnv(fullPath); err != nil {
 		return nil, err
 	}
 
-	config = &ProductConfig{}
+	config = &Product{}
 	config.TFVars = os.Getenv("ENV_TFVARS")
 	config.Product = os.Getenv("ENV_PRODUCT")
-
 	if config.TFVars == "" || (config.TFVars != "k3s.tfvars" && config.TFVars != "rke2.tfvars") {
 		fmt.Printf("unknown tfvars: %s\n", config.TFVars)
 		os.Exit(1)
@@ -52,7 +51,7 @@ func loadEnv(fullPath string) (config *ProductConfig, err error) {
 	return config, nil
 }
 
-func setEnv(fullPath string) error {
+func SetEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
 		fmt.Println("failed to open file:", err)
@@ -68,8 +67,9 @@ func setEnv(fullPath string) error {
 			continue
 		}
 
-		key, value := parts[0], parts[1]
-		err = os.Setenv(key, value)
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		err = os.Setenv(strings.Trim(key, "\""), strings.Trim(value, "\""))
 		if err != nil {
 			return err
 		}

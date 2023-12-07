@@ -10,9 +10,11 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
+
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 
-	"golang.org/x/crypto/ssh"
 )
 
 // RunCommandHost executes a command on the host
@@ -82,34 +84,15 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 
 // BasePath returns the base path of the project.
 func BasePath() string {
-	_, b, _, _ := runtime.Caller(0)
-
-	return filepath.Join(filepath.Dir(b), "../..")
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(callerFilePath), "..")
 }
 
-// EnvDir returns the environment directory of the project based on the package passed.
-func EnvDir(pkg string) (string, error) {
-	_, callerFilePath, _, ok := runtime.Caller(1)
-	if !ok {
-		return "", ReturnLogError("failed to get caller file path")
-	}
-	callerDir := filepath.Dir(callerFilePath)
-
-	var env string
-	var c string
-
-	switch pkg {
-	case "factory":
-		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(c, "config/.env")
-	case "entrypoint":
-		c = filepath.Dir(filepath.Join(callerDir, ".."))
-		env = filepath.Join(c, "config/.env")
-	case "shared":
-		c = filepath.Dir(filepath.Join(callerDir))
-		env = filepath.Join(c, "config/.env")
-	default:
-		return "", ReturnLogError("unknown package: %s\n", pkg)
+func EnvConfig() (*config.Product, error) {
+	path := BasePath() + "/config/.env"
+	env, err := config.AddConfigEnv(path)
+	if err != nil {
+		return nil, ReturnLogError("error getting env config: %w\n", err)
 	}
 
 	return env, nil
@@ -300,9 +283,17 @@ func LogLevel(level, format string, args ...interface{}) {
 		if ok {
 			funcName := runtime.FuncForPC(pc).Name()
 			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
-		} else {
-			log.Error(msg)
 		}
+		log.Error(msg)
+	case "fatal":
+		pc, file, line, ok := runtime.Caller(1)
+		if ok {
+			funcName := runtime.FuncForPC(pc).Name()
+			log.Fatal(fmt.Sprintf("%s\nLast call: %s in %s:%d", msg, funcName, file, line))
+		}
+		log.Fatal(msg)
+	default:
+		log.Info(msg)
 	}
 }
 

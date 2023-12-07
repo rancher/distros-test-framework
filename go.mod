@@ -3,6 +3,7 @@ module github.com/rancher/distros-test-framework
 go 1.20
 
 require (
+	github.com/aws/aws-sdk-go v1.45.26
 	github.com/gruntwork-io/terratest v0.46.0
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
@@ -18,7 +19,6 @@ require (
 	cloud.google.com/go/storage v1.33.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/aws/aws-sdk-go v1.45.26 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect

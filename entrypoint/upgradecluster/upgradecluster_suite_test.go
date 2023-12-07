@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.ProductConfig
+var cfg *config.Product
 
 func TestMain(m *testing.M) {
 	var err error
@@ -25,12 +25,7 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	configPath, err := shared.EnvDir("entrypoint")
-	if err != nil {
-		return
-	}
-
-	cfg, err = config.AddConfigEnv(configPath)
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}
