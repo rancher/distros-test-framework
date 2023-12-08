@@ -14,7 +14,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
-
 )
 
 // RunCommandHost executes a command on the host
