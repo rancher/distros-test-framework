@@ -75,9 +75,9 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs
 		originalFilePath := shared.BasePath() +
-			fmt.Sprintf("/distros-test-framework/workloads/%s/ingressroute.yaml", shared.Arch)
+			fmt.Sprintf("/workloads/%s/ingressroute.yaml", shared.Arch)
 		newFilePath := shared.BasePath() +
-			fmt.Sprintf("/distros-test-framework/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
+			fmt.Sprintf("/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
 		content, err := os.ReadFile(originalFilePath)
 		if err != nil {
 			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
@@ -88,8 +88,8 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 		newContent := replacer.Replace(string(content))
 		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
 		if err != nil {
-			Expect(err).NotTo(HaveOccurred(), "failed to update file for ingressroute"+
-				" resource to use one of the node external ips")
+			Expect(err).NotTo(HaveOccurred(),
+				"failed to update file for ingressroute resource to use one of the node external ips")
 		}
 
 		// Deploy manifest and ensure pods are running

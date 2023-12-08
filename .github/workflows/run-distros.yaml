@@ -41,22 +41,19 @@ jobs:
       - name: Get list of changed files
         id: get-changed-files
         run: |
-            files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.go$' || true)
-            if [ -z "$files" ]; then
+          files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.go$' || true)
+          if [ -z "$files" ]; then
             echo "No Go files changed"
             echo "::set-output name=go_files_changed::false"
-            else
-            echo "Go files changed:"
-            echo "$files"
+          else
+            echo "Go files changed"
             echo "::set-output name=go_files_changed::true"
-            # Format the file list for input to golangci-lint
-            formatted_files=$(echo "$files" | xargs)
-            echo "::set-output name=files::$formatted_files"
-            fi
+          fi
 
       - name: golangci-lint
         if: steps.get-changed-files.outputs.go_files_changed == 'true'
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
-          args: --timeout 10m --issues-exit-code=0 ${{ steps.get-changed-files.outputs.files }}
+          args: --timeout 10m --issues-exit-code=0 ./...
+
