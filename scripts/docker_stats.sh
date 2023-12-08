@@ -4,7 +4,7 @@
 
 IMGNAME=$1
 printf  "\nMonitoring docker stats for %s\n\n" "$IMGNAME"
-
+echo "CPU Threshold: 50.0%"
 CID=$(docker ps -a -q --filter name=acceptance-test-"${IMGNAME}" | head -n 1)
 LOGFILE="/tmp/docker_stats-$IMGNAME.log"
 CPU_THRESHOLD=50.0

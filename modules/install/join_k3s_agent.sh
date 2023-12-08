@@ -75,7 +75,7 @@ install(){
   local server_ip="${5}"
   local token="${6}"
   local channel="${7}"
-
+ echo "version is $version"
 if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]] && [[ -n "$worker_flags" ]]
   then
     curl -sfL https://get.k3s.io | sh -s - "$install_mode" --node-external-ip="$ip" --server https://"$server_ip":6443 --token "$token"
