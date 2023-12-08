@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/onsi/gomega/types"
+
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -75,7 +76,7 @@ func CheckPodStatusRunning(name, namespace, assert string) {
 	cmd := "kubectl get pods -n " + namespace + " -o=name -l k8s-app=" + name +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
-		res, err := shared.RunCommandHost(cmd)
+		res, err := shared.RunCmdHost(cmd)
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring(assert))
 	}, "180s", "5s").Should(Succeed())

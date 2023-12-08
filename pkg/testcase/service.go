@@ -74,7 +74,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
-	port, err := shared.RunCommandHost(getLoadbalancerSVC + shared.KubeConfigFile)
+	port, err := shared.RunCmdHost(getLoadbalancerSVC + shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -12,10 +12,10 @@ import (
 )
 
 func TestCertRotate() {
-	cluster := factory.ClusterConfig(GinkgoT())
+	cluster := build.ClusterConfig(GinkgoT())
 	serverIPs := cluster.ServerIPs
 	agentIPs := cluster.AgentIPs
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
 
 	certRotate(product, serverIPs)
@@ -53,7 +53,7 @@ func verifyIdenticalFiles(identicalFileList string) {
 		"service.current.key", "service.key"}
 
 	newFileList := strings.Split(strings.TrimSpace(identicalFileList), "\n")
-	err := shared.VerifyFileMatchWithPath(newFileList[1:], expectedFileList)
+	err := shared.MatchWithPath(newFileList[1:], expectedFileList)
 	Expect(err).NotTo(HaveOccurred(), "FAIL: Verifying identical file list match")
 }
 
@@ -68,7 +68,7 @@ func verifyTLSDirContent(product string, ips []string) {
 	for _, ip := range ips {
 		shared.LogLevel("info", fmt.Sprintf("Working on node with ip: %s", ip))
 
-		tlsDir, tlsError := shared.RunCommandOnNode(cmd, ip)
+		tlsDir, tlsError := shared.RunCmdNode(cmd, ip)
 		Expect(tlsError).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get new TLS Directory name for %s", ip))
 
 		shared.LogLevel("info", fmt.Sprintf("TLS Directory name: %s", tlsDir))
@@ -79,7 +79,7 @@ func verifyTLSDirContent(product string, ips []string) {
 			"awk '{print $2}' | xargs basename -a | "+
 			"awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
 
-		identicalFileList, err := shared.RunCommandOnNode(cmd2, ip)
+		identicalFileList, err := shared.RunCmdNode(cmd2, ip)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error getting identical files on %s", ip))
 
 		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, identicalFileList))

@@ -1,4 +1,4 @@
-package factory
+package build
 
 import (
 	"fmt"
@@ -60,7 +60,7 @@ func loadConfig() (*config.Product, error) {
 	return cfg, nil
 }
 
-func addTerraformOptions() (*terraform.Options, string, error) {
+func terraformOptions() (*terraform.Options, string, error) {
 	cfg, err := loadConfig()
 	if err != nil {
 		return nil, "", shared.ReturnLogError("error loading config: %w\n", err)
@@ -89,7 +89,7 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	return terraformOptions, varDir, nil
 }
 
-func addClusterConfig(
+func LoadTFconfig(
 	g GinkgoTInterface,
 	varDir string,
 	terraformOptions *terraform.Options,
@@ -100,7 +100,6 @@ func addClusterConfig(
 	}
 
 	c := &Cluster{}
-
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
@@ -152,7 +151,7 @@ func addClusterConfig(
 	return c, nil
 }
 
-func addSplitRole(g GinkgoTInterface, varDir string, numServers int) (int, error) {
+func splitRole(g GinkgoTInterface, varDir string, numServers int) (int, error) {
 	splitRoles := terraform.GetVariableAsStringFromVarFile(g, varDir, "split_roles")
 	if splitRoles == "true" {
 		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(

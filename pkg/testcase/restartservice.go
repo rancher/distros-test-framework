@@ -1,7 +1,7 @@
 package testcase
 
 import (
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -9,9 +9,9 @@ import (
 )
 
 func TestRestartService() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "failed to get product")
-	c := factory.ClusterConfig(GinkgoT())
+	c := build.ClusterConfig(GinkgoT())
 
 	var ip string
 	ip, err = shared.ManageService(product, "restart", "server", c.ServerIPs)

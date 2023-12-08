@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -76,7 +76,7 @@ func getVersion(osRelease, ip string) (string, error) {
 	if !strings.Contains(osRelease, "VERSION_ID") {
 		return "", shared.ReturnLogError("VERSION_ID not found in: %s", osRelease)
 	}
-	res, err := shared.RunCommandOnNode("cat /etc/os-release | grep 'VERSION_ID'", ip)
+	res, err := shared.RunCmdNode("cat /etc/os-release | grep 'VERSION_ID'", ip)
 	Expect(err).NotTo(HaveOccurred())
 
 	parts := strings.Split(res, "=")
@@ -95,7 +95,7 @@ func getVersion(osRelease, ip string) (string, error) {
 var osPolicy string
 
 func getContext(product, ip string) (cmdCtx, error) {
-	res, err := shared.RunCommandOnNode("cat /etc/os-release", ip)
+	res, err := shared.RunCmdNode("cat /etc/os-release", ip)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func TestSelinuxSpcT() {
 
 	for _, serverIP := range cluster.ServerIPs {
 		// removing err here since this is actually returning exit 1
-		res, _ := shared.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
+		res, _ := shared.RunCmdNode("ps auxZ | grep metrics | grep -v grep", serverIP)
 		Expect(res).ShouldNot(ContainSubstring("spc_t"))
 	}
 }
@@ -179,7 +179,7 @@ func TestUninstallPolicy() {
 		err = shared.UninstallProduct(cluster.Config.Product, "server", serverIP)
 		Expect(err).NotTo(HaveOccurred())
 
-		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
+		res, errSel := shared.RunCmdNode(serverCmd, serverIP)
 		Expect(errSel).NotTo(HaveOccurred())
 
 		if strings.Contains(osPolicy, "centos7") {
@@ -196,7 +196,7 @@ func TestUninstallPolicy() {
 		err = shared.UninstallProduct(cluster.Config.Product, "agent", agentIP)
 		Expect(err).NotTo(HaveOccurred())
 
-		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
+		res, errSel := shared.RunCmdNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
 		Expect(errSel).NotTo(HaveOccurred())
 
 		if osPolicy == "centos7" {
@@ -226,7 +226,7 @@ func TestSelinuxContext() {
 
 			var res string
 			for cmd, expectedContext := range context {
-				res, err = shared.RunCommandOnNode(cmd, ip)
+				res, err = shared.RunCmdNode(cmd, ip)
 				fmt.Printf("\nCommand:\n%s \nContext expected:\n%s\nResult:\n%s\n", cmd, expectedContext, res)
 				if res != "" {
 					Expect(res).Should(ContainSubstring(expectedContext),
@@ -682,7 +682,7 @@ var conf = []configuration{
 }
 
 // setHelper returns the cluster and product
-func fetchCluster() (*factory.Cluster, error) {
-	cluster := factory.ClusterConfig(GinkgoT())
+func fetchCluster() (*build.Cluster, error) {
+	cluster := build.ClusterConfig(GinkgoT())
 	return cluster, nil
 }

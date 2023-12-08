@@ -38,10 +38,10 @@ func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertCommit returns the NodeAssertFunc for asserting commit
 func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 
-	commit, err := shared.GetProductVersion(product)
+	commit, err := shared.ProductVersion(product)
 	Expect(err).NotTo(HaveOccurred(), "error getting commit ID version: %v", err)
 
 	initial := strings.Index(commit, "(")
@@ -86,7 +86,7 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 
 	Eventually(func(g Gomega) error {
 		fmt.Println("\nExecuting cmd: ", cmd)
-		res, err := shared.RunCommandOnNode(cmd, ip)
+		res, err := shared.RunCmdNode(cmd, ip)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, assert := range asserts {

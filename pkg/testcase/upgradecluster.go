@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -31,7 +31,7 @@ func TestUpgradeClusterSUC(version string) error {
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
 	originalFilePath := shared.BasePath() +
@@ -62,7 +62,7 @@ func TestUpgradeClusterManually(version string) error {
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.ClusterConfig(GinkgoT())
+	cluster := build.ClusterConfig(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")
@@ -98,13 +98,13 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 
 			fmt.Printf("\nUpgrading %s %s to: %s", ip, nodeType, upgradeCommand)
 
-			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
+			if _, err := shared.RunCmdNode(upgradeCommand, ip); err != nil {
 				shared.LogLevel("\nwarn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
 				errCh <- err
 				return
 			}
 
-			product, err := shared.GetProduct()
+			product, err := shared.Product()
 			if err != nil {
 				return
 			}
@@ -122,7 +122,7 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 func getInstallCmd(installType string, nodeType string) string {
 	var installFlag string
 	var installCmd string
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}
@@ -141,7 +141,7 @@ func getInstallCmd(installType string, nodeType string) string {
 }
 
 func getChannel() string {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}

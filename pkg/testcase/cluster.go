@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.ClusterConfig(g)
+	cluster := build.ClusterConfig(g)
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -26,11 +26,11 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
 		cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
-		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+		res, err := shared.RunCmdNode(cmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
 
-		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
+		etcd, err := shared.RunCmdHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
 			cluster.ServerIPs[0])
 		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
 		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
@@ -63,21 +63,21 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" +
 		" --aggregator-node-selector kubernetes.io/os:linux --wait"
-	res, err := shared.RunCommandHost(cmd)
+	res, err := shared.RunCmdHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed output: "+res)
 
 	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", shared.KubeConfigFile)
-	testResultTar, err := shared.RunCommandHost(cmd)
+	testResultTar, err := shared.RunCmdHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 
 	cmd = fmt.Sprintf("sonobuoy results %s", testResultTar)
-	res, err = shared.RunCommandHost(cmd)
+	res, err = shared.RunCmdHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
 	if deleteWorkload {
 		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
-		_, err = shared.RunCommandHost(cmd)
+		_, err = shared.RunCmdHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
 		if err != nil {

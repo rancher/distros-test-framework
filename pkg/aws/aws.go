@@ -10,14 +10,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
 type Client struct {
-	infra *factory.Cluster
+	infra *build.Cluster
 	ec2   *ec2.EC2
 }
 
@@ -27,7 +27,7 @@ type response struct {
 }
 
 func AddAwsNode() (*Client, error) {
-	c := factory.ClusterConfig(GinkgoT())
+	c := build.ClusterConfig(GinkgoT())
 
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
@@ -36,7 +36,7 @@ func AddAwsNode() (*Client, error) {
 	}
 
 	return &Client{
-		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		infra: &build.Cluster{AwsEc2: c.AwsEc2},
 		ec2:   ec2.New(sess),
 	}, nil
 }

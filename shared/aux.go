@@ -16,8 +16,8 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
-// RunCommandHost executes a command on the host
-func RunCommandHost(cmds ...string) (string, error) {
+// RunCmdHost executes a command on the host
+func RunCmdHost(cmds ...string) (string, error) {
 	if cmds == nil {
 		return "", ReturnLogError("should send at least one command")
 	}
@@ -41,8 +41,8 @@ func RunCommandHost(cmds ...string) (string, error) {
 	return output.String(), nil
 }
 
-// RunCommandOnNode executes a command on the node SSH
-func RunCommandOnNode(cmd, ip string) (string, error) {
+// RunCmdNode executes a command on the node SSH
+func RunCmdNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
@@ -53,7 +53,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %v\n", err)
 	}
-	stdout, stderr, err := runsshCommand(cmd, conn)
+	stdout, stderr, err := sshCmd(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
 			"command: %s failed on run ssh: %s with error: %w\n",
@@ -142,7 +142,7 @@ func AddHelmRepo(name, url string) (string, error) {
 	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
 		name, name, name, KubeConfigFile)
 
-	return RunCommandHost(addRepo, update, installRepo)
+	return RunCmdHost(addRepo, update, installRepo)
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
@@ -180,7 +180,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 	return conn, nil
 }
 
-func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
+func sshCmd(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
 		return "", "", ReturnLogError("failed to create session: %v\n", err)
@@ -218,9 +218,8 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	return joinedCmd
 }
 
-// GetJournalLogs returns the journal logs for a specific product
-// GetJournalLogs returns the journal logs for a specific product
-func GetJournalLogs(level, ip string) string {
+// FetchJournalLogs returns the journal logs for a specific product
+func FetchJournalLogs(level, ip string) string {
 	if level == "" {
 		LogLevel("warn", "level should not be empty")
 		return ""
@@ -232,13 +231,13 @@ func GetJournalLogs(level, ip string) string {
 		return ""
 	}
 
-	product, err := GetProduct()
+	product, err := Product()
 	if err != nil {
 		return ""
 	}
 
-	cmd := fmt.Sprintf("journalctl -u %s* --no-pager | grep -i '%s'", product, level)
-	res, err := RunCommandOnNode(cmd, ip)
+	cmd := fmt.Sprintf("sudo -i journalctl -u %s* --no-pager | grep -i '%s'", product, level)
+	res, err := RunCmdNode(cmd, ip)
 	if err != nil {
 		LogLevel("warn", "failed to get journal logs for product: %s, error: %v\n", product, err)
 		return ""
@@ -358,7 +357,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 	}
 
 	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err = RunCommandOnNode(uninstallCmd, ip)
+	_, err = RunCmdNode(uninstallCmd, ip)
 
 	return err
 }
@@ -367,7 +366,7 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
 			path, pathName)
-		output, err := RunCommandOnNode(checkCmd, ip)
+		output, err := RunCmdNode(checkCmd, ip)
 		if err != nil {
 			return "", err
 		}
@@ -378,7 +377,7 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	}
 
 	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
-	fullPath, err := RunCommandOnNode(searchPath, ip)
+	fullPath, err := RunCmdNode(searchPath, ip)
 	if err != nil {
 		return "", err
 	}
@@ -391,8 +390,8 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	return filepath.Dir(fullPath), nil
 }
 
-// VerifyFileMatchWithPath verify expected files found in the actual file list
-func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
+// MatchWithPath verify expected files found in the actual file list
+func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
 			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",

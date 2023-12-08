@@ -79,21 +79,21 @@ func runAssertion(
 	}
 }
 
-// ValidateOnHost runs an exec function on RunCommandHost and assert given is fulfilled.
+// ValidateOnHost runs an exec function on RunCmdHost and assert given is fulfilled.
 // The last argument should be the assertion.
 // Need to send kubeconfig file.
 func ValidateOnHost(args ...string) error {
 	exec := func(cmd string) (string, error) {
-		return shared.RunCommandHost(cmd)
+		return shared.RunCmdHost(cmd)
 	}
 	return validate(exec, args...)
 }
 
-// ValidateOnNode runs an exec function on RunCommandHost and assert given is fulfilled.
+// ValidateOnNode runs an exec function on RunCmdHost and assert given is fulfilled.
 // The last argument should be the assertion.
 func ValidateOnNode(ip string, args ...string) error {
 	exec := func(cmd string) (string, error) {
-		return shared.RunCommandOnNode(cmd, ip)
+		return shared.RunCmdNode(cmd, ip)
 	}
 	return validate(exec, args...)
 }

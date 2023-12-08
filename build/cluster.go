@@ -1,4 +1,4 @@
-package factory
+package build
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 
 // newCluster creates a new cluster and returns his values from terraform config and vars
 func newCluster(g GinkgoTInterface) (*Cluster, error) {
-	terraformOptions, varDir, err := addTerraformOptions()
+	terraformOptions, varDir, err := terraformOptions()
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +56,12 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	shared.LogLevel("info", "\nCreating cluster\n")
 	terraform.InitAndApply(g, terraformOptions)
 
-	numServers, err = addSplitRole(g, varDir, numServers)
+	numServers, err = splitRole(g, varDir, numServers)
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := addClusterConfig(g, varDir, terraformOptions)
+	c, err := LoadTFconfig(g, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}

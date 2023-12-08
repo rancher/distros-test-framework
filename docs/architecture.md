@@ -11,6 +11,9 @@ For better maintenance, readability and productivity we encourage max of separat
 ├── entrypoint
 │   └───── Entry for tests execution, separated by test runs and test suites
 │
+├── internal
+│   └── Core logic and internal services implementations including assert, aws sdk, customflag, logger, template, testcases.
+│
 ├── modules
 │   └───── Terraform modules and configurations
 │
@@ -20,16 +23,13 @@ For better maintenance, readability and productivity we encourage max of separat
 ├── shared
 │    └───── auxiliary and reusable functions
 │
-├── pkg
-│   └───── Place where resides the logic and services for it
-│
 │── workloads
 │   └───── Place where resides workloads to use inside tests
 ```
 
 ### Explanation:
 
-- `Pkg`
+- `Internal`
 ```
     Testcase:
   

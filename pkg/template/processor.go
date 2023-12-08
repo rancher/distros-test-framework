@@ -64,7 +64,7 @@ func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []str
 				`, shared.KubeConfigFile)
 
 				var nodes []string
-				nodeIps, err := shared.RunCommandHost(cmdToGetIps)
+				nodeIps, err := shared.RunCmdHost(cmdToGetIps)
 				if err != nil {
 					return
 				}
@@ -91,14 +91,14 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 	var version string
 	var err error
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
-	version, err = shared.GetProductVersion(product)
+	version, err = shared.ProductVersion(product)
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)
@@ -136,14 +136,14 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
-	version, err = shared.GetProductVersion(product)
+	version, err = shared.ProductVersion(product)
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)

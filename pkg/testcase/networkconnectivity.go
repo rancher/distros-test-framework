@@ -68,7 +68,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 			case <-timeout:
 				return fmt.Errorf("timeout reached")
 			case <-ticker.C:
-				result, err := shared.RunCommandHost(cmd)
+				result, err := shared.RunCmdHost(cmd)
 				if err != nil {
 					return err
 				}

@@ -25,7 +25,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		`,
 		shared.KubeConfigFile,
 	)
-	nodeNames, err := shared.RunCommandHost(cmd)
+	nodeNames, err := shared.RunCmdHost(cmd)
 	if err != nil {
 		GinkgoT().Errorf(err.Error())
 	}
@@ -44,7 +44,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		`,
 		shared.KubeConfigFile,
 	)
-	taints, err := shared.RunCommandHost(cmd)
+	taints, err := shared.RunCmdHost(cmd)
 	if err != nil {
 		return
 	}

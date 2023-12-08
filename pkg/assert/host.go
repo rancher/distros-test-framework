@@ -19,7 +19,7 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 		return fmt.Errorf("cmd: %s should not be sent empty", cmd)
 	}
 	Eventually(func() error {
-		res, err := shared.RunCommandHost(cmd)
+		res, err := shared.RunCmdHost(cmd)
 		Expect(err).ToNot(HaveOccurred())
 		for _, assert := range asserts {
 			if assert == "" {

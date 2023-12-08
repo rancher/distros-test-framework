@@ -28,7 +28,7 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 	err := assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	ingressIps, err := shared.FetchIngressIP("test-ingress")
+	ingressIps, err := shared.FetchIngressIPs("test-ingress")
 	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
 
 	for _, ip := range ingressIps {
@@ -103,7 +103,7 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	// Query the IngressRoute Host
-	pods, err := shared.GetPodsByNamespaceAndLabel("test-ingressroute", "app=whoami", false)
+	pods, err := shared.GetPodsNsAndLabel("test-ingressroute", "app=whoami", false)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	negativeAsserts := "404 page not found"

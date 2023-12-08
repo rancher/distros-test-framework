@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -39,7 +39,7 @@ func TestSelinuxSuite(t *testing.T) {
 var _ = AfterSuite(func() {
 	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := build.DestroyCluster(g)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

@@ -3,7 +3,7 @@ package testcase
 import (
 	"fmt"
 
-	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/build"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -16,7 +16,7 @@ func TestNodeStatus(
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.ClusterConfig(GinkgoT())
+	cluster := build.ClusterConfig(GinkgoT())
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
@@ -39,10 +39,10 @@ func TestNodeStatus(
 		return true
 	}, "2500s", "10s").Should(BeTrue(), func() string {
 		shared.LogLevel("error", "\ntimeout for nodes to be ready gathering journal logs...\n")
-		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
+		logs := shared.FetchJournalLogs("error", cluster.ServerIPs[0])
 
 		if cluster.NumAgents > 0 {
-			logs += shared.GetJournalLogs("error", cluster.AgentIPs[0])
+			logs += shared.FetchJournalLogs("error", cluster.AgentIPs[0])
 		}
 
 		return logs
