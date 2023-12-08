@@ -33,11 +33,10 @@ resource "aws_instance" "worker" {
     destination = "/tmp/join_rke2_agent.sh"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/join_rke2_agent.sh",
-      "sudo /tmp/join_rke2_agent.sh \\",
-      "${var.node_os} \"${local.master_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
-      "${var.rke2_version} ${var.rke2_channel} ${var.install_mode} \"${var.install_method}\" \"${var.worker_flags}\" ${var.username} ${var.password}",
+    inline = [<<-EOT
+      chmod +x /tmp/join_rke2_agent.sh
+      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} ${var.enable_ipv6 ? self.ipv6_addresses[0] : ""} ${var.rke2_version} "${var.rke2_channel}" ${var.install_mode} "${var.install_method}" "${var.worker_flags}" ${var.rhel_username} ${var.rhel_password}
+    EOT
     ]
   }
 }

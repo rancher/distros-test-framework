@@ -12,11 +12,11 @@ variable "ec2_instance_class" {}
 variable "resource_name" {}
 variable "key_name" {}
 
-variable "username" {
-  default = "username"
+variable "rhel_username" {
+  default = "rhel_username"
 }
-variable "password" {
-  default = "password"
+variable "rhel_password" {
+  default = "rhel_password"
 }
 variable "k3s_version" {}
 variable "no_of_server_nodes" {}
@@ -45,4 +45,8 @@ variable "create_lb" {
   description = "Create Network Load Balancer if set to true"
   type = bool
   default = false
+}
+variable "bastion_id" {
+  type = any
+  default = null
 }

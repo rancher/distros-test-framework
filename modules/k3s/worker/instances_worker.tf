@@ -33,11 +33,10 @@ resource "aws_instance" "worker" {
     destination = "/tmp/cis_worker_config.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/join_k3s_agent.sh",
-      "sudo /tmp/join_k3s_agent.sh \\",
-      "\"${var.node_os}\" \"${local.master_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
-      "\"${var.install_mode}\" \"${var.k3s_version}\" \"${var.k3s_channel}\" \"${var.worker_flags}\" \"${var.username}\" \"${var.password}\"",
+    inline = [ <<-EOT
+      chmod +x /tmp/join_k3s_agent.sh
+      sudo /tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} ${var.enable_ipv6 ? self.ipv6_addresses[0] : ""} ${var.install_mode} ${var.k3s_version} ${var.k3s_channel} "${var.worker_flags}" ${var.rhel_username} ${var.rhel_password}
+    EOT
     ]
   }
 }

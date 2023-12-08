@@ -1,9 +1,9 @@
 # Basic variables
 variable "node_os" {}
-variable "username" {
+variable "rhel_username" {
   default = "username"
 }
-variable "password" {
+variable "rhel_password" {
   default = "password"
 }
 variable "no_of_server_nodes" {}

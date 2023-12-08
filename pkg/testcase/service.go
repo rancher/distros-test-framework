@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -103,8 +104,8 @@ func TestServiceNodePortDualStack(testinfo map[string]string) {
 		}
 		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
-			testinfo["expected"],
-			shared.BastionIP)
+			shared.BastionIP,
+			testinfo["expected"])
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
@@ -114,6 +115,8 @@ func TestServiceClusterIPDualStack(testInfo map[string]string) {
 	clusterIPs := strings.Split(res, " ")
 	port, _ := shared.FetchSpecValByAttr(testInfo["namespace"], testInfo["svc"], "port")
 	nodeExternalIPs := shared.FetchNodeExternalIP()
+	fmt.Println("ExternalIPs:", nodeExternalIPs)
+	fmt.Println("Port:", port)
 	
 	for _, clusterIP := range clusterIPs {
 		if strings.Contains(clusterIP,":") {

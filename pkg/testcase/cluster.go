@@ -41,6 +41,9 @@ func TestBuildCluster(g GinkgoTInterface) {
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
+	if shared.BastionIP != "" {
+		fmt.Println("\nBastion Node IP:", shared.BastionIP)
+	}
 	fmt.Println("\nServer Node IPS:", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)

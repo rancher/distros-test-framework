@@ -2,8 +2,8 @@ module "master" {
    source = "./master"
 
    # Basic Variables
-   username            = var.username
-   password            = var.password
+   rhel_username      = var.rhel_username
+   rhel_password      = var.rhel_password
 
    # AWS Variables
    aws_ami            = var.aws_ami
@@ -39,7 +39,7 @@ module "master" {
    install_mode        = var.install_mode
    create_lb           = var.create_lb
    k3s_channel         = var.k3s_channel
-   datastore_type        = var.datastore_type
+   datastore_type      = var.datastore_type
    server_flags        = var.server_flags
 }
 module "worker" {
@@ -47,8 +47,8 @@ module "worker" {
    dependency = module.master
 
    # Basic Variables
-   username   = var.username
-   password   = var.password
+   rhel_username   = var.rhel_username
+   rhel_password   = var.rhel_password
 
    # AWS Variables
    aws_ami            = var.aws_ami
@@ -77,11 +77,7 @@ module "worker" {
 
 module "bastion" {
    source     = "../bastion"
-   dependency = module.master
-
-   # Basic Variables
-   username   = var.username
-   password   = var.password
+   //dependency = module.master
 
    # AWS Variables
    aws_ami            = var.aws_ami

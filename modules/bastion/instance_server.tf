@@ -28,4 +28,8 @@ resource "aws_instance" "bastion" {
     destination = "/tmp/jenkins_rke_validation.pem"
   }
 
+  provisioner "local-exec" {
+    command = "echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip"
+  }
+
 }

@@ -4,7 +4,6 @@ ENV_PATH="/go/src/github.com/rancher/distros-test-framework/config/.env"
 [ -n "$ENV_PRODUCT" ] && sed -i "s/ENV_PRODUCT=.*/ENV_PRODUCT=$ENV_PRODUCT/" "$ENV_PATH"
 [ -n "$ENV_TFVARS" ] && sed -i "s/ENV_TFVARS=.*/ENV_TFVARS=$ENV_TFVARS/" "$ENV_PATH"
 
-
 CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PRODUCT}.tfvars"
 [ -n "$K3S_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$K3S_VERSION\"/" "$CONFIG_PATH"
 [ -n "$RKE2_VERSION" ] && sed -i "s/rke2_version\s*=\s*.*/rke2_version = \"$RKE2_VERSION\"/" "$CONFIG_PATH"
@@ -20,5 +19,5 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 [ -n "$AWS_AMI" ] && sed -i "s/aws_ami\s*=\s*.*/aws_ami = \"$AWS_AMI\"/" "$CONFIG_PATH"
 [ -n "$AWS_USER" ] && sed -i "s/aws_user\s*=\s*.*/aws_user = \"$AWS_USER\"/" "$CONFIG_PATH"
 
-cat "$CONFIG_PATH"
+#cat "$CONFIG_PATH"
 exec sh ./scripts/test_runner.sh "$@"

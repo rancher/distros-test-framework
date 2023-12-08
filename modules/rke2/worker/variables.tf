@@ -12,9 +12,6 @@ variable "volume_size" {}
 variable "iam_role" {}
 variable "node_os" {}
 variable "no_of_worker_nodes" {}
-variable "password" {
-  default = "password"
-}
 variable "region" {}
 variable "resource_name" {}
 variable "rke2_version" {}
@@ -23,10 +20,13 @@ variable "install_method" {}
 variable "rke2_channel" {}
 variable "sg_id" {}
 variable "subnets" {}
-variable "username" {
-  default = "username"
-}
 variable "vpc_id" {}
 variable "enable_public_ip" {}
 variable "enable_ipv6" {}
 variable "worker_flags" {}
+variable "rhel_username" {
+  default = "rhel_username"
+}
+variable "rhel_password" {
+  default = "rhel_password"
+}

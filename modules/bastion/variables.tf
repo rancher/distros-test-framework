@@ -15,12 +15,6 @@ variable "ec2_instance_class" {}
 variable "resource_name" {}
 variable "key_name" {}
 variable "access_key" {}
-variable "username" {
-  default = "username"
-}
-variable "password" {
-  default = "password"
-}
 variable "no_of_bastion_nodes" {
   default = 0
 }

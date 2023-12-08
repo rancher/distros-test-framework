@@ -18,11 +18,11 @@ variable "ec2_instance_class" {}
 variable "availability_zone" {}
 variable "sg_id" {}
 variable  "volume_size" {}
-variable "username" {
-  default = "username"
+variable "rhel_username" {
+  default = "rhel_username"
 }
-variable "password" {
-  default = "password"
+variable "rhel_password" {
+  default = "rhel_password"
 }
 variable "node_os" {}
 variable "install_mode" {}

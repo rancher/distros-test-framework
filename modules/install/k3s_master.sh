@@ -106,16 +106,18 @@ export "$install_mode"="$version"
 install() {
   if [ "$datastore_type" = "etcd" ]
   then
-    echo "Datastore Type is ETCD"
+    echo "Datastore Type is $datastore_type"
     if [[ -n "$channel" ]]
+    echo "Channel is $channel"
     then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
     else
       curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
     fi
   else
-    echo "Datastore Type is External Datastore"
+    echo "Datastore Type is $datastore_type"
     if [[ -n "$channel" ]]
+    echo "Channel is $channel"
     then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - server --datastore-endpoint="$datastore_endpoint"
     else

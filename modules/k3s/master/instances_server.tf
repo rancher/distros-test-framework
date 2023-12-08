@@ -90,11 +90,10 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/k3s_master.sh",
-      "sudo /tmp/k3s_master.sh \\",
-      "${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
-      "${var.install_mode} ${var.k3s_version} ${var.k3s_channel} \"${var.datastore_type}\" \"${data.template_file.test.rendered}\" \"${var.server_flags}\" \"${var.username}\" \"${var.password}\""
+    inline = [ <<-EOT
+      chmod +x /tmp/k3s_master.sh
+      sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} ${var.enable_ipv6 ? self.ipv6_addresses[0] : ""} ${var.install_mode} ${var.k3s_version} ${var.k3s_channel} ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.rhel_username} ${var.rhel_password}
+    EOT
     ]
   }
 
@@ -194,11 +193,10 @@ resource "aws_instance" "master2" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/join_k3s_master.sh",
-      "sudo /tmp/join_k3s_master.sh \\",
-      "${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} \"${aws_instance.master.public_ip}\" \"${local.node_token}\" \"${self.public_ip}\" \"${self.private_ip}\" \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" \\",
-      "${var.install_mode} ${var.k3s_version} ${var.k3s_channel} \"${var.datastore_type}\" \"${data.template_file.test.rendered}\" \"${var.server_flags}\" \"${var.username}\" \"${var.password}\"",
+    inline = [ <<-EOT
+      chmod +x /tmp/join_k3s_master.sh
+      sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} ${var.enable_ipv6 ? self.ipv6_addresses[0] : ""} ${var.install_mode} ${var.k3s_version} ${var.k3s_channel} ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.rhel_username} ${var.rhel_password}
+    EOT
     ]
   }
 }
@@ -210,14 +208,14 @@ resource "aws_lb_target_group" "aws_tg_80" {
   vpc_id             = var.vpc_id
   name               = "${var.resource_name}${local.random_string}-tg-80"
   health_check {
-        protocol            = "HTTP"
-        port                = "traffic-port"
-        path                = "/ping"
-        interval            = 10
-        timeout             = 6
-        healthy_threshold   = 3
-        unhealthy_threshold = 3
-        matcher             = "200-399"
+    protocol            = "HTTP"
+    port                = "traffic-port"
+    path                = "/ping"
+    interval            = 10
+    timeout             = 6
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    matcher             = "200-399"
   }
 }
 
@@ -245,14 +243,14 @@ resource "aws_lb_target_group" "aws_tg_443" {
   vpc_id             = var.vpc_id
   name               = "${var.resource_name}${local.random_string}-tg-443"
   health_check {
-        protocol            = "HTTP"
-        port                = 80
-        path                = "/ping"
-        interval            = 10
-        timeout             = 6
-        healthy_threshold   = 3
-        unhealthy_threshold = 3
-        matcher             = "200-399"
+    protocol            = "HTTP"
+    port                = 80
+    path                = "/ping"
+    interval            = 10
+    timeout             = 6
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    matcher             = "200-399"
   }
 }
 

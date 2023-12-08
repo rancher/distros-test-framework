@@ -13,11 +13,11 @@ variable "external_db_version" {}
 variable "db_instance_class" {}
 variable "ec2_instance_class" {}
 variable "db_group_name" {}
-variable "username" {
-  default = "username"
+variable "rhel_username" {
+  default = "rhel_username"
 }
-variable "password" {
-  default = "password"
+variable "rhel_password" {
+  default = "rhel_password"
 }
 variable "k3s_version" {}
 variable "no_of_server_nodes" {}
@@ -52,4 +52,8 @@ variable "no_of_bastion_nodes" {
 }
 variable "bastion_subnets" {
   default = ""
+}
+variable "bastion_id" {
+  type    = any
+  default = null
 }

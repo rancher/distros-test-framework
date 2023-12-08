@@ -7,21 +7,21 @@ TAG_NAME := $(if $(TAG_NAME),$(TAG_NAME),distros)
 
 .PHONY: test-env-up
 test-env-up:
-	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAGNAME}
+	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAG_NAME}
 
 test-run:
 	@docker run -dt --name acceptance-test-${IMG_NAME} \
 	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
 	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
+	  -e TEST_DIR=${TEST_DIR} \
+	  -e IMG_NAME=${IMG_NAME} \
+	  -e TEST_TAG=${TEST_TAG} \
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-	  -v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-	  acceptance-test-${TAG_NAME} && \
-	  make image-stats IMG_NAME=${IMG_NAME} && \
-	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
+	  acceptance-test-${TAG_NAME} 
 
 
-## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
+## Use this to run on the same environement + cluster from the previous last container -${TAG_NAME} created
 test-run-state:
 	DOCKER_COMMIT=$$? \
 	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAG_NAME} | head -n 1); \

@@ -8,9 +8,6 @@ variable "volume_size" {}
 variable "iam_role" {}
 variable "node_os" {}
 variable "no_of_server_nodes" {}
-variable "password" {
-  default = "password"
-}
 variable "hosted_zone" {}
 variable "region" {}
 variable "resource_name" {}
@@ -24,8 +21,11 @@ variable "subnets" {}
 variable "vpc_id" {}
 variable "enable_public_ip" {}
 variable "enable_ipv6" {}
-variable "username" {
-  default = "username"
+variable "rhel_username" {
+  default = "rhel_username"
+}
+variable "rhel_password" {
+  default = "rhel_password"
 }
 variable "create_lb" {
   description = "Create Network Load Balancer if set to true"

@@ -6,8 +6,8 @@ module "master" {
   node_os            = var.node_os
   no_of_server_nodes = var.no_of_server_nodes
   create_lb          = var.create_lb
-  username           = var.username
-  password           = var.password
+  rhel_username      = var.rhel_username
+  rhel_password      = var.rhel_password
   all_role_nodes     = var.no_of_server_nodes
   etcd_only_nodes    = var.etcd_only_nodes
   etcd_cp_nodes      = var.etcd_cp_nodes
@@ -52,8 +52,8 @@ module "worker" {
   # Basic variables
   node_os            = var.node_os
   no_of_worker_nodes = var.no_of_worker_nodes
-  username           = var.username
-  password           = var.password
+  rhel_username      = var.rhel_username
+  rhel_password      = var.rhel_password
 
   # AWS variables
   access_key         = var.access_key
@@ -86,8 +86,6 @@ module "windows_worker" {
 
   # Basic variables
   no_of_worker_nodes = var.no_of_windows_worker_nodes
-  username           = var.username
-  password           = var.password
 
   # AWS variables
   access_key         = var.access_key
@@ -111,10 +109,6 @@ module "windows_worker" {
 module "bastion" {
    source     = "../bastion"
    dependency = module.master
-
-   # Basic Variables
-   username   = var.username
-   password   = var.password
 
    # AWS Variables
    aws_ami            = var.aws_ami

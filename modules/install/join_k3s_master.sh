@@ -108,14 +108,17 @@ policy_files() {
 export "$install_mode"="$version"
 
 install() {
-  if [ "$datastore_type" = "etcd" ]; then
-    if [[ -n "$channel" ]]; then
+  if [ "$datastore_type" = "etcd" ]
+  then
+    if [[ -n "$channel" ]]
+    then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -
     else
       curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -
     fi
   else
-    if [[ -n "$channel" ]]; then
+    if [[ -n "$channel" ]]
+    then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server --datastore-endpoint="$datastore_endpoint"
     else
       curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server --datastore-endpoint="$datastore_endpoint"
