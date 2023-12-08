@@ -71,7 +71,11 @@ func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 }
 
 func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
-	publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
+	workerNodes, err := shared.GetNodesByRoles("worker")
+	Expect(workerNodes).NotTo(BeEmpty())
+	Expect(err).NotTo(HaveOccurred())
+	publicIp := fmt.Sprintf("%s.nip.io", workerNodes[0].ExternalIP)
+
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs
 		originalFilePath := shared.BasePath() +
@@ -83,7 +87,6 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
-		publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
 		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
 		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
@@ -99,7 +102,7 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
 		" --field-selector=status.phase=Running --kubeconfig=%s", shared.KubeConfigFile)
-	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
+	err = assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	// Query the IngressRoute Host

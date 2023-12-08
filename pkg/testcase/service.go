@@ -80,12 +80,14 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
 		"--field-selector=status.phase=Running --kubeconfig="
 	loadBalancer := "test-loadbalancer"
-	nodeExternalIP := shared.FetchNodeExternalIP()
-	for _, ip := range nodeExternalIP {
+	validNodes, err := shared.GetNodesByRoles("control-plane", "worker")
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
 			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
-			"curl -sL --insecure http://"+ip+":"+port+"/name.html",
+			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
 		)
 		Expect(err).NotTo(HaveOccurred(), err)

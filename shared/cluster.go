@@ -305,6 +305,30 @@ func GetNodes(print bool) ([]Node, error) {
 	return nodes, nil
 }
 
+// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles
+// Valid values for roles are: etcd, control-plane, worker
+func GetNodesByRoles(roles ...string) ([]Node, error) {
+	var nodes []Node
+	var matchedNodes []Node
+
+	for _, role := range roles {
+		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+			" --no-headers --kubeconfig=" + KubeConfigFile +
+			" -l role-" + role
+		res, err := RunCommandHost(cmd)
+		if err != nil {
+			return nil, err
+		}
+		matchedNodes = append(matchedNodes, parseNodes(res)...)
+	}
+
+	for _, matchedNode := range matchedNodes {
+		nodes = AppendIfMissing(nodes, matchedNode)
+	}
+
+	return nodes, nil
+}
+
 // parseNodes parses the nodes from the kubeclt get nodes command.
 func parseNodes(res string) []Node {
 	nodes := make([]Node, 0, 10)
