@@ -287,6 +287,7 @@ func PrintClusterState() {
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
 	}
+	fmt.Println("Current cluster state before upgrade:")
 	fmt.Println("\n", res)
 }
 

@@ -1,4 +1,4 @@
-//go:build upgrademanual
+//go:build nodereplacement
 
 package upgradecluster
 
@@ -68,8 +68,8 @@ var _ = Describe("Test:", func() {
 		})
 	}
 
-	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+	It("Upgrade Node replacement", func() {
+		err := testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
