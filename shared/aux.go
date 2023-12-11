@@ -219,7 +219,6 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 }
 
 // GetJournalLogs returns the journal logs for a specific product
-// GetJournalLogs returns the journal logs for a specific product
 func GetJournalLogs(level, ip string) string {
 	if level == "" {
 		LogLevel("warn", "level should not be empty")
@@ -232,7 +231,7 @@ func GetJournalLogs(level, ip string) string {
 		return ""
 	}
 
-	product, err := GetProduct()
+	product, err := Product()
 	if err != nil {
 		return ""
 	}
@@ -390,8 +389,8 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	return filepath.Dir(fullPath), nil
 }
 
-// VerifyFileMatchWithPath verify expected files found in the actual file list
-func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
+// MatchWithPath verify expected files found in the actual file list
+func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
 			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))

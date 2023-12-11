@@ -89,7 +89,7 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	return terraformOptions, varDir, nil
 }
 
-func addClusterConfig(
+func loadTFconfig(
 	g GinkgoTInterface,
 	varDir string,
 	terraformOptions *terraform.Options,
