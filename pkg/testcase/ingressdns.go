@@ -153,3 +153,18 @@ func validateIngressRoute(publicIP string) {
 	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIP+"/notls", negativeAsserts)
 	Expect(err).NotTo(HaveOccurred(), err)
 }
+
+func TestIngressDualStack(testinfo map[string]string) {
+	ingressIPs, err := shared.FetchIngressIP(testinfo["namespace"])
+	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
+
+	for _, ingressIP := range ingressIPs {
+		if strings.Contains(ingressIP,":") {
+			ingressIP = shared.EncloseSqBraces(ingressIP)
+		}
+		err := assert.ValidateOnNode(shared.BastionIP,
+			"curl -sL -H 'Host: test1.com' http://"+ ingressIP +"/name.html",
+			testinfo["expected"])
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
