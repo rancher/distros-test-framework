@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -96,5 +98,38 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	if deleteWorkload {
 		workloadErr = shared.ManageWorkload("delete", "loadbalancer.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
+	}
+}
+
+func TestServiceNodePortDualStack(testInfo map[string]string) {
+	nodeExternalIP := shared.FetchNodeExternalIP()
+	_,nodeport, err := shared.FetchClusterIPs(testInfo["namespace"], testInfo["svc"])
+	Expect(err).NotTo(HaveOccurred(), err)
+	
+	for _, ip := range nodeExternalIP {
+		if strings.Contains(ip,":") {
+			ip = shared.EncloseSqBraces(ip)
+		}
+		err = assert.CheckComponentCmdNode(
+			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+			shared.BastionIP,
+			testInfo["expected"])
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
+
+func TestServiceClusterIPDualStack(testInfo map[string]string) {		
+	clusterIPs, port, err := shared.FetchClusterIPs(testInfo["namespace"], testInfo["svc"])
+	clusterIPSlice := strings.Split(clusterIPs, "")
+	Expect(err).NotTo(HaveOccurred(), err)
+	nodeExternalIPs := shared.FetchNodeExternalIP()
+
+	for _, clusterIP := range clusterIPSlice {
+		if strings.Contains(clusterIP,":") {
+			clusterIP = shared.EncloseSqBraces(clusterIP)
+		}
+		err := assert.ValidateOnNode(nodeExternalIPs[0], 
+			"curl -sL --insecure http://"+ clusterIP +":"+ port, testInfo["expected"])
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
