@@ -123,16 +123,6 @@ func PrintBase64Encoded(path string) error {
 	return nil
 }
 
-// AppendIfMissing appends a value to a slice if that value does not already exist in the slice.
-func AppendIfMissing(slice []Node, i Node) []Node {
-	for _, ele := range slice {
-		if ele == i {
-			return slice
-		}
-	}
-	return append(slice, i)
-}
-
 // CountOfStringInSlice Used to count the pods using prefix passed in the list of pods.
 func CountOfStringInSlice(str string, pods []Pod) int {
 	var count int
@@ -426,4 +416,14 @@ func stringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+// appendNodeIfMissing appends a value to a slice if that value does not already exist in the slice.
+func appendNodeIfMissing(slice []Node, i Node) []Node {
+	for _, ele := range slice {
+		if ele == i {
+			return slice
+		}
+	}
+	return append(slice, i)
 }

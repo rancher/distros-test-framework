@@ -323,7 +323,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	}
 
 	for _, matchedNode := range matchedNodes {
-		nodes = AppendIfMissing(nodes, matchedNode)
+		nodes = appendNodeIfMissing(nodes, matchedNode)
 	}
 
 	return nodes, nil
