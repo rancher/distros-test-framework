@@ -50,7 +50,7 @@ subscription_manager() {
 disable_cloud_setup() {
    local node_os="${1}"
 
-   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]]; then
+if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
       if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
          systemctl disable nm-cloud-setup.service
       else
