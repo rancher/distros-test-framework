@@ -32,7 +32,7 @@ func AddAwsNode() (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
-		return nil, shared.ReturnLogError("fatal", fmt.Sprintf("error creating AWS session: %v\n", err))
+		return nil, shared.ReturnLogError("error creating AWS session: %v", err)
 	}
 
 	return &Client{
@@ -133,7 +133,8 @@ func (c Client) DeleteInstance(ip string) error {
 				if len(node.Tags) > 0 {
 					instanceName = *node.Tags[0].Value
 				}
-				shared.LogLevel("info", fmt.Sprintf("\nTerminated instance: %s (ID: %s)", instanceName, *node.InstanceId))
+				shared.LogLevel("info", fmt.Sprintf("\nTerminated instance: %s (ID: %s)",
+					instanceName, *node.InstanceId))
 			}
 		}
 	}
@@ -170,7 +171,8 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 
 			status := statusRes.InstanceStatuses[0]
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running and passed status checks", instanceId))
+				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running "+
+					"and passed status checks", instanceId))
 				return nil
 			}
 		}
