@@ -364,7 +364,8 @@ func UninstallProduct(product, nodeType, ip string) error {
 
 func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	for _, path := range paths {
-		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi", path, pathName)
+		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
+			path, pathName)
 		output, err := RunCommandOnNode(checkCmd, ip)
 		if err != nil {
 			return "", err
@@ -393,14 +394,16 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
-			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list", expectedFileList[i]))
+			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",
+				expectedFileList[i]))
 		}
 		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
 	}
 
 	for i := 0; i < len(actualFileList); i++ {
 		if !stringInSlice(actualFileList[i], expectedFileList) {
-			LogLevel("info", "Actual file %s found as well which was not in the expected list", actualFileList[i])
+			LogLevel("info", "Actual file %s found as well which was not in the expected list",
+				actualFileList[i])
 		}
 	}
 
