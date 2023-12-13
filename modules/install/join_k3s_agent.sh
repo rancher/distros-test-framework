@@ -14,6 +14,8 @@ create_config() {
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 server: https://${1}:6443
 token:  "${2}"
+node-label:
+  - role-worker=true
 EOF
 }
 

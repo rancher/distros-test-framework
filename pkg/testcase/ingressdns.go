@@ -71,7 +71,11 @@ func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 }
 
 func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
-	publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
+	workerNodes, err := shared.GetNodesByRoles("worker")
+	Expect(workerNodes).NotTo(BeEmpty())
+	Expect(err).NotTo(HaveOccurred())
+	publicIp := fmt.Sprintf("%s.nip.io", workerNodes[0].ExternalIP)
+
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs
 		originalFilePath := shared.BasePath() +
@@ -83,8 +87,7 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
-		pIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
-		replacer := strings.NewReplacer("$YOURDNS", pIp, "$APIVERSION", apiVersion)
+		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
 		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
 		if err != nil {
@@ -97,6 +100,15 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
 
+	validateIngressRoute(publicIp)
+
+	if deleteWorkload {
+		err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
+		Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deleted")
+	}
+}
+
+func validateIngressRoute(publicIp string) {
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
 		" --field-selector=status.phase=Running --kubeconfig=%s", shared.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
@@ -127,10 +139,5 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
 			Expect(err).NotTo(HaveOccurred(), err)
 		}, "30s", "5s").Should(Succeed())
-	}
-
-	if deleteWorkload {
-		err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
-		Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deleted")
 	}
 }

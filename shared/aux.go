@@ -420,3 +420,13 @@ func stringInSlice(a string, list []string) bool {
 	}
 	return false
 }
+
+// appendNodeIfMissing appends a value to a slice if that value does not already exist in the slice.
+func appendNodeIfMissing(slice []Node, i Node) []Node {
+	for _, ele := range slice {
+		if ele == i {
+			return slice
+		}
+	}
+	return append(slice, i)
+}
