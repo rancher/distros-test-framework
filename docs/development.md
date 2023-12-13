@@ -166,7 +166,7 @@ $ make test-version-bump               # runs version bump test locally
 $ make test-run                        # runs create and upgrade cluster by passing the argname and argvalue
 $ make remove-tf-state                 # removes acceptance state dir and files
 $ make test-suite                      # runs all testcase locally in sequence not using the same state
-$ make vet-lint                        # runs go vet and go lint
+$ make pre-commit                      # runs go fmt,imports,vet and lint
 ```
 
 ### Examples with docker:

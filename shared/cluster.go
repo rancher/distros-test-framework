@@ -373,9 +373,11 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace with a specific label
+// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace
+// with a specific label
 func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s", namespace, label, KubeConfigFile)
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s",
+		namespace, label, KubeConfigFile)
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
