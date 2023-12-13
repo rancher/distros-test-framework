@@ -28,7 +28,9 @@ func updateExpectedValue(template TestTemplate) {
 	}
 }
 
-// executeTestCombination get a template and pass it to `processTestCombination` to execute test combination on group of IPs
+// executeTestCombination get a template and pass it to `processTestCombination`
+//
+// to execute test combination on group of IPs
 func executeTestCombination(v TestTemplate) error {
 	ips := shared.FetchNodeExternalIP()
 

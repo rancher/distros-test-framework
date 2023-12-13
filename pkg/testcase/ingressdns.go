@@ -83,8 +83,8 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
-		publicIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
-		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
+		pIp := fmt.Sprintf("%s.nip.io", shared.FetchNodeExternalIP()[0])
+		replacer := strings.NewReplacer("$YOURDNS", pIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
 		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
 		if err != nil {
