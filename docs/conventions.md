@@ -11,8 +11,8 @@
 ### Contributing:
 - All contributions should be made via pull requests.
 - Before pushing please run `make pre-commit` to format your code and run linters.
-- All pull requests should be made against the `main` branch.
-- All pull requests should be reviewed by at least two other person before being merged.
-- All pull requests should be squashed into a single commit before being merged.
-- All pull requests should be rebased/merged against the `main` branch before being merged.
-- All pull requests should be tested locally before being merged.
+- All Pull Requests should be made against the `main` branch.
+- All Pull Requests should be reviewed by at least two other person before being merged.
+- All Pull Requests should use the Squash and Merge option when being merged
+- All Pull Requests should be rebased/merged against the `main` branch before being merged.
+- All Pull Requests should be tested locally before being merged.

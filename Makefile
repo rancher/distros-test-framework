@@ -267,11 +267,6 @@ test-restart-service:
 	@go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
 
 #========================= TestCode Static Quality Check =========================#
-#.PHONY: vet-lint
-#vet-lint:
-#	@echo "Running go vet and lint"
-#	@go vet ./${TEST_DIR} && golangci-lint run --tests
-
 .PHONY: pre-commit
 pre-commit:
 	@gofmt -s -w .
