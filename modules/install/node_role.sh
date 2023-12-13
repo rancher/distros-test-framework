@@ -58,6 +58,8 @@ disable-controller-manager: true
 disable-scheduler: true
 node-taint:
   - node-role.kubernetes.io/etcd:NoExecute
+node-label:
+  - role-etcd=true
 EOF
 
 elif [[ "$role" == "etcd-cp" ]]
@@ -66,6 +68,9 @@ cat << EOF > "${role_config_yaml_path}"
 node-taint:
   - node-role.kubernetes.io/control-plane:NoSchedule
   - node-role.kubernetes.io/etcd:NoExecute
+node-label:
+  - role-etcd=true
+  - role-control-plane=true
 EOF
 cat << EOF > /tmp/.control-plane
 true
@@ -77,6 +82,9 @@ cat << EOF > "${role_config_yaml_path}"
 disable-apiserver: true
 disable-controller-manager: true
 disable-scheduler: true
+node-label:
+  - role-etcd=true
+  - role-worker=true
 EOF
 
 elif [[ "$role" == "cp-only" ]]
@@ -85,6 +93,8 @@ cat << EOF > "${role_config_yaml_path}"
 disable-etcd: true
 node-taint:
   - node-role.kubernetes.io/control-plane:NoSchedule
+node-label:
+  - role-control-plane=true
 EOF
 cat << EOF > /tmp/.control-plane
 true
@@ -94,12 +104,21 @@ elif [[ "$role" == "cp-worker" ]]
 then
 cat << EOF > "${role_config_yaml_path}"
 disable-etcd: true
+node-label:
+  - role-control-plane=true
+  - role-worker=true
 EOF
 cat << EOF > /tmp/.control-plane
 true
 EOF
 
 else
+cat << EOF > "${role_config_yaml_path}"
+node-label:
+  - role-etcd=true
+  - role-control-plane=true
+  - role-worker=true
+EOF
 cat << EOF > /tmp/.control-plane
 true
 EOF
