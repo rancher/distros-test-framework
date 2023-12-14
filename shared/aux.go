@@ -248,14 +248,16 @@ func GetJournalLogs(level, ip string) string {
 
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
-	log := logger.AddLogger(false)
+	log := logger.AddLogger()
 	err := formatLogArgs(format, args...)
 
 	if err != nil {
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
 			funcName := runtime.FuncForPC(pc).Name()
-			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+
+			formattedPath := fmt.Sprintf("file:%s:%d", file, line)
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s", err.Error(), funcName, formattedPath))
 		} else {
 			log.Error(err.Error())
 		}
@@ -266,7 +268,7 @@ func ReturnLogError(format string, args ...interface{}) error {
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	log := logger.AddLogger(false)
+	log := logger.AddLogger()
 	msg := formatLogArgs(format, args...)
 
 	switch level {
