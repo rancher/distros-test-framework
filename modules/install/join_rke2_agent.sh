@@ -60,8 +60,6 @@ if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" 
        echo "nm-cloud-setup.timer not found or not enabled"
 fi
 
-  yum install tar -y
-  yum install iptables -y
   workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
   if [ ! -e /etc/NetworkManager/conf.d/canal.conf ]; then
     echo -e "$workaround" > /etc/NetworkManager/conf.d/canal.conf
@@ -93,5 +91,6 @@ then
     fi
     systemctl restart systemd-sysctl
 fi
+yum install tar iptables -y
 sudo systemctl enable rke2-agent
 sudo systemctl start rke2-agent
