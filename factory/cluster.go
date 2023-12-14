@@ -61,7 +61,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 		return nil, err
 	}
 
-	c, err := addClusterConfig(g, varDir, terraformOptions)
+	c, err := loadTFconfig(g, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}

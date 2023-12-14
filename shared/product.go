@@ -4,8 +4,8 @@ import (
 	"fmt"
 )
 
-// GetProduct returns the distro product based on the config file
-func GetProduct() (string, error) {
+// Product returns the distro product based on the config file
+func Product() (string, error) {
 	cfg, err := EnvConfig()
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
@@ -18,12 +18,12 @@ func GetProduct() (string, error) {
 	return cfg.Product, nil
 }
 
-// GetProductVersion return the version for a specific distro product
-func GetProductVersion(product string) (string, error) {
+// ProductVersion return the version for a specific distro product
+func ProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := getVersion(product + " -v")
+	version, err := version(product + " -v")
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
 	}
@@ -31,8 +31,8 @@ func GetProductVersion(product string) (string, error) {
 	return version, nil
 }
 
-// getVersion returns the rke2 or k3s version
-func getVersion(cmd string) (string, error) {
+// version returns the rke2 or k3s version
+func version(cmd string) (string, error) {
 	var res string
 	var err error
 	ips := FetchNodeExternalIP()
@@ -46,8 +46,8 @@ func getVersion(cmd string) (string, error) {
 	return res, nil
 }
 
-// getServiceName Get service name. Used to work with stop/start k3s/rke2 services
-func getServiceName(product, nodeType string) (string, error) {
+// serviceName Get service name. Used to work with stop/start k3s/rke2 services
+func serviceName(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
 		"k3s-agent":   "k3s-agent",
@@ -62,7 +62,7 @@ func getServiceName(product, nodeType string) (string, error) {
 	return serviceName, nil
 }
 
-func GetSystemCtlCmd(product, action, nodeType string) (string, error) {
+func SystemCtlCmd(product, action, nodeType string) (string, error) {
 	systemctlCmdMap := map[string]string{
 		"stop":    "sudo systemctl --no-block stop",
 		"start":   "sudo systemctl --no-block start",
@@ -75,18 +75,18 @@ func GetSystemCtlCmd(product, action, nodeType string) (string, error) {
 		return "", ReturnLogError("action value should be: start | stop | restart | status")
 	}
 
-	serviceName, err := getServiceName(product, nodeType)
+	name, err := serviceName(product, nodeType)
 	if err != nil {
 		return "", ReturnLogError("error getting service name")
 	}
 
-	return fmt.Sprintf("%s %s", sysctlPrefix, serviceName), nil
+	return fmt.Sprintf("%s %s", sysctlPrefix, name), nil
 }
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
 	for _, ip := range ips {
-		cmd, getError := GetSystemCtlCmd(product, action, nodeType)
+		cmd, getError := SystemCtlCmd(product, action, nodeType)
 		if getError != nil {
 			return ip, getError
 		}

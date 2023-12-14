@@ -9,7 +9,7 @@ import (
 )
 
 func TestRestartService() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "failed to get product")
 	c := factory.ClusterConfig(GinkgoT())
 
