@@ -51,7 +51,7 @@ then
     subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
 fi
 
-if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]]; then
+if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
     if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
        systemctl disable nm-cloud-setup.service
     else

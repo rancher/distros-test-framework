@@ -37,6 +37,7 @@ jobs:
         with:
           go-version: '1.20'
 
+
       - name: Get list of changed files
         id: get-changed-files
         run: |
@@ -45,10 +46,8 @@ jobs:
             echo "No Go files changed"
             echo "::set-output name=go_files_changed::false"
           else
-            echo "Go files changed:"
-            echo "$files"
+            echo "Go files changed"
             echo "::set-output name=go_files_changed::true"
-            echo "::set-output name=files::$files"
           fi
 
       - name: golangci-lint
@@ -56,4 +55,5 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
-          args: --timeout 10m --issues-exit-code=0 ${{ steps.get-changed-files.outputs.files }}
+          args: --timeout 10m
+        continue-on-error: false
