@@ -82,16 +82,16 @@ func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
 			fmt.Sprintf("/workloads/%s/ingressroute.yaml", shared.Arch)
 		newFilePath := shared.BasePath() +
 			fmt.Sprintf("/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
-		content, err := os.ReadFile(originalFilePath)
-		if err != nil {
-			Expect(err).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
+		content, errRead := os.ReadFile(originalFilePath)
+		if errRead != nil {
+			Expect(errRead).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
 		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
-		err = os.WriteFile(newFilePath, []byte(newContent), 0644)
-		if err != nil {
-			Expect(err).NotTo(HaveOccurred(),
+		errWrite := os.WriteFile(newFilePath, []byte(newContent), 0644)
+		if errWrite != nil {
+			Expect(errWrite).NotTo(HaveOccurred(),
 				"failed to update file for ingressroute resource to use one of the node external ips")
 		}
 
