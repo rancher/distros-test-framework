@@ -91,6 +91,8 @@ then
     fi
     systemctl restart systemd-sysctl
 fi
-yum install tar iptables -y
+if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
+  yum install tar iptables -y
+fi
 sudo systemctl enable rke2-agent
 sudo systemctl start rke2-agent

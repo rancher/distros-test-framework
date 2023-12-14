@@ -86,7 +86,9 @@ else
     curl -sfL https://get.rke2.io | sh -
 fi
 sleep 10
-yum install tar iptables -y
+if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
+  yum install tar iptables -y
+fi
 
 if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]
 then
