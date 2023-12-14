@@ -62,9 +62,6 @@ if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" 
        echo "nm-cloud-setup.timer not found or not enabled"
 fi
 
-  yum install tar -y
-  yum install iptables -y
-  yum clean packages
   workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
   if [ ! -e /etc/NetworkManager/conf.d/canal.conf ]; then
     echo -e "$workaround" > /etc/NetworkManager/conf.d/canal.conf
@@ -81,7 +78,6 @@ then
   export INSTALL_RKE2_METHOD="$install_method"
 fi
 
-sleep 10
 if [ -z "$rke2_channel" ]
 then
     curl -sfL https://get.rke2.io | sh -
@@ -89,6 +85,8 @@ else
     curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$rke2_channel" sh -
 fi
 sleep 10
+yum install tar iptables -y
+
 if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]
 then
     if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]
