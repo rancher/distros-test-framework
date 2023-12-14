@@ -37,22 +37,16 @@ jobs:
         with:
           go-version: '1.20'
 
+
       - name: Get list of changed files
         id: get-changed-files
         run: |
-          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
-  
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.go$' || true)
-          else
-            files=$(git diff --name-only origin/main ${{ github.sha }} | grep '\.go$' || true)
-          fi
-          
+          files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.go$' || true)
           if [ -z "$files" ]; then
             echo "No Go files changed"
             echo "::set-output name=go_files_changed::false"
           else
-            echo "Go files changed: $files"
+            echo "Go files changed"
             echo "::set-output name=go_files_changed::true"
           fi
 
@@ -63,4 +57,3 @@ jobs:
           version: v1.53
           args: --timeout 10m
         continue-on-error: false
-

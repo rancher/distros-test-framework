@@ -27,7 +27,6 @@ tls-san:
 server: https://${server_ip}:6443
 token: "${token}"
 node-external-ip: "${node_external_ip}"
-cluster-init: true
 EOF
 }
 

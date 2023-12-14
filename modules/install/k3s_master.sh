@@ -6,6 +6,7 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+
 create_directories() {
   mkdir -p /etc/rancher/k3s
   sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
@@ -204,6 +205,7 @@ main() {
   subscription_manager "$1" "$9" "${10}"
   disable_cloud_setup "$1"
   install "$5" "$4" "${11}" "$7"
+
   if [ "${12}" -eq 0 ]; then
     # If etcd only node count is 0, then wait for nodes/pods to come up. 
     # etcd only node needs api server to come up fully, which is in control plane node. 

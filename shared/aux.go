@@ -135,6 +135,52 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
+// RunScp copies files from local to remot host based on a list of local and remote paths.
+func RunScp(ip, product string, localPaths, remotePaths []string) error {
+	if ip == "" {
+		return ReturnLogError("ip is needed.\n")
+	}
+
+	if product != "rke2" && product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", product)
+	}
+
+	if len(localPaths) != len(remotePaths) {
+		return ReturnLogError("the number of local paths and remote paths must be the same\n")
+	}
+
+	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
+		return err
+	}
+	accessKey := os.Getenv("access_key")
+	awsUser := os.Getenv("aws_user")
+
+	for i, localPath := range localPaths {
+		remotePath := remotePaths[i]
+		scp := fmt.Sprintf(
+			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
+			accessKey,
+			localPath,
+			awsUser,
+			ip,
+			remotePath,
+		)
+
+		_, cmdErr := RunCommandHost(scp)
+		if cmdErr != nil {
+			return cmdErr
+		}
+
+		chmod := fmt.Sprintf("sudo -i chmod +x %s", remotePath)
+		_, cmdErr = RunCommandOnNode(chmod, ip)
+		if cmdErr != nil {
+			return cmdErr
+		}
+	}
+
+	return nil
+}
+
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)

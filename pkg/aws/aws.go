@@ -41,7 +41,7 @@ func AddAwsNode() (*Client, error) {
 	}, nil
 }
 
-func (c Client) CreateInstances(names ...string) (ids, ips []string, err error) {
+func (c Client) CreateInstances(names ...string) (ips, ids []string, err error) {
 	if len(names) == 0 {
 		return nil, nil, shared.ReturnLogError("must sent a name: %s\n", names)
 	}

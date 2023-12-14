@@ -39,3 +39,27 @@ a := testCase(dependencies)
 fmt.Println(a)
 }
  ```
+
+## Please note that today this is tied up with terraform, so if you want to test it separately you need to in the pass the values instead of the struct implementation.
+
+```go
+func AddAwsNode() (*Client, error) {
+{{/*c := factory.ClusterConfig(GinkgoT())*/}} // remove this and add the values directly
+
+
+sess, err := session.NewSession(&aws.Config{
+Region: aws.String(c.AwsEc2.Region)})
+if err != nil {
+return nil, shared.ReturnLogError("error creating AWS session: %v", err)
+}
+
+return &Client{
+infra: &factory.Cluster{AwsEc2: c.AwsEc2}, // and here add your values for each field removing the factory.Cluster
+ec2:   ec2.New(sess),
+}, nil
+}
+
+```
+
+
+

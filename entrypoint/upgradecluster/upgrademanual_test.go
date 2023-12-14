@@ -1,5 +1,3 @@
-//go:build upgrademanual
-
 package upgradecluster
 
 import (
