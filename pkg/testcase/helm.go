@@ -55,7 +55,7 @@ func TestDeployRancher(helmVersion, imageVersion string) {
 		"failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n", err, installRancherCmd, res)
 
 	Eventually(func(g Gomega) {
-		pods, err := shared.GetPodsByNamespace("cattle-system", false)
+		pods, err := shared.GetPodsByNamespaceAndLabel("cattle-system", "app=rancher", false)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
