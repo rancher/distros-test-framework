@@ -28,3 +28,9 @@ variable "username" {
 }
 variable "vpc_id" {}
 variable "worker_flags" {}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}

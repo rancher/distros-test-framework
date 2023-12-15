@@ -22,3 +22,9 @@ variable "node_os" {}
 variable "install_mode" {}
 variable "key_name" {}
 variable "k3s_channel" {}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}

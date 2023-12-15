@@ -43,8 +43,10 @@ resource "aws_rds_cluster_instance" "db" {
 }
 
 resource "aws_instance" "master" {
-  ami                    = var.aws_ami
-  instance_type          = var.ec2_instance_class
+  ami                         = var.aws_ami
+  instance_type               = var.ec2_instance_class
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   connection {
     type                 = "ssh"
     user                 = var.aws_user
@@ -60,7 +62,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-server"
+    Name                 = "${var.resource_name}-server1"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -97,9 +99,10 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/k3s_master.sh",
-      "sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} \"${data.template_file.test.rendered}\" \"${var.server_flags}\"  ${var.username} ${var.password} ${var.k3s_channel} ${var.etcd_only_nodes}",
+    inline = [<<-EOT
+      chmod +x /tmp/k3s_master.sh
+      sudo /tmp/k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.etcd_only_nodes} ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+    EOT
     ]
   }
   provisioner "local-exec" {
@@ -148,9 +151,11 @@ locals {
 }
 
 resource "aws_instance" "master2-ha" {
-  ami                    = var.aws_ami
-  instance_type          = var.ec2_instance_class
-  count                  = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
+  ami                         = var.aws_ami
+  instance_type               = var.ec2_instance_class
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  count                       = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
   connection {
     type                 = "ssh"
     user                 = var.aws_user
@@ -167,7 +172,7 @@ resource "aws_instance" "master2-ha" {
   key_name               = var.key_name
   depends_on             = [aws_instance.master]
   tags = {
-    Name                 = "${var.resource_name}-server-ha${count.index + 1}"
+    Name                 = "${var.resource_name}-server${count.index + 2}"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -205,9 +210,9 @@ resource "aws_instance" "master2-ha" {
   }
   provisioner "remote-exec" {
     inline = [ <<-EOT
-    chmod +x /tmp/join_k3s_master.sh
-    sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${var.install_mode} ${var.k3s_version} ${var.datastore_type} ${self.public_ip} ${aws_instance.master.public_ip} ${local.node_token} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} ${var.k3s_channel}
-  EOT
+      chmod +x /tmp/join_k3s_master.sh
+      sudo /tmp/join_k3s_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} ${var.k3s_channel} ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+    EOT
     ]
   }
 }
