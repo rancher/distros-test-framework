@@ -11,11 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const (
-	statusRunning = "Running"
-	nslookup      = "kubernetes.default.svc.cluster.local"
-)
-
 func TestIngress(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {

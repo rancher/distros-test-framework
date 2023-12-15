@@ -56,7 +56,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.SonobouyVersion.String()
+	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
