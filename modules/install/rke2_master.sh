@@ -9,6 +9,7 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+# Scripts args
 node_os=${1}
 fqdn=${2}
 public_ip=${3}
@@ -34,17 +35,13 @@ EOF
 }
 
 update_config() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]
-  then
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
     echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
-    if [[ "$server_flags" != *"cloud-provider-name"* ]]
-    then
-      if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
-      then
+    if [[ "$server_flags" != *"cloud-provider-name"* ]]; then
+      if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
         echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
-      elif [ -n "$ipv6_ip" ]
-      then
+      elif [ -n "$ipv6_ip" ]; then
         echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
       else
@@ -57,8 +54,7 @@ update_config() {
 }
 
 subscription_manager() {
-  if [ "$node_os" = "rhel" ]
-  then
+  if [ "$node_os" = "rhel" ]; then
     subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
     subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
   fi
@@ -88,10 +84,8 @@ disable_cloud_setup() {
 }
 
 cis_setup() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]
-  then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]
-    then
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]; then
+    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
       cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
@@ -104,13 +98,11 @@ cis_setup() {
 install() {
   export "$install_mode"="$version"
 
-  if [ -n "$install_method" ]
-  then
+  if [ -n "$install_method" ]; then
     export INSTALL_RKE2_METHOD="$install_method"
   fi
 
-  if [ -z "$channel" ]
-  then
+  if [ -z "$channel" ]; then
     curl -sfL https://get.rke2.io | sh -
   else
     curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" sh -
@@ -130,12 +122,10 @@ wait_nodes() {
   while [[ $timeElapsed -lt 1200 ]]
   do
     notready=false
-    if [[ ! -f /var/lib/rancher/rke2/server/node-token ]] || [[ ! -f /etc/rancher/rke2/rke2.yaml ]]
-    then
+    if [[ ! -f /var/lib/rancher/rke2/server/node-token ]] || [[ ! -f /etc/rancher/rke2/rke2.yaml ]]; then
       notready=true
     fi
-    if [[ $notready == false ]]
-    then
+    if [[ $notready == false ]]; then
       break
     fi
     sleep 5

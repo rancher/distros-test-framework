@@ -7,6 +7,7 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+# Script args
 node_os=${1}
 server_ip=${2}
 token=${3}
@@ -32,17 +33,13 @@ EOF
 }
 
 update_config() {
-  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *":"* ]]
-  then
+  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *":"* ]]; then
     echo -e "$worker_flags" >> /etc/rancher/rke2/config.yaml
-    if [[ "$worker_flags" != *"cloud-provider-name"* ]]
-    then
-      if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
-      then
+    if [[ "$worker_flags" != *"cloud-provider-name"* ]]; then
+      if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
         echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
-      elif [ -n "$ipv6_ip" ]
-      then
+      elif [ -n "$ipv6_ip" ]; then
         echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
       else
@@ -55,10 +52,8 @@ update_config() {
 }
 
 cis_setup() {
-  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]
-  then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]
-    then
+  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]; then
+    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
       cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
@@ -68,8 +63,7 @@ cis_setup() {
 }
 
 subscription_manager() {
-  if [ "$node_os" = "rhel" ]
-  then
+  if [ "$node_os" = "rhel" ]; then
     subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
     subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
   fi
@@ -78,15 +72,15 @@ subscription_manager() {
 disable_cloud_setup() {
   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
     if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
-       systemctl disable nm-cloud-setup.service
+      systemctl disable nm-cloud-setup.service
     else
-       echo "nm-cloud-setup.service not found or not enabled"
+      echo "nm-cloud-setup.service not found or not enabled"
     fi
 
     if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
-       systemctl disable nm-cloud-setup.timer
+      systemctl disable nm-cloud-setup.timer
     else
-       echo "nm-cloud-setup.timer not found or not enabled"
+      echo "nm-cloud-setup.timer not found or not enabled"
     fi
 
     workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
@@ -101,13 +95,11 @@ disable_cloud_setup() {
 
 install() {
   export "$install_mode"="$version"
-  if [ -n "$install_method" ]
-  then
+  if [ -n "$install_method" ]; then
     export INSTALL_RKE2_METHOD="$install_method"
   fi
 
-  if [[ -z "$channel" ]]
-  then
+  if [[ -z "$channel" ]]; then
     curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -
   else
     curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" INSTALL_RKE2_TYPE='agent' sh -

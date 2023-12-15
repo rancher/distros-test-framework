@@ -6,6 +6,7 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+# Script args
 node_os=${1}
 server_ip=${2}
 token=${3}
@@ -32,19 +33,15 @@ EOF
 }
 
 update_config() {
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]
-  then
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]; then
     echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
   fi
 
-  if [[ "$worker_flags" != *"cloud-provider-name"* ]]
-  then
-    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
-    then
+  if [[ "$worker_flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
-    elif [ -n "$ipv6_ip" ]
-    then
+    elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
     else
@@ -54,8 +51,7 @@ update_config() {
   fi
   cat /etc/rancher/k3s/config.yaml
 
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]
-  then
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]; then
     cat /tmp/cis_worker_config.yaml >> /etc/rancher/k3s/config.yaml
     printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
     sysctl -p /etc/sysctl.d/90-kubelet.conf
@@ -89,8 +85,7 @@ disable_cloud_setup() {
 install(){
   export "$install_mode"="$version"
 
-  if [[ -n "$channel"  ]]
-  then
+  if [[ -n "$channel"  ]]; then
     curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent
   else
     curl -sfL https://get.k3s.io | sh -s - agent

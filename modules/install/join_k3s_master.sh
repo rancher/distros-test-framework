@@ -6,6 +6,7 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+# Script args
 node_os=${1}
 fqdn=${2}
 server_ip=${3}
@@ -22,7 +23,6 @@ server_flags=${13}
 rhel_username=${14}
 rhel_password=${15}
 
-
 create_config() {
   hostname=$(hostname -f)
   sudo mkdir -p /etc/rancher/k3s
@@ -37,19 +37,15 @@ EOF
 }
 
 update_config() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]
-  then
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
     echo -e "$server_flags" >> /etc/rancher/k3s/config.yaml
   fi
 
-  if [[ "$server_flags" != *"cloud-provider-name"* ]]
-  then
-    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
-    then
+  if [[ "$server_flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
-    elif [ -n "$ipv6_ip" ]
-    then
+    elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
     else
@@ -84,8 +80,7 @@ disable_cloud_setup() {
 }
 
 policy_files() {
-  if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
-  then
+  if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]; then
     sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
     sudo mkdir -p /var/lib/rancher/k3s/server/manifests
     cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
@@ -103,8 +98,7 @@ policy_files() {
 install() {
   export "$install_mode"="$version"
 
-  if [ "$datastore_type" = "etcd" ]
-  then
+  if [ "$datastore_type" = "etcd" ]; then
     if [[ -n "$channel" ]]; then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -
     else

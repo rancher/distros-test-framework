@@ -22,7 +22,6 @@ server_flags=${12}
 rhel_username=${13}
 rhel_password=${14}
 
-
 create_config() {
   hostname=$(hostname -f)
   mkdir -p /etc/rancher/k3s
@@ -36,19 +35,15 @@ EOF
 }
 
 update_config() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]
-  then
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
     echo -e "$server_flags" >> /etc/rancher/k3s/config.yaml
   fi
 
-  if [[ "$server_flags" != *"cloud-provider-name"* ]]
-  then
-    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]
-    then
+  if [[ "$server_flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
-    elif [ -n "$ipv6_ip" ]
-    then
+    elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
     else
@@ -60,8 +55,7 @@ update_config() {
 }
 
 policy_files() {
-  if [[ -n "$server_flags" ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
-  then
+  if [[ -n "$server_flags" ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]; then
     sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
     mkdir -p /var/lib/rancher/k3s/server/manifests
     cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
@@ -78,23 +72,23 @@ policy_files() {
 
 subscription_manager() {
    if [ "$node_os" = "rhel" ]; then
-      subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
-      subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
+    subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
+    subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
    fi
 }
 
 disable_cloud_setup() {
    if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
       if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
-         systemctl disable nm-cloud-setup.service
+        systemctl disable nm-cloud-setup.service
       else
-         echo "nm-cloud-setup.service not found or not enabled"
+        echo "nm-cloud-setup.service not found or not enabled"
       fi
 
       if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
-         systemctl disable nm-cloud-setup.timer
+        systemctl disable nm-cloud-setup.timer
       else
-         echo "nm-cloud-setup.timer not found or not enabled"
+        echo "nm-cloud-setup.timer not found or not enabled"
       fi
    fi
 }
@@ -102,21 +96,17 @@ disable_cloud_setup() {
 install() {
   export "$install_mode"="$version"
 
-  if [ "$datastore_type" = "etcd" ]
-  then
-    if [[ -n "$channel" ]]
-    then
-        curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
+  if [ "$datastore_type" = "etcd" ]; then
+    if [[ -n "$channel" ]]; then
+      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
     else
-        curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
+      curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
     fi
-  elif  [[ "$datastore_type" = "external" ]]
-  then
-    if [[ -n "$channel" ]]
-    then
-        curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - server --datastore-endpoint="$datastore_endpoint"
+  elif  [[ "$datastore_type" = "external" ]]; then
+    if [[ -n "$channel" ]]; then
+      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - server --datastore-endpoint="$datastore_endpoint"
     else
-        curl -sfL https://get.k3s.io | sh -s - server  --datastore-endpoint="$datastore_endpoint"
+      curl -sfL https://get.k3s.io | sh -s - server  --datastore-endpoint="$datastore_endpoint"
     fi
   fi
 }
