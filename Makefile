@@ -15,7 +15,7 @@ test-run:
 	  --env-file ./config/.env \
 	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
 	  acceptance-test-${TAG_NAME} && \
-	  make image-stats IMG_NAME=${IMG_NAME} && \	
+	  make image-stats IMG_NAME=${IMG_NAME} && \
 	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
 
 ## Use this to run automatically without need to change image name

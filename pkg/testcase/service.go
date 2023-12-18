@@ -101,35 +101,35 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestServiceNodePortDualStack(testInfo map[string]string) {
+func TestServiceNodePortDualStack(testdata TestData) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
-	_,nodeport, err := shared.FetchClusterIPs(testInfo["namespace"], testInfo["svc"])
+	nodeport, err := shared.FetchServiceNodePort(testdata.Namespace, testdata.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)
-	
+
 	for _, ip := range nodeExternalIP {
-		if strings.Contains(ip,":") {
+		if strings.Contains(ip, ":") {
 			ip = shared.EncloseSqBraces(ip)
 		}
 		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
 			shared.BastionIP,
-			testInfo["expected"])
+			testdata.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
 
-func TestServiceClusterIPDualStack(testInfo map[string]string) {		
-	clusterIPs, port, err := shared.FetchClusterIPs(testInfo["namespace"], testInfo["svc"])
-	clusterIPSlice := strings.Split(clusterIPs, "")
+func TestServiceClusterIPs(testdata TestData) {
+	clusterIPs, port, err := shared.FetchClusterIPs(testdata.Namespace, testdata.SVC)
+	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred(), err)
 	nodeExternalIPs := shared.FetchNodeExternalIP()
 
 	for _, clusterIP := range clusterIPSlice {
-		if strings.Contains(clusterIP,":") {
+		if strings.Contains(clusterIP, ":") {
 			clusterIP = shared.EncloseSqBraces(clusterIP)
 		}
-		err := assert.ValidateOnNode(nodeExternalIPs[0], 
-			"curl -sL --insecure http://"+ clusterIP +":"+ port, testInfo["expected"])
+		err := assert.ValidateOnNode(nodeExternalIPs[0],
+			"curl -sL --insecure http://"+clusterIP+":"+port, testdata.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }

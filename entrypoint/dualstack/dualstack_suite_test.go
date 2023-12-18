@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestDualStackClusterCreateSuite(t *testing.T) {
+func TestDualStackSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Create Dual-Stack Cluster Test Suite")
 }

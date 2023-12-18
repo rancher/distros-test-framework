@@ -2,6 +2,7 @@ package factory
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -20,6 +21,7 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 		if err != nil {
 			err = shared.ReturnLogError("error getting cluster: %w\n", err)
 			g.Errorf("%s", err)
+			os.Exit(1)
 		}
 	})
 
@@ -54,7 +56,11 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	}
 
 	shared.LogLevel("info", "\nCreating cluster\n")
-	terraform.InitAndApply(g, terraformOptions)
+	_, err = terraform.InitAndApplyE(g, terraformOptions)
+	if err != nil {
+		shared.LogLevel("error", "\nCreating cluster Failed!!!\n")
+		return nil, err
+	}
 
 	numServers, err = addSplitRole(g, varDir, numServers)
 	if err != nil {

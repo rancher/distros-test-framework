@@ -1,25 +1,45 @@
 package testcase
 
 import (
-	"github.com/rancher/distros-test-framework/shared"
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/shared"
+	"strings"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestDualStackIngress(deleteWorkload bool) {
+type TestData struct {
+	Namespace string
+	Label     string
+	SVC       string
+	Expected  string
+}
+
+func TestIngressDualStack(deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
-	
-	testdata := map[string]string{
-		"namespace":"default",
-		"label":"app=dualstack-ing",
-		"svc":"dualstack-ing-svc",
-		"expected":"dualstack-ing-ds", 
+
+	testdata := TestData{
+		Namespace: "default",
+		Label:     "app=dualstack-ing",
+		SVC:       "dualstack-ing-svc",
+		Expected:  "dualstack-ing-ds",
 	}
-	
-	assert.CheckPodStatusRunningByNSLabel(testdata["namespace"],testdata["label"])
-	TestIngressDualStack(testdata)
+
+	assert.ValidatePodIsRunning(testdata.Namespace, testdata.Label)
+
+	ingressIPs, err := shared.FetchIngressIP(testdata.Namespace)
+	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
+
+	for _, ingressIP := range ingressIPs {
+		if strings.Contains(ingressIP, ":") {
+			ingressIP = shared.EncloseSqBraces(ingressIP)
+		}
+		err := assert.ValidateOnNode(shared.BastionIP,
+			"curl -sL -H 'Host: test1.com' http://"+ingressIP+"/name.html",
+			testdata.Expected)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-ingress.yaml")
@@ -27,49 +47,47 @@ func TestDualStackIngress(deleteWorkload bool) {
 	}
 }
 
-func TestDualStackNodePort(deleteWorkload bool) {
+func TestNodePort(deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
-	testdata := map[string]string{
-		"namespace":"default",
-		"label":"app=dualstack-nodeport",
-		"svc":"dualstack-nodeport-svc",
-		"expected":"dualstack-nodeport-deployment",
+	testdata := TestData{
+		Namespace: "default",
+		Label:     "app=dualstack-nodeport",
+		SVC:       "dualstack-nodeport-svc",
+		Expected:  "dualstack-nodeport-deployment",
 	}
-	
-	assert.CheckPodStatusRunningByNSLabel(testdata["namespace"], testdata["label"])
+
+	assert.ValidatePodIsRunning(testdata.Namespace, testdata.Label)
 	TestServiceNodePortDualStack(testdata)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-nodeport.yaml")
-		Expect(err).NotTo(HaveOccurred())	
+		Expect(err).NotTo(HaveOccurred())
 	}
-		
 }
 
-func TestDualStackClusterIPsInCIDRRange(deleteWorkload bool) {
-	err := shared.ManageWorkload("apply","dualstack-clusterip.yaml")
+func TestClusterIPsInCIDRRange(deleteWorkload bool) {
+	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
-	testdata := map[string]string{
-		"namespace":"default",
-		"label":"app=clusterip-demo",
-		"svc":"clusterip-svc-demo",
+	testdata := TestData{
+		Namespace: "default",
+		Label:     "app=clusterip-demo",
+		SVC:       "clusterip-svc-demo",
 	}
 
-	assert.CheckPodStatusRunningByNSLabel(testdata["namespace"], testdata["label"])
-	TestIPsInCIDRRangeDualStack(testdata["label"], testdata["svc"])
+	assert.ValidatePodIsRunning(testdata.Namespace, testdata.Label)
+	TestIPsInCIDRRange(testdata.Label, testdata.SVC)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-clusterip.yaml")
 		Expect(err).NotTo(HaveOccurred())
 	}
-	
 }
 
-func TestDualStackIPFamilies(deleteWorkload bool) {
-	err := shared.ManageWorkload("apply","dualstack-multi.yaml")
+func TestIPFamiliesDualStack(deleteWorkload bool) {
+	err := shared.ManageWorkload("apply", "dualstack-multi.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
 	services := []string{"v4", "v6", "require-dual", "prefer-dual"}
@@ -79,25 +97,25 @@ func TestDualStackIPFamilies(deleteWorkload bool) {
 		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"RequireDualStack"`,
 		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"PreferDualStack"`,
 	}
-	testdata := map[string]string{
-		"namespace":"default",
-		"label":"app=MyDualApp",
-		"deployment":"httpd-deployment",
-		"expected": "It works!",
+	testdata := TestData{
+		Namespace: "default",
+		Label:     "app=MyDualApp",
+		SVC:       "httpd-deployment",
+		Expected:  "It works!",
 	}
 
-	assert.CheckPodStatusRunningByNSLabel(testdata["namespace"], testdata["label"])
-	
+	assert.ValidatePodIsRunning(testdata.Namespace, testdata.Label)
+
 	for i, svc := range services {
-		testdata["svc"] = "my-service-"
-		testdata["svc"] += svc
-		TestServiceClusterIPDualStack(testdata)
-		assert.CheckServiceSpecContainsSubstring(testdata["svc"], expectedIPFamily[i])
+		testdata.SVC = "my-service-"
+		testdata.SVC += svc
+		TestServiceClusterIPs(testdata)
+		assert.ValidateSVCSpecHasChars(
+			testdata.Namespace, testdata.SVC, expectedIPFamily[i])
 	}
-	
+
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-multi.yaml")
 		Expect(err).NotTo(HaveOccurred())
 	}
-
 }

@@ -32,16 +32,18 @@ Note/TODO: k3s external db fails working with etcd only node. Refer: https://doc
 ### Dual-Stack Testing
 
 - Required vars for `*.tfvars` file
-- `kubelet-arg: \n - node-ip=0.0.0.0` is needed if the public and private IPs are same
+- `kubelet-arg: \n - node-ip=0.0.0.0` is required to be added to both server and worker flags if the public and private IPs are same
 
 ```
 enable_public_ip     = true
 enable_ipv6          = true
 server_flags         = "cluster-cidr: <ipv4-cluster-cidr>,<ipv6-cluster-cider>\nservice-cidr: <ipv4-service-cidr>,<ipv6-service-cidr>\nkubelet-arg: \n - node-ip=0.0.0.0\n"
+worker_flags         = "\nkubelet-arg: \n - node-ip=0.0.0.0\n"
 no_of_bastion_nodes  = 1
 bastion_subnets      = "<dual-stack-subnet>"
 
 ```
 - Test package should be `dualstack`
+- AWS config (sg, vpc) is available only in US-WEST-1 region
 - Split roles is not supported at this time (Future enhancement)
 - Reorder IP is not supported at this time (Future enhancement)
