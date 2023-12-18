@@ -30,19 +30,19 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Ingress Service in Dual-Stack", func() {
-		testcase.TestDualStackIngress(false)
+		testcase.TestIngressDualStack(false)
 	})
 
 	It("Validate NodePort Service in Dual-Stack", func() {
-		testcase.TestDualStackNodePort(false)
+		testcase.TestNodePort(false)
 	})
 
 	It("Validate ClusterIPs in CIDR range in Dual-Stack", func() {
-		testcase.TestDualStackClusterIPsInCIDRRange(true)
+		testcase.TestClusterIPsInCIDRRange(true)
 	})
 
 	It("Validate Single and Dual-Stack IPFamilies in Dual-Stack", func() {
-		testcase.TestDualStackIPFamilies(false)
+		testcase.TestIPFamiliesDualStack(false)
 	})
 })
 

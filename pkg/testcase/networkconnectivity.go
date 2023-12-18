@@ -36,15 +36,15 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-// TestIPsInCIDRRangeDualStack Validates Pod IPs and Cluster IPs in CIDR range
-func TestIPsInCIDRRangeDualStack(label, svc string){
-	nodeArgs,err := shared.GetNodeArgs("server")
+// TestIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
+func TestIPsInCIDRRange(label, svc string) {
+	nodeArgs, err := shared.NodeArgs("server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"],",")
-	serviceCIDR := strings.Split(nodeArgs["service-cidr"],",")
-	
-	assert.ValidatePodIPsByLabel(label, clusterCIDR) 
+	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
+	serviceCIDR := strings.Split(nodeArgs["service-cidr"], ",")
+
+	assert.ValidatePodIPsByLabel(label, clusterCIDR)
 	assert.ValidateClusterIPsBySVC(svc, serviceCIDR)
 }
 

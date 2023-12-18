@@ -17,7 +17,7 @@ var (
 	AwsUser        string
 	AccessKey      string
 	Arch           string
-	BastionIP	   string
+	BastionIP      string
 )
 
 type Node struct {
@@ -225,24 +225,23 @@ func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) 
 }
 
 // FetchClusterIPs returns the cluster IPs and port of the service.
-func FetchClusterIPs(namespace string, svc string) (string, string, error) {
+func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 	cmd := "kubectl get svc " + svc + " -n " + namespace +
 		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile
-	ip, err := RunCommandHost(cmd)
+	ip, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster IPs: %v\n", err)
 	}
 
 	cmd = "kubectl get svc " + svc + " -n " + namespace +
 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
-	port, err := RunCommandHost(cmd)
+	port, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
 	}
 
 	return ip, port, err
 }
-
 
 // FetchServiceNodePort returns the node port of the service
 func FetchServiceNodePort(namespace, serviceName string) (string, error) {
@@ -556,48 +555,47 @@ func GetNodeArgs(nodeType string) (map[string]string, error){
 	if err != nil{
 		return nil, err
 	}
-	res,err := KubectlCommand(
+	res, err := KubectlCommand(
 		"host",
 		"get",
-		"nodes " + 
-		fmt.Sprintf(`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`, product),
+		"nodes "+
+			fmt.Sprintf(`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`, product),
 	)
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
-	argsMapSlice := processNodeArgsResponse(res)
+	nodeArgsMapSlice := nodeArgsToMap(res)
 
-	for _, argsMap := range argsMapSlice {
-		if argsMap["node-type"] == nodeType {
-			return argsMap, nil
+	for _, nodeArgsMap := range nodeArgsMapSlice {
+		if nodeArgsMap["node-type"] == nodeType {
+			return nodeArgsMap, nil
 		}
 	}
 
 	return nil, nil
 }
 
-func processNodeArgsResponse(res string) ([]map[string]string){
-	nodeArgsMapSlice := []map[string]string{}
-	resSlice := strings.Split(res,"]")
-	
-	for _,resItem := range(resSlice[:(len(resSlice)-1)]){
-		resItemSlice := strings.Split(resItem,`","`)
+func nodeArgsToMap(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+	nodeArgsSlice := strings.Split(nodeArgs, "]")
+
+	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {
+		items := strings.Split(item, `","`)
 		nodeArgsMap := map[string]string{}
 
-		for range(resItemSlice[1:]){
-			nodeArgsMap["node-type"] = strings.Trim(resItemSlice[0],`["`)
+		for range items[1:] {
+			nodeArgsMap["node-type"] = strings.Trim(items[0], `["`)
 			regxCompile := regexp.MustCompile(`--|"`)
 
-			for i := 1; i < len(resItemSlice); i+=2{
-				if i < (len(resItemSlice)-1){
-					key := regxCompile.ReplaceAllString(resItemSlice[i],"")
-					value := regxCompile.ReplaceAllString(resItemSlice[i+1],"")
+			for i := 1; i < len(items); i += 2 {
+				if i < (len(items) - 1) {
+					key := regxCompile.ReplaceAllString(items[i], "")
+					value := regxCompile.ReplaceAllString(items[i+1], "")
 					nodeArgsMap[key] = value
 				}
 			}
 		}
-		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)		
+		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)
 	}
 
 	return nodeArgsMapSlice

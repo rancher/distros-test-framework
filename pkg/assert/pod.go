@@ -13,9 +13,9 @@ import (
 
 type PodAssertFunc func(g Gomega, pod shared.Pod)
 
-const(
+const (
 	statusCompleted = "Completed"
-	statusRunning = "Running"
+	statusRunning   = "Running"
 )
 
 // PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
@@ -106,32 +106,32 @@ func ValidatePodIPByLabel(labels, expected []string) {
 		"failed to validate expected: %s on %s", expected, labels)
 }
 
-// ValidatePodIPsByLabel validates expected pod IPs by label 
+// ValidatePodIPsByLabel validates expected pod IPs by label
 func ValidatePodIPsByLabel(label string, expected []string) {
-	cmd := "kubectl get pods -l "+ label +
+	cmd := "kubectl get pods -l " + label +
 		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
-		" --kubeconfig="+shared.KubeConfigFile
+		" --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() error {
 		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
 		Expect(len(ips)).ShouldNot(BeZero())
 		Expect(len(expected)).ShouldNot(BeZero())
 		for i, ip := range ips {
-			_,subnet,_ := net.ParseCIDR(expected[i])
+			_, subnet, _ := net.ParseCIDR(expected[i])
 			if subnet.Contains(net.ParseIP(ip)) {
 				return nil
 			}
 		}
 		return nil
-	}, "180s", "5s").Should(Succeed(), 
-	"failed to validate podIPs in expected range %s for label  %s", 
-	expected, label)
+	}, "180s", "5s").Should(Succeed(),
+		"failed to validate podIPs in expected range %s for label  %s",
+		expected, label)
 }
 
-// CheckPodStatusRunningByNSLabel checks status of pods is Running when searched by namespace and label 
-func CheckPodStatusRunningByNSLabel(namespace, label string) {
-	cmd := "kubectl get pods -n "+namespace+" -l "+label+
-		" --field-selector=status.phase=Running --kubeconfig="+shared.KubeConfigFile
+// ValidatePodIsRunning checks status of pods is Running when searched by namespace and label
+func ValidatePodIsRunning(namespace, label string) {
+	cmd := "kubectl get pods -n " + namespace + " -l " + label +
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)
