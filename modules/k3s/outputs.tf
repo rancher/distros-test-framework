@@ -29,5 +29,5 @@ output "worker_flags" {
 
 output "bastion_ip" {
   value       = module.bastion.public_ip
-  description = "The public IP of the AWS node"
+  description = "The public IP of the bastion node"
 }

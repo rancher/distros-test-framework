@@ -2,7 +2,6 @@ package factory
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 
@@ -21,7 +20,6 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 		if err != nil {
 			err = shared.ReturnLogError("error getting cluster: %w\n", err)
 			g.Errorf("%s", err)
-			os.Exit(1)
 		}
 	})
 

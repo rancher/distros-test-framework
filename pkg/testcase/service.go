@@ -20,7 +20,7 @@ func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
 	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
+	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
@@ -101,9 +101,9 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestServiceNodePortDualStack(testdata TestData) {
+func TestServiceNodePortDualStack(td TestData) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
-	nodeport, err := shared.FetchServiceNodePort(testdata.Namespace, testdata.SVC)
+	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	for _, ip := range nodeExternalIP {
@@ -113,13 +113,13 @@ func TestServiceNodePortDualStack(testdata TestData) {
 		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
 			shared.BastionIP,
-			testdata.Expected)
+			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
 
-func TestServiceClusterIPs(testdata TestData) {
-	clusterIPs, port, err := shared.FetchClusterIPs(testdata.Namespace, testdata.SVC)
+func TestServiceClusterIPs(td TestData) {
+	clusterIPs, port, err := shared.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred(), err)
 	nodeExternalIPs := shared.FetchNodeExternalIP()
@@ -129,7 +129,7 @@ func TestServiceClusterIPs(testdata TestData) {
 			clusterIP = shared.EncloseSqBraces(clusterIP)
 		}
 		err := assert.ValidateOnNode(nodeExternalIPs[0],
-			"curl -sL --insecure http://"+clusterIP+":"+port, testdata.Expected)
+			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }
