@@ -207,23 +207,6 @@ func kubectlCmdOnNode(cmd, ip string) (string, error) {
 	return res, nil
 }
 
-// FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
-	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
-	}
-
-	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
-	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
-	}
-
-	return ip, port, err
-}
-
 // FetchClusterIPs returns the cluster IPs and port of the service.
 func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 	cmd := "kubectl get svc " + svc + " -n " + namespace +
@@ -559,7 +542,9 @@ func GetNodeArgs(nodeType string) (map[string]string, error){
 		"host",
 		"get",
 		"nodes "+
-			fmt.Sprintf(`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`, product),
+			fmt.Sprintf(
+				`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`,
+				product),
 	)
 	if err != nil {
 		return nil, err

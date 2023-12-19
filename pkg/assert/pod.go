@@ -74,17 +74,6 @@ func PodAssertStatus() PodAssertFunc {
 	}
 }
 
-// CheckPodStatusRunning asserts that the pod is running with the specified label = app name.
-func CheckPodStatusRunning(name, namespace, assert string) {
-	cmd := "kubectl get pods -n " + namespace + " -o=name -l k8s-app=" + name +
-		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
-	Eventually(func(g Gomega) {
-		res, err := shared.RunCommandHost(cmd)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(res).Should(ContainSubstring(assert))
-	}, "180s", "5s").Should(Succeed())
-}
-
 // ValidatePodIPByLabel validates expected pod IP by label
 func ValidatePodIPByLabel(labels, expected []string) {
 	Eventually(func() error {
@@ -128,8 +117,8 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 		expected, label)
 }
 
-// ValidatePodIsRunning checks status of pods is Running when searched by namespace and label
-func ValidatePodIsRunning(namespace, label string) {
+// PodStatusRunning checks status of pods is Running when searched by namespace and label
+func PodStatusRunning(namespace, label string) {
 	cmd := "kubectl get pods -n " + namespace + " -l " + label +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
