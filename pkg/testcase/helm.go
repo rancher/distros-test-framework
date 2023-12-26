@@ -22,12 +22,16 @@ func TestDeployCertManager(version string) {
 		shared.KubeConfigFile) + fmt.Sprintf(
 		"helm install cert-manager jetstack/cert-manager -n cert-manager --version %s --kubeconfig=%s",
 		version, shared.KubeConfigFile)
+
 	res, err := shared.RunCommandHost(addRepoCmd, applyCrdsCmd, installCertMgrCmd)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to deploy cert-manager via helm: %v\nCommand: %s\nResult: %s\n", err, installCertMgrCmd, res)
 
+	filters := map[string]string{
+		"namespace": "cert-manager",
+	}
 	Eventually(func(g Gomega) {
-		pods, err := shared.GetPodsByNamespace("cert-manager", false)
+		pods, err := shared.GetPodsFiltered(filters)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
@@ -38,7 +42,6 @@ func TestDeployCertManager(version string) {
 				assert.PodAssertStatus())
 		}
 	}, "120s", "5s").Should(Succeed())
-
 }
 
 func TestDeployRancher(helmVersion, imageVersion string) {
@@ -50,12 +53,17 @@ func TestDeployRancher(helmVersion, imageVersion string) {
 		"-n cattle-system --set global.cattle.psp.enabled=false " +
 		fmt.Sprintf("--set hostname=%s --set rancherImageTag=%s --version=%s --kubeconfig=%s",
 			cluster.FQDN, imageVersion, helmVersion, shared.KubeConfigFile)
+
 	res, err := shared.RunCommandHost(addRepoCmd, installRancherCmd)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n", err, installRancherCmd, res)
 
+	filters := map[string]string{
+		"namespace": "cattle-system",
+		"label":     "app=rancher",
+	}
 	Eventually(func(g Gomega) {
-		pods, err := shared.GetPodsByNamespaceAndLabel("cattle-system", "app=rancher", false)
+		pods, err := shared.GetPodsFiltered(filters)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
@@ -79,5 +87,4 @@ func TestDeployRancher(helmVersion, imageVersion string) {
 		}
 	}
 	fmt.Println("\nRancher URL:", rancherUrl)
-
 }

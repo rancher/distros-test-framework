@@ -373,37 +373,30 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsByNamespace returns pods parsed from kubectl get pods in a specific namespace
-func GetPodsByNamespace(namespace string, print bool) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s --kubeconfig=%s",
-		namespace, KubeConfigFile)
+// GetPodsFiltered
+func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
+	for option, value := range filters {
+		var opt string
+
+		switch option {
+		case "namespace":
+			opt = "-n"
+		case "label":
+			opt = "-l"
+		default:
+			// do thing
+			opt = option
+		}
+		cmd = strings.Join([]string{cmd, opt, value}, " ")
+	}
+
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
 	pods := parsePods(res)
-	if print {
-		fmt.Println(res)
-	}
-
-	return pods, nil
-}
-
-// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace
-// with a specific label
-func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s",
-		namespace, label, KubeConfigFile)
-	res, err := RunCommandHost(cmd)
-	if err != nil {
-		return nil, ReturnLogError("failed to get pods: %w\n", err)
-	}
-
-	pods := parsePods(res)
-	if print {
-		fmt.Println(res)
-	}
 
 	return pods, nil
 }

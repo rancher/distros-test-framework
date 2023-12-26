@@ -1,4 +1,4 @@
-package rancher
+package deployrancher
 
 import (
 	"fmt"

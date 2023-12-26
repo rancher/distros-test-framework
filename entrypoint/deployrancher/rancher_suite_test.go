@@ -1,19 +1,22 @@
-package rancher
+package deployrancher
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+var cfg *config.Product
 
 func TestMain(m *testing.M) {
 	var err error
@@ -23,7 +26,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherImageVersion, "rancherImageVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
-	_, err = shared.EnvConfig()
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}
@@ -37,14 +40,18 @@ func TestRancherSuite(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	testcase.TestConfigVarVal(GinkgoT(), "create_lb", "true")
-	product, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
-	if product == "rke2" && strings.Contains(factory.GetConfigVarValue(GinkgoT(), "server_flags"), "profile") {
-		testcase.TestConfigVarSet(GinkgoT(), "optional_files")
-		testcase.TestConfigVarVal(GinkgoT(), "server_flags", "pod-security-admission-config-file:")
+	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cfg.Product)); err != nil {
+		Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
 	}
 
+	Expect(os.Getenv("create_lb")).To(Equal("true"), "Wrong value passed in tfvars for 'create_lb'")
+
+	if cfg.Product == "rke2" &&
+		strings.Contains(os.Getenv("server_flags"), "profile") {
+		Expect(os.Getenv("optional_files")).NotTo(BeEmpty(), "Need to pass a value in tfvars for 'optional_files'")
+		Expect(os.Getenv("server_flags")).To(ContainSubstring("pod-security-admission-config-file:"),
+			"Wrong value passed in tfvars for 'server_flags'")
+	}
 })
 
 var _ = AfterSuite(func() {
