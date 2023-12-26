@@ -2,10 +2,12 @@ resource "aws_instance" "worker" {
   depends_on = [
     var.dependency
   ]
-  ami = var.aws_ami
-  instance_type = var.ec2_instance_class
-  count = var.no_of_worker_nodes
-  iam_instance_profile = var.iam_role
+  ami                         = var.aws_ami
+  instance_type               = var.ec2_instance_class
+  associate_public_ip_address = var.enable_public_ip
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  count                       = var.no_of_worker_nodes
+  iam_instance_profile        = var.iam_role
   connection {
     type = "ssh"
     user = var.aws_user
@@ -23,7 +25,7 @@ resource "aws_instance" "worker" {
   ]
   key_name = var.key_name
   tags = {
-    Name = "${var.resource_name}-worker"
+    Name = "${var.resource_name}-worker${count.index + 1}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -31,9 +33,10 @@ resource "aws_instance" "worker" {
     destination = "/tmp/join_rke2_agent.sh"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/join_rke2_agent.sh",
-      "sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} \"${local.node_token}\" ${var.rke2_version} ${self.public_ip} ${var.rke2_channel} \"${var.worker_flags}\" ${var.install_mode} ${var.username} ${var.password} \"${var.install_method}\"",
+    inline = [<<-EOT
+      chmod +x /tmp/join_rke2_agent.sh
+      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} ${var.rke2_channel} "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} 
+    EOT
     ]
   }
 }

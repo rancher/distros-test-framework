@@ -6,97 +6,99 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
-create_config() {
-  mkdir -p /etc/rancher/k3s
-  local server_ip="${1}"
-  local token="${2}"
+# Script args
+node_os=${1}
+server_ip=${2}
+token=${3}
+public_ip=${4}
+private_ip=${5}
+ipv6_ip=${6}
+install_mode=${7}
+version=${8}
+channel=${9}
+worker_flags=${10}
+rhel_username=${12}
+rhel_password=${13}
 
+create_config() {
+  hostname=$(hostname -f)
+  mkdir -p /etc/rancher/k3s
   cat <<EOF >>/etc/rancher/k3s/config.yaml
-server: https://${1}:6443
-token:  "${2}"
+server: https://$server_ip:6443
+token:  "$token"
+node-name: $hostname
 node-label:
   - role-worker=true
 EOF
 }
 
-add_config() {
-  local worker_flags="${1}"
-
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]
-    then
-      echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
-      cat /etc/rancher/k3s/config.yaml
+update_config() {
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]; then
+    echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
   fi
 
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]
-    then
-       cat /tmp/cis_worker_config.yaml >> /etc/rancher/k3s/config.yaml
-       printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
-       sysctl -p /etc/sysctl.d/90-kubelet.conf
-       systemctl restart systemd-sysctl
+  if [[ "$worker_flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
+    elif [ -n "$ipv6_ip" ]; then
+      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
+    else
+      echo -e "node-external-ip: $public_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip" >> /etc/rancher/k3s/config.yaml
+    fi
+  fi
+  cat /etc/rancher/k3s/config.yaml
+
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]; then
+    cat /tmp/cis_worker_config.yaml >> /etc/rancher/k3s/config.yaml
+    printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
+    sysctl -p /etc/sysctl.d/90-kubelet.conf
+    systemctl restart systemd-sysctl
   fi
 }
 
 subscription_manager() {
-   local node_os="${1}"
-   local username="${2}"
-   local password="${3}"
-
-   if [ "$node_os" = "rhel" ]; then
-      subscription-manager register --auto-attach --username="$username" --password="$password" || echo "Failed to register or attach subscription on this Os."
-
-      subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories on this Os."
-   fi
+  if [ "$node_os" = "rhel" ]; then
+    subscription-manager register --auto-attach --username="$username" --password="$password" || echo "Failed to register or attach subscription."
+    subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories on this Os."
+  fi
 }
 
 disable_cloud_setup() {
-   local node_os="${1}"
+  if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
+    if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
+      systemctl disable nm-cloud-setup.service
+    else
+      echo "nm-cloud-setup.service not found or not enabled"
+    fi
 
-if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
-      if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
-         systemctl disable nm-cloud-setup.service
-      else
-         echo "nm-cloud-setup.service not found or not enabled"
-      fi
-
-      if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
-         systemctl disable nm-cloud-setup.timer
-      else
-         echo "nm-cloud-setup.timer not found or not enabled"
-      fi
-   fi
+    if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
+      systemctl disable nm-cloud-setup.timer
+    else
+      echo "nm-cloud-setup.timer not found or not enabled"
+    fi
+  fi
 }
 
-export "${2}"="${3}"
-
 install(){
-  local version="${1}"
-  local worker_flags="${2}"
-  local install_mode="${3}"
-  local ip="${4}"
-  local server_ip="${5}"
-  local token="${6}"
-  local channel="${7}"
+  export "$install_mode"="$version"
 
-if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]] && [[ -n "$worker_flags" ]]
-  then
-    curl -sfL https://get.k3s.io | sh -s - "$install_mode" --node-external-ip="$ip" --server https://"$server_ip":6443 --token "$token"
-else
-    if [[ -n "$channel"  ]]
-    then
-      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent --node-external-ip="$ip"
-    else
-      curl -sfL https://get.k3s.io | sh -s - agent --node-external-ip="$ip"
-    fi
-    sleep 10
-fi
+  if [[ -n "$channel"  ]]; then
+    curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent
+  else
+    curl -sfL https://get.k3s.io | sh -s - agent
+  fi
+  sleep 10
+
 }
 
 main() {
-  create_config "$4" "$5"
-  add_config "$7"
-  subscription_manager "$1" "$8" "$9"
-  disable_cloud_setup "$1"
-  install "$3" "$7" "$2" "$6" "$4" "$5" "${10}"
+  create_config
+  update_config
+  subscription_manager
+  disable_cloud_setup
+  install
 }
 main "$@"
