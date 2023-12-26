@@ -373,7 +373,8 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsFiltered
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
+// Example filters are: namespace, label, --field-selector
 func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
 	for option, value := range filters {
