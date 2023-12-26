@@ -38,6 +38,7 @@ plugins:
                      cattle-system,
                      cattle-ui-plugin-system,
                      cattle-windows-gmsa-system,
+                     cattle-provisioning-capi-system,
                      cert-manager,
                      cis-operator-system,
                      fleet-default,

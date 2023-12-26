@@ -28,6 +28,7 @@ type Cluster struct {
 	NumWinAgents int
 	NumServers   int
 	NumAgents    int
+	FQDN         string
 	Config       clusterConfig
 	AwsEc2       awsEc2Config
 }
@@ -49,6 +50,13 @@ type clusterConfig struct {
 	DataStore        string
 	Product          string
 	Arch             string
+}
+
+// GetConfigVarValue retrieves the string value of any variable from the tfvars file
+func GetConfigVarValue(g GinkgoTInterface, variable string) string {
+	_, varDir, _ := addTerraformOptions()
+
+	return terraform.GetVariableAsStringFromVarFile(g, varDir, variable)
 }
 
 func loadConfig() (*config.Product, error) {
@@ -118,6 +126,7 @@ func loadTFconfig(
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
 
+	c.FQDN = terraform.Output(g, terraformOptions, "Route53_info")
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {

@@ -18,7 +18,7 @@ type FlagConfig struct {
 	ClusterConfig     clusterConfigFlag
 	SUCUpgradeVersion sucUpgradeVersion
 	Channel           channelFlag
-	SonobouyVersion   externalConfigFlag
+	ExternalFlag      externalConfigFlag
 }
 
 type sucUpgradeVersion struct {
@@ -44,7 +44,10 @@ type testConfigFlag struct {
 }
 
 type externalConfigFlag struct {
-	SonobuoyVersion string
+	SonobuoyVersion     string
+	CertManagerVersion  string
+	RancherHelmVersion  string
+	RancherImageVersion string
 }
 
 type clusterConfigFlag struct {

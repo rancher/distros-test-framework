@@ -115,7 +115,11 @@ func validateIngressRoute(publicIp string) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	// Query the IngressRoute Host
-	pods, err := shared.GetPodsByNamespaceAndLabel("test-ingressroute", "app=whoami", false)
+	filters := map[string]string{
+		"namespace": "test-ingressroute",
+		"label":     "app=whoami",
+	}
+	pods, err := shared.GetPodsFiltered(filters)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	negativeAsserts := "404 page not found"
