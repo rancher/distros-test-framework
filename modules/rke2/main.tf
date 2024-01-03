@@ -31,6 +31,8 @@ module "master" {
   sg_id              = var.sg_id
   subnets            = var.subnets
   vpc_id             = var.vpc_id
+  enable_public_ip   = var.enable_public_ip
+  enable_ipv6        = var.enable_ipv6
 
   # RKE2 variables
   rke2_version   = var.rke2_version
@@ -67,6 +69,8 @@ module "worker" {
   sg_id              = var.sg_id
   subnets            = var.subnets
   vpc_id             = var.vpc_id
+  enable_public_ip   = var.enable_public_ip
+  enable_ipv6        = var.enable_ipv6
 
   # RKE2 variables
   rke2_version   = var.rke2_version

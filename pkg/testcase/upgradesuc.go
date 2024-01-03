@@ -31,7 +31,7 @@ func TestUpgradeClusterSUC(version string) error {
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
 	originalFilePath := shared.BasePath() +

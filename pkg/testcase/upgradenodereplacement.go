@@ -24,120 +24,149 @@ func TestUpgradeReplaceNode(version string) error {
 		return shared.ReturnLogError("version not sent.\n")
 	}
 
-	dependencies, err := aws.AddAwsNode()
+	a, err := aws.AddAwsNode()
 	if err != nil {
 		return err
 	}
 
-	cluster := factory.ClusterConfig(GinkgoT())
-	product, err := shared.GetProduct()
-	if err != nil {
-		return shared.ReturnLogError("error getting product: %w\n", err)
-	}
-
-	serverLeaderIp := cluster.ServerIPs[0]
-	token, nodeErr := shared.RunCommandOnNode("sudo -i cat /tmp/nodetoken", serverLeaderIp)
-	if nodeErr != nil {
-		return nodeErr
-	}
-
-	var serverNames []string
-	var serverIds, newServerIps []string
-	var cErr error
-	resourceName := os.Getenv("resource_name")
-
-	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-server-%d", resourceName, i+1))
-	}
-
-	newServerIps, serverIds, cErr = dependencies.CreateInstances(serverNames...)
-	if cErr != nil {
-		return cErr
-	}
-	shared.LogLevel("info", "created\nserver ips: %s\nserver ids:%s\n", newServerIps, serverIds)
-
-	// scp all new nodes
-	if scpErr := scpToNewNodes(product, master, newServerIps); scpErr != nil {
-		return scpErr
-	}
-
-	// var newServerLeaderIp string
-	// newServerLeaderIp = serverIps[0]
-
-	// delete all nodes except the first one so cluster.ServerIPs[0] is not getting deleted for now
-	oldServersIps := cluster.ServerIPs
-	for i, ip := range newServerIps {
-		if len(oldServersIps) > 0 {
-			if delErr := dependencies.DeleteInstance(oldServersIps[i+1]); delErr != nil {
-				return delErr
-			}
-		}
-
-		joinCmd, installErr := parseJoinCmd(product, server, serverLeaderIp, token, version, ip)
-		if installErr != nil {
-			return installErr
-		}
-		joinErr := joinNode(server, joinCmd, ip)
-		if joinErr != nil {
-			return joinErr
-		}
-	}
-
-	//
-	// worker/agent part
-	workersLenght := len(cluster.AgentIPs)
-	if workersLenght > 0 {
-		var workerNames []string
-		var workerIds, workerIps []string
-		for i := 0; i < workersLenght; i++ {
-			workerNames = append(workerNames, fmt.Sprintf("%s-agent-%d", os.Getenv("resource_name"), i))
-		}
-
-		workerIps, workerIds, err = dependencies.CreateInstances(workerNames...)
-		if err != nil {
-			return err
-		}
-		shared.LogLevel("info", "created\nworker ips: %s\nworker ids:%s\n", workerIps, workerIds)
-
-		for i := workersLenght - 1; i >= 0; i++ {
-			currentAgent := cluster.AgentIPs[i]
-			err = dependencies.DeleteInstance(currentAgent)
-			if err != nil {
-				return err
-			}
-		}
-
-		var cmd string
-		var installErr error
-		for _, ip := range workerIps {
-			if scpErr := scpToNewNodes(ip, product, workerIps); scpErr != nil {
-				return scpErr
-			}
-
-			cmd, installErr = parseJoinCmd(product, agent, serverLeaderIp, token, version, ip)
-			if installErr != nil {
-				return installErr
-			}
-			err = joinNode(agent, cmd, serverLeaderIp)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// delete serverLeaderIp
-	err = dependencies.DeleteInstance(serverLeaderIp)
+	c, err := FetchCluster()
 	if err != nil {
 		return err
 	}
 
-	// get first server node name and patch it
-	_, err = shared.RunCommandOnNode("kubectl patch node *****{nodename} -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge", newServerIps[0])
+	serverLeaderIp := c.ServerIPs[0]
+	token, err := fetchToken(serverLeaderIp)
 	if err != nil {
 		return err
+	}
+
+	if err = replaceServers(c, a, serverLeaderIp, token, version); err != nil {
+		return err
+	}
+
+	if err = replaceWorkers(c, a, serverLeaderIp, token, version); err != nil {
+		return err
+	}
+
+	if dellErr := a.DeleteInstance(serverLeaderIp); dellErr != nil {
+		return dellErr
 	}
 
 	return nil
+}
+
+//
+// 	var (
+// 		serverNames,
+// 		newServerIds,
+// 		newServerEips,
+// 		newServerPips []string
+// 		createErr error
+// 	)
+// 	for i := 0; i < len(c.ServerIPs); i++ {
+// 		serverNames = append(serverNames, fmt.Sprintf("%s-server-%d", os.Getenv("resource_name"), i+1))
+// 	}
+//
+// 	newServerEips, newServerPips, newServerIds, createErr = a.CreateInstances(serverNames...)
+// 	if createErr != nil {
+// 		return createErr
+// 	}
+// 	shared.LogLevel("info", "created server public ips: %s\nserver private ips: %s\n ids:%s\n", newServerEips, newServerPips, newServerIds)
+//
+// 	if scpErr := scpToNewNodes(c.Config.Product, master, newServerEips); scpErr != nil {
+// 		return scpErr
+// 	}
+//
+// 	for i, eip := range newServerEips {
+// 		if i >= len(newServerPips) {
+// 			return fmt.Errorf("mismatch in the length of external IPs and private Ips")
+// 		}
+// 		pip := newServerPips[i]
+//
+// 		joinCmd, installErr := parseJoinCmd(c.Config.Product, server, serverLeaderIp, token, version, eip, pip)
+// 		if installErr != nil {
+// 			return installErr
+// 		}
+// 		joinErr := joinNode(server, joinCmd, eip)
+// 		if joinErr != nil {
+// 			return joinErr
+// 		}
+//
+// 		// will delete server nodes except the first one
+// 		oldServersIps := c.ServerIPs[1:]
+// 		if delErr := a.DeleteInstance(oldServersIps[i]); delErr != nil {
+// 			return delErr
+// 		}
+// 	}
+//
+// 	//
+// 	workersLenght := len(c.AgentIPs)
+// 	if workersLenght > 0 {
+// 		var workerNames []string
+// 		var workerIds, newWorkerEips, newWorkerPips []string
+// 		for i := 0; i < workersLenght; i++ {
+// 			workerNames = append(workerNames, fmt.Sprintf("%s-agent-%d", os.Getenv("resource_name"), i))
+// 		}
+//
+// 		newWorkerEips, newWorkerPips, workerIds, err = a.CreateInstances(workerNames...)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		shared.LogLevel("info", "created\nworker ips: %s\nworker private ips:%s\nworker ids:%s\n", newWorkerEips, newWorkerPips, workerIds)
+//
+// 		for i := workersLenght - 1; i >= 0; i++ {
+// 			currentAgent := c.AgentIPs[i]
+// 			err = a.DeleteInstance(currentAgent)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+//
+// 		var cmd string
+// 		var installErr error
+// 		for i, eip := range newWorkerEips {
+// 			if scpErr := scpToNewNodes(eip, c.Config.Product, newWorkerEips); scpErr != nil {
+// 				return scpErr
+// 			}
+//
+// 			if i >= len(newWorkerPips) {
+// 				return fmt.Errorf("mismatch in the length of newServerEips and newServerPips")
+// 			}
+// 			pip := newWorkerPips[i]
+//
+// 			cmd, installErr = parseJoinCmd(c.Config.Product, agent, serverLeaderIp, token, version, eip, pip)
+// 			if installErr != nil {
+// 				return installErr
+// 			}
+// 			err = joinNode(agent, cmd, serverLeaderIp)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+// 	}
+//
+// 	// delete serverLeaderIp
+// 	err = a.DeleteInstance(serverLeaderIp)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	// get first server node name and patch it
+// 	// _, err = shared.RunCommandOnNode("kubectl patch node *****{nodename} -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge", newServerEips[0])
+// 	// if err != nil {
+// 	// 	return err
+// 	// }
+//
+// 	return nil
+// }
+
+func fetchToken(ip string) (string, error) {
+	token, err := shared.RunCommandOnNode("sudo -i cat /tmp/nodetoken", ip)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
 
 func joinNode(nodetype, cmd, serverIp string) error {
@@ -179,24 +208,14 @@ func joinAgent(cmd, ip string) error {
 	return nil
 }
 
-func parseJoinCmd(product, nodetype, serverIp, token, version, selfIp string) (string, error) {
+func parseJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", shared.ReturnLogError("unsupported product: %s\n", product)
 	}
 
-	// create a separated func fir get env and returns vars
 	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
 		return "", shared.ReturnLogError("error loading tf vars: %w\n", err)
 	}
-
-	// nodeOs := os.Getenv("node_os")
-	// serverFlags := os.Getenv("server_flags")
-	// workerFlags := os.Getenv("worker_flags")
-	// dataStoreType := os.Getenv("datastore_type")
-	// installMode := os.Getenv("install_mode")
-	// username := os.Getenv("username")
-	// password := os.Getenv("password")
-	// channel := os.Getenv(fmt.Sprintf("%s_channel", product))
 
 	var flags string
 	if nodetype == server {
@@ -207,26 +226,50 @@ func parseJoinCmd(product, nodetype, serverIp, token, version, selfIp string) (s
 		nodetype = "agent"
 	}
 
-	templateTest := " "
-	// ipv6Ip := " "
-	cmd := fmt.Sprintf(
-		"sudo -i /tmp/join_%s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
-		product,
-		nodetype,
-		os.Getenv("node_os"),
-		serverIp,
-		os.Getenv("install_mode"),
-		version,
-		os.Getenv("datastore_type"),
-		selfIp,
-		serverIp,
-		token,
-		templateTest,
-		flags,
-		os.Getenv("username"),
-		os.Getenv("password"),
-		os.Getenv(fmt.Sprintf("%s_channel", product)),
-	)
+	datastoreEndpoint := ""
+	ipv6 := ""
+
+	var cmd string
+	if nodetype == agent {
+		cmd = fmt.Sprintf(
+			"sudo /tmp/join_%s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s'",
+			product,
+			nodetype,
+			os.Getenv("node_os"),
+			serverIp,
+			token,
+			selfExternalIp,
+			selfPrivateIp,
+			ipv6,
+			os.Getenv("install_mode"),
+			version,
+			os.Getenv(fmt.Sprintf("%s_channel", product)),
+			flags,
+			os.Getenv("username"),
+			os.Getenv("password"),
+		)
+	} else {
+		cmd = fmt.Sprintf(
+			"sudo /tmp/join_%s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			product,
+			nodetype,
+			os.Getenv("node_os"),
+			serverIp,
+			serverIp,
+			token,
+			selfExternalIp,
+			selfPrivateIp,
+			ipv6,
+			os.Getenv("install_mode"),
+			version,
+			os.Getenv(fmt.Sprintf("%s_channel", product)),
+			os.Getenv("datastore_type"),
+			datastoreEndpoint,
+			flags,
+			os.Getenv("username"),
+			os.Getenv("password"),
+		)
+	}
 
 	return cmd, nil
 }
@@ -290,4 +333,106 @@ func scpToNewNodes(product, nodeType string, newNodeIps []string) error {
 	}
 
 	return nil
+}
+
+func replaceServers(c *factory.Cluster, a *aws.Client, serverLeaderIp, token, version string) error {
+	var (
+		serverNames,
+		newServerIds,
+		newServerEips,
+		newServerPips []string
+		createErr error
+	)
+
+	for i := 0; i < len(c.ServerIPs); i++ {
+		serverNames = append(serverNames, fmt.Sprintf("%s-server-%d", os.Getenv("resource_name"), i+1))
+	}
+
+	newServerEips, newServerPips, newServerIds, createErr = a.CreateInstances(serverNames...)
+	if createErr != nil {
+		return createErr
+	}
+	shared.LogLevel("info", "created server public ips: %s\nserver private ips: %s\n ids:%s\n", newServerEips, newServerPips, newServerIds)
+
+	if scpErr := scpToNewNodes(c.Config.Product, master, newServerEips); scpErr != nil {
+		return scpErr
+	}
+
+	for i, eip := range newServerEips {
+		if i >= len(newServerPips) {
+			return fmt.Errorf("mismatch in the length of external IPs and private Ips")
+		}
+		pip := newServerPips[i]
+
+		joinCmd, installErr := parseJoinCmd(c.Config.Product, server, serverLeaderIp, token, version, eip, pip)
+		if installErr != nil {
+			return installErr
+		}
+		joinErr := joinNode(server, joinCmd, eip)
+		if joinErr != nil {
+			return joinErr
+		}
+
+		// will delete server nodes except the first one
+		oldServersIps := c.ServerIPs[1:]
+		if delErr := a.DeleteInstance(oldServersIps[i]); delErr != nil {
+			return delErr
+		}
+	}
+
+	return nil
+}
+
+func replaceWorkers(c *factory.Cluster, a *aws.Client, serverLeaderIp, token, version string) error {
+	workersLength := len(c.AgentIPs)
+	if workersLength > 0 {
+		var workerNames []string
+		var workerIds, newWorkerEips, newWorkerPips []string
+		for i := 0; i < workersLength; i++ {
+			workerNames = append(workerNames, fmt.Sprintf("%s-agent-%d", os.Getenv("resource_name"), i))
+		}
+
+		newWorkerEips, newWorkerPips, workerIds, err := a.CreateInstances(workerNames...)
+		if err != nil {
+			return err
+		}
+		shared.LogLevel("info", "created\nworker ips: %s\nworker private ips:%s\nworker ids:%s\n", newWorkerEips, newWorkerPips, workerIds)
+
+		for i := workersLength - 1; i >= 0; i-- {
+			currentAgent := c.AgentIPs[i]
+			err = a.DeleteInstance(currentAgent)
+			if err != nil {
+				return err
+			}
+		}
+
+		var cmd string
+		var installErr error
+		for i, eip := range newWorkerEips {
+			if scpErr := scpToNewNodes(eip, c.Config.Product, newWorkerEips); scpErr != nil {
+				return scpErr
+			}
+
+			if i >= len(newWorkerPips) {
+				return fmt.Errorf("mismatch in the length of newServerEips and newServerPips")
+			}
+			pip := newWorkerPips[i]
+
+			cmd, installErr = parseJoinCmd(c.Config.Product, agent, serverLeaderIp, token, version, eip, pip)
+			if installErr != nil {
+				return installErr
+			}
+			err = joinNode(agent, cmd, serverLeaderIp)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func FetchCluster() (*factory.Cluster, error) {
+	cluster := factory.ClusterConfig(GinkgoT())
+	return cluster, nil
 }

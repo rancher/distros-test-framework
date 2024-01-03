@@ -62,7 +62,7 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 				return
 			}
 
-			product, err := shared.GetProduct()
+			product, err := shared.Product()
 			if err != nil {
 				return
 			}
@@ -80,7 +80,7 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 func getInstallCmd(installType string, nodeType string) string {
 	var installFlag string
 	var installCmd string
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}
@@ -99,7 +99,7 @@ func getInstallCmd(installType string, nodeType string) string {
 }
 
 func getChannel() string {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}

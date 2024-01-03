@@ -31,6 +31,9 @@ module "master" {
    environment          = var.environment
    create_lb            = var.create_lb
    k3s_channel          = var.k3s_channel
+   enable_public_ip     = var.enable_public_ip
+   enable_ipv6          = var.enable_ipv6
+
    # Split roles
    all_role_nodes       = var.no_of_server_nodes
    etcd_only_nodes      = var.etcd_only_nodes
@@ -64,4 +67,6 @@ module "worker" {
    username             = var.username
    password             = var.password
    k3s_channel          = var.k3s_channel
+   enable_public_ip     = var.enable_public_ip
+   enable_ipv6          = var.enable_ipv6
 }

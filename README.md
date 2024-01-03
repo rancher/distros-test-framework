@@ -10,4 +10,4 @@ See `docs/` for any more specific information and examples.
 - [Conventions](./docs/conventions.md)
 - [Development & Getting Started](./docs/development.md)
 - [Version Bump Template Model](./docs/version_bump_template.md)
-- [Example Configs](./docs/examples/rke2.tfvars)
+- [Example Configs](./docs/examples/)

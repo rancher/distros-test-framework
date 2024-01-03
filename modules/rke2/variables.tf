@@ -79,3 +79,9 @@ variable "cp_worker_nodes" {
 variable "optional_files" {
   description = "File location and raw data url separate by commas, with a space for other pairs. E.g. file1,url1 file2,url2"
 }
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}

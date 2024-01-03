@@ -53,6 +53,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %v\n", err)
 	}
+
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
@@ -76,7 +77,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
-	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
+	// removing cause stdout is already returned at this point so no need to also log it + sometimes it can contains sensitive data
 
 	return stdout, err
 }
@@ -277,7 +278,7 @@ func GetJournalLogs(level, ip string) string {
 		return ""
 	}
 
-	product, err := GetProduct()
+	product, err := Product()
 	if err != nil {
 		return ""
 	}
@@ -294,14 +295,16 @@ func GetJournalLogs(level, ip string) string {
 
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
-	log := logger.AddLogger(false)
+	log := logger.AddLogger()
 	err := formatLogArgs(format, args...)
 
 	if err != nil {
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
 			funcName := runtime.FuncForPC(pc).Name()
-			log.Error(fmt.Sprintf("%s\nLast call: %s in %s:%d", err.Error(), funcName, file, line))
+
+			formattedPath := fmt.Sprintf("file:%s:%d", file, line)
+			log.Error(fmt.Sprintf("%s\nLast call: %s in %s", err.Error(), funcName, formattedPath))
 		} else {
 			log.Error(err.Error())
 		}
@@ -312,7 +315,7 @@ func ReturnLogError(format string, args ...interface{}) error {
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	log := logger.AddLogger(false)
+	log := logger.AddLogger()
 	msg := formatLogArgs(format, args...)
 
 	switch level {
@@ -436,8 +439,8 @@ func findScriptPath(paths []string, pathName, ip string) (string, error) {
 	return filepath.Dir(fullPath), nil
 }
 
-// VerifyFileMatchWithPath verify expected files found in the actual file list
-func VerifyFileMatchWithPath(actualFileList, expectedFileList []string) error {
+// MatchWithPath verify expected files found in the actual file list
+func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
 			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",

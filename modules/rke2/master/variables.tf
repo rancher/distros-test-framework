@@ -32,18 +32,35 @@ variable "create_lb" {
 variable "split_roles" {
   description = "When true, server nodes may be a mix of etcd, cp, and worker"
   type = bool
+  default = false
 }
 variable "role_order" {
   description = "Comma separated order of how to bring the nodes up when split roles"
   type = string
 }
 variable "all_role_nodes" {}
-variable "etcd_only_nodes" {}
-variable "etcd_cp_nodes" {}
-variable "etcd_worker_nodes" {}
-variable "cp_only_nodes" {}
-variable "cp_worker_nodes" {}
+variable "etcd_only_nodes" {
+  default = 0
+}
+variable "etcd_cp_nodes" {
+  default = 0
+}
+variable "etcd_worker_nodes" {
+  default = 0
+}
+variable "cp_only_nodes" {
+  default = 0
+}
+variable "cp_worker_nodes" {
+  default = 0
+}
 variable "optional_files" {}
 variable product {
   default = "rke2"
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
 }

@@ -52,3 +52,9 @@ variable "cp_worker_nodes" {}
 variable product {
   default = "k3s"
 }
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}
