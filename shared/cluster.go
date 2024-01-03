@@ -17,7 +17,6 @@ var (
 	AwsUser        string
 	AccessKey      string
 	Arch           string
-	BastionIP      string
 )
 
 type Node struct {
@@ -533,7 +532,7 @@ func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 }
 
 // GetNodeArgsMap returns list of nodeArgs map
-func GetNodeArgs(nodeType string) (map[string]string, error){
+func GetNodeArgsMap(nodeType string) (map[string]string, error){
 	product,err := Product()
 	if err != nil{
 		return nil, err
@@ -550,7 +549,7 @@ func GetNodeArgs(nodeType string) (map[string]string, error){
 		return nil, err
 	}
 
-	nodeArgsMapSlice := nodeArgsToMap(res)
+	nodeArgsMapSlice := processNodeArgs(res)
 
 	for _, nodeArgsMap := range nodeArgsMapSlice {
 		if nodeArgsMap["node-type"] == nodeType {
@@ -561,7 +560,7 @@ func GetNodeArgs(nodeType string) (map[string]string, error){
 	return nil, nil
 }
 
-func nodeArgsToMap(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	nodeArgsSlice := strings.Split(nodeArgs, "]")
 
 	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {
