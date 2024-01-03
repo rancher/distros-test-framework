@@ -45,8 +45,8 @@ func TestBuildCluster(g GinkgoTInterface) {
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	if shared.BastionIP != "" {
-		fmt.Println("\nBastion Node IP:", shared.BastionIP)
+	if cluster.ExtraConfig.BastionIP != "" {
+		fmt.Println("\nBastion Node IP:", cluster.ExtraConfig.BastionIP)
 	}
 	fmt.Println("\nServer Node IPs:", cluster.ServerIPs)
 
@@ -88,6 +88,12 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			return
 		}
 	}
+}
+
+// setHelper returns the cluster and product
+func FetchCluster() (*factory.Cluster, error) {
+	cluster := factory.ClusterConfig(GinkgoT())
+	return cluster, nil
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs

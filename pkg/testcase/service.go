@@ -102,6 +102,8 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 }
 
 func TestServiceNodePortDualStack(td TestData) {
+	cluster, err := FetchCluster()
+	Expect(err).NotTo(HaveOccurred())
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -112,7 +114,7 @@ func TestServiceNodePortDualStack(td TestData) {
 		}
 		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
-			shared.BastionIP,
+			cluster.ExtraConfig.BastionIP,
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}

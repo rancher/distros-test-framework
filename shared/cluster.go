@@ -15,7 +15,6 @@ var (
 	AwsUser        string
 	AccessKey      string
 	Arch           string
-	BastionIP      string
 )
 
 type Node struct {
@@ -467,8 +466,8 @@ func WriteDataPod(namespace string) (string, error) {
 	return RunCommandHost(cmd)
 }
 
-// NodeArgs returns list of nodeArgs map
-func NodeArgs(nodeType string) (nodeArgsMap map[string]string, err error) {
+// GetNodeArgsMap returns list of nodeArgs map
+func GetNodeArgsMap(nodeType string) (nodeArgsMap map[string]string, err error) {
 	product, err := Product()
 	if err != nil {
 		return nil, err
@@ -485,7 +484,7 @@ func NodeArgs(nodeType string) (nodeArgsMap map[string]string, err error) {
 		return nil, err
 	}
 
-	nodeArgsMapSlice := nodeArgsToMap(res)
+	nodeArgsMapSlice := processNodeArgs(res)
 
 	for _, nodeArgsMap = range nodeArgsMapSlice {
 		if nodeArgsMap["node-type"] == nodeType {
@@ -496,7 +495,7 @@ func NodeArgs(nodeType string) (nodeArgsMap map[string]string, err error) {
 	return nil, nil
 }
 
-func nodeArgsToMap(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	nodeArgsSlice := strings.Split(nodeArgs, "]")
 
 	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {

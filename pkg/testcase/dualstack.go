@@ -17,7 +17,10 @@ type TestData struct {
 }
 
 func TestIngressDualStack(deleteWorkload bool) {
-	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
+	cluster, err := FetchCluster()
+	Expect(err).NotTo(HaveOccurred())
+
+	err = shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
 	td := TestData{
@@ -36,7 +39,7 @@ func TestIngressDualStack(deleteWorkload bool) {
 		if strings.Contains(ingressIP, ":") {
 			ingressIP = shared.EncloseSqBraces(ingressIP)
 		}
-		err = assert.ValidateOnNode(shared.BastionIP,
+		err = assert.ValidateOnNode(cluster.ExtraConfig.BastionIP,
 			"curl -sL -H 'Host: test1.com' http://"+ingressIP+"/name.html",
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
