@@ -27,7 +27,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddAwsNode() (*Client, error) {
+func AddNode() (*Client, error) {
 	c := factory.ClusterConfig(GinkgoT())
 
 	sess, err := session.NewSession(&aws.Config{
@@ -42,7 +42,7 @@ func AddAwsNode() (*Client, error) {
 	}, nil
 }
 
-func (c Client) CreateInstances(names ...string) (eIps, pIps, ids []string, err error) {
+func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids []string, err error) {
 	if len(names) == 0 {
 		return nil, nil, nil, shared.ReturnLogError("must sent a name: %s\n", names)
 	}
@@ -135,7 +135,7 @@ func (c Client) DeleteInstance(ip string) error {
 				if len(node.Tags) > 0 {
 					instanceName = *node.Tags[0].Value
 				}
-				shared.LogLevel("info", fmt.Sprintf("\nTerminated instance: %s (ID: %s)",
+				shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
 					instanceName, *node.InstanceId))
 			}
 		}
@@ -231,7 +231,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 	return c.ec2.RunInstances(input)
 }
 
-func (c Client) fetchIP(nodeID string) (string, string, error) {
+func (c Client) fetchIP(nodeID string) (publicIP string, privateIP string, err error) {
 	waitErr := c.WaitForInstanceRunning(nodeID)
 	if waitErr != nil {
 		return "", "", shared.ReturnLogError("error waiting for instance to be running: %w\n", waitErr)

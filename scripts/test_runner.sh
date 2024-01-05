@@ -36,6 +36,8 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=65m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradesuc" ]; then
             go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
+        elif [ "${TEST_TAG}" = "upgradereplacement" ]; then
+            go test -timeout=60m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
        declare -a OPTS

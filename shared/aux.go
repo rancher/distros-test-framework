@@ -46,7 +46,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
+	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)
@@ -70,14 +70,12 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
 	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
 
-	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
-		!strings.Contains(cleanedStderr, "1") ||
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") || !strings.Contains(cleanedStderr, "1") ||
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
-	// removing cause stdout is already returned at this point so no need to also log it + sometimes it can contains sensitive data
 
 	return stdout, err
 }
@@ -153,31 +151,35 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
 		return err
 	}
-	accessKey := os.Getenv("access_key")
-	awsUser := os.Getenv("aws_user")
 
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
 			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
-			accessKey,
+			AccessKey,
 			localPath,
-			awsUser,
+			AwsUser,
 			ip,
 			remotePath,
 		)
 
-		_, cmdErr := RunCommandHost(scp)
+		res, cmdErr := RunCommandHost(scp)
+		if res != "" {
+			LogLevel("warn", "scp output: %s\n", res)
+		}
 		if cmdErr != nil {
+			LogLevel("error", "failed to run scp: %v\n", cmdErr)
 			return cmdErr
 		}
 
-		chmod := fmt.Sprintf("sudo -i chmod +x %s", remotePath)
+		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
 		_, cmdErr = RunCommandOnNode(chmod, ip)
 		if cmdErr != nil {
+			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
 			return cmdErr
 		}
 	}
+	LogLevel("info", "Files copied and chmod successfully\n")
 
 	return nil
 }

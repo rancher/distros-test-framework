@@ -18,7 +18,7 @@ func TestUpgradeClusterManually(version string) error {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
 	shared.PrintClusterState()
-	fmt.Printf("\nUpgrading cluster to: %s", version)
+	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
 	cluster := factory.ClusterConfig(GinkgoT())
 

@@ -1,13 +1,16 @@
+//go:build upgradereplacement
+
 package upgradecluster
 
 import (
 	"fmt"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/testcase"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
 var _ = Describe("Test:", func() {
@@ -19,11 +22,38 @@ var _ = Describe("Test:", func() {
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
-			nil,
-		)
+			nil)
 	})
 
 	It("Validate Pod", func() {
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus())
+	})
+
+	It("Verifies ClusterIP Service pre-upgrade", func() {
+		testcase.TestServiceClusterIp(true, false)
+	})
+
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service pre-upgrade", func() {
+			testcase.TestServiceLoadBalancer(true, false)
+		})
+	}
+
+	It("Upgrade by Node replacement", func() {
+		err := testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("Checks Node Status after upgrade and validate version", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag))
+	})
+
+	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -31,93 +61,19 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	// It("Verifies ClusterIP Service pre-upgrade", func() {
-	// 	testcase.TestServiceClusterIp(true, false)
-	// })
-	//
-	// It("Verifies NodePort Service pre-upgrade", func() {
-	// 	testcase.TestServiceNodePort(true, false)
-	// })
-	//
-	// It("Verifies Ingress pre-upgrade", func() {
-	// 	testcase.TestIngress(true, false)
-	// })
-	//
-	// It("Verifies Daemonset pre-upgrade", func() {
-	// 	testcase.TestDaemonset(true, false)
-	// })
-	//
-	// It("Verifies dns access pre-upgrade", func() {
-	// 	testcase.TestDnsAccess(true, false)
-	// })
-	//
-	// if cfg.Product == "k3s" {
-	// 	It("Verifies LoadBalancer Service pre-upgrade", func() {
-	// 		testcase.TestServiceLoadBalancer(true, false)
-	// 	})
-	//
-	// 	It("Verifies Local Path Provisioner storage pre-upgrade", func() {
-	// 		testcase.TestLocalPathProvisionerStorage(true, false)
-	// 	})
-	//
-	// 	It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-	// 		testcase.TestIngressRoute(true, false, "traefik.containo.us/v1alpha1")
-	// 	})
-	// }
-
-	It("Upgrade by Node replacement", func() {
-		err := testcase.TestUpgradeReplaceNode("v1.27.8+k3s2")
-		Expect(err).NotTo(HaveOccurred())
+	It("Verifies ClusterIP Service after upgrade", func() {
+		testcase.TestServiceClusterIp(false, true)
 	})
-	//
-	// It("Checks Node Status after upgrade and validate version", func() {
-	// 	testcase.TestNodeStatus(
-	// 		nil,
-	// 		assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
-	// 	)
-	// })
-	//
-	// It("Checks Pod Status after upgrade", func() {
-	// 	testcase.TestPodStatus(
-	// 		assert.PodAssertRestart(),
-	// 		assert.PodAssertReady(),
-	// 		assert.PodAssertStatus(),
-	// 	)
-	// })
-	//
-	// It("Verifies ClusterIP Service after upgrade", func() {
-	// 	testcase.TestServiceClusterIp(false, true)
-	// })
-	//
-	// It("Verifies NodePort Service after upgrade", func() {
-	// 	testcase.TestServiceNodePort(false, true)
-	// })
-	//
-	// It("Verifies Ingress after upgrade", func() {
-	// 	testcase.TestIngress(false, true)
-	// })
-	//
-	// It("Verifies Daemonset after upgrade", func() {
-	// 	testcase.TestDaemonset(false, true)
-	// })
-	//
-	// It("Verifies dns access after upgrade", func() {
-	// 	testcase.TestDnsAccess(false, true)
-	// })
-	//
-	// if cfg.Product == "k3s" {
-	// 	It("Verifies LoadBalancer Service after upgrade", func() {
-	// 		testcase.TestServiceLoadBalancer(false, true)
-	// 	})
-	//
-	// 	It("Verifies Local Path Provisioner storage after upgrade", func() {
-	// 		testcase.TestLocalPathProvisionerStorage(false, true)
-	// 	})
-	//
-	// 	It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-	// 		testcase.TestIngressRoute(false, true, "traefik.containo.us/v1alpha1")
-	// 	})
-	// }
+
+	It("Verifies NodePort Service after upgrade applying and deleting workload", func() {
+		testcase.TestServiceNodePort(true, true)
+	})
+
+	if cfg.Product == "k3s" {
+		It("Verifies LoadBalancer Service after upgrade", func() {
+			testcase.TestServiceLoadBalancer(false, true)
+		})
+	}
 })
 
 var _ = AfterEach(func() {

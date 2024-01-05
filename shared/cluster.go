@@ -11,10 +11,9 @@ import (
 )
 
 var (
-	KubeConfigFile string
-	AwsUser        string
-	AccessKey      string
-	Arch           string
+	AwsUser   string
+	AccessKey string
+	Arch      string
 )
 
 type Node struct {
@@ -463,4 +462,69 @@ func WriteDataPod(namespace string) (string, error) {
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
+}
+
+// DeleteClusterNode deletes a node from the cluster filtering the name out by the IP.
+func DeleteClusterNode(ip string) error {
+	if ip == "" {
+		return ReturnLogError("must send a ip: %s\n", ip)
+	}
+
+	name, err := GetNodeNameByIP(ip)
+	if err != nil {
+		return ReturnLogError("failed to get node name by ip: %w\n", err)
+	}
+
+	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
+	if delErr != nil {
+		return ReturnLogError("failed to delete node: %w\n", delErr)
+	}
+	LogLevel("info", "Deleting node: %s", res)
+
+	// delay not meant to wait if node is deleted
+	// but rather to give time for the node to be removed from the cluster
+	delay := time.After(20 * time.Second)
+	<-delay
+
+	return nil
+}
+
+// GetNodeNameByIP returns the node name by the given IP.
+func GetNodeNameByIP(ip string) (string, error) {
+	ticker := time.NewTicker(3 * time.Second)
+	timeout := time.After(45 * time.Second)
+	defer ticker.Stop()
+
+	cmd := "kubectl get nodes -o custom-columns=NAME:.metadata.name,INTERNAL-IP:.status.addresses[*].address --kubeconfig=" +
+		KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
+	for {
+		select {
+		case <-timeout:
+			return "", ReturnLogError("kubectl get nodes timed out for cmd: %s\n", cmd)
+		case <-ticker.C:
+			nodeName, err := RunCommandHost(cmd)
+			if err != nil {
+				return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
+			}
+			if nodeName == "" {
+				continue
+			}
+
+			name := strings.TrimSpace(nodeName)
+			LogLevel("info", "Node name: %s\n", name)
+
+			return name, nil
+		}
+	}
+}
+
+func FetchToken(ip string) (string, error) {
+	token, err := RunCommandOnNode("sudo cat /tmp/nodetoken", ip)
+	if err != nil {
+		return "", ReturnLogError("failed to fetch token: %w\n", err)
+	}
+
+	LogLevel("info", "token successfully retrieved")
+
+	return token, nil
 }
