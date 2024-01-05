@@ -26,3 +26,8 @@ output "worker_flags" {
   value = var.worker_flags
   description = "The worker flags:"
 }
+
+output "bastion_ip" {
+  value       = module.bastion.public_ip
+  description = "The public IP of the bastion node"
+}

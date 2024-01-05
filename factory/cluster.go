@@ -54,7 +54,11 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	}
 
 	shared.LogLevel("info", "\nCreating cluster\n")
-	terraform.InitAndApply(g, terraformOptions)
+	_, err = terraform.InitAndApplyE(g, terraformOptions)
+	if err != nil {
+		shared.LogLevel("error", "\nCreating cluster Failed!!!\n")
+		return nil, err
+	}
 
 	numServers, err = addSplitRole(g, varDir, numServers)
 	if err != nil {
