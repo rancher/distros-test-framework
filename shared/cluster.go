@@ -138,7 +138,8 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command arguments.
+// args   = the rest of your command argument or IP for the node target if destination = node
+// IP arg should be the last argument
 func KubectlCommand(destination, action, source string, args ...string) (string, error) {
 	kubeconfigFlag := " --kubeconfig=" + KubeConfigFile
 	shortCmd := map[string]string{
@@ -154,16 +155,28 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	cmd := cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+	var cmd string
+	var ip string
+
+	if len(args) > 0 {
+		ip = args[len(args)-1]
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args[:len(args)-1], " ") + kubeconfigFlag
+	} else {
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+	}
 
 	switch destination {
 	case "host":
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		return kubectlCmdOnNode(cmd)
+		if ip != "" {
+			return kubectlCmdOnNode(cmd, ip)
+		}
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
 	}
+
+	return "", nil
 }
 
 func kubectlCmdOnHost(cmd string) (string, error) {
@@ -175,19 +188,13 @@ func kubectlCmdOnHost(cmd string) (string, error) {
 	return res, nil
 }
 
-func kubectlCmdOnNode(cmd string) (string, error) {
-	ips := FetchNodeExternalIP()
-	var finalRes string
-
-	for _, ip := range ips {
-		res, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", err
-		}
-		finalRes += res
+func kubectlCmdOnNode(cmd, ip string) (string, error) {
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return "", err
 	}
 
-	return finalRes, nil
+	return res, nil
 }
 
 // FetchClusterIP returns the cluster IP and port of the service.
@@ -311,7 +318,21 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	var nodes []Node
 	var matchedNodes []Node
 
+	if roles == nil {
+		return nil, ReturnLogError("no roles provided")
+	}
+
+	validRoles := map[string]bool{
+		"etcd":          true,
+		"control-plane": true,
+		"worker":        true,
+	}
+
 	for _, role := range roles {
+		if !validRoles[role] {
+			return nil, ReturnLogError("invalid role: %s", role)
+		}
+
 		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
 			" --no-headers --kubeconfig=" + KubeConfigFile +
 			" -l role-" + role
