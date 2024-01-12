@@ -58,7 +58,7 @@ update_config() {
 
 subscription_manager() {
    if [ "$node_os" = "rhel" ]; then
-    subscription-manager register --auto-attach --username="$username" --password="$password" || echo "Failed to register or attach subscription."
+    subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
     subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
    fi
 }

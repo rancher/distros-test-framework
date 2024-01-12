@@ -132,5 +132,6 @@ main() {
   subscription_manager
   disable_cloud_setup
   install
+  path_setup
 }
 main "$@"
