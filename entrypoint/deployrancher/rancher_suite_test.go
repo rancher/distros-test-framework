@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 
 func TestRancherSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Create Cluster Test Suite")
+	RunSpecs(t, "Deploy Rancher Manager Test Suite")
 }
 
 var _ = BeforeSuite(func() {
