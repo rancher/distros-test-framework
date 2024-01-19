@@ -56,7 +56,7 @@ func checkReadyFields() types.GomegaMatcher {
 // apply pods can have an error status
 func PodAssertStatus() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
-		if strings.Contains(pod.Name, "helm-install") {
+		if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") {
 			g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
 		} else if strings.Contains(pod.Name, "apply") &&
 			strings.Contains(pod.NameSpace, "system-upgrade") {
