@@ -386,7 +386,6 @@ func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 		case "label":
 			opt = "-l"
 		default:
-			// do thing
 			opt = option
 		}
 		cmd = strings.Join([]string{cmd, opt, value}, " ")

@@ -52,13 +52,6 @@ type clusterConfig struct {
 	Arch             string
 }
 
-// GetConfigVarValue retrieves the string value of any variable from the tfvars file
-func GetConfigVarValue(g GinkgoTInterface, variable string) string {
-	_, varDir, _ := addTerraformOptions()
-
-	return terraform.GetVariableAsStringFromVarFile(g, varDir, variable)
-}
-
 func loadConfig() (*config.Product, error) {
 	cfg, err := shared.EnvConfig()
 	if err != nil {
