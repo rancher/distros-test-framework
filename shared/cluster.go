@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 var (
@@ -138,8 +140,7 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command argument or IP for the node target if destination = node
-// IP arg should be the last argument
+// args   = the rest of your command arguments
 func KubectlCommand(destination, action, source string, args ...string) (string, error) {
 	kubeconfigFlag := " --kubeconfig=" + KubeConfigFile
 	shortCmd := map[string]string{
@@ -155,28 +156,36 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	var cmd string
-	var ip string
-
-	if len(args) > 0 {
-		ip = args[len(args)-1]
-		cmd = cmdPrefix + " " + source + " " + strings.Join(args[:len(args)-1], " ") + kubeconfigFlag
-	} else {
-		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+	product, err := Product()
+	if err != nil {
+		return "", ReturnLogError("failed to get product: %w\n", err)
 	}
 
+	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
+		product)); envErr != nil {
+
+		return "", ReturnLogError("error setting env: %w\n", envErr)
+	}
+
+	resourceName := os.Getenv("resource_name")
+	serverIP, _, err := kubeCfgServerIP(resourceName)
+	if err != nil {
+		return "", ReturnLogError("failed to extract server IP: %w", err)
+	}
+
+	var cmd string
 	switch destination {
 	case "host":
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		if ip != "" {
-			return kubectlCmdOnNode(cmd, ip)
-		}
+		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
+		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
 	}
-
-	return "", nil
 }
 
 func kubectlCmdOnHost(cmd string) (string, error) {
@@ -394,20 +403,30 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace
-// with a specific label
-func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s",
-		namespace, label, KubeConfigFile)
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
+// Example filters are: namespace, label, --field-selector
+func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
+	for option, value := range filters {
+		var opt string
+
+		switch option {
+		case "namespace":
+			opt = "-n"
+		case "label":
+			opt = "-l"
+		default:
+			opt = option
+		}
+		cmd = strings.Join([]string{cmd, opt, value}, " ")
+	}
+
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
 	pods := parsePods(res)
-	if print {
-		fmt.Println(res)
-	}
 
 	return pods, nil
 }
@@ -483,4 +502,29 @@ func WriteDataPod(namespace string) (string, error) {
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
+}
+
+// kubeCfgServerIP extracts the server IP from the kubeconfig file.
+func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
+	if resourceName == "" {
+		return "", "", ReturnLogError("resource name not sent\n")
+	}
+
+	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
+	kubeconfigContent, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
+	}
+	// get server ip value from `server:` key
+	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
+	// removing newline
+	serverIP = strings.Split(serverIP, "\n")[0]
+	// removing the https://
+	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
+	// removing the port
+	serverIP = strings.Split(serverIP, ":")[0]
+
+	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
+
+	return serverIP, string(kubeconfigContent), nil
 }

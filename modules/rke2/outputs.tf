@@ -17,3 +17,8 @@ output "kubeconfig" {
   value = module.master.kubeconfig
   description = "kubeconfig of the cluster created"
 }
+
+output "Route53_info" {
+  value = module.master.Route53_info
+  description = "List of DNS records"
+}
