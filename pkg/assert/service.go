@@ -22,12 +22,3 @@ func ValidateClusterIPsBySVC(svc string, expected []string) {
 		Expect(subnet.Contains(net.ParseIP(ip))).To(BeTrue())
 	}
 }
-
-// SVCSpecHasChars asserts service spec contains substring
-func SVCSpecHasChars(namespace, svc, expected string) {
-	cmd := "kubectl get svc " + svc + " -n " + namespace +
-		" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
-	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), err)
-	Expect(res).To(ContainSubstring(expected))
-}

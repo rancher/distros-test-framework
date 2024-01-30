@@ -21,17 +21,17 @@ var (
 )
 
 type Cluster struct {
-	Status       string
-	ServerIPs    []string
-	AgentIPs     []string
-	WinAgentIPs  []string
-	NumWinAgents int
-	NumServers   int
-	NumAgents    int
-	FQDN         string
-	Config       clusterConfig
-	AwsEc2       awsEc2Config
-	ExtraConfig  extraConfig
+	Status        string
+	ServerIPs     []string
+	AgentIPs      []string
+	WinAgentIPs   []string
+	NumWinAgents  int
+	NumServers    int
+	NumAgents     int
+	FQDN          string
+	Config        clusterConfig
+	AwsEc2        awsEc2Config
+	GeneralConfig generalConfig
 }
 
 type awsEc2Config struct {
@@ -53,7 +53,7 @@ type clusterConfig struct {
 	Arch             string
 }
 
-type extraConfig struct {
+type generalConfig struct {
 	BastionIP string
 }
 
@@ -112,7 +112,7 @@ func loadTFconfig(
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
 
-	c.ExtraConfig.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
+	c.GeneralConfig.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
 
 	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
 	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")

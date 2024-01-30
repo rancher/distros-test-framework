@@ -36,8 +36,8 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-// TestIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
-func TestIPsInCIDRRange(label, svc string) {
+// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
+func testIPsInCIDRRange(label, svc string) {
 	nodeArgs, err := shared.GetNodeArgsMap("server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
