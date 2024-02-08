@@ -28,6 +28,7 @@ type Cluster struct {
 	NumWinAgents int
 	NumServers   int
 	NumAgents    int
+	FQDN         string
 	Config       clusterConfig
 	AwsEc2       awsEc2Config
 }
@@ -118,6 +119,7 @@ func loadTFconfig(
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
 
+	c.FQDN = terraform.Output(g, terraformOptions, "Route53_info")
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {
