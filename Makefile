@@ -1,124 +1,41 @@
 include ./config/.env
 
-TAG_NAME := $(if $(TAG_NAME),$(TAG_NAME),distros)
+#========================= Run acceptance tests in docker =========================#
 
 test-env-up:
-	@docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-${TAG_NAME}
+	@./scripts/docker_run.sh test-env-up
 
 test-run:
-	@docker run -dt --name acceptance-test-${IMG_NAME} \
-	  -e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
-	  -e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
-	  -e TEST_DIR=${TEST_DIR} \
-	  -e IMG_NAME=${IMG_NAME} \
-	  -e TEST_TAG=${TEST_TAG} \
-	  --env-file ./config/.env \
-	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-	  acceptance-test-${TAG_NAME} && \
-	  make image-stats IMG_NAME=${IMG_NAME} && \
-	  make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}
+	@./scripts/docker_run.sh test-run
 
 ## Use this to run automatically without need to change image name
 test-run-new:
-	$(eval RANDOM_SUFFIX := $(shell LC_ALL=C < /dev/urandom tr -dc 'a-z' | head -c3))
-	@NEW_IMG_NAME="" ; \
-	if [[ ! -z "${RKE2_VERSION}" ]]; then \
-		NEW_IMG_NAME=$$(echo ${RKE2_VERSION} | sed 's/+.*//'); \
-	elif [[ ! -z "${K3S_VERSION}" ]]; then \
-		NEW_IMG_NAME=$$(echo ${K3S_VERSION} | sed 's/+.*//'); \
-	fi; \
-	docker run -dt --name acceptance-test-${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX} \
-	  -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-	  -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-	  --env-file ./config/.env \
-	  -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-	  acceptance-test-${TAG_NAME} && \
-	  make image-stats IMG_NAME=${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX} && \
-	  docker logs -f acceptance-test-${IMG_NAME}-$${NEW_IMG_NAME}-${RANDOM_SUFFIX}
+	@./scripts/docker_run.sh test-run-new
 
 ## Use this to build and run automatically
 test-build-run:
-	@make test-env-up && \
-	make test-run-new
+	@./scripts/docker_run.sh test-build-run
 
 ## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
 test-run-state:
-	DOCKER_COMMIT=$$? \
-	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAG_NAME} | head -n 1); \
-    	if [ -z "$${CONTAINER_ID}" ]; then \
-    		echo "No matching container found."; \
-    		exit 1; \
-    	else \
-    		docker commit $$CONTAINER_ID teststate:latest; \
-    		if [ $$DOCKER_COMMIT -eq 0 ]; then \
-    		  docker run -dt --name acceptance-test-${TEST_STATE} --env-file ./config/.env \
-    			-e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-    			-e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-    			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-    			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-    			teststate:latest && \
-    			 make test-logs USE=TEST_STATE acceptance-test-${TEST_STATE} \
-    			echo "Docker run exit code: ${$?}"; \
-    		else \
-    			echo "Failed to commit container"; \
-    			exit 1; \
-    		fi; \
-    	fi
+	@./scripts/docker_run.sh test-run-state
 
 ## Use this to run code changes on the same cluster from the previous run. Useful for debugging new code.
 test-run-updates:
-	CONTAINER_ID=$(shell docker ps -a -q --filter ancestor=acceptance-test-${TAG_NAME} | head -n 1); \
-	if [ -z "$${CONTAINER_ID}" ]; then \
-		echo "No matching container found."; \
-		exit 1; \
-	else \
-		rm -rf modules/ tmp/ && \
-		docker cp $${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/ modules/ && \
-		docker cp $${CONTAINER_ID}:/tmp/ tmp/ && \
-		make test-env-up && \
-		docker run -dt --name acceptance-test-${IMG_NAME} \
-			-e AWS_ACCESS_KEY_ID=$${AWS_ACCESS_KEY_ID} \
-			-e AWS_SECRET_ACCESS_KEY=$${AWS_SECRET_ACCESS_KEY} \
-			--env-file ./config/.env \
-			-v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
-			-v ./scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh \
-			-v ${PWD}/tmp/:/tmp \
-			acceptance-test-${TAG_NAME} && \
-			make image-stats IMG_NAME=${IMG_NAME} && \
-			make test-logs USE=IMG_NAME acceptance-test-${IMG_NAME}; \
-	fi
-
-
+	@./scripts/docker_run.sh test-run-updates
 
 ## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
-## use this to skip tests
-test-skip:
-	ifdef SKIP
-		SKIP_FLAG=--ginkgo.skip="${SKIP}"
-	endif
-
 test-logs:
-	@if [ "${USE}" = "IMG_NAME" ]; then \
-		docker logs -f acceptance-test-${IMG_NAME}; \
-	elif [ "${USE}" = "TEST_STATE" ]; then \
-		docker logs -f acceptance-test-${TEST_STATE}; \
-	fi;
+	@./scripts/docker_run.sh test-logs
 
 image-stats:
-	@./scripts/docker_stats.sh $$IMG_NAME 2>> /tmp/image-${IMG_NAME}_stats_output.log &
+	@./scripts/docker_run.sh image-stats
 
 .PHONY: test-env-down
 test-env-down:
-	@echo "Removing containers"
-	@docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_${IMG_NAME}.log || true
-	@echo "Removing acceptance-test images"
-	@docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log  || true
-	@echo "Removing dangling images"
-	@docker images -q -f "dangling=true" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log || true
-	@echo "Removing state images"
-	@docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f  2>/tmp/container_${IMG_NAME}.log  || true
+	@./scripts/docker_run.sh test-env-down
 
 .PHONY: test-env-clean
 test-env-clean:
@@ -131,6 +48,11 @@ remove-tf-state:
 	@rm -rf ./modules/${ENV_PRODUCT}/.terraform
 	@rm -rf ./modules/${ENV_PRODUCT}/.terraform.lock.hcl ./modules/${ENV_PRODUCT}/terraform.tfstate ./modules/${ENV_PRODUCT}/terraform.tfstate.backup
 
+## use this to skip tests
+test-skip:
+	ifdef SKIP
+		SKIP_FLAG=--ginkgo.skip="${SKIP}"
+	endif
 
 .PHONY: test-create
 test-create:
