@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -21,18 +22,6 @@ func processCmds(
 	cmds []string,
 	expectedValues []string,
 ) {
-	if len(cmds) != len(expectedValues) {
-		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
-			" %s x %s", cmds, expectedValues)
-		return
-	}
-
-	if expectedValues[0] == "" || cmds[0] == "" {
-		resultChan <- shared.ReturnLogError("error: command and/or expected value was not sent")
-		close(resultChan)
-		return
-	}
-
 	for i := range cmds {
 		cmd := cmds[i]
 		expectedValue := expectedValues[i]
@@ -80,9 +69,33 @@ func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []str
 			}
 
 			for _, ip := range ips {
-				processCmds(resultChan, wg, ip, cmds, expectedValues)
+				if testCombination.Run[0].SkipValidation {
+					processCmds(resultChan, wg, ip, cmds, expectedValues)
+				} else {
+					validateCmdXValue(resultChan, cmds, expectedValues)
+					processCmds(resultChan, wg, ip, cmds, expectedValues)
+				}
 			}
 		}
+	}
+}
+
+func validateCmdXValue(resultChan chan error, cmds, expectedValues []string) {
+	if customflag.ServiceFlag.InstallMode.String() != "" && TestMapTemplate.ExpectedValueUpgrade == "" {
+		resultChan <- shared.ReturnLogError("if you are using upgrade, please provide the expected value after upgrade")
+		close(resultChan)
+		return
+	}
+	if len(cmds) != len(expectedValues) {
+		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
+			" %s x %s", cmds, expectedValues)
+		close(resultChan)
+		return
+	}
+	if expectedValues[0] == "" || cmds[0] == "" {
+		resultChan <- shared.ReturnLogError("error: command and/or expected value was not sent")
+		close(resultChan)
+		return
 	}
 }
 
@@ -106,14 +119,16 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 	}
 
 	fmt.Printf("\n---------------------\n"+
-		"Version Checked: %s\n"+
+		"Version Check: %s\n"+
 		"IP Address: %s\n"+
-		"Command Executed: %s\n"+
+		// "Command to Execute: %s\n"+
 		"Execution Location: Node\n"+
-		"Expected Value: %s\n---------------------\n",
-		version, ip, cmd, expectedValue)
+		// "Expected Value: %s\n---------------------\n",
+		version, ip)
 
 	cmds := strings.Split(cmd, ",")
+
+	fmt.Println("Command to Execute: !!!!!!!  PROCESS ON NODE!!!!!!!!  " + cmd)
 	for _, c := range cmds {
 		err = assert.ValidateOnNode(
 			ip,

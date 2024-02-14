@@ -46,7 +46,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
+	// LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)

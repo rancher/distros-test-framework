@@ -24,6 +24,7 @@ type TestMap struct {
 	Cmd                  string
 	ExpectedValue        string
 	ExpectedValueUpgrade string
+	SkipValidation       bool
 }
 
 // TestConfig represents the testcase function configuration

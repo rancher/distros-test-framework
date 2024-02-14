@@ -52,11 +52,6 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
-		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
-		os.Exit(1)
-	}
-
 	os.Exit(m.Run())
 
 }

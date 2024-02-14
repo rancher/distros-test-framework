@@ -1,0 +1,185 @@
+#!/bin/bash
+# script to wrap docker run commands
+PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
+
+source ./config/.env
+
+if [ -z "${TAG_NAME}" ]; then
+    TAG_NAME="distros"
+fi
+
+test_run() {
+   Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
+    run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
+      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+      --env-file ./config/.env \
+      -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+      "acceptance-test-${TAG_NAME}")
+
+      if ! [ "$run" ]; then
+        echo "Failed to run acceptance-test-${IMG_NAME} container."
+        exit 1
+      else
+        printf "\nContainer started successfully."
+        image_stats "${IMG_NAME}"
+        docker logs -f "acceptance-test-${IMG_NAME}"
+      fi
+}
+
+test_run_new() {
+    RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
+
+    NEW_IMG_NAME=""
+    if [[ -n "${RKE2_VERSION}" ]]; then
+        NEW_IMG_NAME=$(echo "${RKE2_VERSION}" | sed 's/+.*//')
+    elif [[ -n "${K3S_VERSION}" ]]; then
+        NEW_IMG_NAME=$(echo "${K3S_VERSION}" | sed 's/+.*//')
+    fi
+
+    FULL_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"
+    Printf "\nRunning docker run script with:\ncontainer name: ${FULL_IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
+    run=$(docker run -dt --name "acceptance-test-${FULL_IMG_NAME}" \
+      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+      --env-file ./config/.env \
+      -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+      "acceptance-test-${TAG_NAME}")
+
+      if ! [ "$run" ]; then
+        echo "Failed to run acceptance-test-${IMG_NAME} container."
+        exit 1
+      else
+        printf "\nContainer started successfully."
+        image_stats "${FULL_IMG_NAME}"
+        docker logs -f "acceptance-test-${FULL_IMG_NAME}"
+      fi
+}
+
+test_run_state() {
+     CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
+
+     if [ -z "${CONTAINER_ID}" ]; then
+         echo "No matching container found."
+         exit 1
+     fi
+
+     if docker commit "${CONTAINER_ID}" teststate:latest; then
+         if docker run -dt --name "acceptance-test-${TEST_STATE}" --env-file ./config/.env \
+             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+             -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+             -v "$(pwd)/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
+             teststate:latest; then
+             Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_STATE}\product: ${ENV_PRODUCT}\n\n"
+             docker logs -f "acceptance-test-${TEST_STATE}"
+         else
+             echo "Failed to start the container from the committed state."
+             exit 1
+         fi
+     else
+         echo "Failed to commit container."
+         exit 1
+     fi
+}
+
+test_run_updates() {
+    CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
+
+    if [ -z "${CONTAINER_ID}" ]; then
+        echo "No matching container found."
+        exit 1
+    else
+        rm -rf modules/ tmp/
+        docker cp "${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/" modules/
+        docker cp "${CONTAINER_ID}:/tmp/" tmp/
+
+        test_env_up "${TAG_NAME}"
+        run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
+            -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+            -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+            --env-file ./config/.env \
+            -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+            -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
+            -v "${PWD}/tmp/:/tmp" \
+            "acceptance-test-${TAG_NAME}")
+
+      if ! [ "$run" ]; then
+        echo "Failed to run updated acceptance-test-${IMG_NAME} container."
+        exit 1
+      else
+        printf "\nContainer started successfully."
+        image_stats "${IMG_NAME}"
+        docker logs -f "acceptance-test-${IMG_NAME}"
+      fi
+    fi
+}
+
+image_stats() {
+    local container_name=$1
+
+     if [ -n "${container_name}" ]; then
+            ./scripts/docker_stats.sh "${container_name}" 2>> /tmp/image-"${container_name}"_stats_output.log &
+        else
+            echo "No container name provided."
+      fi
+}
+
+test_logs() {
+   docker logs -f "acceptance-test-${IMG_NAME}"
+}
+
+test_env_up() {
+    docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-"${TAG_NAME}"
+}
+
+clean_env() {
+    echo "Removing containers"
+    docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_"${IMG_NAME}".log || true
+
+    echo "Removing acceptance-test images"
+    docker images -q --filter="reference=acceptance-test*" | xargs -r docker rmi -f 2>/tmp/container_"${IMG_NAME}".log || true
+
+    echo "Removing dangling images"
+    docker images -q -f "dangling=true" | xargs -r docker rmi -f 2>/tmp/container_"${IMG_NAME}".log || true
+
+    echo "Removing state images"
+    docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f 2>/tmp/container_"${IMG_NAME}".log || true
+}
+
+case "$1" in
+    test-build-run)
+        test_env_up
+        test_run_new
+        ;;
+    test-env-up)
+        test_env_up
+        ;;
+    test-env-down)
+        clean_env
+        ;;
+    test-run)
+        test_run
+        ;;
+    test-run-new)
+        test_run_new
+      	;;
+    test-run-state)
+        test_run_state
+       ;;
+    test-run-updates)
+         test_run_updates
+        ;;
+    image-stats)
+         image_stats
+        ;;
+    test-logs)
+         test_logs
+        ;;
+    *)
+        echo "Unsupported command."
+        exit 1
+        ;;
+esac

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function validateTestAndImage() {
+function validate_test_image() {
  if [ -z "${TEST_DIR}" ]; then
      printf "\n\nTEST DIR: %s is not set\n\n" "${TEST_DIR}"
      exit 1
@@ -12,12 +12,23 @@ function validateTestAndImage() {
  fi
 }
 
-function validateDirName(){
+function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
+      if [[ "$TEST_DIR" == "upgradecluster" ]];
+        then
+            case "$TEST_TAG"  in
+                upgrademanual|upgradesuc|upgradereplacement)
+                ;;
+                *)
+                printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
+                exit 1
+                ;;
+            esac
+       fi
        if [[ "$TEST_TAG" != "" ]];
         then
-          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
+          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG} on ${ENV_PRODUCT}"
         else
           printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
         fi
@@ -38,6 +49,9 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
+        if   [ "${TEST_TAG}" = "components" ]; then
+              go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=components -expectedValue "${EXPECTED_VALUE}" -expectedValueUpgrade "${VALUE_UPGRADED}" -installVersionOrCommit  "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
+        else
        declare -a OPTS
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump)
             OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
@@ -49,7 +63,8 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${APPLY_WORKLOAD}" ] && OPTS+=(-applyWorkload "${APPLY_WORKLOAD}")
              [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
-      go test "${OPTS[@]}"
+          go test "${OPTS[@]}"
+        fi
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOYVERSION}" ]; then
                 go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
@@ -73,8 +88,8 @@ fi
 }
 
 main() {
-  validateTestAndImage
-  validateDirName
+  validate_test_image
+  validate_dir
   run
   tail -f /dev/null
 }

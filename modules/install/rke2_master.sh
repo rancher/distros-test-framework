@@ -95,6 +95,47 @@ cis_setup() {
   fi
 }
 
+etcd_download() {
+    curl -L https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz -o etcd-v3.5.0-linux-amd64.tar.gz
+    sudo tar xzvf etcd-v3.5.0-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-v3.5.0-linux-amd64/etcdctl
+}
+
+install_etcdctl() {
+  if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
+      yum update -y
+      etcd_download
+    elif [[ "$node_os" == *"ubuntu"* ]]; then
+      sudo apt-get update -y > /dev/null && sudo apt-get install -y etcd-client
+    else
+      zypper update -y
+      etcd_download
+  fi
+
+   if command -v etcdctl >/dev/null; then
+        echo "etcdctl successfully installed."
+        printf "ETCDCTL VERSION: %s\n" "$(sudo /usr/local/bin/etcdctl version)"
+        echo "Checking etcdctl endpoint health."
+        if [[ -f "/var/lib/rancher/rke2/server/tls/etcd/server-client.crt" ]]; then
+              health=$(sudo ETCDCTL_API=3 /usr/local/bin/etcdctl  --cert=/var/lib/rancher/k3s/server/tls/etcd/server-client.crt \
+                      --key=/var/lib/rancher/k3s/server/tls/etcd/server-client.key \
+                      --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt endpoint health)
+
+            if [[ "$health" == *"is healthy"* ]]; then
+              echo "etcd is healthy."
+            else
+              echo "etcd is not healthy."
+              return 1
+            fi
+
+        else
+            echo "Certificate files not found, skipping etcdctl endpoint health check."
+        fi
+    else
+        echo "Installation failed or etcdctl not found in PATH."
+        return 1
+  fi
+}
+
 install() {
   export "$install_mode"="$version"
 
@@ -150,6 +191,7 @@ main() {
   subscription_manager
   disable_cloud_setup
   install
+  install_etcdctl
   config_files
 }
 main "$@"

@@ -37,7 +37,7 @@ var _ = Describe("Cilium Version Upgrade:", func() {
 				Run: []TestMap{
 					{
 						Cmd: "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml " +
-							"images | grep cilium , rke2 -v",
+							"images | grep cilium",
 						ExpectedValue:        TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
 					},
