@@ -532,9 +532,9 @@ func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 }
 
 // GetNodeArgsMap returns list of nodeArgs map
-func GetNodeArgsMap(nodeType string) (map[string]string, error){
-	product,err := Product()
-	if err != nil{
+func GetNodeArgsMap(nodeType string) (map[string]string, error) {
+	product, err := Product()
+	if err != nil {
 		return nil, err
 	}
 	res, err := KubectlCommand(
