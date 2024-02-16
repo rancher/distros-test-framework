@@ -35,7 +35,7 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_agent.sh
-      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} ${var.rke2_channel} "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} 
+      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} 
     EOT
     ]
   }

@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -18,7 +20,7 @@ func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
 	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
+	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
@@ -96,5 +98,40 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	if deleteWorkload {
 		workloadErr = shared.ManageWorkload("delete", "loadbalancer.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
+	}
+}
+
+func testServiceNodePortDualStack(td testData) {
+	cluster, err := FetchCluster()
+	Expect(err).NotTo(HaveOccurred())
+	nodeExternalIP := shared.FetchNodeExternalIP()
+	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	for _, ip := range nodeExternalIP {
+		if strings.Contains(ip, ":") {
+			ip = shared.EncloseSqBraces(ip)
+		}
+		err = assert.CheckComponentCmdNode(
+			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+			cluster.GeneralConfig.BastionIP,
+			td.Expected)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
+
+func testServiceClusterIPs(td testData) {
+	clusterIPs, port, err := shared.FetchClusterIPs(td.Namespace, td.SVC)
+	clusterIPSlice := strings.Split(clusterIPs, " ")
+	Expect(err).NotTo(HaveOccurred(), err)
+	nodeExternalIPs := shared.FetchNodeExternalIP()
+
+	for _, clusterIP := range clusterIPSlice {
+		if strings.Contains(clusterIP, ":") {
+			clusterIP = shared.EncloseSqBraces(clusterIP)
+		}
+		err := assert.ValidateOnNode(nodeExternalIPs[0],
+			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }

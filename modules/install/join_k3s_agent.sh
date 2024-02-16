@@ -26,9 +26,9 @@ create_config() {
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 server: https://$server_ip:6443
 token:  "$token"
-node-name: $hostname
 node-label:
-  - role-worker=true
+ - role-worker=true
+node-name: $hostname
 EOF
 }
 
@@ -90,7 +90,7 @@ install(){
   else
     curl -sfL https://get.k3s.io | sh -s - agent
   fi
-  sleep 10
+  sleep 15
 
 }
 
