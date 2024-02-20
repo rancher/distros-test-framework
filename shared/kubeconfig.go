@@ -72,6 +72,8 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) error {
 		return ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}
 
+	KubeConfigFile = kubeconfigContent
+
 	LogLevel("info", "Updated local kubeconfig with ip: %s", newServerIP)
 
 	return nil

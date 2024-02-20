@@ -45,7 +45,10 @@ func TestBuildCluster(g GinkgoTInterface) {
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("\nServer Node IPS:", cluster.ServerIPs)
+	if cluster.GeneralConfig.BastionIP != "" {
+		fmt.Println("\nBastion Node IP:", cluster.GeneralConfig.BastionIP)
+	}
+	fmt.Println("\nServer Node IPs:", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -56,7 +59,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.SonobouyVersion.String()
+	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -87,12 +90,18 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
+// FetchCluster returns the cluster
+func FetchCluster() (*factory.Cluster, error) {
+	cluster := factory.ClusterConfig(GinkgoT())
+	return cluster, nil
+}
+
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs
 // agentNum		int			Number of agent nodes
 // agentIPs		[]string	IP list of agent nodes
 // isWindows 	bool 		Check for Windows enablement
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
-	info := "Agent Node IPS:"
+	info := "Agent Node IPs:"
 
 	if isWindows {
 		info = "Windows " + info

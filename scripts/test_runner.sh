@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function validateTestAndImage() {
+function validate_test_image() {
  if [ -z "${TEST_DIR}" ]; then
      printf "\n\nTEST DIR: %s is not set\n\n" "${TEST_DIR}"
      exit 1
@@ -12,12 +12,23 @@ function validateTestAndImage() {
  fi
 }
 
-function validateDirName(){
+function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
+      if [[ "$TEST_DIR" == "upgradecluster" ]];
+        then
+            case "$TEST_TAG"  in
+                upgrademanual|upgradesuc|upgradereplacement)
+                ;;
+                *)
+                printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
+                exit 1
+                ;;
+            esac
+       fi
        if [[ "$TEST_TAG" != "" ]];
         then
-          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
+          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG} on ${ENV_PRODUCT}"
         else
           printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
         fi
@@ -75,8 +86,8 @@ fi
 }
 
 main() {
-  validateTestAndImage
-  validateDirName
+  validate_test_image
+  validate_dir
   run
   tail -f /dev/null
 }

@@ -42,6 +42,10 @@ var _ = Describe("Test:", func() {
 		})
 	}
 
+	It("Verifies Ingress pre-upgrade", func() {
+		testcase.TestIngress(true, false)
+	})
+
 	It("Upgrade by Node replacement", func() {
 		err := testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
 		Expect(err).NotTo(HaveOccurred())
@@ -59,6 +63,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
 		)
+	})
+
+	It("Verifies Ingress after upgrade", func() {
+		testcase.TestIngress(false, true)
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {

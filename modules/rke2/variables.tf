@@ -85,3 +85,13 @@ variable "enable_public_ip" {
 variable "enable_ipv6" {
   default = false
 }
+variable "no_of_bastion_nodes" {
+  default = 0
+}
+variable "bastion_subnets" {
+  default = ""
+}
+variable "bastion_id" {
+  type    = any
+  default = null
+}

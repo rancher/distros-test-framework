@@ -49,7 +49,7 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/rke2_master.sh
-      sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} ${var.rke2_channel} "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
@@ -120,7 +120,7 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_master.sh
-      sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} ${var.rke2_channel} "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }

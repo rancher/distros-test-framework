@@ -1,11 +1,10 @@
-package mixedoscluster
+package dualstack
 
 import (
 	"flag"
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -14,31 +13,22 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
-
 func TestMain(m *testing.M) {
 	var err error
-	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	_, err = shared.EnvConfig()
 	if err != nil {
 		return
-	}
-
-	if cfg.Product == "k3s" {
-		shared.LogLevel("error", "\nproduct not supported: %s", cfg.Product)
-		os.Exit(1)
 	}
 
 	os.Exit(m.Run())
 }
 
-func TestMixedOSClusterCreateSuite(t *testing.T) {
+func TestDualStackSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecs(t, "Create Mixed OS Cluster Test Suite")
+	RunSpecs(t, "Create Dual-Stack Cluster Test Suite")
 }
 
 var _ = AfterSuite(func() {

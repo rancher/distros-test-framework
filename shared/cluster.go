@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 var (
@@ -137,7 +139,7 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command arguments.
+// args   = the rest of your command arguments
 func KubectlCommand(destination, action, source string, args ...string) (string, error) {
 	kubeconfigFlag := " --kubeconfig=" + KubeConfigFile
 	shortCmd := map[string]string{
@@ -153,13 +155,33 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	cmd := cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+	product, err := Product()
+	if err != nil {
+		return "", ReturnLogError("failed to get product: %w\n", err)
+	}
 
+	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
+		product)); envErr != nil {
+
+		return "", ReturnLogError("error setting env: %w\n", envErr)
+	}
+
+	resourceName := os.Getenv("resource_name")
+	serverIP, _, err := kubeCfgServerIP(resourceName)
+	if err != nil {
+		return "", ReturnLogError("failed to extract server IP: %w", err)
+	}
+
+	var cmd string
 	switch destination {
 	case "host":
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		return kubectlCmdOnNode(cmd)
+		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
+		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
 	}
@@ -174,31 +196,27 @@ func kubectlCmdOnHost(cmd string) (string, error) {
 	return res, nil
 }
 
-func kubectlCmdOnNode(cmd string) (string, error) {
-	ips := FetchNodeExternalIP()
-	var finalRes string
-
-	for _, ip := range ips {
-		res, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", err
-		}
-		finalRes += res
+func kubectlCmdOnNode(cmd, ip string) (string, error) {
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return "", err
 	}
 
-	return finalRes, nil
+	return res, nil
 }
 
-// FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
-	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
+// FetchClusterIPs returns the cluster IPs and port of the service.
+func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
+	cmd := "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile
+	ip, err = RunCommandHost(cmd)
 	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
+		return "", "", ReturnLogError("failed to fetch cluster IPs: %v\n", err)
 	}
 
-	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
+	cmd = "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
+	port, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
 	}
@@ -311,7 +329,21 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	var nodes []Node
 	var matchedNodes []Node
 
+	if roles == nil {
+		return nil, ReturnLogError("no roles provided")
+	}
+
+	validRoles := map[string]bool{
+		"etcd":          true,
+		"control-plane": true,
+		"worker":        true,
+	}
+
 	for _, role := range roles {
+		if !validRoles[role] {
+			return nil, ReturnLogError("invalid role: %s", role)
+		}
+
 		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
 			" --no-headers --kubeconfig=" + KubeConfigFile +
 			" -l role-" + role
@@ -373,20 +405,30 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsByNamespaceAndLabel returns pods parsed from kubectl get pods in a specific namespace
-// with a specific label
-func GetPodsByNamespaceAndLabel(namespace, label string, print bool) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers -n %s -l %s --kubeconfig=%s",
-		namespace, label, KubeConfigFile)
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
+// Example filters are: namespace, label, --field-selector
+func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
+	for option, value := range filters {
+		var opt string
+
+		switch option {
+		case "namespace":
+			opt = "-n"
+		case "label":
+			opt = "-l"
+		default:
+			opt = option
+		}
+		cmd = strings.Join([]string{cmd, opt, value}, " ")
+	}
+
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
 	pods := parsePods(res)
-	if print {
-		fmt.Println(res)
-	}
 
 	return pods, nil
 }
@@ -462,6 +504,85 @@ func WriteDataPod(namespace string) (string, error) {
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
+}
+
+// kubeCfgServerIP extracts the server IP from the kubeconfig file.
+func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
+	if resourceName == "" {
+		return "", "", ReturnLogError("resource name not sent\n")
+	}
+
+	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
+	kubeconfigContent, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
+	}
+	// get server ip value from `server:` key
+	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
+	// removing newline
+	serverIP = strings.Split(serverIP, "\n")[0]
+	// removing the https://
+	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
+	// removing the port
+	serverIP = strings.Split(serverIP, ":")[0]
+
+	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
+
+	return serverIP, string(kubeconfigContent), nil
+}
+
+// GetNodeArgsMap returns list of nodeArgs map
+func GetNodeArgsMap(nodeType string) (map[string]string, error) {
+	product, err := Product()
+	if err != nil {
+		return nil, err
+	}
+	res, err := KubectlCommand(
+		"host",
+		"get",
+		"nodes "+
+			fmt.Sprintf(
+				`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`,
+				product),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeArgsMapSlice := processNodeArgs(res)
+
+	for _, nodeArgsMap := range nodeArgsMapSlice {
+		if nodeArgsMap["node-type"] == nodeType {
+			return nodeArgsMap, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+	nodeArgsSlice := strings.Split(nodeArgs, "]")
+
+	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {
+		items := strings.Split(item, `","`)
+		nodeArgsMap := map[string]string{}
+
+		for range items[1:] {
+			nodeArgsMap["node-type"] = strings.Trim(items[0], `["`)
+			regxCompile := regexp.MustCompile(`--|"`)
+
+			for i := 1; i < len(items); i += 2 {
+				if i < (len(items) - 1) {
+					key := regxCompile.ReplaceAllString(items[i], "")
+					value := regxCompile.ReplaceAllString(items[i+1], "")
+					nodeArgsMap[key] = value
+				}
+			}
+		}
+		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)
+	}
+
+	return nodeArgsMapSlice
 }
 
 // DeleteClusterNode deletes a node from the cluster filtering the name out by the IP.
