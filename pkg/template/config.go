@@ -12,6 +12,7 @@ type TestTemplate struct {
 	InstallMode     string
 	TestConfig      *TestConfig
 	Description     string
+	DebugMode       bool
 }
 
 // RunCmd represents the command sets to run on host and node.
@@ -24,7 +25,6 @@ type TestMap struct {
 	Cmd                  string
 	ExpectedValue        string
 	ExpectedValueUpgrade string
-	SkipValidation       bool
 }
 
 // TestConfig represents the testcase function configuration
@@ -39,9 +39,9 @@ type TestConfig struct {
 type testCase func(applyWorkload, deleteWorkload bool)
 
 // testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and TestTemplate.
-func testCaseWrapper(v TestTemplate) {
-	for _, testFunc := range v.TestConfig.TestFunc {
-		testFunc(v.TestConfig.ApplyWorkload, v.TestConfig.DeleteWorkload)
+func testCaseWrapper(t TestTemplate) {
+	for _, testFunc := range t.TestConfig.TestFunc {
+		testFunc(t.TestConfig.ApplyWorkload, t.TestConfig.DeleteWorkload)
 	}
 }
 

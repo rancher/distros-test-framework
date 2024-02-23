@@ -3,183 +3,151 @@ package template
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
-// processCmds runs the tests per ips using processOnNode and processOnHost validation.
-//
-// it will spawn a go routine per testCombination and ip.
-func processCmds(
-	resultChan chan error,
-	wg *sync.WaitGroup,
-	ip string,
-	cmds []string,
-	expectedValues []string,
-) {
-	for i := range cmds {
-		cmd := cmds[i]
-		expectedValue := expectedValues[i]
-
-		wg.Add(1)
-		go func(ip string, cmd, expectedValue string) {
-			defer wg.Done()
-			defer GinkgoRecover()
-
-			if strings.Contains(cmd, "kubectl") || strings.HasPrefix(cmd, "helm") {
-				processOnHost(resultChan, ip, cmd, expectedValue)
-			} else {
-				processOnNode(resultChan, ip, cmd, expectedValue)
-			}
-		}(ip, cmd, expectedValue)
-	}
-}
-
-func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []string, testCombination RunCmd) {
-	if testCombination.Run != nil {
-		for _, testMap := range testCombination.Run {
+// processTestCombination processes the test combination on a group of IPs,sending values to processCmds.
+func processTestCombination(
+	ips []string,
+	currentVersion string,
+	t *TestTemplate,
+) error {
+	if t.TestCombination.Run != nil {
+		for _, testMap := range t.TestCombination.Run {
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
 
 			if strings.Contains(testMap.Cmd, "etcd") {
-				cmdToGetIps := fmt.Sprintf(`
-				kubectl get node -A -o wide --kubeconfig="%s" \
-				| grep 'etcd' | awk '{print $7}'
-				`, shared.KubeConfigFile)
-
-				var nodes []string
-				nodeIps, err := shared.RunCommandHost(cmdToGetIps)
+				nodes, err := shared.GetNodesByRoles("etcd")
 				if err != nil {
-					return
+					shared.LogLevel("error", "error from getting nodes by roles: %w\n", err)
+					return err
 				}
 
-				n := strings.Split(nodeIps, "\n")
-				for _, nodeIP := range n {
-					if nodeIP != "" {
-						nodes = append(nodes, nodeIP)
-					}
+				var externalIPs []string
+				var ip string
+				for _, n := range nodes {
+					ip = n.ExternalIP
+					externalIPs = append(externalIPs, ip)
 				}
 
-				ips = nodes
+				ips = externalIPs
 			}
 
 			for _, ip := range ips {
-				if testCombination.Run[0].SkipValidation {
-					processCmds(resultChan, wg, ip, cmds, expectedValues)
-				} else {
-					validateCmdXValue(resultChan, cmds, expectedValues)
-					processCmds(resultChan, wg, ip, cmds, expectedValues)
+				if err := validateCmdxValue(cmds, expectedValues); err != nil {
+					return shared.ReturnLogError("error from validateCmdXValue: %w", err)
+				}
+				if processErr := processCmds(ip, cmds, expectedValues, currentVersion); processErr != nil {
+					return shared.ReturnLogError("error from processCmds: %w", processErr)
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
-func validateCmdXValue(resultChan chan error, cmds, expectedValues []string) {
+// processCmds runs the tests per ips using processOnNode and processOnHost validation.
+func processCmds(
+	ip string,
+	cmds []string,
+	expectedValues []string,
+	currentProductVersion string,
+) error {
+
+	for i := range cmds {
+		cmd := cmds[i]
+		expectedValue := expectedValues[i]
+
+		if strings.Contains(cmd, "kubectl") || strings.HasPrefix(cmd, "helm") {
+			processHostErr := processOnHost(cmd, expectedValue, currentProductVersion)
+			if processHostErr != nil {
+				return shared.ReturnLogError("error from processOnHost: %w", processHostErr)
+			}
+		} else {
+			processNodeErr := processOnNode(cmd, expectedValue, ip, currentProductVersion)
+			if processNodeErr != nil {
+				return shared.ReturnLogError("error from processOnNode: %w", processNodeErr)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateCmdxValue validates the commands and expected values.
+func validateCmdxValue(cmds, expectedValues []string) error {
 	if customflag.ServiceFlag.InstallMode.String() != "" && TestMapTemplate.ExpectedValueUpgrade == "" {
-		resultChan <- shared.ReturnLogError("if you are using upgrade, please provide the expected value after upgrade")
-		close(resultChan)
-		return
+		return shared.ReturnLogError("expected value upgrade is empty")
 	}
+
 	if len(cmds) != len(expectedValues) {
-		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
-			" %s x %s", cmds, expectedValues)
-		close(resultChan)
-		return
+		return shared.ReturnLogError("mismatched length commands x expected values: %s x %s", cmds, expectedValues)
 	}
+
 	if expectedValues[0] == "" || cmds[0] == "" {
-		resultChan <- shared.ReturnLogError("error: command and/or expected value was not sent")
-		close(resultChan)
-		return
+		return shared.ReturnLogError("empty arg for assert and/or cmd")
 	}
+
+	return nil
 }
 
 // processOnNode runs the test on the node calling ValidateOnNode.
-func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
-	var version string
-	var err error
-
-	product, err := shared.Product()
-	if err != nil {
-		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
-		close(resultChan)
-		return
+func processOnNode(cmd, expectedValue, ip, currentProductVersion string) error {
+	if currentProductVersion == "" {
+		shared.LogLevel("error", "error getting current version, is empty\n")
+		return shared.ReturnLogError("error getting current version, is empty\n")
 	}
 
-	version, err = shared.ProductVersion(product)
-	if err != nil {
-		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
-		close(resultChan)
-		return
+	if customflag.ServiceFlag.TestConfig.DebugMode {
+		fmt.Printf("\n---------------------\n"+
+			"Version Check: %s\n"+
+			"IP Address: %s\n"+
+			"Command to Execute: %s\n"+
+			"Execution Location: Node\n"+
+			"Expected Value: %s\n---------------------\n",
+			currentProductVersion, ip, cmd, expectedValue)
 	}
 
-	fmt.Printf("\n---------------------\n"+
-		"Version Check: %s\n"+
-		"IP Address: %s\n"+
-		// "Command to Execute: %s\n"+
-		"Execution Location: Node\n"+
-		// "Expected Value: %s\n---------------------\n",
-		version, ip)
-
-	cmds := strings.Split(cmd, ",")
-
-	fmt.Println("Command to Execute: !!!!!!!  PROCESS ON NODE!!!!!!!!  " + cmd)
-	for _, c := range cmds {
-		err = assert.ValidateOnNode(
-			ip,
-			c,
-			expectedValue,
-		)
+	expectedValue = strings.TrimSpace(expectedValue)
+	cmdsRun := strings.Split(cmd, ",")
+	for _, cmdRun := range cmdsRun {
+		err := assert.ValidateOnNode(ip, cmdRun, expectedValue)
 		if err != nil {
-			resultChan <- shared.ReturnLogError("failed to validate on node: %v", err)
-			close(resultChan)
-			return
+			return shared.ReturnLogError("error from validate on node: %w\n", err)
 		}
 	}
+
+	return nil
 }
 
 // processOnHost runs the test on the host calling ValidateOnHost.
-func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
-	var version string
-	var err error
+func processOnHost(cmd, expectedValue, currentProductVersion string) error {
+	if currentProductVersion == "" {
+		return shared.ReturnLogError("error getting current version, is empty\n")
+	}
+
+	if customflag.ServiceFlag.TestConfig.DebugMode {
+		fmt.Printf("\n---------------------\n"+
+			"Version Check: %s\n"+
+			"Command to Execute: %s\n"+
+			"Execution Location: Node\n"+
+			"Expected Value: %s\n---------------------\n",
+			currentProductVersion, cmd, expectedValue)
+	}
 
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 
-	product, err := shared.Product()
+	expectedValue = strings.TrimSpace(expectedValue)
+	err := assert.ValidateOnHost(fullCmd, expectedValue)
 	if err != nil {
-		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
-		close(resultChan)
-		return
+		return shared.ReturnLogError("error from validate on host: %w\n", err)
 	}
 
-	version, err = shared.ProductVersion(product)
-	if err != nil {
-		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
-		close(resultChan)
-		return
-	}
-
-	fmt.Printf("\n---------------------\n"+
-		"Version Checked: %s\n"+
-		"IP Address: %s\n"+
-		"Command Executed: %s\n"+
-		"Execution Location: Host\n"+
-		"Expected Value: %s\n---------------------\n",
-		version, ip, cmd, expectedValue)
-
-	err = assert.ValidateOnHost(
-		fullCmd,
-		expectedValue,
-	)
-	if err != nil {
-		resultChan <- shared.ReturnLogError("failed to validate on host: %v", err)
-		close(resultChan)
-		return
-	}
+	return nil
 }

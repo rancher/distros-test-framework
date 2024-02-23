@@ -18,8 +18,8 @@ func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
 	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
-	nodeExternalIP := shared.FetchNodeExternalIP()
+	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
+	nodeExternalIP := shared.FetchNodeExternalIPs()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
 			":"+port+"/name.html", "test-clusterip")
@@ -39,7 +39,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "nodeport manifest not deployed")
 	}
 
-	nodeExternalIP := shared.FetchNodeExternalIP()
+	nodeExternalIP := shared.FetchNodeExternalIPs()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
 	Expect(err).NotTo(HaveOccurred(), err)
 

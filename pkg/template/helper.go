@@ -2,7 +2,6 @@ package template
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -23,36 +22,28 @@ func upgradeVersion(template TestTemplate, version string) error {
 // updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
 func updateExpectedValue(template TestTemplate) {
 	for i := range template.TestCombination.Run {
-		template.TestCombination.Run[i].ExpectedValue =
-			template.TestCombination.Run[i].ExpectedValueUpgrade
+		template.TestCombination.Run[i].ExpectedValue = template.TestCombination.Run[i].ExpectedValueUpgrade
 	}
 }
 
 // executeTestCombination get a template and pass it to `processTestCombination`
 //
 // to execute test combination on group of IPs
-func executeTestCombination(v TestTemplate) error {
-	ips := shared.FetchNodeExternalIP()
+func executeTestCombination(template TestTemplate) error {
+	ips := shared.FetchNodeExternalIPs()
 
-	var wg sync.WaitGroup
-	errorChanList := make(
-		chan error,
-		len(ips)*(len(v.TestCombination.Run)),
-	)
-
-	processTestCombination(errorChanList, &wg, ips, *v.TestCombination)
-
-	wg.Wait()
-	close(errorChanList)
-
-	for chanErr := range errorChanList {
-		if chanErr != nil {
-			return chanErr
-		}
+	version, err := currentProductVersion()
+	if err != nil {
+		return shared.ReturnLogError("failed to get current version: %w", err)
 	}
 
-	if v.TestConfig != nil {
-		testCaseWrapper(v)
+	processErr := processTestCombination(ips, version, &template)
+	if processErr != nil {
+		return shared.ReturnLogError("failed to process test combination: %w", processErr)
+	}
+
+	if template.TestConfig != nil {
+		testCaseWrapper(template)
 	}
 
 	return nil
@@ -92,6 +83,9 @@ func AddTestCases(names []string) ([]testCase, error) {
 		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestIngressRoute(applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
 		},
+		"TestCertRotate": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestCertRotate()
+		},
 	}
 
 	for _, name := range names {
@@ -106,4 +100,19 @@ func AddTestCases(names []string) ([]testCase, error) {
 	}
 
 	return testCases, nil
+}
+
+func currentProductVersion() (string, error) {
+	product, err := shared.Product()
+	if err != nil {
+		return "", shared.ReturnLogError("failed to get product: %w", err)
+	}
+
+	version, err := shared.ProductVersion(product)
+	if err != nil {
+
+		return "", shared.ReturnLogError("failed to get product version: %w", err)
+	}
+
+	return version, nil
 }

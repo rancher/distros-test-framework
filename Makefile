@@ -27,23 +27,23 @@ test-run-updates:
 ## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
+
 test-logs:
 	@./scripts/docker_run.sh test-logs
+
 
 image-stats:
 	@./scripts/docker_run.sh image-stats
 
-.PHONY: test-env-down
+
 test-env-down:
 	@./scripts/docker_run.sh test-env-down
 
-.PHONY: test-env-clean
+
 test-env-clean:
 	@./scripts/delete_resources.sh
 
-
 #========================= Run acceptance tests locally =========================#
-.PHONY: remove-tf-state
 remove-tf-state:
 	@rm -rf ./modules/${ENV_PRODUCT}/.terraform
 	@rm -rf ./modules/${ENV_PRODUCT}/.terraform.lock.hcl ./modules/${ENV_PRODUCT}/terraform.tfstate ./modules/${ENV_PRODUCT}/terraform.tfstate.backup
@@ -54,39 +54,35 @@ test-skip:
 		SKIP_FLAG=--ginkgo.skip="${SKIP}"
 	endif
 
-.PHONY: test-create
+
 test-create:
 	@go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
 
-.PHONY: test-cert-rotate
+
 test-cert-rotate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
 
 
-.PHONY: test-validate
 test-validate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
 
 
-.PHONY: test-upgrade-suc
 test-upgrade-suc:
 	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUC_UPGRADE_VERSION}
 
 
-.PHONY: test-upgrade-manual
 test-upgrade-manual:
 	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
 
-.PHONY: test-create-mixedos
 test-create-mixedos:
 	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})
 
-.PHONY: test-create-dualstack
+
 test-create-dualstack:
 	@go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
 
-.PHONY: test-version-bump
+
 test-version-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump \
 	-cmd "${CMD}" \
@@ -100,7 +96,7 @@ test-version-bump:
 	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
 	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
-.PHONY: test-cilium-bump
+
 test-cilium-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=cilium \
 	-expectedValue ${EXPECTED_VALUE} \
@@ -112,7 +108,7 @@ test-cilium-bump:
 	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
 	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
-.PHONY: test-multus-bump
+
 test-multus-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=multus \
 	-expectedValue ${EXPECTED_VALUE} \
@@ -121,25 +117,24 @@ test-multus-bump:
 	$(if ${CHANNEL},-channel ${CHANNEL})
 
 
-.PHONY: test-components-bump
 test-components-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=components \
 	-expectedValue ${EXPECTED_VALUE} \
 	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT})
 
-.PHONY: test-validate-selinux
+
 test-validate-selinux:
 	@go test -timeout=45m -v -count=1 ./entrypoint/selinux/... \
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL})
 
-.PHONY: test-restart-service
+
 test-restart-service:
 	@go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
 
+
 #========================= TestCode Static Quality Check =========================#
-.PHONY: pre-commit
 pre-commit:
 	@gofmt -s -w .
 	@goimports -w .
