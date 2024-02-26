@@ -113,7 +113,7 @@ func TestUpgradeReplaceNode(version string) error {
 
 			return agentErr
 		}
-		shared.LogLevel("info", "Agent nodes replaced\n with ips: %s\n", newExternalAgentIps)
+		shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 	}
 
 	// delete the last remaining server = leader
@@ -268,7 +268,6 @@ func replaceServers(
 	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, c.Config.Product); kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
-	shared.LogLevel("info", "kubeconfig updated\n")
 
 	nodeErr := validateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {
@@ -310,7 +309,7 @@ func replaceServers(
 func validateNodeJoin(ip string) error {
 	node, err := shared.GetNodeNameByIP(ip)
 	if err != nil {
-		return shared.ReturnLogError("error getting node name by ip: %w\n", err)
+		return shared.ReturnLogError("error getting node name by ip:%s %w\n", ip, err)
 	}
 	if node == "" {
 		return shared.ReturnLogError("node not found\n")

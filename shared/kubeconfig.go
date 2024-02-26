@@ -22,7 +22,7 @@ func UpdateKubeConfig(newLeaderIP, resourceName, product string) error {
 		return ReturnLogError("failed to update kubeconfig from cluster: %w\n", err)
 	}
 
-	LogLevel("info", "kubeconfig files update\n")
+	LogLevel("info", "kubeconfig files updated\n")
 
 	return nil
 }
@@ -72,16 +72,14 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) error {
 		return ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}
 
-	KubeConfigFile = kubeconfigContent
-
 	LogLevel("info", "Updated local kubeconfig with ip: %s", newServerIP)
 
 	return nil
 }
 
 // updateKubeConfigRemote changes the server ip in the remote kubeconfig file.
-func updateKubeConfigRemote(newServerIP, product string) error {
-	if newServerIP == "" {
+func updateKubeConfigRemote(newLeaderIP, product string) error {
+	if newLeaderIP == "" {
 		return ReturnLogError("ip not sent.\n")
 	}
 	if product == "" {
@@ -90,9 +88,9 @@ func updateKubeConfigRemote(newServerIP, product string) error {
 
 	file := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
 	localHost := "127.0.0.1"
-	cmd := fmt.Sprintf("sudo sed -i 's/%s/%s/' %s", localHost, newServerIP, file)
+	cmd := fmt.Sprintf("sudo sed -i 's/%s/%s/' %s", localHost, newLeaderIP, file)
 
-	sedResult, err := RunCommandOnNode(cmd, newServerIP)
+	sedResult, err := RunCommandOnNode(cmd, newLeaderIP)
 	if err != nil {
 		return ReturnLogError("error creating kubeconfig %w\n", err)
 	}
@@ -100,9 +98,9 @@ func updateKubeConfigRemote(newServerIP, product string) error {
 		LogLevel("debug", "sed result: %s", sedResult)
 	}
 
-	RestartCluster(product, newServerIP)
+	RestartCluster(product, newLeaderIP)
 
-	LogLevel("info", "Updated remote kubeconfig with ip: %s", newServerIP)
+	LogLevel("info", "Updated remote kubeconfig with ip: %s", newLeaderIP)
 
 	return nil
 }

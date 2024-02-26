@@ -165,12 +165,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 
 		return "", ReturnLogError("error setting env: %w\n", envErr)
 	}
-
 	resourceName := os.Getenv("resource_name")
-	serverIP, _, err := kubeCfgServerIP(resourceName)
-	if err != nil {
-		return "", ReturnLogError("failed to extract server IP: %w", err)
-	}
 
 	var cmd string
 	switch destination {
@@ -178,9 +173,14 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
+		serverIP, _, err := kubeCfgServerIP(resourceName)
+		if err != nil {
+			return "", ReturnLogError("failed to extract server IP: %w", err)
+		}
 		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
 		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+
 		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
@@ -618,14 +618,21 @@ func GetNodeNameByIP(ip string) (string, error) {
 
 	cmd := "kubectl get nodes -o custom-columns=NAME:.metadata.name,INTERNAL-IP:.status.addresses[*].address --kubeconfig=" +
 		KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
+
 	for {
 		select {
 		case <-timeout:
 			return "", ReturnLogError("kubectl get nodes timed out for cmd: %s\n", cmd)
 		case <-ticker.C:
+			i := 0
 			nodeName, err := RunCommandHost(cmd)
 			if err != nil {
-				return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
+				i++
+				LogLevel("warn", "error from RunCommandHost: %v\nwith res: %s  Retrying...", err, nodeName)
+				if i > 5 {
+					return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
+				}
+				continue
 			}
 			if nodeName == "" {
 				continue

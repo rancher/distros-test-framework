@@ -65,16 +65,16 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(false, true)
-	})
-
 	It("Verifies ClusterIP Service after upgrade", func() {
 		testcase.TestServiceClusterIp(false, true)
 	})
 
 	It("Verifies NodePort Service after upgrade applying and deleting workload", func() {
 		testcase.TestServiceNodePort(true, true)
+	})
+
+	It("Verifies Ingress after upgrade", func() {
+		testcase.TestIngress(false, true)
 	})
 
 	if cfg.Product == "k3s" {
