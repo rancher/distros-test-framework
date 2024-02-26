@@ -77,10 +77,10 @@ func runAssertion(
 			res, err = exec(cmd)
 			if err != nil {
 				i++
-				shared.LogLevel("warn", "error from exec runAssertion: %w\n with res: %s\nRetrying...", err, res)
+				shared.LogLevel("warn", "error from exec runAssertion: %v\n with res: %v\nRetrying...", err, res)
 				if i > 5 {
-					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %w\n with res: %s\n", err, res)
-					return shared.ReturnLogError("error from exec runAssertion: %w\n with res: %s\n", err, res)
+					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\n with res: %v\n", err, res)
+					return shared.ReturnLogError("error from exec runAssertion: %v\n with res: %v\n", err, res)
 				}
 				continue
 			}
@@ -161,7 +161,7 @@ func PrintResults() {
 		}
 		for _, component := range components {
 			if strings.Contains(result.Command, component) {
-				fmt.Printf("\n---------------------\nResults from %s on version:%s\n``` \n%v\n ```\n---------------------"+
+				fmt.Printf("\n---------------------\nResults from %s on version: %s\n``` \n%v\n ```\n---------------------"+
 					"\n\n\n", component, v, result)
 			}
 		}

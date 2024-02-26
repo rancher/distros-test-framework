@@ -76,12 +76,12 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(true, false)
-	})
-
 	It("Verifies dns access", func() {
 		testcase.TestDnsAccess(true, false)
+	})
+
+	It("Verifies Ingress", func() {
+		testcase.TestIngress(true, true)
 	})
 
 	if cfg.Product == "rke2" {

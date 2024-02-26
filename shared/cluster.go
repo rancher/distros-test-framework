@@ -206,16 +206,18 @@ func kubectlCmdOnNode(cmd, ip string) (string, error) {
 	return res, nil
 }
 
-// FetchClusterIPs returns the cluster IP and port of the service.
-func FetchClusterIPs(namespace, serviceName string) (ip, port string, err error) {
-	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
+// FetchClusterIPs returns the cluster IPs and port of the service.
+func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
+	cmd := "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile
+	ip, err = RunCommandHost(cmd)
 	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster IP: %w\n", err)
+		return "", "", ReturnLogError("failed to fetch cluster IPs: %v\n", err)
 	}
 
-	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
+	cmd = "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
+	port, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %w\n", err)
 	}
@@ -527,4 +529,58 @@ func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
 
 	return serverIP, string(kubeconfigContent), nil
+}
+
+// GetNodeArgsMap returns list of nodeArgs map
+func GetNodeArgsMap(nodeType string) (map[string]string, error) {
+	product, err := Product()
+	if err != nil {
+		return nil, err
+	}
+	res, err := KubectlCommand(
+		"host",
+		"get",
+		"nodes "+
+			fmt.Sprintf(
+				`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`,
+				product),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeArgsMapSlice := processNodeArgs(res)
+
+	for _, nodeArgsMap := range nodeArgsMapSlice {
+		if nodeArgsMap["node-type"] == nodeType {
+			return nodeArgsMap, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+	nodeArgsSlice := strings.Split(nodeArgs, "]")
+
+	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {
+		items := strings.Split(item, `","`)
+		nodeArgsMap := map[string]string{}
+
+		for range items[1:] {
+			nodeArgsMap["node-type"] = strings.Trim(items[0], `["`)
+			regxCompile := regexp.MustCompile(`--|"`)
+
+			for i := 1; i < len(items); i += 2 {
+				if i < (len(items) - 1) {
+					key := regxCompile.ReplaceAllString(items[i], "")
+					value := regxCompile.ReplaceAllString(items[i+1], "")
+					nodeArgsMap[key] = value
+				}
+			}
+		}
+		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)
+	}
+
+	return nodeArgsMapSlice
 }
