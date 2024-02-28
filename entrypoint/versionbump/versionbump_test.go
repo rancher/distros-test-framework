@@ -20,6 +20,7 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})

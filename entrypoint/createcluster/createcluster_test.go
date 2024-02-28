@@ -17,6 +17,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			c,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)

@@ -8,25 +8,24 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	var err error
-
 	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Install upgrade customflag for version bump")
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	_, err := config.AddEnv()
 	if err != nil {
 		return
 	}
+
+	cluster = factory.ClusterConfig(GinkgoT())
 
 	os.Exit(m.Run())
 }

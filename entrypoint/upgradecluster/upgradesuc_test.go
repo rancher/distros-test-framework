@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
@@ -21,6 +22,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -54,6 +56,13 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook pre-upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
+
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service before upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
@@ -71,11 +80,12 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("\nUpgrade via SUC", func() {
 		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
+		_ = testcase.TestUpgradeClusterSUC(cfg, customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
@@ -108,6 +118,13 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Verifies DNS Access post-upgrade", func() {
 		testcase.TestDnsAccess(true, true)
 	})
+
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook after upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {

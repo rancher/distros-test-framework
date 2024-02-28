@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 // ClusterConfig returns a singleton cluster with all terraform config and vars
-func ClusterConfig(g GinkgoTInterface) *Cluster {
+func ClusterConfig(t *testing.T) *Cluster {
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster(g)
+		cluster, err = newCluster(t)
 		if err != nil {
 			err = shared.ReturnLogError("error getting cluster: %w\n", err)
-			g.Errorf("%s", err)
+			t.Errorf("%s", err)
 		}
 	})
 
@@ -27,14 +27,19 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 }
 
 // newCluster creates a new cluster and returns his values from terraform config and vars
-func newCluster(g GinkgoTInterface) (*Cluster, error) {
-	terraformOptions, varDir, err := addTerraformOptions()
+func newCluster(t *testing.T) (*Cluster, error) {
+	cfg, err := config.AddEnv()
+	if err != nil {
+		return nil, shared.ReturnLogError("error loading config: %w\n", err)
+	}
+
+	terraformOptions, varDir, err := addTerraformOptions(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	numServers, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		g,
+		t,
 		varDir,
 		"no_of_server_nodes",
 	))
@@ -44,7 +49,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	}
 
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		g,
+		t,
 		varDir,
 		"no_of_worker_nodes",
 	))
@@ -54,18 +59,18 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	}
 
 	shared.LogLevel("info", "\nCreating cluster\n")
-	_, err = terraform.InitAndApplyE(g, terraformOptions)
+	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		shared.LogLevel("error", "\nCreating cluster Failed!!!\n")
 		return nil, err
 	}
 
-	numServers, err = addSplitRole(g, varDir, numServers)
+	numServers, err = addSplitRole(t, varDir, numServers)
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := loadTFconfig(g, varDir, terraformOptions)
+	c, err := loadTFconfig(t, varDir, terraformOptions, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +83,13 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 }
 
 // DestroyCluster destroys the cluster and returns it
-func DestroyCluster(g GinkgoTInterface) (string, error) {
+func DestroyCluster(t *testing.T) (string, error) {
 	var varDir string
-	cfg, err := shared.EnvConfig()
+	cfg, err := config.AddEnv()
 	if err != nil {
 		return "", err
 	}
+
 	varDir, err = filepath.Abs(shared.BasePath() +
 		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
@@ -100,7 +106,7 @@ func DestroyCluster(g GinkgoTInterface) (string, error) {
 		TerraformDir: tfDir,
 		VarFiles:     []string{varDir},
 	}
-	terraform.Destroy(g, &terraformOptions)
+	terraform.Destroy(t, &terraformOptions)
 
 	return "cluster destroyed", nil
 }

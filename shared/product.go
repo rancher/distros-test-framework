@@ -2,11 +2,13 @@ package shared
 
 import (
 	"fmt"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 // Product returns the distro product based on the config file
 func Product() (string, error) {
-	cfg, err := EnvConfig()
+	cfg, err := config.AddEnv()
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}

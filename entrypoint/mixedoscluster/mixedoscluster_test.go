@@ -17,6 +17,7 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 
 	It("Validates Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)

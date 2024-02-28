@@ -14,7 +14,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var (
+	cfg     *config.Product
+	cluster *factory.Cluster
+)
 
 func TestMain(m *testing.M) {
 	var err error
@@ -22,7 +25,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		return
 	}
@@ -31,6 +34,8 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("error", "\nproduct not supported: %s", cfg.Product)
 		os.Exit(1)
 	}
+
+	cluster = factory.ClusterConfig(GinkgoT())
 
 	os.Exit(m.Run())
 }

@@ -18,6 +18,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -37,6 +38,7 @@ var _ = Describe("Test:", func() {
 
 	It("Deploys rancher manager", func() {
 		testcase.TestDeployRancher(
+			cluster,
 			customflag.ServiceFlag.ExternalFlag.RancherHelmVersion,
 			customflag.ServiceFlag.ExternalFlag.RancherImageVersion,
 		)
