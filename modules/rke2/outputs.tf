@@ -22,3 +22,8 @@ output "Route53_info" {
   value = module.master.Route53_info
   description = "List of DNS records"
 }
+
+output "bastion_ip" {
+  value       = module.bastion.public_ip
+  description = "The public IP of the bastion node"
+}
