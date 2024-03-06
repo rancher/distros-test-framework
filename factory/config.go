@@ -21,15 +21,17 @@ var (
 )
 
 type Cluster struct {
-	Status       string
-	ServerIPs    []string
-	AgentIPs     []string
-	WinAgentIPs  []string
-	NumWinAgents int
-	NumServers   int
-	NumAgents    int
-	Config       clusterConfig
-	AwsEc2       awsEc2Config
+	Status        string
+	ServerIPs     []string
+	AgentIPs      []string
+	WinAgentIPs   []string
+	NumWinAgents  int
+	NumServers    int
+	NumAgents     int
+	FQDN          string
+	Config        clusterConfig
+	AwsEc2        awsEc2Config
+	GeneralConfig generalConfig
 }
 
 type awsEc2Config struct {
@@ -49,6 +51,10 @@ type clusterConfig struct {
 	DataStore        string
 	Product          string
 	Arch             string
+}
+
+type generalConfig struct {
+	BastionIP string
 }
 
 func loadConfig() (*config.Product, error) {
@@ -106,6 +112,8 @@ func loadTFconfig(
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
 
+	c.GeneralConfig.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
+
 	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
 	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
 	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
@@ -118,6 +126,7 @@ func loadTFconfig(
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
 
+	c.FQDN = terraform.Output(g, terraformOptions, "Route53_info")
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {

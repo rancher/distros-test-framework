@@ -116,7 +116,7 @@ wait_nodes() {
   timeElapsed=0
 
   while (( timeElapsed < 1200 )); do
-    if kubectl get nodes >/dev/null 2>&1; then
+    if kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get nodes >/dev/null 2>&1; then
       return
     fi
     sleep 5
@@ -134,7 +134,7 @@ wait_ready_nodes() {
 
   while (( timeElapsed < 800 )); do
     not_ready=false
-    for rec in $(kubectl get nodes); do
+    for rec in $(kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get nodes); do
       if [[ "$rec" == *"NotReady"* ]]; then
         not_ready=true
         break
@@ -159,7 +159,7 @@ wait_pods() {
     helmPodsNR=false
     systemPodsNR=false
 
-    for rec in $(kubectl get pods -A --no-headers); do
+    for rec in $(kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get pods -A --no-headers); do
       if [[ "$rec" == *"helm-install"* ]] && [[ "$rec" != *"Completed"* ]]; then
         helmPodsNR=true
       elif [[ "$rec" != *"helm-install"* ]] && [[ "$rec" != *"Running"* ]]; then

@@ -36,6 +36,18 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 	}
 }
 
+// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
+func testIPsInCIDRRange(label, svc string) {
+	nodeArgs, err := shared.GetNodeArgsMap("server")
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
+	serviceCIDR := strings.Split(nodeArgs["service-cidr"], ",")
+
+	assert.ValidatePodIPsByLabel(label, clusterCIDR)
+	assert.ValidateClusterIPsBySVC(svc, serviceCIDR)
+}
+
 // testCrossNodeService Perform testing cross node communication via service exec call
 //
 // services Slice Takes service names as parameters in the array

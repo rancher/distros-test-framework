@@ -26,9 +26,9 @@ create_config() {
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 server: https://$server_ip:6443
 token:  "$token"
-node-name: $hostname
 node-label:
-  - role-worker=true
+ - role-worker=true
+node-name: $hostname
 EOF
 }
 
@@ -61,7 +61,7 @@ update_config() {
 
 subscription_manager() {
   if [ "$node_os" = "rhel" ]; then
-    subscription-manager register --auto-attach --username="$username" --password="$password" || echo "Failed to register or attach subscription."
+    subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
     subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories on this Os."
   fi
 }
@@ -90,7 +90,7 @@ install(){
   else
     curl -sfL https://get.k3s.io | sh -s - agent
   fi
-  sleep 10
+  sleep 15
 
 }
 
