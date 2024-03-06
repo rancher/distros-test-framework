@@ -140,6 +140,10 @@ test-create:
 test-cert-rotate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
 
+.PHONY: test-secrets-encrypt
+test-secrets-encrypt:
+	@go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
+
 
 .PHONY: test-validate
 test-validate:
