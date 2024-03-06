@@ -23,7 +23,8 @@ func TestSecretsEncrypt() {
 
 	ips := getNodeIps(etcdNodes, cpNodes)
 
-	shared.CreateSecret("secret1", "default", etcdNodes[0].ExternalIP)
+	errSecret := shared.CreateSecret("secret1", "default")
+	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
 
 	secretsEncryptOps("prepare", product, cpNodes[0].ExternalIP, ips)
 	secretsEncryptOps("rotate", product, cpNodes[0].ExternalIP, ips)
@@ -48,7 +49,8 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 		nodearr = append(nodearr, node)
 		nodeIp, errRestart := shared.ManageService(product, "restart", "server", nodearr)
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
-		// Order of reboot matters. Etcd first then control plane nodes. Little lag needed between node restarts to avoid issues.
+		// Order of reboot matters. Etcd first then control plane nodes.
+		// Little lag needed between node restarts to avoid issues.
 		shared.LogLevel("INFO", "Sleep 10 seconds - wait before restarting next node in cluster")
 		time.Sleep(10 * time.Second)
 	}
@@ -115,18 +117,20 @@ func getNodeIps(etcdNodes, cpNodes []shared.Node) []string {
 }
 
 func logEncryptionFileContents(ips []string, product string) error {
-	cmdShowConfig := fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/cred/encryption-config.json", product)
-	cmdShowState := fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/cred/encryption-state.json", product)
+	configFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-config.json", product)
+	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
+	cmdShowConfig := fmt.Sprintf("sudo cat %s", configFile)
+	cmdShowState := fmt.Sprintf("sudo cat %s", stateFile)
 	for _, ip := range ips {
 		sout, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
 		if errConfig != nil {
-			shared.ReturnLogError(fmt.Sprintf("Error cat of /var/lib/rancher/%s/server/cred/encryption-config.json file", product))
+			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", configFile))
 		}
 		currentTime := time.Now()
 		Expect(sout).To(ContainSubstring(fmt.Sprintf("aescbckey-%s", currentTime.Format("2006-01-02"))))
 		_, errState := shared.RunCommandOnNode(cmdShowState, ip)
 		if errState != nil {
-			shared.ReturnLogError(fmt.Sprintf("Error cat of /var/lib/rancher/%s/server/cred/encryption-state.json file", product))
+			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", stateFile))
 		}
 	}
 	return nil
