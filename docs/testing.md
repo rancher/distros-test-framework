@@ -76,3 +76,31 @@ bastion_subnets      = "<dual-stack-subnet>"
 - AWS config (sg, vpc) is available only in US-WEST-1 region
 - Split roles is not supported at this time (Future enhancement)
 - Reorder IP is not supported at this time (Future enhancement)
+
+### Secret-Encryption tests Setup Requirements/Assumptions
+We need a split role setup for this test:
+1 Etcd ONLY node
+2 Control Plane ONLY node
+1 Agent node
+
+To set this up, please use the following in the tfvars file: 
+
+```
+no_of_server_nodes = 0  # This is for all roles server - etcd + control plane
+no_of_worker_nodes = 1  # Agent node
+split_roles        = true
+etcd_only_nodes    = 1  # etcd only node count
+etcd_cp_nodes      = 0 
+etcd_worker_nodes  = 0
+cp_only_nodes      = 2  # control plane only node count
+cp_worker_nodes    = 0
+# Numbers 1-6 correspond to: all-roles (1), etcd-only (2), etcd-cp (3), etcd-worker (4), cp-only (5), cp-worker (6).
+role_order         = "2,5,5"
+```
+
+Please set the server_flags in .tfvars file:
+```
+server_flags   = "secrets-encryption: true\n"
+```
+
+Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
