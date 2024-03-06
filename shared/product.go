@@ -112,14 +112,13 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 		"rotate-keys": fmt.Sprintf("sudo %s secrets-encrypt rotate-keys", product),
 	}
 
-	stdout, err := RunCommandOnNode(secretEncryptCmd[action], ip)
-
+	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
 	if err != nil {
-		return ip, ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action), err)
+		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action), err)
 	}
-	if strings.Contains(stdout, "fatal") {
-		return ip, ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action))
+	if strings.Contains(secretsEncryptStdOut, "fatal") {
+		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action))
 	}
 
-	return stdout, nil
+	return secretsEncryptStdOut, nil
 }

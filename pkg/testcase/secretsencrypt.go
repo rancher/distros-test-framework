@@ -45,8 +45,7 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 	}
 
 	for _, node := range ips {
-		var nodearr []string
-		nodearr = append(nodearr, node)
+		nodearr := []string{node}
 		nodeIp, errRestart := shared.ManageService(product, "restart", "server", nodearr)
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
 		// Order of reboot matters. Etcd first then control plane nodes.
@@ -106,14 +105,14 @@ func verifyStatusOutput(action, stdout string) {
 }
 
 func getNodeIps(etcdNodes, cpNodes []shared.Node) []string {
-	var sarray []string
+	var nodeIpsArr []string
 	for _, node := range etcdNodes {
-		sarray = append(sarray, node.ExternalIP)
+		nodeIpsArr = append(nodeIpsArr, node.ExternalIP)
 	}
 	for _, node := range cpNodes {
-		sarray = append(sarray, node.ExternalIP)
+		nodeIpsArr = append(nodeIpsArr, node.ExternalIP)
 	}
-	return sarray
+	return nodeIpsArr
 }
 
 func logEncryptionFileContents(ips []string, product string) error {
@@ -121,13 +120,14 @@ func logEncryptionFileContents(ips []string, product string) error {
 	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
 	cmdShowConfig := fmt.Sprintf("sudo cat %s", configFile)
 	cmdShowState := fmt.Sprintf("sudo cat %s", stateFile)
+
 	for _, ip := range ips {
-		sout, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
+		configStdOut, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
 		if errConfig != nil {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", configFile))
 		}
 		currentTime := time.Now()
-		Expect(sout).To(ContainSubstring(fmt.Sprintf("aescbckey-%s", currentTime.Format("2006-01-02"))))
+		Expect(configStdOut).To(ContainSubstring(fmt.Sprintf("aescbckey-%s", currentTime.Format("2006-01-02"))))
 		_, errState := shared.RunCommandOnNode(cmdShowState, ip)
 		if errState != nil {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", stateFile))

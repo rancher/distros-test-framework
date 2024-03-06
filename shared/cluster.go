@@ -663,11 +663,11 @@ func CreateSecret(secret, namespace string) error {
 	}
 	cmd := fmt.Sprintf("%s create secret generic %s -n %s --from-literal=mykey=mydata",
 		kubectl, secret, namespace)
-	stdout, err := RunCommandHost(cmd)
+	createStdOut, err := RunCommandHost(cmd)
 	if err != nil {
 		return ReturnLogError("failed to create secret: \n%w", err)
 	}
-	if strings.Contains(stdout, "failed to create secret") {
+	if strings.Contains(createStdOut, "failed to create secret") {
 		return ReturnLogError("failed to create secret: \n%w", err)
 	}
 	return nil
