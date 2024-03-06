@@ -54,6 +54,13 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook pre-upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
+
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
@@ -107,6 +114,13 @@ var _ = Describe("Test:", func() {
 	It("Verifies dns access after upgrade", func() {
 		testcase.TestDnsAccess(false, true)
 	})
+
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook after upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
