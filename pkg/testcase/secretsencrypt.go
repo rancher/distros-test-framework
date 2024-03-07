@@ -2,6 +2,8 @@ package testcase
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/rancher/distros-test-framework/shared"
@@ -25,11 +27,14 @@ func TestSecretsEncrypt() {
 
 	errSecret := shared.CreateSecret("secret1", "default")
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
-
+	shared.LogLevel("INFO", "TEST: 'CLASSIC' Secrets Encryption method")
 	secretsEncryptOps("prepare", product, cpNodes[0].ExternalIP, ips)
 	secretsEncryptOps("rotate", product, cpNodes[0].ExternalIP, ips)
 	secretsEncryptOps("reencrypt", product, cpNodes[0].ExternalIP, ips)
-	secretsEncryptOps("rotate-keys", product, cpNodes[0].ExternalIP, ips)
+	if strings.Contains(os.Getenv("TEST_TYPE"), "both") {
+		shared.LogLevel("INFO", "TEST: 'NEW' Secrets Encryption method")
+		secretsEncryptOps("rotate-keys", product, cpNodes[0].ExternalIP, ips)
+	}
 }
 
 func secretsEncryptOps(action, product, cpIp string, ips []string) {

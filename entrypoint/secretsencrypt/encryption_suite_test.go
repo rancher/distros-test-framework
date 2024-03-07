@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -41,6 +42,14 @@ var _ = BeforeSuite(func() {
 	}
 	Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
 		"FATAL: Add secrets-encryption:true to server_flags for this test")
+
+	version := os.Getenv(fmt.Sprintf("%s_version", cfg.Product))
+	if strings.Contains(version, "1.27") || strings.Contains(version, "1.26") {
+		os.Setenv("TEST_TYPE", "classic")
+	} else {
+		os.Setenv("TEST_TYPE", "both")
+	}
+
 })
 
 var _ = AfterSuite(func() {
