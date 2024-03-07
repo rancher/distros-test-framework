@@ -2,6 +2,7 @@ package secretsencrypt
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
@@ -33,6 +34,14 @@ func TestSecretsEncryptionSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Secrets Encryption Test Suite")
 }
+
+var _ = BeforeSuite(func() {
+	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cfg.Product)); err != nil {
+		Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
+	}
+	Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
+		"FATAL: Add secrets-encryption:true to server_flags for this test")
+})
 
 var _ = AfterSuite(func() {
 	g := GinkgoT()
