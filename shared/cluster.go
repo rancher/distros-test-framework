@@ -176,7 +176,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		serverIP, _, err := kubeCfgServerIP(resourceName)
+		serverIP, _, err := ExtractServerIP(resourceName)
 		if err != nil {
 			return "", ReturnLogError("failed to extract server IP: %w", err)
 		}
@@ -507,31 +507,6 @@ func WriteDataPod(namespace string) (string, error) {
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
-}
-
-// kubeCfgServerIP extracts the server IP from the kubeconfig file.
-func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
-	if resourceName == "" {
-		return "", "", ReturnLogError("resource name not sent\n")
-	}
-
-	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
-	kubeconfigContent, err := os.ReadFile(localPath)
-	if err != nil {
-		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
-	}
-	// get server ip value from `server:` key
-	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
-	// removing newline
-	serverIP = strings.Split(serverIP, "\n")[0]
-	// removing the https://
-	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
-	// removing the port
-	serverIP = strings.Split(serverIP, ":")[0]
-
-	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
-
-	return serverIP, string(kubeconfigContent), nil
 }
 
 // GetNodeArgsMap returns list of nodeArgs map

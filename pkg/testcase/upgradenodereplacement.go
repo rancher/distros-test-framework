@@ -322,7 +322,7 @@ func validateNodeJoin(ip string) error {
 }
 
 func serverJoin(product, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := parseJoinCmd(product, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
+	joinCmd, parseErr := buildJoinCmd(product, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -408,7 +408,7 @@ func deleteAgents(a *aws.Client, c *factory.Cluster) error {
 }
 
 func joinAgent(product, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := parseJoinCmd(product, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
+	cmd, parseErr := buildJoinCmd(product, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -446,13 +446,13 @@ func joinNode(cmd, ip string) error {
 	return nil
 }
 
-func parseJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp string) (string, error) {
+func buildJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp string) (string, error) {
 	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
 	}
 
 	var flags string
-	var instalMode string
+	var installMode string
 	if nodetype == master {
 		flags = fmt.Sprintf("'%s'", os.Getenv("server_flags"))
 	} else {
@@ -460,22 +460,22 @@ func parseJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, s
 	}
 
 	if strings.HasPrefix(version, "v") {
-		instalMode = fmt.Sprintf("INSTALL_%s_VERSION", strings.ToUpper(product))
+		installMode = fmt.Sprintf("INSTALL_%s_VERSION", strings.ToUpper(product))
 	} else {
-		instalMode = fmt.Sprintf("INSTALL_%s_COMMIT", strings.ToUpper(product))
+		installMode = fmt.Sprintf("INSTALL_%s_COMMIT", strings.ToUpper(product))
 	}
 
 	switch product {
 	case "k3s":
-		return parseK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags)
+		return buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, installMode, flags)
 	case "rke2":
-		return parseRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags)
+		return buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, installMode, flags)
 	default:
 		return "", shared.ReturnLogError("unsupported product: %s\n", product)
 	}
 }
 
-func parseK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
+func buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
@@ -522,7 +522,7 @@ func parseK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivate
 	return cmd, nil
 }
 
-func parseRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
+func buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
