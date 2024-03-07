@@ -105,14 +105,14 @@ func verifyStatusOutput(action, stdout string) {
 }
 
 func getNodeIps(etcdNodes, cpNodes []shared.Node) []string {
-	var nodeIpsArr []string
+	var nodeIps []string
 	for _, node := range etcdNodes {
-		nodeIpsArr = append(nodeIpsArr, node.ExternalIP)
+		nodeIps = append(nodeIps, node.ExternalIP)
 	}
 	for _, node := range cpNodes {
-		nodeIpsArr = append(nodeIpsArr, node.ExternalIP)
+		nodeIps = append(nodeIps, node.ExternalIP)
 	}
-	return nodeIpsArr
+	return nodeIps
 }
 
 func logEncryptionFileContents(ips []string, product string) error {
