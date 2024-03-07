@@ -132,7 +132,8 @@ func logEncryptionFileContents(ips []string, product string) error {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", configFile))
 		}
 		currentTime := time.Now()
-		Expect(configStdOut).To(ContainSubstring(fmt.Sprintf("aescbckey-%s", currentTime.Format("2006-01-02"))))
+		Expect(configStdOut).To(ContainSubstring(fmt.Sprintf("aescbckey-%s",
+			currentTime.Format("2006-01-02"))))
 		_, errState := shared.RunCommandOnNode(cmdShowState, ip)
 		if errState != nil {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", stateFile))
