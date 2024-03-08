@@ -134,7 +134,7 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// RunScp copies files from local to remot host based on a list of local and remote paths.
+// RunScp copies files from local to remote host based on a list of local and remote paths.
 func RunScp(ip, product string, localPaths, remotePaths []string) error {
 	if ip == "" {
 		return ReturnLogError("ip is needed.\n")

@@ -307,7 +307,6 @@ func PrintClusterState() {
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
 	}
-	fmt.Println("Current cluster state before upgrade:")
 	fmt.Println("\n", res)
 }
 
@@ -563,8 +562,8 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	return nodeArgsMapSlice
 }
 
-// DeleteClusterNode deletes a node from the cluster filtering the name out by the IP.
-func DeleteClusterNode(ip string) error {
+// DeleteNode deletes a node from the cluster filtering the name out by the IP.
+func DeleteNode(ip string) error {
 	if ip == "" {
 		return ReturnLogError("must send a ip: %s\n", ip)
 	}

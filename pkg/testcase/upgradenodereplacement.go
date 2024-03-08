@@ -339,7 +339,7 @@ func deleteServer(ip string, a *aws.Client) error {
 		return shared.ReturnLogError("ip not sent\n")
 	}
 
-	if delNodeErr := shared.DeleteClusterNode(ip); delNodeErr != nil {
+	if delNodeErr := shared.DeleteNode(ip); delNodeErr != nil {
 		shared.LogLevel("error", "error deleting server: %w\n", delNodeErr)
 
 		return delNodeErr
@@ -390,7 +390,7 @@ func replaceAgents(
 
 func deleteAgents(a *aws.Client, c *factory.Cluster) error {
 	for _, i := range c.AgentIPs {
-		if deleteNodeErr := shared.DeleteClusterNode(i); deleteNodeErr != nil {
+		if deleteNodeErr := shared.DeleteNode(i); deleteNodeErr != nil {
 			shared.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
 
 			return deleteNodeErr

@@ -44,7 +44,7 @@ func AddNode() (*Client, error) {
 
 func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids []string, err error) {
 	if len(names) == 0 {
-		return nil, nil, nil, shared.ReturnLogError("must sent a name: %s\n", names)
+		return nil, nil, nil, shared.ReturnLogError("must sent name for the instance")
 	}
 
 	errChan := make(chan error, len(names))
