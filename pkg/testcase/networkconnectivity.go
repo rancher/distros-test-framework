@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -73,7 +74,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 
 	performCheck := func(svc1, svc2, port, expected string) error {
 		cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", svc1,
-			shared.KubeConfigFile, svc2, port)
+			factory.KubeConfigFile, svc2, port)
 
 		for {
 			select {

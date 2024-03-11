@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	cluster = factory.ClusterConfig(&testing.T{})
+	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -40,7 +40,7 @@ func TestValidateClusterSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(&testing.T{})
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

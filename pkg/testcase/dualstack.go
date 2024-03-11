@@ -114,7 +114,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 		testServiceClusterIPs(td)
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
-			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
+			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + factory.KubeConfigFile
 		res, err2 := shared.RunCommandHost(cmd)
 		Expect(err2).NotTo(HaveOccurred(), err2)
 		Expect(res).To(ContainSubstring(expectedIPFamily[i]))

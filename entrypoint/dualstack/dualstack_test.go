@@ -11,7 +11,7 @@ import (
 
 var _ = Describe("Test:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {

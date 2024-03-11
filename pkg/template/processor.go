@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -61,7 +62,7 @@ func processTestCombination(resultChan chan error, wg *sync.WaitGroup, ips []str
 				cmdToGetIps := fmt.Sprintf(`
 				kubectl get node -A -o wide --kubeconfig="%s" \
 				| grep 'etcd' | awk '{print $7}'
-				`, shared.KubeConfigFile)
+				`, factory.KubeConfigFile)
 
 				var nodes []string
 				nodeIps, err := shared.RunCommandHost(cmdToGetIps)
@@ -133,7 +134,7 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 	var version string
 	var err error
 
-	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
+	kubeconfigFlag := " --kubeconfig=" + factory.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 
 	product, err := shared.Product()

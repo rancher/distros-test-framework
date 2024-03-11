@@ -12,7 +12,7 @@ import (
 var _ = Describe("Test: Mixed OS Cluster", func() {
 
 	It("Starts Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validates Node", func() {

@@ -35,8 +35,10 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
 
+	cluster = factory.ClusterConfig()
+
 	customflag.ServiceFlag.TestConfig.TestFuncNames = customflag.TestCaseNameFlag
-	testFuncs, err := template.AddTestCases(customflag.ServiceFlag.TestConfig.TestFuncNames)
+	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestConfig.TestFuncNames)
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		return
@@ -55,8 +57,6 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	cluster = factory.ClusterConfig(GinkgoT())
-
 	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
 		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
 		os.Exit(1)
@@ -72,9 +72,8 @@ func TestVersionTestSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

@@ -17,7 +17,7 @@ import (
 var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Starts up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
@@ -73,7 +73,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-			testcase.TestIngressRoute(true, false, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
 		})
 	}
 
@@ -136,7 +136,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(false, true, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
 		})
 	}
 })

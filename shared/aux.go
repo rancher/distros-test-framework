@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -45,13 +46,14 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
+	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %v\n", err)
 	}
+
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
@@ -68,14 +70,12 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
 	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
 
-	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
-		!strings.Contains(cleanedStderr, "1") ||
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") || !strings.Contains(cleanedStderr, "1") ||
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
-	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
 
 	return stdout, err
 }
@@ -124,16 +124,6 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
-// AddHelmRepo adds a helm repo to the cluster.
-func AddHelmRepo(name, url string) (string, error) {
-	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
-	update := "helm repo update"
-	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
-		name, name, name, KubeConfigFile)
-
-	return RunCommandHost(addRepo, update, installRepo)
-}
-
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
@@ -149,13 +139,14 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 
 func configureSSH(host string) (*ssh.Client, error) {
 	var cfg *ssh.ClientConfig
+	cluster := factory.ClusterConfig()
 
-	authMethod, err := publicKey(AccessKey)
+	authMethod, err := publicKey(cluster.AwsConfig.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %v", err)
 	}
 	cfg = &ssh.ClientConfig{
-		User: AwsUser,
+		User: cluster.AwsConfig.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},

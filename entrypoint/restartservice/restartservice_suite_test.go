@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	cluster = factory.ClusterConfig(GinkgoT())
+	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -36,9 +36,8 @@ func TestRestartServiceSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

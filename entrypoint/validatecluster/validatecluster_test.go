@@ -69,11 +69,11 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute using old GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, true, "traefik.containo.us/v1alpha1")
 		})
 
 		It("Verifies Traefik IngressRoute using new GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.io/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
 	}
 })
