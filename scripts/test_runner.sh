@@ -11,7 +11,7 @@ if [ -z "${IMG_NAME}" ]; then
 fi
 
 case "$TEST_DIR" in
-     upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster)
+     upgradecluster|versionbump|clusterreset|mixedoscluster|dualstack|validatecluster|createcluster)
       printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
         ;;
     *)
@@ -46,6 +46,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
+    elif [ "${TEST_DIR}" = "clusterreset" ]; then
+        go test -timeout=90m -v -count=1 ./entrypoint/clusterreset/...
     fi
 fi
 

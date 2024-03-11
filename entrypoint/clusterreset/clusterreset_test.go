@@ -11,7 +11,7 @@ import (
 
 var _ = Describe("Test:", func() {
 
-	FIt("Start Up with no issues", func() {
+	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
@@ -39,23 +39,38 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies Killall", func() {
-		testcase.TestKillall("", "")
+		testcase.TestKillall()
 	})
 
-	FIt("Verifies Stopped Server", func() {
-		testcase.StopServer("", "") //add test case that calls in stopping the service (node.go)
+	It("Verifies Stopped Server", func() {
+		testcase.StopServer()
 	})
 
 	It("Verifies Cluster Reset", func() {
-		testcase.ClusterReset("", "") //add test case that calls in cluster reset testcase (cluster.go)
+		testcase.ClusterReset()
 	})
 
 	It("Verifies Database Directories Deleted", func() {
-		testcase.DeleteDatabaseDirectories("", "")
+		testcase.DeleteDatabaseDirectories()
 	})
 
 	It("Verifies Started Server", func() {
-		testcase.StartServer("", "") //add test case that calls in started service (node.go)
+		testcase.StartServer()
+	})
+
+	It("Validate Nodes", func() {
+		testcase.TestNodeStatus(
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus(),
+		)
 	})
 
 	It("Verifies Ingress", func() {
