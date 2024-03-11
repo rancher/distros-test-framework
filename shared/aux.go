@@ -411,6 +411,7 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 	}
 	return append(slice, i)
 }
+
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }
