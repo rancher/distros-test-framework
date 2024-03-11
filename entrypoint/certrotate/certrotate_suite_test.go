@@ -1,11 +1,11 @@
 package certrotate
 
 import (
-	"flag"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -17,10 +17,9 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Parse()
+	entrypoint.AddFlags("destroy")
 
+	var err error
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return

@@ -1,11 +1,11 @@
 package selinux
 
 import (
-	"flag"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -17,12 +17,9 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
+	entrypoint.AddFlags("channel", "installVersionOrCommit", "destroy")
+
 	var err error
-
-	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Install upgrade customflag for version bump")
-	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
-	flag.Parse()
-
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return

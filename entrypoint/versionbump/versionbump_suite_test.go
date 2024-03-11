@@ -1,12 +1,12 @@
 package versionbump
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
@@ -19,18 +19,9 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
-	flag.StringVar(&template.TestMapTemplate.ExpectedValue, "expectedValue", "", "Comma separated list of expected values for commands")
-	flag.StringVar(&template.TestMapTemplate.ExpectedValueUpgrade, "expectedValueUpgrade", "", "Expected value of the command ran after upgrading")
-	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
-	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
-	flag.Var(&customflag.TestCaseNameFlag, "testCase", "Comma separated list of test case names to run")
-	flag.StringVar(&customflag.ServiceFlag.TestConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
-	flag.Parse()
+	entrypoint.AddFlags("cmd", "expectedValue", "expectedValueUpgrade",
+		"installVersionOrCommit", "channel", "testCase", "workloadName",
+		"applyWorkload", "deleteWorkload", "destroy", "description")
 
 	customflag.ServiceFlag.TestConfig.TestFuncNames = customflag.TestCaseNameFlag
 	testFuncs, err := template.AddTestCases(customflag.ServiceFlag.TestConfig.TestFuncNames)
@@ -52,13 +43,9 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
-		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
-		os.Exit(1)
-	}
+	entrypoint.ValidateInstallFlag()
 
 	os.Exit(m.Run())
-
 }
 
 func TestVersionTestSuite(t *testing.T) {
