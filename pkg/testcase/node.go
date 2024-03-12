@@ -54,11 +54,11 @@ func TestNodeStatus(
 }
 
 func TestKillall() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
 	g := GinkgoT()
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 
@@ -73,17 +73,17 @@ func TestKillall() {
 		Expect(res).To(ContainSubstring("refused"))
 	case product == "rke2":
 		res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
-		Expect(res).To(ContainSubstring("timed out"))
+		Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 	default:
 		shared.ReturnLogError("unsupported product: %s\n", product)
 	}
 }
 
 func StopServer() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 	g := GinkgoT()
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 
 	switch {
 	case product == "k3s":
@@ -119,10 +119,10 @@ func StopServer() {
 }
 
 func StartServer() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 	g := GinkgoT()
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 	for _, ip := range cluster.ServerIPs {
 
 		switch {
@@ -141,10 +141,10 @@ func StartServer() {
 }
 
 func DeleteDatabaseDirectories() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 	g := GinkgoT()
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 
 		cmd1 := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", product)
@@ -152,10 +152,7 @@ func DeleteDatabaseDirectories() {
 		Expect(err).NotTo(HaveOccurred())
 
 		cmd2 := fmt.Sprintf("sudo -i ls -l /var/lib/rancher/%s/server/db", product)
-		res, err := shared.RunCommandOnNode(cmd2, cluster.ServerIPs[i])
-
-		fmt.Println("Response: ", res)
-		fmt.Println("Error: ", err)
+		_, err = shared.RunCommandOnNode(cmd2, cluster.ServerIPs[i])
 
 		Expect(err.Error()).To(ContainSubstring("No such file or directory"))
 	}

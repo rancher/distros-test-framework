@@ -116,11 +116,11 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 }
 
 func ClusterReset() {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
 	g := GinkgoT()
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 	ip := cluster.ServerIPs[0]
 
 	switch {

@@ -31,11 +31,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true)
+		testcase.TestServiceClusterIp(true, true)
 	})
 
 	It("Verifies NodePort Service Before Reset", func() {
-		testcase.TestServiceNodePort(false)
+		testcase.TestServiceNodePort(true, false)
 	})
 
 	It("Verifies Killall", func() {
@@ -74,28 +74,28 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies Ingress", func() {
-		testcase.TestIngress(true)
+		testcase.TestIngress(true, true)
 	})
 
 	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true)
+		testcase.TestDaemonset(true, true)
 	})
 
 	It("Verifies NodePort Service After Reset", func() {
-		testcase.TestServiceNodePort(false)
+		testcase.TestServiceNodePort(false, true)
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true)
+		testcase.TestDnsAccess(true, true)
 	})
 
 	if cfg.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(true)
+			testcase.TestLocalPathProvisionerStorage(true, true)
 		})
 
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true)
+			testcase.TestServiceLoadBalancer(true, true)
 		})
 	}
 })
