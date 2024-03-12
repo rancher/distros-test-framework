@@ -12,25 +12,9 @@ function validate_test_image() {
  fi
 }
 
-<<<<<<< HEAD
-if [ -z "${IMG_NAME}" ]; then
-   printf "\n\nIMG NAME: %s is not set\n\n" "${IMG_NAME}"
-   exit 1
-fi
-
-case "$TEST_DIR" in
-     upgradecluster|versionbump|clusterreset|mixedoscluster|dualstack|validatecluster|createcluster)
-      printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
-        ;;
-    *)
-        printf "\n%s is not a go test package\n\n" "${TEST_DIR}"
-        exit 1
-        ;;
-esac
-=======
 function validate_dir(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
+       upgradecluster|versionbump|clusterreset|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -55,7 +39,6 @@ function validate_dir(){
           ;;
   esac
 }
->>>>>>> upstream/main
 
 function run() {
 if [ -n "${TEST_DIR}" ]; then
@@ -90,17 +73,14 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
-<<<<<<< HEAD
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
         go test -timeout=90m -v -count=1 ./entrypoint/clusterreset/...
-=======
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=50m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
->>>>>>> upstream/main
     fi
 fi
 }
