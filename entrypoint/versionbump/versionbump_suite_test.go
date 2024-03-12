@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
@@ -19,7 +18,7 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	entrypoint.AddFlags("cmd", "expectedValue", "expectedValueUpgrade",
+	customflag.AddFlags("cmd", "expectedValue", "expectedValueUpgrade",
 		"installVersionOrCommit", "channel", "testCase", "workloadName",
 		"applyWorkload", "deleteWorkload", "destroy", "description")
 
@@ -43,7 +42,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	entrypoint.ValidateInstallFlag()
+	customflag.ValidateFlags()
 
 	os.Exit(m.Run())
 }

@@ -34,11 +34,11 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []customflag.TestMap{
 					{
-						Cmd:                  TestMapTemplate.Cmd,
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						Cmd:                  customflag.Tm.Cmd,
+						ExpectedValue:        customflag.Tm.ExpectedValue,
+						ExpectedValueUpgrade: customflag.Tm.ExpectedValueUpgrade,
 					},
 				},
 			},

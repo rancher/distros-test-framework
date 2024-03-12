@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -17,7 +16,7 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	entrypoint.AddFlags("destroy")
+	customflag.AddFlags("destroy")
 
 	var err error
 	cfg, err = shared.EnvConfig()

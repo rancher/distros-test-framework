@@ -51,7 +51,8 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "versionbump" ]; then
        declare -a OPTS
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump)
-            OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
+            CMD_EVALUATED=$(eval echo "$CMD")
+            OPTS+=(-cmd "${CMD_EVALUATED}" -expectedValue "${EXPECTED_VALUE}")
              [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
              [ -n "${INSTALL_VERSION_OR_COMMIT}" ] && OPTS+=(-installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}")
              [ -n "${CHANNEL}" ] && OPTS+=(-channel "${CHANNEL}")

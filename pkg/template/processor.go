@@ -21,18 +21,6 @@ func processCmds(
 	cmds []string,
 	expectedValues []string,
 ) {
-	if len(cmds) != len(expectedValues) {
-		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
-			" %s x %s", cmds, expectedValues)
-		return
-	}
-
-	if expectedValues[0] == "" || cmds[0] == "" {
-		resultChan <- shared.ReturnLogError("error: command and/or expected value was not sent")
-		close(resultChan)
-		return
-	}
-
 	for i := range cmds {
 		cmd := cmds[i]
 		expectedValue := expectedValues[i]
