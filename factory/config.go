@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -20,14 +21,28 @@ var (
 )
 
 type Cluster struct {
-	Status       string
-	ServerIPs    []string
-	AgentIPs     []string
-	WinAgentIPs  []string
-	NumWinAgents int
-	NumServers   int
-	NumAgents    int
-	Config       clusterConfig
+	Status        string
+	ServerIPs     []string
+	AgentIPs      []string
+	WinAgentIPs   []string
+	NumWinAgents  int
+	NumServers    int
+	NumAgents     int
+	FQDN          string
+	Config        clusterConfig
+	AwsEc2        awsEc2Config
+	GeneralConfig generalConfig
+}
+
+type awsEc2Config struct {
+	Ami              string
+	Region           string
+	VolumeSize       string
+	InstanceClass    string
+	Subnets          string
+	AvailabilityZone string
+	SgId             string
+	KeyName          string
 }
 
 type clusterConfig struct {
@@ -38,15 +53,14 @@ type clusterConfig struct {
 	Arch             string
 }
 
-func loadConfig() (*config.ProductConfig, error) {
-	cfgPath, err := shared.EnvDir("factory")
-	if err != nil {
-		return nil, shared.ReturnLogError("error getting env path: %w\n", err)
-	}
+type generalConfig struct {
+	BastionIP string
+}
 
-	cfg, err := config.AddConfigEnv(cfgPath)
+func loadConfig() (*config.Product, error) {
+	cfg, err := shared.EnvConfig()
 	if err != nil {
-		return nil, shared.ReturnLogError("error getting config: %w\n", err)
+		return nil, err
 	}
 
 	return cfg, nil
@@ -62,13 +76,13 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	var tfDir string
 
 	varDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
 	tfDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", cfg.Product))
 	if err != nil {
 		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}
@@ -81,7 +95,7 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 	return terraformOptions, varDir, nil
 }
 
-func addClusterConfig(
+func loadTFconfig(
 	g GinkgoTInterface,
 	varDir string,
 	terraformOptions *terraform.Options,
@@ -90,21 +104,38 @@ func addClusterConfig(
 	if err != nil {
 		return nil, shared.ReturnLogError("error loading config: %w", err)
 	}
+
 	c := &Cluster{}
 
 	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
 	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
 	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
 	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+
+	c.GeneralConfig.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
+
+	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
+	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
+	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
+	c.AwsEc2.InstanceClass = terraform.GetVariableAsStringFromVarFile(g, varDir, "ec2_instance_class")
+	c.AwsEc2.Subnets = terraform.GetVariableAsStringFromVarFile(g, varDir, "subnets")
+	c.AwsEc2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(g, varDir, "availability_zone")
+	c.AwsEc2.SgId = terraform.GetVariableAsStringFromVarFile(g, varDir, "sg_id")
+	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(g, varDir, "key_name")
+
 	c.Config.Arch = shared.Arch
 	c.Config.Product = cfg.Product
+
+	c.FQDN = terraform.Output(g, terraformOptions, "Route53_info")
 	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
 
 	if cfg.Product == "k3s" {
 		c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
-		if c.Config.DataStore == "" {
+		if c.Config.DataStore == "external" {
 			c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
 			c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
+		} else if c.Config.DataStore == "" {
+			return nil, shared.ReturnLogError("datastore should not be empty \n%w", err)
 		}
 	}
 

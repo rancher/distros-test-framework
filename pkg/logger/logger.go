@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"sync"
 
@@ -14,39 +13,45 @@ var (
 	le   *log.Entry
 )
 
-func AddLogger(json bool) *log.Entry {
+func AddLogger() *log.Entry {
 	once.Do(func() {
-		logger := newLogger(json)
+		logger := newLogger()
 		le = log.NewEntry(logger)
 	})
 
 	return le
 }
 
-func newLogger(json bool) *log.Logger {
+func newLogger() *log.Logger {
 	logger := log.New()
+	logger.SetFormatter(customFormatter())
+	logger.SetReportCaller(true)
+	logger.SetLevel(log.DebugLevel)
 
-	if !json {
-		logger.SetFormatter(&log.TextFormatter{
+	return logger
+}
+
+func customFormatter() *log.TextFormatter {
+	if log.GetLevel() == log.DebugLevel || log.GetLevel() == log.InfoLevel {
+		return &log.TextFormatter{
 			ForceColors:   true,
 			FullTimestamp: true,
 			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+				return "", ""
 			},
 			QuoteEmptyFields: true,
-		})
-	} else {
-		logger.SetFormatter(&log.JSONFormatter{
+		}
+	} else if log.GetLevel() == log.WarnLevel || log.GetLevel() == log.ErrorLevel ||
+		log.GetLevel() == log.FatalLevel || log.GetLevel() == log.PanicLevel {
+		return &log.TextFormatter{
+			ForceColors:   true,
+			FullTimestamp: true,
 			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				return f.Function, fmt.Sprintf("%s:%d", f.File, f.Line)
+				return fmt.Sprintf("%s:%d", f.File, f.Line), ""
 			},
-			PrettyPrint: true,
-		})
+			QuoteEmptyFields: true,
+		}
 	}
 
-	logger.SetReportCaller(true)
-	logger.SetLevel(log.DebugLevel)
-	logger.Out = os.Stdout
-
-	return logger
+	return nil
 }

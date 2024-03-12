@@ -1,6 +1,10 @@
 package testcase
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -12,13 +16,16 @@ const (
 	nslookup      = "kubernetes.default.svc.cluster.local"
 )
 
-func TestIngress(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "ingress.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deployed")
+func TestIngress(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
+	}
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
-	err = assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	ingressIps, err := shared.FetchIngressIP("test-ingress")
@@ -34,17 +41,20 @@ func TestIngress(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "ingress.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Ingress manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deleted")
 	}
 }
 
-func TestDnsAccess(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "dnsutils.yaml")
-	Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
+func TestDnsAccess(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "dnsutils.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deployed")
+	}
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
-	err = assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
@@ -55,7 +65,83 @@ func TestDnsAccess(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "dnsutils.yaml")
-		Expect(err).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "dnsutils.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "dnsutils manifest not deleted")
+	}
+}
+
+func TestIngressRoute(applyWorkload, deleteWorkload bool, apiVersion string) {
+	workerNodes, err := shared.GetNodesByRoles("worker")
+	Expect(workerNodes).NotTo(BeEmpty())
+	Expect(err).NotTo(HaveOccurred())
+	publicIp := fmt.Sprintf("%s.nip.io", workerNodes[0].ExternalIP)
+
+	if applyWorkload {
+		// Update base IngressRoute manifest to use one of the Node External IPs
+		originalFilePath := shared.BasePath() +
+			fmt.Sprintf("/workloads/%s/ingressroute.yaml", shared.Arch)
+		newFilePath := shared.BasePath() +
+			fmt.Sprintf("/workloads/%s/dynamic-ingressroute.yaml", shared.Arch)
+		content, errRead := os.ReadFile(originalFilePath)
+		if errRead != nil {
+			Expect(errRead).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
+		}
+
+		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
+		newContent := replacer.Replace(string(content))
+		errWrite := os.WriteFile(newFilePath, []byte(newContent), 0644)
+		if errWrite != nil {
+			Expect(errWrite).NotTo(HaveOccurred(),
+				"failed to update file for ingressroute resource to use one of the node external ips")
+		}
+
+		// Deploy manifest and ensure pods are running
+		workloadErr := shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
+	}
+
+	validateIngressRoute(publicIp)
+
+	if deleteWorkload {
+		err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
+		Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deleted")
+	}
+}
+
+func validateIngressRoute(publicIp string) {
+	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
+		" --field-selector=status.phase=Running --kubeconfig=%s", shared.KubeConfigFile)
+	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	// Query the IngressRoute Host
+	filters := map[string]string{
+		"namespace": "test-ingressroute",
+		"label":     "app=whoami",
+	}
+	pods, err := shared.GetPodsFiltered(filters)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	negativeAsserts := "404 page not found"
+	for _, pod := range pods {
+		positiveAsserts := []string{
+			fmt.Sprintf("Hostname: %s", pod.Name),
+			fmt.Sprintf("IP: %s", pod.NodeIP),
+		}
+		Eventually(func(g Gomega) {
+			// Positive test cases
+			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
+			Expect(err).NotTo(HaveOccurred(), err)
+
+			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
+			Expect(err).NotTo(HaveOccurred(), err)
+
+			// Negative test cases
+			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
+			Expect(err).NotTo(HaveOccurred(), err)
+
+			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
+			Expect(err).NotTo(HaveOccurred(), err)
+		}, "30s", "5s").Should(Succeed())
 	}
 }

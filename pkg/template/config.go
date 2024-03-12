@@ -6,8 +6,8 @@ import (
 
 var TestMapTemplate TestMap
 
-// VersionTestTemplate represents a version test scenario with test configurations and commands.
-type VersionTestTemplate struct {
+// TestTemplate represents a version test scenario with test configurations and commands.
+type TestTemplate struct {
 	TestCombination *RunCmd
 	InstallMode     string
 	TestConfig      *TestConfig
@@ -29,17 +29,18 @@ type TestMap struct {
 // TestConfig represents the testcase function configuration
 type TestConfig struct {
 	TestFunc       []testCase
-	DeployWorkload bool
+	ApplyWorkload  bool
+	DeleteWorkload bool
 	WorkloadName   string
 }
 
 // testCase is a custom type representing the test function.
-type testCase func(deployWorkload bool)
+type testCase func(applyWorkload, deleteWorkload bool)
 
-// testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and VersionTestTemplate.
-func testCaseWrapper(v VersionTestTemplate) {
+// testCaseWrapper wraps a test function and calls it with the given GinkgoTInterface and TestTemplate.
+func testCaseWrapper(v TestTemplate) {
 	for _, testFunc := range v.TestConfig.TestFunc {
-		testFunc(v.TestConfig.DeployWorkload)
+		testFunc(v.TestConfig.ApplyWorkload, v.TestConfig.DeleteWorkload)
 	}
 }
 

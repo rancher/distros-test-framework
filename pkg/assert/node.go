@@ -38,10 +38,10 @@ func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertCommit returns the NodeAssertFunc for asserting commit
 func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 
-	commit, err := shared.GetProductVersion(product)
+	commit, err := shared.ProductVersion(product)
 	Expect(err).NotTo(HaveOccurred(), "error getting commit ID version: %v", err)
 
 	initial := strings.Index(commit, "(")

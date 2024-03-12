@@ -1,5 +1,5 @@
 output "Route53_info" {
-  value       = aws_route53_record.aws_route53.*
+  value       = length(aws_route53_record.aws_route53) > 0 ? aws_route53_record.aws_route53[0].fqdn : ""
   description = "List of DNS records"
 }
 
@@ -15,4 +15,9 @@ output "kubeconfig" {
 
 output "rendered_template" {
   value = data.template_file.test.rendered
+}
+
+output "server_flags" {
+  value = var.server_flags
+  description = "The server flags:"
 }

@@ -145,7 +145,8 @@ Args:
 - ${TESTFILE}              path to the test file
 - ${TAGTEST}               name of the tag function from suite ( -tags=upgradesuc or -tags=upgrademanual )
 - ${TESTCASE}              name of the testcase to run
-- ${DEPLOYWORKLOAD}        true or false to deploy workload
+- ${APPLYWORKLOAD}        true or false to deploy workload
+- ${DELETEWORKLOAD}        true or false to delete workload that is deployed. Only applicable if APPLYWORKLOAD=true
 - ${CMD}                   command to run
 - ${VALUE}                 value to check on host
 - ${INSTALLTYPE}           type of installation (version or commit) + desired value
@@ -165,7 +166,7 @@ $ make test-version-bump               # runs version bump test locally
 $ make test-run                        # runs create and upgrade cluster by passing the argname and argvalue
 $ make remove-tf-state                 # removes acceptance state dir and files
 $ make test-suite                      # runs all testcase locally in sequence not using the same state
-$ make vet-lint                        # runs go vet and go lint
+$ make pre-commit                      # runs go fmt,imports,vet and lint
 ```
 
 ### Examples with docker:
@@ -187,7 +188,8 @@ CMD="k3s --version, kubectl get image..." \
 VALUE="v1.26.2+k3s1, v0.0.21" " \
 INSTALLTYPE=257fa2c54cda332e42b8aae248c152f4d1898218 \
 TESTCASE=TestLocalPathProvisionerStorage \
-DEPLOYWORKLOAD=true \
+APPLYWORKLOAD=true \
+DELETEWORKLOAD=false \
 WORKLOADNAME="someWorkload.yaml"
 ```
 
@@ -206,7 +208,8 @@ $go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -expectedValueUpgrade "CNI plugins plugin v1.2.0-k3s1,1M, v1.27" \
 -installVersionOrCommit INSTALL_K3S_VERSION=v1.27.2+k3s1 \
 -testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
--deployWorkload true \
+-applyWorkload true \
+-deleteWorkload false \
 -workloadName "bandwidth-annotations.yaml"
 
  - Logs from test
@@ -226,10 +229,31 @@ $ make vet-lint TESTDIR=upgradecluster
 ```
 
 ### In between tests:
-```
 - If you want to run with same cluster do not delete ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file after each test.
 
 - if you want to use new resources then make sure to delete the ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file if you want to create a new cluster.
+
+- You can even use these files when running via docker! Follow these steps after your first run:
+```sh
+# Remove terraform and tmp directories
+$ rm -rf modules/ tmp/
+
+# Copy terraform directories from the previous container to the local filesystem. This will include the relevant tfstate and lock files in order to reuse the same cluster and resources
+$ docker cp <container_name>:/go/src/github.com/rancher/distros-test-framework/modules/ modules/
+
+# Copy /tmp directory which contains the kubeconfig and token
+$ docker cp <container_name>:/tmp/ tmp/
+
+# Rebuild the docker image (below example is pointing to a Dockerfile designed for jenkins. You'll likely want to use Dockerfile.build instead)
+$ docker build . -q -f ./scripts/Dockerfile.jenkins -t ${TAG_NAME}
+
+# Include the following volume when running the new container to write the tmp directory to the proper place
+$ -v /path/to/distros-test-framework/tmp/:/tmp
+
+# Example full commands:
+$ rm -rf modules/ tmp/ && docker cp at1:/go/src/github.com/rancher/distros-test-framework/modules/ modules/ && docker cp at1:/tmp/ tmp/
+$ docker build . -q -f ./scripts/Dockerfile.jenkins -t ${TAG_NAME}
+$ docker run -dt --name at2 -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem -v /Users/fakeuser/gh-repos/distros-test-framework/tmp/:/tmp --env-file ./config/.env ${TAG_NAME} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=30m -v ./validatecluster/..."
 ```
 
 ### Debugging

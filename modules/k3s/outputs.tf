@@ -16,3 +16,23 @@ output "kubeconfig" {
 output "rendered_template" {
   value = module.master.rendered_template
 }
+
+output "server_flags" {
+  value = var.server_flags
+  description = "The server flags:"
+}
+
+output "worker_flags" {
+  value = var.worker_flags
+  description = "The worker flags:"
+}
+
+output "Route53_info" {
+  value = module.master.Route53_info
+  description = "List of DNS records"
+}
+
+output "bastion_ip" {
+  value       = module.bastion.public_ip
+  description = "The public IP of the bastion node"
+}

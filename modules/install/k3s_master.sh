@@ -1,121 +1,112 @@
 #!/bin/bash
 
-## Uncomment the following lines to enable debug mode
-#set -x
-# PS4='+(${LINENO}): '
+# the following lines are to enable debug mode
+set -x
+PS4='+(${LINENO}): '
+set -e
+trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
-create_directories() {
-  mkdir -p /etc/rancher/k3s
-  sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
-  mkdir -p /var/lib/rancher/k3s/server/manifests
-}
+# Script args
+node_os=${1}
+fqdn=${2}
+public_ip=${3}
+private_ip=${4}
+ipv6_ip=${5}
+install_mode=${6}
+version=${7}
+channel=${8}
+etcd_only_node=${9}
+datastore_type=${10}
+datastore_endpoint=${11}
+server_flags=${12}
+rhel_username=${13}
+rhel_password=${14}
 
 create_config() {
-  local fake_fqdn="${1}"
-  local node_external_ip="${2}"
-
+  hostname=$(hostname -f)
+  mkdir -p /etc/rancher/k3s
   cat <<EOF >>/etc/rancher/k3s/config.yaml
 write-kubeconfig-mode: "0644"
 tls-san:
-  - ${fake_fqdn}
-node-external-ip: "${node_external_ip}"
+  - ${fqdn}
 cluster-init: true
+node-name: $hostname
 EOF
 }
 
-add_config() {
-  local server_flags="${1}"
-
-  if [[ -n "$server_flags" ]] && [[ "$server_flags" == *":"* ]]
-    then
-      echo -e "$server_flags" >> /etc/rancher/k3s/config.yaml
-      cat /etc/rancher/k3s/config.yaml
+update_config() {
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
+    echo -e "$server_flags" >> /etc/rancher/k3s/config.yaml
   fi
+
+  if [[ "$server_flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
+    elif [ -n "$ipv6_ip" ]; then
+      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
+    else
+      echo -e "node-external-ip: $public_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip" >> /etc/rancher/k3s/config.yaml
+    fi
+  fi
+  cat /etc/rancher/k3s/config.yaml
 }
 
 policy_files() {
-  local server_flags="${1}"
-  local version="${2}"
-
-  if [[ -n "$server_flags"  ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]
-    then
-      cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
-      printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
-      sysctl -p /etc/sysctl.d/90-kubelet.conf
-      systemctl restart systemd-sysctl
-      cat /tmp/policy.yaml > /var/lib/rancher/k3s/server/manifests/policy.yaml
-      cat /tmp/audit.yaml > /var/lib/rancher/k3s/server/audit.yaml
-      cat /tmp/cluster-level-pss.yaml > /var/lib/rancher/k3s/server/cluster-level-pss.yaml
-      cat /tmp/ingresspolicy.yaml > /var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
+  if [[ -n "$server_flags" ]] && [[ "$server_flags"  == *"protect-kernel-defaults"* ]]; then
+    sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
+    mkdir -p /var/lib/rancher/k3s/server/manifests
+    cat /tmp/cis_master_config.yaml >> /etc/rancher/k3s/config.yaml
+    printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
+    sysctl -p /etc/sysctl.d/90-kubelet.conf
+    systemctl restart systemd-sysctl
+    cat /tmp/policy.yaml > /var/lib/rancher/k3s/server/manifests/policy.yaml
+    cat /tmp/audit.yaml > /var/lib/rancher/k3s/server/audit.yaml
+    cat /tmp/cluster-level-pss.yaml > /var/lib/rancher/k3s/server/cluster-level-pss.yaml
+    cat /tmp/ingresspolicy.yaml > /var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
     sleep 20
   fi
 }
 
-rhel() {
-   local node_os="${1}"
-   local username="${2}"
-   local password="${3}"
-
-  if [ "$node_os" = "rhel" ]
-    then
-      subscription-manager register --auto-attach --username="$username" --password="$password"
-      subscription-manager repos --enable=rhel-7-server-extras-rpms
-  fi
+subscription_manager() {
+   if [ "$node_os" = "rhel" ]; then
+    subscription-manager register --auto-attach --username="$rhel_username" --password="$rhel_password" || echo "Failed to register or attach subscription."
+    subscription-manager repos --enable=rhel-7-server-extras-rpms || echo "Failed to enable repositories."
+   fi
 }
 
 disable_cloud_setup() {
-   local node_os="${1}"
+   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
+      if systemctl is-enabled --quiet nm-cloud-setup.service 2>/dev/null; then
+        systemctl disable nm-cloud-setup.service
+      else
+        echo "nm-cloud-setup.service not found or not enabled"
+      fi
 
-if  [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = *"centos"* ]]
-  then
-    NM_CLOUD_SETUP_SERVICE_ENABLED=$(systemctl status nm-cloud-setup.service | grep -i enabled)
-    NM_CLOUD_SETUP_TIMER_ENABLED=$(systemctl status nm-cloud-setup.timer | grep -i enabled)
-
-    if [ "${NM_CLOUD_SETUP_SERVICE_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.service
-    fi
-
-    if [ "${NM_CLOUD_SETUP_TIMER_ENABLED}" ]; then
-    systemctl disable nm-cloud-setup.timer
-    fi
-fi
-
+      if systemctl is-enabled --quiet nm-cloud-setup.timer 2>/dev/null; then
+        systemctl disable nm-cloud-setup.timer
+      else
+        echo "nm-cloud-setup.timer not found or not enabled"
+      fi
+   fi
 }
 
-export "${3}"="${4}"
-
 install() {
-    local datastore_type="${1}"
-    local version="${2}"
-    local channel="${3}"
-    local datastore_endpoint="${4}"
+  export "$install_mode"="$version"
 
-  if [ "$datastore_type" = "etcd" ]
-  then
-     echo "CLUSTER TYPE is ETCD and channel is $channel"
-     if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]
-     then
-         curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
-     else
-         if [[ -n "$channel" ]]
-         then
-             curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
-         else
-             curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
-         fi
-     fi
-  else
-    echo "CLUSTER TYPE is external db and channel is $channel"
-    if [[ "$version" == *"v1.18"* ]] || [[ "$version" == *"v1.17"* ]]
-    then
-        curl -sfL https://get.k3s.io | sh -s - server --datastore-endpoint="$datastore_endpoint"
+  if [ "$datastore_type" = "etcd" ]; then
+    if [[ -n "$channel" ]]; then
+      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
     else
-        if [[ -n "$channel" ]]
-        then
-            curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - server --datastore-endpoint="$datastore_endpoint"
-        else
-            curl -sfL https://get.k3s.io | sh -s - server  --datastore-endpoint="$datastore_endpoint"
-        fi
+      curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
+    fi
+  elif  [[ "$datastore_type" = "external" ]]; then
+    if [[ -n "$channel" ]]; then
+      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - server --datastore-endpoint="$datastore_endpoint"
+    else
+      curl -sfL https://get.k3s.io | sh -s - server  --datastore-endpoint="$datastore_endpoint"
     fi
   fi
 }
@@ -125,7 +116,7 @@ wait_nodes() {
   timeElapsed=0
 
   while (( timeElapsed < 1200 )); do
-    if kubectl get nodes >/dev/null 2>&1; then
+    if kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get nodes >/dev/null 2>&1; then
       return
     fi
     sleep 5
@@ -143,7 +134,7 @@ wait_ready_nodes() {
 
   while (( timeElapsed < 800 )); do
     not_ready=false
-    for rec in $(kubectl get nodes); do
+    for rec in $(kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get nodes); do
       if [[ "$rec" == *"NotReady"* ]]; then
         not_ready=true
         break
@@ -168,7 +159,7 @@ wait_pods() {
     helmPodsNR=false
     systemPodsNR=false
 
-    for rec in $(kubectl get pods -A --no-headers); do
+    for rec in $(kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get pods -A --no-headers); do
       if [[ "$rec" == *"helm-install"* ]] && [[ "$rec" != *"Completed"* ]]; then
         helmPodsNR=true
       elif [[ "$rec" != *"helm-install"* ]] && [[ "$rec" != *"Running"* ]]; then
@@ -189,25 +180,31 @@ wait_pods() {
 }
 
 config_files() {
-  cat /etc/rancher/k3s/config.yaml> /tmp/joinflags
-  cat /var/lib/rancher/k3s/server/node-token >/tmp/nodetoken
-  cat /etc/rancher/k3s/k3s.yaml >/tmp/config
+  cat /etc/rancher/k3s/config.yaml > /tmp/joinflags
+  cat /var/lib/rancher/k3s/server/node-token > /tmp/nodetoken
+  cat /etc/rancher/k3s/k3s.yaml > /tmp/config
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   sudo chmod 644 /etc/rancher/k3s/k3s.yaml
-  export alias k=kubectl
 }
 
 main() {
-  create_directories
-  create_config "$2" "$6"
-  add_config "$8"
-  policy_files "$8" "$4"
-  rhel "$1" "$9" "${10}"
-  disable_cloud_setup "$1"
-  install "$5" "$4" "${11}" "$7"
-  wait_nodes
-  wait_ready_nodes
-  wait_pods
+  create_config
+  update_config
+  policy_files
+  subscription_manager
+  disable_cloud_setup
+  install
+  if [ "$etcd_only_node" -eq 0 ]; then
+    # If etcd only node count is 0, then wait for nodes/pods to come up. 
+    # etcd only node needs api server to come up fully, which is in control plane node. 
+    # and hence we cannot wait for node/pod status in this case. 
+    wait_nodes
+    wait_ready_nodes
+    wait_pods
+  else
+    # add sleep to make sure install finished and the node token file is present on the node for a copy
+    sleep 30
+  fi
   config_files
 }
 main "$@"

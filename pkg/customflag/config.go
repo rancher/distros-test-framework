@@ -18,7 +18,7 @@ type FlagConfig struct {
 	ClusterConfig     clusterConfigFlag
 	SUCUpgradeVersion sucUpgradeVersion
 	Channel           channelFlag
-	SonobouyVersion   externalConfigFlag
+	ExternalFlag      externalConfigFlag
 }
 
 type sucUpgradeVersion struct {
@@ -37,13 +37,17 @@ type channelFlag struct {
 type testConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
-	DeployWorkload bool
+	ApplyWorkload  bool
+	DeleteWorkload bool
 	WorkloadName   string
 	Description    string
 }
 
 type externalConfigFlag struct {
-	SonobuoyVersion string
+	SonobuoyVersion     string
+	CertManagerVersion  string
+	RancherHelmVersion  string
+	RancherImageVersion string
 }
 
 type clusterConfigFlag struct {
@@ -52,7 +56,7 @@ type clusterConfigFlag struct {
 
 type destroyFlag bool
 
-type TestCaseFlag func(deployWorkload bool)
+type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
 type stringSlice []string
 

@@ -1,22 +1,26 @@
 package testcase
 
 import (
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIp(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "clusterip.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
-
+func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	err = assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	clusterip, port, _ := shared.FetchClusterIP("test-clusterip", "nginx-clusterip-svc")
+	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
@@ -25,14 +29,17 @@ func TestServiceClusterIp(deleteWorkload bool) {
 	}
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "clusterip.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
 	}
 }
 
-func TestServiceNodePort(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "nodeport.yaml")
-	Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "nodeport manifest not deployed")
+	}
 
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
@@ -55,14 +62,17 @@ func TestServiceNodePort(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "nodeport.yaml")
-		Expect(err).NotTo(HaveOccurred(), "NodePort manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deleted")
 	}
 }
 
-func TestServiceLoadBalancer(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "loadbalancer.yaml")
-	Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deployed")
+func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "loadbalancer.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "loadbalancer manifest not deployed")
+	}
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
@@ -72,19 +82,56 @@ func TestServiceLoadBalancer(deleteWorkload bool) {
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
 		"--field-selector=status.phase=Running --kubeconfig="
 	loadBalancer := "test-loadbalancer"
-	nodeExternalIP := shared.FetchNodeExternalIP()
-	for _, ip := range nodeExternalIP {
+	validNodes, err := shared.GetNodesByRoles("control-plane", "worker")
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
 			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
-			"curl -sL --insecure http://"+ip+":"+port+"/name.html",
+			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
 		)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "loadbalancer.yaml")
-		Expect(err).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "loadbalancer.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Loadbalancer manifest not deleted")
+	}
+}
+
+func testServiceNodePortDualStack(td testData) {
+	cluster, err := FetchCluster()
+	Expect(err).NotTo(HaveOccurred())
+	nodeExternalIP := shared.FetchNodeExternalIP()
+	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	for _, ip := range nodeExternalIP {
+		if strings.Contains(ip, ":") {
+			ip = shared.EncloseSqBraces(ip)
+		}
+		err = assert.CheckComponentCmdNode(
+			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+			cluster.GeneralConfig.BastionIP,
+			td.Expected)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
+
+func testServiceClusterIPs(td testData) {
+	clusterIPs, port, err := shared.FetchClusterIPs(td.Namespace, td.SVC)
+	clusterIPSlice := strings.Split(clusterIPs, " ")
+	Expect(err).NotTo(HaveOccurred(), err)
+	nodeExternalIPs := shared.FetchNodeExternalIP()
+
+	for _, clusterIP := range clusterIPSlice {
+		if strings.Contains(clusterIP, ":") {
+			clusterIP = shared.EncloseSqBraces(clusterIP)
+		}
+		err := assert.ValidateOnNode(nodeExternalIPs[0],
+			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
+		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }

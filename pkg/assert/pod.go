@@ -2,6 +2,7 @@ package assert
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/onsi/gomega/types"
@@ -12,7 +13,10 @@ import (
 
 type PodAssertFunc func(g Gomega, pod shared.Pod)
 
-var statusCompleted = "Completed"
+const (
+	statusCompleted = "Completed"
+	statusRunning   = "Running"
+)
 
 // PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
 // controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once
@@ -56,7 +60,7 @@ func checkReadyFields() types.GomegaMatcher {
 // apply pods can have an error status
 func PodAssertStatus() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
-		if strings.Contains(pod.Name, "helm-install") {
+		if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") {
 			g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
 		} else if strings.Contains(pod.Name, "apply") &&
 			strings.Contains(pod.NameSpace, "system-upgrade") {
@@ -68,17 +72,6 @@ func PodAssertStatus() PodAssertFunc {
 			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
 		}
 	}
-}
-
-// CheckPodStatusRunning asserts that the pod is running with the specified label = app name.
-func CheckPodStatusRunning(name, namespace, assert string) {
-	cmd := "kubectl get pods -n " + namespace + " -o=name -l k8s-app=" + name +
-		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
-	Eventually(func(g Gomega) {
-		res, err := shared.RunCommandHost(cmd)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(res).Should(ContainSubstring(assert))
-	}, "180s", "5s").Should(Succeed())
 }
 
 // ValidatePodIPByLabel validates expected pod IP by label
@@ -100,4 +93,36 @@ func ValidatePodIPByLabel(labels, expected []string) {
 		return nil
 	}, "180s", "30s").Should(Succeed(),
 		"failed to validate expected: %s on %s", expected, labels)
+}
+
+// ValidatePodIPsByLabel validates expected pod IPs by label
+func ValidatePodIPsByLabel(label string, expected []string) {
+	cmd := "kubectl get pods -l " + label +
+		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
+		" --kubeconfig=" + shared.KubeConfigFile
+	Eventually(func() error {
+		res, _ := shared.RunCommandHost(cmd)
+		ips := strings.Split(res, " ")
+		Expect(len(ips)).ShouldNot(BeZero())
+		Expect(len(expected)).ShouldNot(BeZero())
+		for i, ip := range ips {
+			_, subnet, _ := net.ParseCIDR(expected[i])
+			if subnet.Contains(net.ParseIP(ip)) {
+				return nil
+			}
+		}
+		return nil
+	}, "180s", "5s").Should(Succeed(),
+		"failed to validate podIPs in expected range %s for label  %s",
+		expected, label)
+}
+
+// PodStatusRunning checks status of pods is Running when searched by namespace and label
+func PodStatusRunning(namespace, label string) {
+	cmd := "kubectl get pods -n " + namespace + " -l " + label +
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+	Eventually(func(g Gomega) {
+		err := ValidateOnHost(cmd, statusRunning)
+		g.Expect(err).NotTo(HaveOccurred(), err)
+	}, "30s", "5s").Should(Succeed())
 }

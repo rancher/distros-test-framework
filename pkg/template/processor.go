@@ -14,7 +14,13 @@ import (
 // processCmds runs the tests per ips using processOnNode and processOnHost validation.
 //
 // it will spawn a go routine per testCombination and ip.
-func processCmds(resultChan chan error, wg *sync.WaitGroup, ip string, cmds []string, expectedValues []string) {
+func processCmds(
+	resultChan chan error,
+	wg *sync.WaitGroup,
+	ip string,
+	cmds []string,
+	expectedValues []string,
+) {
 	if len(cmds) != len(expectedValues) {
 		resultChan <- shared.ReturnLogError("mismatched length commands x expected values:"+
 			" %s x %s", cmds, expectedValues)
@@ -85,14 +91,14 @@ func processOnNode(resultChan chan error, ip, cmd, expectedValue string) {
 	var version string
 	var err error
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
-	version, err = shared.GetProductVersion(product)
+	version, err = shared.ProductVersion(product)
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)
@@ -130,14 +136,14 @@ func processOnHost(resultChan chan error, ip, cmd, expectedValue string) {
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product: %v", err)
 		close(resultChan)
 		return
 	}
 
-	version, err = shared.GetProductVersion(product)
+	version, err = shared.ProductVersion(product)
 	if err != nil {
 		resultChan <- shared.ReturnLogError("failed to get product version: %v", err)
 		close(resultChan)

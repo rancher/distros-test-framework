@@ -1,5 +1,5 @@
 output "Route53_info" {
-  value       = aws_route53_record.aws_route53.*
+  value       = length(aws_route53_record.aws_route53) > 0 ? aws_route53_record.aws_route53[0].fqdn : ""
   description = "List of DNS records"
 }
 
@@ -9,5 +9,5 @@ output "kubeconfig" {
 }
 
 output "master_ips" {
-  value = join("," , aws_instance.master.*.public_ip,aws_instance.master2.*.public_ip)
+  value = join("," , aws_instance.master.*.public_ip,aws_instance.master2-ha.*.public_ip)
 }

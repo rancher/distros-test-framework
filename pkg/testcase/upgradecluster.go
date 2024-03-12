@@ -19,24 +19,24 @@ import (
 func TestUpgradeClusterSUC(version string) error {
 	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
-	_, err := shared.ManageWorkload("apply", "suc.yaml")
-	Expect(err).NotTo(HaveOccurred(),
+	workloadErr := shared.ManageWorkload("apply", "suc.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(),
 		"system-upgrade-controller manifest did not deploy successfully")
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
-	err = assert.CheckComponentCmdHost(
+	err := assert.CheckComponentCmdHost(
 		getPodsSystemUpgrade+shared.KubeConfigFile,
 		"system-upgrade-controller",
 		statusRunning,
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
 	originalFilePath := shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/workloads/amd64/%s-upgrade-plan.yaml", product)
-	newFilePath := shared.BasePath() + "/distros-test-framework/workloads/amd64/plan.yaml"
+		fmt.Sprintf("/workloads/amd64/%s-upgrade-plan.yaml", product)
+	newFilePath := shared.BasePath() + "/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)
 	if err != nil {
@@ -49,20 +49,20 @@ func TestUpgradeClusterSUC(version string) error {
 		return fmt.Errorf("failed to write file: %s", err)
 	}
 
-	_, err = shared.ManageWorkload("apply", "plan.yaml")
-	Expect(err).NotTo(HaveOccurred(), "failed to upgrade cluster.")
+	workloadErr = shared.ManageWorkload("apply", "plan.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "failed to upgrade cluster.")
 
 	return nil
 }
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
 func TestUpgradeClusterManually(version string) error {
-	fmt.Printf("\nUpgrading cluster to: %s\n", version)
+	fmt.Printf("\nUpgrading cluster to: %s", version)
 
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	cluster := factory.AddCluster(GinkgoT())
+	cluster := factory.ClusterConfig(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")
@@ -83,8 +83,8 @@ func TestUpgradeClusterManually(version string) error {
 	return nil
 }
 
-// upgradeNode upgrades a node server or agent type to the specified version
-func upgradeNode(nodeType string, installType string, ips []string) error {
+// upgradeProduct upgrades a node server or agent type to the specified version
+func upgradeProduct(nodeType string, installType string, ips []string) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(ips))
 
@@ -96,20 +96,20 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 			defer wg.Done()
 			defer GinkgoRecover()
 
-			fmt.Println("Upgrading " + nodeType + " to: " + upgradeCommand)
+			fmt.Printf("\nUpgrading %s %s to: %s", ip, nodeType, upgradeCommand)
+
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				fmt.Printf("\nError upgrading %s %s: %v\n\n", nodeType, ip, err)
+				shared.LogLevel("\nwarn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
 				errCh <- err
-				close(errCh)
 				return
 			}
 
-			product, err := shared.GetProduct()
+			product, err := shared.Product()
 			if err != nil {
 				return
 			}
 
-			fmt.Println("Restarting " + nodeType + ": " + ip)
+			fmt.Println("\nRestarting " + nodeType + ": " + ip)
 			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}
@@ -122,7 +122,7 @@ func upgradeNode(nodeType string, installType string, ips []string) error {
 func getInstallCmd(installType string, nodeType string) string {
 	var installFlag string
 	var installCmd string
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}
@@ -141,7 +141,7 @@ func getInstallCmd(installType string, nodeType string) string {
 }
 
 func getChannel() string {
-	product, err := shared.GetProduct()
+	product, err := shared.Product()
 	if err != nil {
 		return err.Error()
 	}
@@ -157,9 +157,9 @@ func getChannel() string {
 }
 
 func upgradeServer(installType string, serverIPs []string) error {
-	return upgradeNode("server", installType, serverIPs)
+	return upgradeProduct("server", installType, serverIPs)
 }
 
 func upgradeAgent(installType string, agentIPs []string) error {
-	return upgradeNode("agent", installType, agentIPs)
+	return upgradeProduct("agent", installType, agentIPs)
 }

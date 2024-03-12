@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.ProductConfig
+var cfg *config.Product
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -26,7 +26,8 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Var(&customflag.TestCaseNameFlag, "testCase", "Comma separated list of test case names to run")
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeployWorkload, "deployWorkload", false, "Deploy workload customflag for tests passed in")
+	flag.BoolVar(&customflag.ServiceFlag.TestConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
+	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
@@ -46,12 +47,7 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	configPath, err := shared.EnvDir("entrypoint")
-	if err != nil {
-		return
-	}
-
-	cfg, err = config.AddConfigEnv(configPath)
+	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}

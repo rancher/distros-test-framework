@@ -6,13 +6,14 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-	. "github.com/onsi/ginkgo/v2"
-	"github.com/rancher/distros-test-framework/config"
+
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
 )
 
-// AddCluster returns a singleton cluster with all terraform config and vars
-func AddCluster(g GinkgoTInterface) *Cluster {
+// ClusterConfig returns a singleton cluster with all terraform config and vars
+func ClusterConfig(g GinkgoTInterface) *Cluster {
 	once.Do(func() {
 		var err error
 		cluster, err = newCluster(g)
@@ -52,15 +53,19 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
-	fmt.Println("Creating Cluster")
-	terraform.InitAndApply(g, terraformOptions)
+	shared.LogLevel("info", "\nCreating cluster\n")
+	_, err = terraform.InitAndApplyE(g, terraformOptions)
+	if err != nil {
+		shared.LogLevel("error", "\nCreating cluster Failed!!!\n")
+		return nil, err
+	}
 
 	numServers, err = addSplitRole(g, varDir, numServers)
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := addClusterConfig(g, varDir, terraformOptions)
+	c, err := loadTFconfig(g, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -75,24 +80,18 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 // DestroyCluster destroys the cluster and returns it
 func DestroyCluster(g GinkgoTInterface) (string, error) {
 	var varDir string
-	configPath, err := shared.EnvDir("factory")
+	cfg, err := shared.EnvConfig()
 	if err != nil {
-		return "", shared.ReturnLogError("error getting config path: %w", err)
+		return "", err
 	}
-
-	cfg, err := config.AddConfigEnv(configPath)
-	if err != nil {
-		return "", shared.ReturnLogError("error getting config: %w", err)
-	}
-
 	varDir, err = filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
 		return "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
 	}
 
 	tfDir, err := filepath.Abs(shared.BasePath() +
-		fmt.Sprintf("/distros-test-framework/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", cfg.Product))
 	if err != nil {
 		return "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
 	}

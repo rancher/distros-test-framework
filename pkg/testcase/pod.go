@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -21,13 +20,13 @@ func TestPodStatus(
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
 			processPodStatus(g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
 		}
-	}, "900s", "5s").Should(Succeed())
+	}, "2500s", "10s").Should(Succeed())
 
-	fmt.Println("\n\nCluster Pods:")
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
 }

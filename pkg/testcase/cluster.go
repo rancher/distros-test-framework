@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.AddCluster(g)
+	cluster := factory.ClusterConfig(g)
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -24,13 +24,17 @@ func TestBuildCluster(g GinkgoTInterface) {
 		fmt.Println("Backend:", cluster.Config.ExternalDb)
 	}
 
-	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "" {
-		for i := 0; i > len(cluster.ServerIPs); i++ {
-			cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
-			res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
-			Expect(err).NotTo(HaveOccurred())
-			Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
-		}
+	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
+		cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
+		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
+
+		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
+			cluster.ServerIPs[0])
+		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
+		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
+		Expect(err).To(HaveOccurred())
 	}
 
 	fmt.Println("\nKUBECONFIG:")
@@ -41,7 +45,10 @@ func TestBuildCluster(g GinkgoTInterface) {
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("\nServer Node IPS:", cluster.ServerIPs)
+	if cluster.GeneralConfig.BastionIP != "" {
+		fmt.Println("\nBastion Node IP:", cluster.GeneralConfig.BastionIP)
+	}
+	fmt.Println("\nServer Node IPs:", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -52,7 +59,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.SonobouyVersion.String()
+	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -83,12 +90,18 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
+// FetchCluster returns the cluster
+func FetchCluster() (*factory.Cluster, error) {
+	cluster := factory.ClusterConfig(GinkgoT())
+	return cluster, nil
+}
+
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs
 // agentNum		int			Number of agent nodes
 // agentIPs		[]string	IP list of agent nodes
 // isWindows 	bool 		Check for Windows enablement
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
-	info := "Agent Node IPS:"
+	info := "Agent Node IPs:"
 
 	if isWindows {
 		info = "Windows " + info

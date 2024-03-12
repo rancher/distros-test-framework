@@ -12,13 +12,16 @@ import (
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply", "local-path-provisioner.yaml")
-	Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
+func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "local-path-provisioner manifest not deployed")
+	}
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
 		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
-	err = assert.ValidateOnHost(
+	err := assert.ValidateOnHost(
 		getPodVolumeTestRunning,
 		statusRunning,
 	)
@@ -53,8 +56,8 @@ func TestLocalPathProvisionerStorage(deleteWorkload bool) {
 	}
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete", "local-path-provisioner.yaml")
-		Expect(err).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
+		workloadErr = shared.ManageWorkload("delete", "local-path-provisioner.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "local-path-provisioner manifest not deleted")
 	}
 }
 

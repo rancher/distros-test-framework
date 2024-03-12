@@ -5,8 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 var (
@@ -26,41 +29,43 @@ type Node struct {
 }
 
 type Pod struct {
-	NameSpace string
-	Name      string
-	Ready     string
-	Status    string
-	Restarts  string
-	Age       string
-	NodeIP    string
-	Node      string
+	NameSpace      string
+	Name           string
+	Ready          string
+	Status         string
+	Restarts       string
+	Age            string
+	NodeIP         string
+	Node           string
+	NominatedNode  string
+	ReadinessGates string
 }
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
-func ManageWorkload(action string, workloads ...string) (string, error) {
+func ManageWorkload(action string, workloads ...string) error {
 	if action != "apply" && action != "delete" {
-		return "", ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
+		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
-	resourceDir := BasePath() + "/distros-test-framework/workloads/" + Arch
+	resourceDir := BasePath() + "/workloads/" + Arch
 
 	files, err := os.ReadDir(resourceDir)
 	if err != nil {
-		return "", ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
+		return ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
 	}
 
 	for _, workload := range workloads {
 		if !fileExists(files, workload) {
-			return "", ReturnLogError("workload %s not found", workload)
+			return ReturnLogError("workload %s not found", workload)
 		}
 
 		err := handleWorkload(action, resourceDir, workload)
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 
-	return "", nil
+	return nil
 }
 
 func handleWorkload(action, resourceDir, workload string) error {
@@ -81,6 +86,9 @@ func applyWorkload(workload, filename string) error {
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	if err != nil || out == "" {
+		if strings.Contains(out, "error when creating") {
+			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
+		}
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -135,7 +143,7 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command arguments.
+// args   = the rest of your command arguments
 func KubectlCommand(destination, action, source string, args ...string) (string, error) {
 	kubeconfigFlag := " --kubeconfig=" + KubeConfigFile
 	shortCmd := map[string]string{
@@ -151,13 +159,33 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	cmd := cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+	product, err := Product()
+	if err != nil {
+		return "", ReturnLogError("failed to get product: %w\n", err)
+	}
 
+	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
+		product)); envErr != nil {
+
+		return "", ReturnLogError("error setting env: %w\n", envErr)
+	}
+
+	resourceName := os.Getenv("resource_name")
+	serverIP, _, err := kubeCfgServerIP(resourceName)
+	if err != nil {
+		return "", ReturnLogError("failed to extract server IP: %w", err)
+	}
+
+	var cmd string
 	switch destination {
 	case "host":
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		return kubectlCmdOnNode(cmd)
+		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
+		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
 	}
@@ -172,31 +200,27 @@ func kubectlCmdOnHost(cmd string) (string, error) {
 	return res, nil
 }
 
-func kubectlCmdOnNode(cmd string) (string, error) {
-	ips := FetchNodeExternalIP()
-	var finalRes string
-
-	for _, ip := range ips {
-		res, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", err
-		}
-		finalRes += res
+func kubectlCmdOnNode(cmd, ip string) (string, error) {
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return "", err
 	}
 
-	return finalRes, nil
+	return res, nil
 }
 
-// FetchClusterIP returns the cluster IP and port of the service.
-func FetchClusterIP(namespace, serviceName string) (ip, port string, err error) {
-	ip, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIP}' --kubeconfig=" + KubeConfigFile)
+// FetchClusterIPs returns the cluster IPs and port of the service.
+func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
+	cmd := "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=" + KubeConfigFile
+	ip, err = RunCommandHost(cmd)
 	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster IP: %v\n", err)
+		return "", "", ReturnLogError("failed to fetch cluster IPs: %v\n", err)
 	}
 
-	port, err = RunCommandHost("kubectl get svc " + serviceName + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile)
+	cmd = "kubectl get svc " + svc + " -n " + namespace +
+		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
+	port, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
 	}
@@ -262,7 +286,7 @@ func SonobuoyMixedOS(action, version string) error {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
-	scriptsDir := BasePath() + "/distros-test-framework/scripts/mixedos_sonobuoy.sh"
+	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
@@ -277,6 +301,16 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
+// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide
+func PrintClusterState() {
+	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + KubeConfigFile
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		_ = ReturnLogError("failed to print cluster state: %w\n", err)
+	}
+	fmt.Println("\n", res)
+}
+
 // GetNodes returns nodes parsed from kubectl get nodes.
 func GetNodes(print bool) ([]Node, error) {
 	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
@@ -287,6 +321,44 @@ func GetNodes(print bool) ([]Node, error) {
 	nodes := parseNodes(res)
 	if print {
 		fmt.Println(res)
+	}
+
+	return nodes, nil
+}
+
+// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles
+// Valid values for roles are: etcd, control-plane, worker
+func GetNodesByRoles(roles ...string) ([]Node, error) {
+	var nodes []Node
+	var matchedNodes []Node
+
+	if roles == nil {
+		return nil, ReturnLogError("no roles provided")
+	}
+
+	validRoles := map[string]bool{
+		"etcd":          true,
+		"control-plane": true,
+		"worker":        true,
+	}
+
+	for _, role := range roles {
+		if !validRoles[role] {
+			return nil, ReturnLogError("invalid role: %s", role)
+		}
+
+		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+			" --no-headers --kubeconfig=" + KubeConfigFile +
+			" -l role-" + role
+		res, err := RunCommandHost(cmd)
+		if err != nil {
+			return nil, err
+		}
+		matchedNodes = append(matchedNodes, parseNodes(res)...)
+	}
+
+	for _, matchedNode := range matchedNodes {
+		nodes = appendNodeIfMissing(nodes, matchedNode)
 	}
 
 	return nodes, nil
@@ -330,8 +402,36 @@ func GetPods(print bool) ([]Pod, error) {
 
 	pods := parsePods(res)
 	if print {
-		fmt.Println(res)
+		fmt.Println("\nCluster pods:\n", res)
 	}
+
+	return pods, nil
+}
+
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
+// Example filters are: namespace, label, --field-selector
+func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
+	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
+	for option, value := range filters {
+		var opt string
+
+		switch option {
+		case "namespace":
+			opt = "-n"
+		case "label":
+			opt = "-l"
+		default:
+			opt = option
+		}
+		cmd = strings.Join([]string{cmd, opt, value}, " ")
+	}
+
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
+	}
+
+	pods := parsePods(res)
 
 	return pods, nil
 }
@@ -342,30 +442,29 @@ func parsePods(res string) []Pod {
 	podList := strings.Split(strings.TrimSpace(res), "\n")
 
 	for _, rec := range podList {
-		fields := strings.Fields(rec)
-		if strings.TrimSpace(rec) == "" {
+		offset := 0
+		fields := regexp.MustCompile(`\s{2,}`).Split(rec, -1)
+		if strings.TrimSpace(rec) == "" || len(fields) < 9 {
 			continue
 		}
-
-		if len(fields) < 9 {
-			continue
+		var p Pod
+		if len(fields) == 10 {
+			p.NameSpace = fields[0]
+			offset = 1
 		}
+		p.Name = fields[offset]
+		p.Ready = fields[offset+1]
+		p.Status = fields[offset+2]
+		p.Restarts = regexp.MustCompile(`\([^\)]+\)`).Split(fields[offset+3], -1)[0]
+		p.Age = fields[offset+4]
+		p.NodeIP = fields[offset+5]
+		p.Node = fields[offset+6]
+		p.NominatedNode = fields[offset+7]
+		p.ReadinessGates = fields[offset+8]
 
-		p := Pod{
-			NameSpace: fields[0],
-			Name:      fields[1],
-			Ready:     fields[2],
-			Status:    fields[3],
-			Restarts:  fields[4],
-			Age:       fields[5],
-			NodeIP:    fields[6],
-			Node:      fields[7],
-		}
 		pods = append(pods, p)
 	}
-
 	return pods
-
 }
 
 // ReadDataPod reads the data from the pod
@@ -408,4 +507,83 @@ func WriteDataPod(namespace string) (string, error) {
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
+}
+
+// kubeCfgServerIP extracts the server IP from the kubeconfig file.
+func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
+	if resourceName == "" {
+		return "", "", ReturnLogError("resource name not sent\n")
+	}
+
+	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
+	kubeconfigContent, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
+	}
+	// get server ip value from `server:` key
+	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
+	// removing newline
+	serverIP = strings.Split(serverIP, "\n")[0]
+	// removing the https://
+	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
+	// removing the port
+	serverIP = strings.Split(serverIP, ":")[0]
+
+	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
+
+	return serverIP, string(kubeconfigContent), nil
+}
+
+// GetNodeArgsMap returns list of nodeArgs map
+func GetNodeArgsMap(nodeType string) (map[string]string, error) {
+	product, err := Product()
+	if err != nil {
+		return nil, err
+	}
+	res, err := KubectlCommand(
+		"host",
+		"get",
+		"nodes "+
+			fmt.Sprintf(
+				`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`,
+				product),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeArgsMapSlice := processNodeArgs(res)
+
+	for _, nodeArgsMap := range nodeArgsMapSlice {
+		if nodeArgsMap["node-type"] == nodeType {
+			return nodeArgsMap, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
+	nodeArgsSlice := strings.Split(nodeArgs, "]")
+
+	for _, item := range nodeArgsSlice[:(len(nodeArgsSlice) - 1)] {
+		items := strings.Split(item, `","`)
+		nodeArgsMap := map[string]string{}
+
+		for range items[1:] {
+			nodeArgsMap["node-type"] = strings.Trim(items[0], `["`)
+			regxCompile := regexp.MustCompile(`--|"`)
+
+			for i := 1; i < len(items); i += 2 {
+				if i < (len(items) - 1) {
+					key := regxCompile.ReplaceAllString(items[i], "")
+					value := regxCompile.ReplaceAllString(items[i+1], "")
+					nodeArgsMap[key] = value
+				}
+			}
+		}
+		nodeArgsMapSlice = append(nodeArgsMapSlice, nodeArgsMap)
+	}
+
+	return nodeArgsMapSlice
 }

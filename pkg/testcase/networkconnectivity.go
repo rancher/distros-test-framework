@@ -5,31 +5,47 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/gomega"
 )
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster
 // and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(deleteWorkload bool) {
-	_, err := shared.ManageWorkload("apply",
-		"pod_client.yaml", "windows_app_deployment.yaml")
-	Expect(err).NotTo(HaveOccurred())
+func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply",
+			"pod_client.yaml", "windows_app_deployment.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
+	}
 
 	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
-	err = testCrossNodeService(
+	err := testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
 		[]string{"8080", "3000"},
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
 	Expect(err).NotTo(HaveOccurred())
 
 	if deleteWorkload {
-		_, err := shared.ManageWorkload("delete",
+		workloadErr = shared.ManageWorkload("delete",
 			"pod_client.yaml", "windows_app_deployment.yaml")
-		Expect(err).NotTo(HaveOccurred())
+		Expect(workloadErr).NotTo(HaveOccurred())
 	}
+}
+
+// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
+func testIPsInCIDRRange(label, svc string) {
+	nodeArgs, err := shared.GetNodeArgsMap("server")
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
+	serviceCIDR := strings.Split(nodeArgs["service-cidr"], ",")
+
+	assert.ValidatePodIPsByLabel(label, clusterCIDR)
+	assert.ValidateClusterIPsBySVC(svc, serviceCIDR)
 }
 
 // testCrossNodeService Perform testing cross node communication via service exec call
