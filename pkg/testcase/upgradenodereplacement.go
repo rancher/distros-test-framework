@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -20,24 +21,21 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(version string) error {
+func TestUpgradeReplaceNode(version string) {
 	if version == "" {
-		return shared.ReturnLogError("version not sent\n")
+		Expect(version).NotTo(BeEmpty(), "version not sent")
 	}
 
 	cluster := factory.ClusterConfig(GinkgoT())
 
-	if envErr := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		cluster.Config.Product)); envErr != nil {
+	envErr := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars",
+		cluster.Config.Product))
+	Expect(envErr).NotTo(HaveOccurred(), "error setting env: %s", envErr)
 
-		return shared.ReturnLogError("error setting env: %w\n", envErr)
-	}
 	resourceName := os.Getenv("resource_name")
 
 	awsDependencies, err := aws.AddNode()
-	if err != nil {
-		return shared.ReturnLogError("error adding aws nodes: %w\n", err)
-	}
+	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	var (
 		serverNames,
@@ -54,24 +52,19 @@ func TestUpgradeReplaceNode(version string) error {
 
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
 		awsDependencies.CreateInstances(serverNames...)
-	if createErr != nil {
-		return createErr
-	}
+	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("info", "\ncreated server public ips: %s ids:%s\n",
 		newExternalServerIps, instanceServerIds)
 
-	if scpErr := scpToNewNodes(cluster.Config.Product, master, newExternalServerIps); scpErr != nil {
-		return scpErr
-	}
+	scpErr := scpToNewNodes(cluster.Config.Product, master, newExternalServerIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 
 	serverLeaderIp := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(serverLeaderIp)
-	if err != nil {
-		return err
-	}
+	Expect(err).NotTo(HaveOccurred(), err)
 
-	if serverErr := replaceServers(
+	serverErr := replaceServers(
 		cluster,
 		awsDependencies,
 		resourceName,
@@ -80,9 +73,9 @@ func TestUpgradeReplaceNode(version string) error {
 		version,
 		newExternalServerIps,
 		newPrivateServerIps,
-	); serverErr != nil {
-		return serverErr
-	}
+	)
+	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
+
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists
@@ -95,34 +88,29 @@ func TestUpgradeReplaceNode(version string) error {
 
 		newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
 			awsDependencies.CreateInstances(agentNames...)
-		if createAgentErr != nil {
-			return createAgentErr
-		}
+		Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
+
 		shared.LogLevel("info", "created worker ips: %s worker ids:%s\n",
 			newExternalAgentIps, instanceAgentIds)
 
-		if scpErr := scpToNewNodes(cluster.Config.Product, agent, newExternalAgentIps); scpErr != nil {
-			return scpErr
-		}
+		scpErr := scpToNewNodes(cluster.Config.Product, agent, newExternalAgentIps)
+		Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+
 		shared.LogLevel("info", "scp files to new worker nodes done\n")
 
-		if agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
+		agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
 			newPrivateAgentIps,
-		); agentErr != nil {
-			shared.LogLevel("error", "error replacing agents: %w\n", agentErr)
+		)
+		Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
 
-			return agentErr
-		}
 		shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 	}
 
 	// delete the last remaining server = leader
-	if delErr := deleteServer(serverLeaderIp, awsDependencies); delErr != nil {
-		return delErr
-	}
-	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
+	delErr := deleteServer(serverLeaderIp, awsDependencies)
+	Expect(delErr).NotTo(HaveOccurred(), delErr)
 
-	return nil
+	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
 }
 
 func scpToNewNodes(product, nodeType string, newNodeIps []string) error {

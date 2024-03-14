@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -47,8 +46,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Upgrade by Node replacement", func() {
-		err := testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
-		Expect(err).NotTo(HaveOccurred())
+		testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
