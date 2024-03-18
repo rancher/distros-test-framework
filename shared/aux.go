@@ -46,12 +46,14 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
+	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %w\n", err)
 	}
+
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
@@ -68,8 +70,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
 	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
 
-	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
-		!strings.Contains(cleanedStderr, "1") ||
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") || !strings.Contains(cleanedStderr, "1") ||
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
@@ -131,6 +132,66 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	}
 
 	return count
+}
+
+// RunScp copies files from local to remote host based on a list of local and remote paths.
+func RunScp(ip, product string, localPaths, remotePaths []string) error {
+	if ip == "" {
+		return ReturnLogError("ip is needed.\n")
+	}
+
+	if product != "rke2" && product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", product)
+	}
+
+	if len(localPaths) != len(remotePaths) {
+		return ReturnLogError("the number of local paths and remote paths must be the same\n")
+	}
+
+	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
+		return err
+	}
+
+	for i, localPath := range localPaths {
+		remotePath := remotePaths[i]
+		scp := fmt.Sprintf(
+			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
+			AccessKey,
+			localPath,
+			AwsUser,
+			ip,
+			remotePath,
+		)
+
+		res, cmdErr := RunCommandHost(scp)
+		if res != "" {
+			LogLevel("warn", "scp output: %s\n", res)
+		}
+		if cmdErr != nil {
+			LogLevel("error", "failed to run scp: %v\n", cmdErr)
+			return cmdErr
+		}
+
+		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
+		_, cmdErr = RunCommandOnNode(chmod, ip)
+		if cmdErr != nil {
+			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
+			return cmdErr
+		}
+	}
+	LogLevel("info", "Files copied and chmod successfully\n")
+
+	return nil
+}
+
+// AddHelmRepo adds a helm repo to the cluster.
+func AddHelmRepo(name, url string) (string, error) {
+	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
+	update := "helm repo update"
+	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
+		name, name, name, KubeConfigFile)
+
+	return RunCommandHost(addRepo, update, installRepo)
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
@@ -419,6 +480,21 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 	}
 	return append(slice, i)
 }
+
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
+}
+
+// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide
+func PrintGetAll() {
+	kubeconfigFile := " --kubeconfig=" + KubeConfigFile
+	cmd := "kubectl get all -A -o wide  " + kubeconfigFile + " && kubectl get nodes -o wide " + kubeconfigFile
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		LogLevel("error", "error from RunCommandHost: %v\n", err)
+		return
+	}
+
+	fmt.Printf("\n\n\n-----------------  Results from kubectl get all -A -o wide"+
+		"  -------------------\n\n%v\n\n\n\n", res)
 }

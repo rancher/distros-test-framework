@@ -127,19 +127,8 @@ func addResult(command, assertion, result string) {
 		assertion + "\n", Result: "\nMatched with result:\n" + result + "\n"})
 }
 
+// PrintResults prints the results from the tests called
 func PrintResults() {
-	kubeconfigFile := " --kubeconfig=" + shared.KubeConfigFile
-	cmd := "kubectl get all -A -o wide  " + kubeconfigFile + " && kubectl get nodes -o wide " + kubeconfigFile
-	res, err := shared.RunCommandHost(cmd)
-	if err != nil {
-		shared.LogLevel("error", "error from RunCommandHost: %w\n", err)
-		return
-	}
-
-	formatRes := fmt.Sprintf("\n\n\n-----------------  Results from kubectl get all -A -o wide"+
-		"  -------------------\n\n%v\n\n\n\n", res)
-	results = append(results, TestResult{Command: cmd, Result: formatRes})
-
 	product, err := shared.Product()
 	if err != nil {
 		return

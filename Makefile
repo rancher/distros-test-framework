@@ -27,18 +27,14 @@ test-run-updates:
 ## use this to test a new run on a totally new fresh environment after delete also aws resources
 test-complete: test-env-clean test-env-down remove-tf-state test-env-up test-run
 
-
 test-logs:
 	@./scripts/docker_run.sh test-logs
-
 
 image-stats:
 	@./scripts/docker_run.sh image-stats
 
-
 test-env-down:
 	@./scripts/docker_run.sh test-env-down
-
 
 test-env-clean:
 	@./scripts/delete_resources.sh
@@ -74,6 +70,8 @@ test-upgrade-suc:
 test-upgrade-manual:
 	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
+test-upgrade-node-replacement:
+	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}
 
 test-create-mixedos:
 	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})

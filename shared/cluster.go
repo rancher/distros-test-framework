@@ -13,10 +13,9 @@ import (
 )
 
 var (
-	KubeConfigFile string
-	AwsUser        string
-	AccessKey      string
-	Arch           string
+	AwsUser   string
+	AccessKey string
+	Arch      string
 )
 
 type Node struct {
@@ -86,6 +85,9 @@ func applyWorkload(workload, filename string) error {
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	if err != nil || out == "" {
+		if strings.Contains(out, "error when creating") {
+			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
+		}
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -166,6 +168,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 
 		return "", ReturnLogError("error setting env: %w\n", envErr)
 	}
+
 	resourceName := os.Getenv("resource_name")
 
 	var cmd string
@@ -174,7 +177,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		serverIP, _, err := kubeCfgServerIP(resourceName)
+		serverIP, _, err := ExtractServerIP(resourceName)
 		if err != nil {
 			return "", ReturnLogError("failed to extract server IP: %w", err)
 		}
@@ -506,31 +509,6 @@ func WriteDataPod(namespace string) (string, error) {
 	return RunCommandHost(cmd)
 }
 
-// kubeCfgServerIP extracts the server IP from the kubeconfig file.
-func kubeCfgServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
-	if resourceName == "" {
-		return "", "", ReturnLogError("resource name not sent\n")
-	}
-
-	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
-	kubeconfigContent, err := os.ReadFile(localPath)
-	if err != nil {
-		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
-	}
-	// get server ip value from `server:` key
-	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
-	// removing newline
-	serverIP = strings.Split(serverIP, "\n")[0]
-	// removing the https://
-	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
-	// removing the port
-	serverIP = strings.Split(serverIP, ":")[0]
-
-	LogLevel("info", "Extracted from local kube config file server ip: %s", serverIP)
-
-	return serverIP, string(kubeconfigContent), nil
-}
-
 // GetNodeArgsMap returns list of nodeArgs map
 func GetNodeArgsMap(nodeType string) (map[string]string, error) {
 	product, err := Product()
@@ -583,4 +561,76 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	}
 
 	return nodeArgsMapSlice
+}
+
+// DeleteNode deletes a node from the cluster filtering the name out by the IP.
+func DeleteNode(ip string) error {
+	if ip == "" {
+		return ReturnLogError("must send a ip: %s\n", ip)
+	}
+
+	name, err := GetNodeNameByIP(ip)
+	if err != nil {
+		return ReturnLogError("failed to get node name by ip: %w\n", err)
+	}
+
+	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
+	if delErr != nil {
+		return ReturnLogError("failed to delete node: %w\n", delErr)
+	}
+	LogLevel("info", "Deleting node: %s", res)
+
+	// delay not meant to wait if node is deleted
+	// but rather to give time for the node to be removed from the cluster
+	delay := time.After(20 * time.Second)
+	<-delay
+
+	return nil
+}
+
+// GetNodeNameByIP returns the node name by the given IP.
+func GetNodeNameByIP(ip string) (string, error) {
+	ticker := time.NewTicker(3 * time.Second)
+	timeout := time.After(45 * time.Second)
+	defer ticker.Stop()
+
+	cmd := "kubectl get nodes -o custom-columns=NAME:.metadata.name,INTERNAL-IP:.status.addresses[*].address --kubeconfig=" +
+		KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
+
+	for {
+		select {
+		case <-timeout:
+			return "", ReturnLogError("kubectl get nodes timed out for cmd: %s\n", cmd)
+		case <-ticker.C:
+			i := 0
+			nodeName, err := RunCommandHost(cmd)
+			if err != nil {
+				i++
+				LogLevel("warn", "error from RunCommandHost: %v\nwith res: %s  Retrying...", err, nodeName)
+				if i > 5 {
+					return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
+				}
+				continue
+			}
+			if nodeName == "" {
+				continue
+			}
+
+			name := strings.TrimSpace(nodeName)
+			LogLevel("info", "Node name: %s\n", name)
+
+			return name, nil
+		}
+	}
+}
+
+func FetchToken(ip string) (string, error) {
+	token, err := RunCommandOnNode("sudo cat /tmp/nodetoken", ip)
+	if err != nil {
+		return "", ReturnLogError("failed to fetch token: %w\n", err)
+	}
+
+	LogLevel("info", "token successfully retrieved")
+
+	return token, nil
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -54,6 +54,13 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook pre-upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
+
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
@@ -69,9 +76,8 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		fmt.Println("Current cluster state before upgrade:")
-		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
@@ -108,6 +114,13 @@ var _ = Describe("Test:", func() {
 	It("Verifies dns access after upgrade", func() {
 		testcase.TestDnsAccess(false, true)
 	})
+
+	if cfg.Product == "rke2" {
+		It("Verifies Snapshot Webhook after upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
+		})
+	}
 
 	if cfg.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {

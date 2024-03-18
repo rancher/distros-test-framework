@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -48,11 +49,14 @@ var _ = Describe("Components Version Upgrade:", func() {
 			assert.PodAssertStatus())
 	})
 
-	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cfg.Product)
+	var runc = fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cfg.Product)
+
+	// test decription and cmds generated based on product rke2
 	description := "Verifies bump versions for several components on Rke2:\n1-canal\n2-flannel\n" +
 		"3-calico\n4-ingressController\n5-coredns\n6-metricsServer\n7-etcd\n8-containerd\n9-runc"
 	cmd := flannelRke2 + calico + ingressController + corednsRke2 + metricsServer + etcdRke2 + containerd + runc
 
+	// test decription and cmds updated based on product k3s
 	if cfg.Product == "k3s" {
 		description = "Verifies bump versions for several components on k3s:\n1-flannel\n2-coredns\n3-metricsServer\n" +
 			"4-etcd\n5-cni plugins\n6-traefik\n7-local path storage\n8-containerd\n9-Klipper\n10-runc"
@@ -84,8 +88,9 @@ var _ = Describe("Components Version Upgrade:", func() {
 		testcase.TestIngress(true, true)
 	})
 
+	// we start tests here with cni: multus+canal
 	if cfg.Product == "rke2" {
-		It("Update Config YAML for multus+canal and get bumps", func() {
+		It("Updating config yaml cni to cilium and get version bumps for it and cni-plugins", func() {
 			Template(TestTemplate{
 				TestCombination: &RunCmd{
 					Run: []TestMap{
@@ -154,7 +159,11 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
-	It("Print results", func() {
+	It("Print get all", func() {
+		shared.PrintGetAll()
+	})
+
+	It("Print results formated", func() {
 		assert.PrintResults()
 	})
 })
