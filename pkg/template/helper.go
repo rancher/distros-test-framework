@@ -65,14 +65,18 @@ func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) 
 	var testCases []testCase
 
 	tcs := map[string]testCase{
-		"TestDaemonset":                    testcase.TestDaemonset,
-		"TestIngress":                      testcase.TestIngress,
-		"TestDnsAccess":                    testcase.TestDnsAccess,
-		"TestServiceClusterIP":             testcase.TestServiceClusterIp,
-		"TestServiceNodePort":              testcase.TestServiceNodePort,
-		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
-		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
-		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestDaemonset":        testcase.TestDaemonset,
+		"TestIngress":          testcase.TestIngress,
+		"TestDnsAccess":        testcase.TestDnsAccess,
+		"TestServiceClusterIP": testcase.TestServiceClusterIp,
+		"TestServiceNodePort":  testcase.TestServiceNodePort,
+		"TestLocalPathProvisionerStorage": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestLocalPathProvisionerStorage(cluster, applyWorkload, deleteWorkload)
+		},
+		"TestServiceLoadBalancer": testcase.TestServiceLoadBalancer,
+		"TestInternodeConnectivityMixedOS": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestInternodeConnectivityMixedOS(cluster, applyWorkload, deleteWorkload)
+		},
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},

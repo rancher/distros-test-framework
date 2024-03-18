@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
@@ -122,6 +123,56 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	}
 
 	return count
+}
+
+// RunScp copies files from local to remote host based on a list of local and remote paths.
+func RunScp(c *factory.Cluster, ip string, localPaths, remotePaths []string) error {
+	if ip == "" {
+		return ReturnLogError("ip is needed.\n")
+	}
+
+	if c.Config.Product != "rke2" && c.Config.Product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", c.Config.Product)
+	}
+
+	if len(localPaths) != len(remotePaths) {
+		return ReturnLogError("the number of local paths and remote paths must be the same\n")
+	}
+
+	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", c.Config.Product)); err != nil {
+		return err
+	}
+
+	for i, localPath := range localPaths {
+		remotePath := remotePaths[i]
+		scp := fmt.Sprintf(
+			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
+			c.AwsConfig.AccessKey,
+			localPath,
+			c.AwsConfig.AwsUser,
+			ip,
+			remotePath,
+		)
+
+		res, cmdErr := RunCommandHost(scp)
+		if res != "" {
+			LogLevel("warn", "scp output: %s\n", res)
+		}
+		if cmdErr != nil {
+			LogLevel("error", "failed to run scp: %v\n", cmdErr)
+			return cmdErr
+		}
+
+		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
+		_, cmdErr = RunCommandOnNode(chmod, ip)
+		if cmdErr != nil {
+			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
+			return cmdErr
+		}
+	}
+	LogLevel("info", "Files copied and chmod successfully\n")
+
+	return nil
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {

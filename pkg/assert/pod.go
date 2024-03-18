@@ -77,11 +77,12 @@ func PodAssertStatus() PodAssertFunc {
 }
 
 // ValidatePodIPByLabel validates expected pod IP by label
-func ValidatePodIPByLabel(labels, expected []string) {
+func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {
 				res, _ := shared.KubectlCommand(
+					cluster,
 					"host",
 					"get",
 					fmt.Sprintf("pods -l %s", label),

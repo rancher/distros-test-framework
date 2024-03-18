@@ -37,16 +37,26 @@ type Pod struct {
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
 func ManageWorkload(action string, workloads ...string) error {
-	cluster := factory.ClusterConfig()
 	if action != "apply" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
-	resourceDir := BasePath() + "/workloads/" + cluster.Config.Arch
-
-	files, err := os.ReadDir(resourceDir)
+	prod, err := Product()
 	if err != nil {
-		return ReturnLogError("Unable to read resource manifest file for: %s\n", resourceDir)
+		return err
+	}
+
+	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
+		prod)); envErr != nil {
+		return ReturnLogError("error setting env: %w\n", envErr)
+	}
+	arch := os.Getenv("arch")
+
+	resourceDir := BasePath() + "/workloads/" + arch
+
+	files, readErr := os.ReadDir(resourceDir)
+	if readErr != nil {
+		return ReturnLogError("Unable to read resource manifest file for: %s\n with error:%w", resourceDir, readErr)
 	}
 
 	for _, workload := range workloads {
@@ -54,9 +64,9 @@ func ManageWorkload(action string, workloads ...string) error {
 			return ReturnLogError("workload %s not found", workload)
 		}
 
-		err := handleWorkload(action, resourceDir, workload)
-		if err != nil {
-			return err
+		workloadErr := handleWorkload(action, resourceDir, workload)
+		if workloadErr != nil {
+			return workloadErr
 		}
 	}
 
@@ -130,7 +140,7 @@ func deleteWorkload(workload, filename string) error {
 }
 
 // KubectlCommand return results from various commands, it receives an "action" , source and args.
-// it already has factory.KubeConfigFile
+// it already has KubeConfigFile
 //
 // destination = host or node
 //
@@ -139,7 +149,7 @@ func deleteWorkload(workload, filename string) error {
 // source = pods, node , exec, service ...
 //
 // args   = the rest of your command arguments
-func KubectlCommand(destination, action, source string, args ...string) (string, error) {
+func KubectlCommand(cluster *factory.Cluster, destination, action, source string, args ...string) (string, error) {
 	kubeconfigFlag := " --kubeconfig=" + factory.KubeConfigFile
 	shortCmd := map[string]string{
 		"get":      "kubectl get",
@@ -154,16 +164,10 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	cfg, err := config.AddEnv()
-	if err != nil {
-		return "", ReturnLogError("failed to get config path: %v\n", err)
-	}
-
 	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		cfg.Product)); envErr != nil {
+		cluster.Config.Product)); envErr != nil {
 		return "", ReturnLogError("error setting env: %w\n", envErr)
 	}
-
 	resourceName := os.Getenv("resource_name")
 
 	var cmd string
@@ -176,9 +180,10 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		if err != nil {
 			return "", ReturnLogError("failed to extract server IP: %w", err)
 		}
-		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cfg.Product, cfg.Product)
+		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+
 		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
@@ -462,8 +467,9 @@ func parsePods(res string) []Pod {
 }
 
 // ReadDataPod reads the data from the pod
-func ReadDataPod(namespace string) (string, error) {
+func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
+		cluster,
 		"host",
 		"get",
 		"pods",
@@ -486,8 +492,9 @@ func ReadDataPod(namespace string) (string, error) {
 }
 
 // WriteDataPod writes data to the pod
-func WriteDataPod(namespace string) (string, error) {
+func WriteDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
+		cluster,
 		"host",
 		"get",
 		"pods",
@@ -504,18 +511,19 @@ func WriteDataPod(namespace string) (string, error) {
 }
 
 // GetNodeArgsMap returns list of nodeArgs map
-func GetNodeArgsMap(nodeType string) (map[string]string, error) {
-	product, err := Product()
-	if err != nil {
-		return nil, err
-	}
+func GetNodeArgsMap(cluster *factory.Cluster, nodeType string) (map[string]string, error) {
+	// product, err := Product()
+	// if err != nil {
+	// 	return nil, err
+	// }
 	res, err := KubectlCommand(
+		cluster,
 		"host",
 		"get",
 		"nodes "+
 			fmt.Sprintf(
 				`-o jsonpath='{range .items[*]}{.metadata.annotations.%s\.io/node-args}{end}'`,
-				product),
+				cluster.Config.Product),
 	)
 	if err != nil {
 		return nil, err
@@ -555,4 +563,76 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	}
 
 	return nodeArgsMapSlice
+}
+
+// DeleteNode deletes a node from the cluster filtering the name out by the IP.
+func DeleteNode(ip string) error {
+	if ip == "" {
+		return ReturnLogError("must send a ip: %s\n", ip)
+	}
+
+	name, err := GetNodeNameByIP(ip)
+	if err != nil {
+		return ReturnLogError("failed to get node name by ip: %w\n", err)
+	}
+
+	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + factory.KubeConfigFile)
+	if delErr != nil {
+		return ReturnLogError("failed to delete node: %w\n", delErr)
+	}
+	LogLevel("info", "Deleting node: %s", res)
+
+	// delay not meant to wait if node is deleted
+	// but rather to give time for the node to be removed from the cluster
+	delay := time.After(20 * time.Second)
+	<-delay
+
+	return nil
+}
+
+// GetNodeNameByIP returns the node name by the given IP.
+func GetNodeNameByIP(ip string) (string, error) {
+	ticker := time.NewTicker(3 * time.Second)
+	timeout := time.After(45 * time.Second)
+	defer ticker.Stop()
+
+	cmd := "kubectl get nodes -o custom-columns=NAME:.metadata.name,INTERNAL-IP:.status.addresses[*].address --kubeconfig=" +
+		factory.KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
+
+	for {
+		select {
+		case <-timeout:
+			return "", ReturnLogError("kubectl get nodes timed out for cmd: %s\n", cmd)
+		case <-ticker.C:
+			i := 0
+			nodeName, err := RunCommandHost(cmd)
+			if err != nil {
+				i++
+				LogLevel("warn", "error from RunCommandHost: %v\nwith res: %s  Retrying...", err, nodeName)
+				if i > 5 {
+					return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
+				}
+				continue
+			}
+			if nodeName == "" {
+				continue
+			}
+
+			name := strings.TrimSpace(nodeName)
+			LogLevel("info", "Node name: %s\n", name)
+
+			return name, nil
+		}
+	}
+}
+
+func FetchToken(ip string) (string, error) {
+	token, err := RunCommandOnNode("sudo cat /tmp/nodetoken", ip)
+	if err != nil {
+		return "", ReturnLogError("failed to fetch token: %w\n", err)
+	}
+
+	LogLevel("info", "token successfully retrieved")
+
+	return token, nil
 }

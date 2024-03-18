@@ -14,7 +14,7 @@ import (
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster
 // and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply",
@@ -22,7 +22,7 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
 	}
 
-	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
+	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
 	err := testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
@@ -38,8 +38,8 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 }
 
 // testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
-func testIPsInCIDRRange(label, svc string) {
-	nodeArgs, err := shared.GetNodeArgsMap("server")
+func testIPsInCIDRRange(cluster *factory.Cluster, label, svc string) {
+	nodeArgs, err := shared.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")

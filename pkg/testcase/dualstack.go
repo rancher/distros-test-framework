@@ -69,7 +69,7 @@ func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *factory.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -80,7 +80,7 @@ func TestClusterIPsInCIDRRange(deleteWorkload bool) {
 	}
 
 	assert.PodStatusRunning(td.Namespace, td.Label)
-	testIPsInCIDRRange(td.Label, td.SVC)
+	testIPsInCIDRRange(cluster, td.Label, td.SVC)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-clusterip.yaml")

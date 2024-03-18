@@ -39,7 +39,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate ClusterIPs in CIDR range in Dual-Stack", func() {
-		testcase.TestClusterIPsInCIDRRange(true)
+		testcase.TestClusterIPsInCIDRRange(cluster, true)
 	})
 
 	It("Validate Single and Dual-Stack IPFamilies in Dual-Stack", func() {
