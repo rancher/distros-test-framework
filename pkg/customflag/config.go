@@ -8,8 +8,14 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-var ServiceFlag FlagConfig
-var TestCaseNameFlag stringSlice
+var (
+	ServiceFlag      FlagConfig
+	TestCaseNameFlag stringSlice
+	Tm               TestMap
+)
+
+// TestMap is a type that wraps the test commands and expected values
+type TestMap testMapConfigFlag
 
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
@@ -19,6 +25,13 @@ type FlagConfig struct {
 	SUCUpgradeVersion sucUpgradeVersion
 	Channel           channelFlag
 	ExternalFlag      externalConfigFlag
+}
+
+// testMapConfigFlag represents a single test command with key:value pairs.
+type testMapConfigFlag struct {
+	Cmd                  string
+	ExpectedValue        string
+	ExpectedValueUpgrade string
 }
 
 type sucUpgradeVersion struct {

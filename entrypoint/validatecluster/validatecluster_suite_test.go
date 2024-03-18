@@ -1,7 +1,6 @@
 package validatecluster
 
 import (
-	"flag"
 	"os"
 	"testing"
 
@@ -17,10 +16,9 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Parse()
+	customflag.AddFlags("destroy")
 
+	var err error
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return

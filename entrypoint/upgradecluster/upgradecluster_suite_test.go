@@ -1,7 +1,6 @@
 package upgradecluster
 
 import (
-	"flag"
 	"os"
 	"testing"
 
@@ -17,18 +16,15 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
+	customflag.AddFlags("installVersionOrCommit", "channel", "destroy", "sucUpgradeVersion")
+
 	var err error
-	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
-	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
-
-	flag.Parse()
-
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}
+
+	customflag.ValidateFlags()
 
 	os.Exit(m.Run())
 }

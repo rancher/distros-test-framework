@@ -1,7 +1,6 @@
 package createcluster
 
 import (
-	"flag"
 	"os"
 	"testing"
 
@@ -14,11 +13,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.Parse()
+	customflag.AddFlags("destroy")
 
-	_, err = shared.EnvConfig()
+	_, err := shared.EnvConfig()
 	if err != nil {
 		return
 	}
