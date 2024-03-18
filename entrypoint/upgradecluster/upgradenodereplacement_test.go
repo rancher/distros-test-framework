@@ -15,11 +15,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
@@ -51,6 +52,7 @@ var _ = Describe("Test:", func() {
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag))
 	})

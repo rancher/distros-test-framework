@@ -12,11 +12,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -31,11 +32,12 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Restart server and agent service", func() {
-		testcase.TestRestartService()
+		testcase.TestRestartService(cluster)
 	})
 
 	It("Validate Nodes after restartservice", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)

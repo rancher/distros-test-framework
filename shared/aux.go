@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -86,16 +87,6 @@ func BasePath() string {
 	return filepath.Join(filepath.Dir(callerFilePath), "..")
 }
 
-func EnvConfig() (*config.Product, error) {
-	path := BasePath() + "/config/.env"
-	env, err := config.AddConfigEnv(path)
-	if err != nil {
-		return nil, ReturnLogError("error getting env config: %w\n", err)
-	}
-
-	return env, nil
-}
-
 // PrintFileContents prints the contents of the file as [] string.
 func PrintFileContents(f ...string) error {
 	for _, file := range f {
@@ -152,13 +143,14 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 		return err
 	}
 
+	c := factory.ClusterConfig()
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
 			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
-			AccessKey,
+			c.AwsConfig.AccessKey,
 			localPath,
-			AwsUser,
+			c.AwsConfig.AwsUser,
 			ip,
 			remotePath,
 		)
@@ -184,16 +176,6 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 	return nil
 }
 
-// AddHelmRepo adds a helm repo to the cluster.
-func AddHelmRepo(name, url string) (string, error) {
-	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
-	update := "helm repo update"
-	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
-		name, name, name, KubeConfigFile)
-
-	return RunCommandHost(addRepo, update, installRepo)
-}
-
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
@@ -209,13 +191,14 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 
 func configureSSH(host string) (*ssh.Client, error) {
 	var cfg *ssh.ClientConfig
+	cluster := factory.ClusterConfig()
 
-	authMethod, err := publicKey(AccessKey)
+	authMethod, err := publicKey(cluster.AwsConfig.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %v", err)
 	}
 	cfg = &ssh.ClientConfig{
-		User: AwsUser,
+		User: cluster.AwsConfig.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -480,6 +463,7 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 	}
 	return append(slice, i)
 }
+
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }

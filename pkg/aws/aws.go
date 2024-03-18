@@ -12,8 +12,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 type Client struct {
@@ -28,16 +26,16 @@ type response struct {
 }
 
 func AddNode() (*Client, error) {
-	c := factory.ClusterConfig(GinkgoT())
+	c := factory.ClusterConfig()
 
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(c.AwsEc2.Region)})
+		Region: aws.String(c.AwsConfig.Region)})
 	if err != nil {
 		return nil, shared.ReturnLogError("error creating AWS session: %v", err)
 	}
 
 	return &Client{
-		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		infra: &factory.Cluster{AwsConfig: c.AwsConfig},
 		ec2:   ec2.New(sess),
 	}, nil
 }
@@ -182,23 +180,23 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 }
 
 func (c Client) create(name string) (*ec2.Reservation, error) {
-	volume, err := strconv.ParseInt(c.infra.AwsEc2.VolumeSize, 10, 64)
+	volume, err := strconv.ParseInt(c.infra.AwsConfig.VolumeSize, 10, 64)
 	if err != nil {
 		return nil, shared.ReturnLogError("error converting volume size to int64: %w\n", err)
 	}
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(c.infra.AwsEc2.Ami),
-		InstanceType: aws.String(c.infra.AwsEc2.InstanceClass),
+		ImageId:      aws.String(c.infra.AwsConfig.Ami),
+		InstanceType: aws.String(c.infra.AwsConfig.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(c.infra.AwsEc2.KeyName),
+		KeyName:      aws.String(c.infra.AwsConfig.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(c.infra.AwsEc2.Subnets),
-				Groups:                   aws.StringSlice([]string{c.infra.AwsEc2.SgId}),
+				SubnetId:                 aws.String(c.infra.AwsConfig.Subnets),
+				Groups:                   aws.StringSlice([]string{c.infra.AwsConfig.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -211,7 +209,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(c.infra.AwsEc2.AvailabilityZone),
+			AvailabilityZone: aws.String(c.infra.AwsConfig.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{

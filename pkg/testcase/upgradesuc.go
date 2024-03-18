@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -12,11 +14,7 @@ import (
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(version string) error {
-	if version == "" {
-		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
-	}
-	shared.PrintClusterState()
+func TestUpgradeClusterSUC(cfg *config.Product, version string) error {
 	fmt.Printf("\nUpgrading cluster to: %s\n", version)
 
 	workloadErr := shared.ManageWorkload("apply", "suc.yaml")
@@ -25,17 +23,14 @@ func TestUpgradeClusterSUC(version string) error {
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
 	err := assert.CheckComponentCmdHost(
-		getPodsSystemUpgrade+shared.KubeConfigFile,
+		getPodsSystemUpgrade+factory.KubeConfigFile,
 		"system-upgrade-controller",
 		statusRunning,
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	product, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred())
-
 	originalFilePath := shared.BasePath() +
-		fmt.Sprintf("/workloads/amd64/%s-upgrade-plan.yaml", product)
+		fmt.Sprintf("/workloads/amd64/%s-upgrade-plan.yaml", cfg.Product)
 	newFilePath := shared.BasePath() + "/workloads/amd64/plan.yaml"
 
 	content, err := os.ReadFile(originalFilePath)

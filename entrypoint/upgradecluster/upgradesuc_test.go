@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,11 +17,12 @@ import (
 var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Starts up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -71,17 +73,19 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-			testcase.TestIngressRoute(true, false, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
 		})
 	}
 
 	It("\nUpgrade via SUC", func() {
-		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
-		Expect(err).NotTo(HaveOccurred())
+		fmt.Println("Current cluster state before upgrade:")
+		shared.PrintClusterState()
+		_ = testcase.TestUpgradeClusterSUC(cfg, customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
@@ -132,7 +136,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(false, true, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
 		})
 	}
 })

@@ -2,11 +2,13 @@ package shared
 
 import (
 	"fmt"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 // Product returns the distro product based on the config file
 func Product() (string, error) {
-	cfg, err := EnvConfig()
+	cfg, err := config.AddEnv()
 	if err != nil {
 		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}
@@ -23,27 +25,15 @@ func ProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := version(product + " -v")
-	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
-	}
-
-	return version, nil
-}
-
-// version returns the rke2 or k3s version
-func version(cmd string) (string, error) {
-	var res string
-	var err error
 	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err = RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
-		}
+
+	cmd := fmt.Sprintf("%s -v", product)
+	v, err := RunCommandOnNode(cmd, ips[0])
+	if err != nil {
+		return "", ReturnLogError("failed to get version for product: %s, error: %w\n", product, err)
 	}
 
-	return res, nil
+	return v, nil
 }
 
 // serviceName Get service name. Used to work with stop/start k3s/rke2 services

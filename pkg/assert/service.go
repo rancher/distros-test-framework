@@ -4,6 +4,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -12,7 +13,7 @@ import (
 // ValidateClusterIPsBySVC retrieves cluster IPs by svc and validates them in CIDR Range
 func ValidateClusterIPsBySVC(svc string, expected []string) {
 	cmd := "kubectl get svc " + svc +
-		` -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=` + shared.KubeConfigFile
+		` -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=` + factory.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmd)
 	clusterIPs := strings.Split(res, " ")
 	Expect(len(clusterIPs)).ShouldNot(BeZero())

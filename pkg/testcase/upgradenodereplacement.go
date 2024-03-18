@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -26,7 +25,7 @@ func TestUpgradeReplaceNode(version string) {
 		Expect(version).NotTo(BeEmpty(), "version not sent")
 	}
 
-	cluster := factory.ClusterConfig(GinkgoT())
+	cluster := factory.ClusterConfig()
 
 	envErr := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars",
 		cluster.Config.Product))

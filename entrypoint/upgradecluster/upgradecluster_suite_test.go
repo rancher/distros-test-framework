@@ -8,13 +8,15 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var (
+	cfg     *config.Product
+	cluster *factory.Cluster
+)
 
 func TestMain(m *testing.M) {
 	var err error
@@ -25,10 +27,12 @@ func TestMain(m *testing.M) {
 
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		return
 	}
+
+	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -40,9 +44,8 @@ func TestClusterUpgradeSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

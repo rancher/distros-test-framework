@@ -13,27 +13,25 @@ import (
 )
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
-func TestUpgradeClusterManually(version string) error {
+func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error {
+	fmt.Printf("\nUpgrading cluster to: %s", version)
+
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
-	shared.PrintClusterState()
-	fmt.Printf("\nUpgrading cluster to: %s\n", version)
-
-	cluster := factory.ClusterConfig(GinkgoT())
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")
 	}
 
 	if cluster.NumServers > 0 {
-		if err := upgradeServer(version, cluster.ServerIPs); err != nil {
+		if err := upgradeServer(cluster.Config.Product, version, cluster.ServerIPs); err != nil {
 			return err
 		}
 	}
 
 	if cluster.NumAgents > 0 {
-		if err := upgradeAgent(version, cluster.AgentIPs); err != nil {
+		if err := upgradeAgent(cluster.Config.Product, version, cluster.AgentIPs); err != nil {
 			return err
 		}
 	}
@@ -42,11 +40,11 @@ func TestUpgradeClusterManually(version string) error {
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version
-func upgradeProduct(nodeType string, installType string, ips []string) error {
+func upgradeProduct(product, nodeType string, installType string, ips []string) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(ips))
 
-	upgradeCommand := getInstallCmd(installType, nodeType)
+	upgradeCommand := getInstallCmd(product, installType, nodeType)
 
 	for _, ip := range ips {
 		wg.Add(1)
@@ -62,11 +60,6 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 				return
 			}
 
-			product, err := shared.Product()
-			if err != nil {
-				return
-			}
-
 			fmt.Println("\nRestarting " + nodeType + ": " + ip)
 			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
@@ -77,15 +70,11 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 	return nil
 }
 
-func getInstallCmd(installType string, nodeType string) string {
+func getInstallCmd(product, installType string, nodeType string) string {
 	var installFlag string
 	var installCmd string
-	product, err := shared.Product()
-	if err != nil {
-		return err.Error()
-	}
 
-	var channel = getChannel()
+	var channel = getChannel(product)
 
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
@@ -98,12 +87,7 @@ func getInstallCmd(installType string, nodeType string) string {
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }
 
-func getChannel() string {
-	product, err := shared.Product()
-	if err != nil {
-		return err.Error()
-	}
-
+func getChannel(product string) string {
 	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
 
 	if customflag.ServiceFlag.Channel.String() != "" {
@@ -114,10 +98,10 @@ func getChannel() string {
 	return defaultChannel
 }
 
-func upgradeServer(installType string, serverIPs []string) error {
-	return upgradeProduct("server", installType, serverIPs)
+func upgradeServer(product, installType string, serverIPs []string) error {
+	return upgradeProduct(product, "server", installType, serverIPs)
 }
 
-func upgradeAgent(installType string, agentIPs []string) error {
-	return upgradeProduct("agent", installType, agentIPs)
+func upgradeAgent(product, installType string, agentIPs []string) error {
+	return upgradeProduct(product, "agent", installType, agentIPs)
 }

@@ -4,13 +4,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 // upgradeVersion upgrades the product version
 func upgradeVersion(template TestTemplate, version string) error {
-	err := testcase.TestUpgradeClusterManually(version)
+	cluster := factory.ClusterConfig()
+	err := testcase.TestUpgradeClusterManually(cluster, version)
 	if err != nil {
 		return err
 	}
@@ -59,7 +61,7 @@ func executeTestCombination(v TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(names []string) ([]testCase, error) {
+func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) {
 	var testCases []testCase
 
 	tcs := map[string]testCase{
@@ -75,22 +77,22 @@ func AddTestCases(names []string) ([]testCase, error) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},
 		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinux()
+			testcase.TestSelinux(cluster)
 		},
 		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinux()
+			testcase.TestSelinux(cluster)
 		},
 		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinuxSpcT()
+			testcase.TestSelinuxSpcT(cluster)
 		},
 		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestUninstallPolicy()
+			testcase.TestUninstallPolicy(cluster)
 		},
 		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinuxContext()
+			testcase.TestSelinuxContext(cluster)
 		},
 		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestIngressRoute(applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
+			testcase.TestIngressRoute(cluster, applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
 		},
 	}
 

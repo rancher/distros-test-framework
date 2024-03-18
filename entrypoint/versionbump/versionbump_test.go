@@ -1,4 +1,4 @@
-//go:build versionbump
+//go:factory versionbump
 
 package versionbump
 
@@ -15,11 +15,12 @@ import (
 
 var _ = Describe("Version Bump Template Upgrade:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})

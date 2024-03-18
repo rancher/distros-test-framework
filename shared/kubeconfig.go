@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-var KubeConfigFile string
-
 func UpdateKubeConfig(newLeaderIP, resourceName, product string) error {
 	if resourceName == "" {
 		return ReturnLogError("resourceName not sent\n")
