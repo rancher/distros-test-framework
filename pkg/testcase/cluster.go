@@ -123,21 +123,26 @@ func ClusterReset() {
 	cluster := factory.ClusterConfig(g)
 	ip := cluster.ServerIPs[0]
 
-	switch {
-	case product == "k3s":
-		cmd := fmt.Sprintf("sudo %s server --cluster-reset", product)
-		res, err := shared.RunCommandOnNode(cmd, ip)
-		Expect(err).NotTo(HaveOccurred())
+	var cmd string
+	var res string
+	var cmdErr error
+
+	cmd = fmt.Sprintf("sudo %s server --cluster-reset", product)
+
+	switch product {
+	case "k3s":
+		res, cmdErr = shared.RunCommandOnNode(cmd, ip)
+		Expect(cmdErr).NotTo(HaveOccurred())
 		Expect(res).To(ContainSubstring("Managed etcd cluster"))
 		Expect(res).To(ContainSubstring("has been reset"))
-	case product == "rke2":
-		cmd := fmt.Sprintf("sudo %s server --cluster-reset", product)
-		_, err := shared.RunCommandOnNode(cmd, ip)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Managed etcd cluster"))
-		Expect(err.Error()).To(ContainSubstring("has been reset"))
+	case "rke2":
+		_, cmdErr = shared.RunCommandOnNode(cmd, ip)
+		Expect(cmdErr).To(HaveOccurred())
+		Expect(cmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
+		Expect(cmdErr.Error()).To(ContainSubstring("has been reset"))
 	default:
-		shared.ReturnLogError("unsupported product: %s\n", product)
+		shared.LogLevel("error", "unsupported product: %s", product)
+		g.Fail()
 	}
 
 }

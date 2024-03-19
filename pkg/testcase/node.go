@@ -67,15 +67,16 @@ func TestKillall() {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-	switch {
-	case product == "k3s":
+	switch product {
+	case "k3s":
 		res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 		Expect(res).To(ContainSubstring("refused"))
-	case product == "rke2":
+	case "rke2":
 		res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 		Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 	default:
-		shared.ReturnLogError("unsupported product: %s\n", product)
+		shared.LogLevel("error", "unsupported product: %s", product)
+		g.Fail()
 	}
 }
 
@@ -95,7 +96,8 @@ func StopServer() {
 		_, err = shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 	default:
-		shared.ReturnLogError("unsupported product: %s\n", product)
+		shared.LogLevel("error", "unsupported product: %s", product)
+		g.Fail()
 	}
 
 	switch {
@@ -114,7 +116,8 @@ func StopServer() {
 			Expect(res).To(SatisfyAny(ContainSubstring("failed"), ContainSubstring("inactive")))
 		}
 	default:
-		shared.ReturnLogError("unsupported product: %s\n", product)
+		shared.LogLevel("error", "unsupported product: %s", product)
+		g.Fail()
 	}
 }
 
@@ -135,7 +138,8 @@ func StartServer() {
 			_, err = shared.RunCommandOnNode(cmd, ip)
 			Expect(err).NotTo(HaveOccurred())
 		default:
-			shared.ReturnLogError("unsupported product: %s\n", product)
+			shared.LogLevel("error", "unsupported product: %s", product)
+			g.Fail()
 		}
 	}
 }
