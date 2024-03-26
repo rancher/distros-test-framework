@@ -23,6 +23,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version that will be deployed on the cluster")
 	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherHelmVersion, "rancherHelmVersion", "v2.8.0", "rancher helm chart version to use to deploy rancher manager")
+	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherHelmArgs, "rancherHelmArgs", "", "rancher helm additional args that can be added on the rancher manager")
 	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherImageVersion, "rancherImageVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 

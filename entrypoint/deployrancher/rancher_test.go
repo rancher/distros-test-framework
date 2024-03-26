@@ -38,6 +38,7 @@ var _ = Describe("Test:", func() {
 	It("Deploys rancher manager", func() {
 		testcase.TestDeployRancher(
 			customflag.ServiceFlag.ExternalFlag.RancherHelmVersion,
+			customflag.ServiceFlag.ExternalFlag.RancherHelmArgs,
 			customflag.ServiceFlag.ExternalFlag.RancherImageVersion,
 		)
 	})

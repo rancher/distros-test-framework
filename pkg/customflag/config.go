@@ -48,6 +48,7 @@ type externalConfigFlag struct {
 	SonobuoyVersion     string
 	CertManagerVersion  string
 	RancherHelmVersion  string
+	RancherHelmArgs     string
 	RancherImageVersion string
 }
 

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 func TestDeployCertManager(version string) {
@@ -44,16 +44,34 @@ func TestDeployCertManager(version string) {
 	}, "120s", "5s").Should(Succeed())
 }
 
-func TestDeployRancher(helmVersion, imageVersion string) {
+func TestDeployRancher(helmVersion, helmArgs, imageVersion string) {
 	cluster := factory.ClusterConfig(GinkgoT())
 	addRepoCmd := "helm repo add rancher-latest https://releases.rancher.com/server-charts/latest && " +
 		"helm repo update"
 	installRancherCmd := "kubectl create namespace cattle-system --kubeconfig=" +
-		shared.KubeConfigFile + " && helm install rancher rancher-latest/rancher " +
-		"-n cattle-system --set global.cattle.psp.enabled=false " +
+		shared.KubeConfigFile + " && helm install rancher rancher-latest/rancher"
+
+	// Needed for rancher v2.7
+	if strings.Contains(imageVersion, "v2.7") {
+		imgReg := "stgregistry.suse.com/rancher/rancher"
+		addRepoCmd = "helm repo add rancher-prime https://charts.optimus.rancher.io/server-charts/latest && " +
+			"helm repo update"
+		installRancherCmd = fmt.Sprintf("kubectl create namespace cattle-system --kubeconfig=%s "+
+			"&& helm install rancher rancher-prime/rancher "+
+			"--set bootstrapPassword=admin "+
+			"--set rancherImage=%s "+
+			"--set 'extraEnv[0].name=CATTLE_AGENT_IMAGE' "+
+			"--set 'extraEnv[0].value=%s-agent:%s'",
+			shared.KubeConfigFile, imgReg, imgReg, imageVersion)
+	}
+	if helmArgs != "" {
+		installRancherCmd += helmArgs
+	}
+	installRancherCmd += " -n cattle-system --set global.cattle.psp.enabled=false " +
 		fmt.Sprintf("--set hostname=%s --set rancherImageTag=%s --version=%s --kubeconfig=%s",
 			cluster.FQDN, imageVersion, helmVersion, shared.KubeConfigFile)
 
+	fmt.Println("Install command: ", installRancherCmd)
 	res, err := shared.RunCommandHost(addRepoCmd, installRancherCmd)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n", err, installRancherCmd, res)
