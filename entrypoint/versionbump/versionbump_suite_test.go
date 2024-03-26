@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestBumpVersionSuite(t *testing.T) {
+func TestVersionBumpSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Version Test Suite")
 }
