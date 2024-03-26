@@ -136,7 +136,9 @@ test_env_up() {
 }
 
 clean_env() {
-    echo "Removing containers"
+    read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
+  if [[ $REPLY =~ ^[Yyes]$ ]]; then
+    printf "\nRemoving acceptance-test containers"
     docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_"${IMG_NAME}".log || true
 
     echo "Removing acceptance-test images"
@@ -147,6 +149,9 @@ clean_env() {
 
     echo "Removing state images"
     docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f 2>/tmp/container_"${IMG_NAME}".log || true
+    else
+        echo "Exiting without removing containers and images."
+  fi
 }
 
 case "$1" in

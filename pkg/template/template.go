@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func Template(test TestTemplate) {
+func Template(template TestTemplate) {
 	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
 		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
 		err := shared.ManageWorkload(
@@ -19,18 +19,18 @@ func Template(test TestTemplate) {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-	err := executeTestCombination(test)
-	Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
+	err := executeTestCombination(template)
+	Expect(err).NotTo(HaveOccurred(), "error validating test template: %w", err)
 
-	if test.InstallMode != "" {
-		upgErr := upgradeVersion(test, test.InstallMode)
-		Expect(upgErr).NotTo(HaveOccurred(), "error upgrading version: %v", upgErr)
+	if template.InstallMode != "" {
+		upgErr := upgradeVersion(template, template.InstallMode)
+		Expect(upgErr).NotTo(HaveOccurred(), "error upgrading version: %w", upgErr)
 
-		err = executeTestCombination(test)
-		Expect(err).NotTo(HaveOccurred(), "error checking version: %v", err)
+		err = executeTestCombination(template)
+		Expect(err).NotTo(HaveOccurred(), "error validating test template: %w", err)
 
-		if test.TestConfig != nil {
-			testCaseWrapper(test)
+		if template.TestConfig != nil {
+			testCaseWrapper(template)
 		}
 	}
 }

@@ -121,7 +121,7 @@ func deleteWorkload(workload, filename string) error {
 		case <-tick.C:
 			res, err := RunCommandHost("kubectl get all -A --kubeconfig=" + KubeConfigFile)
 			if err != nil {
-				return ReturnLogError("failed to run kubectl get all: %v\n", err)
+				return ReturnLogError("failed to run kubectl get all: %w\n", err)
 			}
 			isDeleted := !strings.Contains(res, workload)
 			if isDeleted {
@@ -168,6 +168,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 
 		return "", ReturnLogError("error setting env: %w\n", envErr)
 	}
+
 	resourceName := os.Getenv("resource_name")
 
 	var cmd string
@@ -221,7 +222,7 @@ func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 		" -o jsonpath='{.spec.ports[0].port}' --kubeconfig=" + KubeConfigFile
 	port, err = RunCommandHost(cmd)
 	if err != nil {
-		return "", "", ReturnLogError("failed to fetch cluster port: %v\n", err)
+		return "", "", ReturnLogError("failed to fetch cluster port: %w\n", err)
 	}
 
 	return ip, port, err
@@ -233,14 +234,14 @@ func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
 	nodeport, err := RunCommandHost(cmd)
 	if err != nil {
-		return "", ReturnLogError("failed to fetch service node port: %v", err)
+		return "", ReturnLogError("failed to fetch service node port: %w", err)
 	}
 
 	return nodeport, nil
 }
 
-// FetchNodeExternalIP returns the external IP of the nodes.
-func FetchNodeExternalIP() []string {
+// FetchNodeExternalIPs returns the external IP of the nodes.
+func FetchNodeExternalIPs() []string {
 	res, _ := RunCommandHost("kubectl get nodes " +
 		"--output=jsonpath='{.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}' " +
 		"--kubeconfig=" + KubeConfigFile)
@@ -265,7 +266,7 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 			KubeConfigFile,
 	)
 	if err != nil {
-		return nil, ReturnLogError("failed to fetch ingress IP: %v\n", err)
+		return nil, ReturnLogError("failed to fetch ingress IP: %w\n", err)
 	}
 
 	ingressIP := strings.Trim(res, " ")

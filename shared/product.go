@@ -8,7 +8,7 @@ import (
 func Product() (string, error) {
 	cfg, err := EnvConfig()
 	if err != nil {
-		return "", ReturnLogError("failed to get config path: %v\n", err)
+		return "", ReturnLogError("failed to get config path: %w\n", err)
 	}
 
 	if cfg.Product != "k3s" && cfg.Product != "rke2" {
@@ -23,27 +23,15 @@ func ProductVersion(product string) (string, error) {
 	if product != "rke2" && product != "k3s" {
 		return "", ReturnLogError("unsupported product: %s\n", product)
 	}
-	version, err := version(product + " -v")
+	ips := FetchNodeExternalIPs()
+
+	cmd := fmt.Sprintf("%s -v", product)
+	v, err := RunCommandOnNode(cmd, ips[0])
 	if err != nil {
-		return "", ReturnLogError("failed to get version for product: %s, error: %v\n", product, err)
+		return "", ReturnLogError("failed to get version for product: %s, error: %w\n", product, err)
 	}
 
-	return version, nil
-}
-
-// version returns the rke2 or k3s version
-func version(cmd string) (string, error) {
-	var res string
-	var err error
-	ips := FetchNodeExternalIP()
-	for _, ip := range ips {
-		res, err = RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return "", ReturnLogError("failed to run command on node: %v\n", err)
-		}
-	}
-
-	return res, nil
+	return v, nil
 }
 
 // serviceName Get service name. Used to work with stop/start k3s/rke2 services
@@ -77,7 +65,7 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 
 	name, err := serviceName(product, nodeType)
 	if err != nil {
-		return "", ReturnLogError("error getting service name")
+		return "", ReturnLogError("error getting service name: %w\n", err)
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, name), nil

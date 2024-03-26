@@ -41,6 +41,7 @@ type testConfigFlag struct {
 	DeleteWorkload bool
 	WorkloadName   string
 	Description    string
+	DebugMode      bool
 }
 
 type externalConfigFlag struct {
