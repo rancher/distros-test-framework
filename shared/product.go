@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Product returns the distro product based on the config file
@@ -110,4 +111,26 @@ func CertRotate(product string, ips []string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func SecretEncryptOps(action, ip, product string) (string, error) {
+	secretEncryptCmd := map[string]string{
+		"status":      fmt.Sprintf("sudo %s secrets-encrypt status", product),
+		"enable":      fmt.Sprintf("sudo %s secrets-encrypt enable", product),
+		"disable":     fmt.Sprintf("sudo %s secrets-encrypt disable", product),
+		"prepare":     fmt.Sprintf("sudo %s secrets-encrypt prepare", product),
+		"rotate":      fmt.Sprintf("sudo %s secrets-encrypt rotate", product),
+		"reencrypt":   fmt.Sprintf("sudo %s secrets-encrypt reencrypt", product),
+		"rotate-keys": fmt.Sprintf("sudo %s secrets-encrypt rotate-keys", product),
+	}
+
+	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
+	if err != nil {
+		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action), err)
+	}
+	if strings.Contains(secretsEncryptStdOut, "fatal") {
+		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action))
+	}
+
+	return secretsEncryptStdOut, nil
 }
