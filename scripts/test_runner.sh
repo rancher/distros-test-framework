@@ -14,7 +14,7 @@ function validate_test_image() {
 
 function validate_dir(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice|deployrancher)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -82,6 +82,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
+    elif [ "${TEST_DIR}" = "deployrancher" ]; then
+        go test -timeout=65m -v -count=1 ./entrypoint/deployrancher/... -certManagerVersion "${CERT_MANAGER_VERSION}" -rancherImageVersion "${RANCHER_IMAGE_VERSION}"  -rancherHelmVersion  "${RANCHER_HELM_VERSION}"
     fi
 fi
 }

@@ -63,7 +63,7 @@ run:
   skip-files:
     - "pkg/testcase/selinux.go"
     -  ".*_suite_test.go"
-    - "pkg/customflag/flag.go"
+    - "pkg/productflag/flag.go"
 issues:
   exclude-rules:
     - linters: [typecheck]

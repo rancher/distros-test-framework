@@ -58,7 +58,7 @@ func executeTestCombination(v TestTemplate) error {
 	return nil
 }
 
-// AddTestCases returns the test case based on the name to be used as customflag.
+// AddTestCases returns the test case based on the name to be used as productflag.
 func AddTestCases(names []string) ([]testCase, error) {
 	var testCases []testCase
 

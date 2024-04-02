@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -46,13 +46,13 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Upgrade by Node replacement", func() {
-		testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
+		testcase.TestUpgradeReplaceNode(productflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag))
+			assert.NodeAssertVersionTypeUpgrade(productflag.ServiceFlag))
 	})
 
 	It("Checks Pod Status after upgrade", func() {

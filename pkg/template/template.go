@@ -3,18 +3,18 @@ package template
 import (
 	"strings"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
 func Template(test TestTemplate) {
-	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
-		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
+	if productflag.ServiceFlag.TestTemplateConfig.WorkloadName != "" &&
+		strings.HasSuffix(productflag.ServiceFlag.TestTemplateConfig.WorkloadName, ".yaml") {
 		err := shared.ManageWorkload(
 			"apply",
-			customflag.ServiceFlag.TestConfig.WorkloadName,
+			productflag.ServiceFlag.TestTemplateConfig.WorkloadName,
 		)
 		Expect(err).NotTo(HaveOccurred())
 	}

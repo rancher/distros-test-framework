@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/factory"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,7 +59,7 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
+	sonobuoyVersion := productflag.ServiceFlag.External.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 

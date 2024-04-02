@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
@@ -34,22 +34,22 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []customflag.TestMap{
+				Run: []productflag.TestMapConfig{
 					{
-						Cmd:                  customflag.Tm.Cmd,
-						ExpectedValue:        customflag.Tm.ExpectedValue,
-						ExpectedValueUpgrade: customflag.Tm.ExpectedValueUpgrade,
+						Cmd:                  productflag.TestMap.Cmd,
+						ExpectedValue:        productflag.TestMap.ExpectedValue,
+						ExpectedValueUpgrade: productflag.TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
+			InstallMode: productflag.ServiceFlag.InstallMode.String(),
 			TestConfig: &TestConfig{
-				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
-				ApplyWorkload:  customflag.ServiceFlag.TestConfig.ApplyWorkload,
-				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
-				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
+				TestFunc:       ConvertToTestCase(productflag.ServiceFlag.TestTemplateConfig.TestFuncs),
+				ApplyWorkload:  productflag.ServiceFlag.TestTemplateConfig.ApplyWorkload,
+				DeleteWorkload: productflag.ServiceFlag.TestTemplateConfig.DeleteWorkload,
+				WorkloadName:   productflag.ServiceFlag.TestTemplateConfig.WorkloadName,
 			},
-			Description: customflag.ServiceFlag.TestConfig.Description,
+			Description: productflag.ServiceFlag.TestTemplateConfig.Description,
 		})
 	})
 })

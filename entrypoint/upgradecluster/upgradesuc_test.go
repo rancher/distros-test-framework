@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -76,7 +76,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
+		err := testcase.TestUpgradeClusterSUC(productflag.ServiceFlag.SUCUpgradeVersion.String())
 		Expect(err).NotTo(HaveOccurred())
 	})
 

@@ -1,4 +1,4 @@
-package customflag
+package productflag
 
 import (
 	"fmt"
@@ -11,21 +11,22 @@ import (
 var (
 	ServiceFlag      FlagConfig
 	TestCaseNameFlag stringSlice
-	Tm               TestMap
+	TestMap          testMapConfigFlag
 )
-
-// TestMap is a type that wraps the test commands and expected values
-type TestMap testMapConfigFlag
 
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
-	InstallMode       installModeFlag
-	TestConfig        testConfigFlag
-	ClusterConfig     clusterConfigFlag
-	SUCUpgradeVersion sucUpgradeVersion
-	Channel           channelFlag
-	ExternalFlag      externalConfigFlag
+	InstallMode        installModeFlag
+	TestTemplateConfig templateConfigFlag
+	Destroy            destroyFlag
+	SUCUpgradeVersion  sucUpgradeVersionFlag
+	Channel            channelFlag
+	External           externalConfigFlag
+	RancherConfig      rancherConfigFlag
 }
+
+// TestMapConfig is a type that wraps the test commands and expected values
+type TestMapConfig testMapConfigFlag
 
 // testMapConfigFlag represents a single test command with key:value pairs.
 type testMapConfigFlag struct {
@@ -34,20 +35,10 @@ type testMapConfigFlag struct {
 	ExpectedValueUpgrade string
 }
 
-type sucUpgradeVersion struct {
-	SucUpgradeVersion string
-}
+type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
-type installModeFlag struct {
-	Version string
-	Commit  string
-}
-
-type channelFlag struct {
-	Channel string
-}
-
-type testConfigFlag struct {
+// template config flags.
+type templateConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
 	ApplyWorkload  bool
@@ -56,20 +47,15 @@ type testConfigFlag struct {
 	Description    string
 }
 
-type externalConfigFlag struct {
-	SonobuoyVersion     string
-	CertManagerVersion  string
-	RancherHelmVersion  string
-	RancherImageVersion string
+func (t *templateConfigFlag) String() string {
+	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
 }
 
-type clusterConfigFlag struct {
-	Destroy destroyFlag
+func (t *templateConfigFlag) Set(value string) error {
+	t.TestFuncNames = strings.Split(value, ",")
+
+	return nil
 }
-
-type destroyFlag bool
-
-type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
 type stringSlice []string
 
@@ -83,16 +69,11 @@ func (s *stringSlice) Set(value string) error {
 	return nil
 }
 
-func (t *testConfigFlag) String() string {
-	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
+// channel flag.
+type channelFlag struct {
+	Channel string
 }
 
-func (t *testConfigFlag) Set(value string) error {
-	t.TestFuncNames = strings.Split(value, ",")
-
-	return nil
-
-}
 func (c *channelFlag) String() string {
 	return c.Channel
 }
@@ -109,6 +90,12 @@ func (c *channelFlag) Set(value string) error {
 	c.Channel = value
 
 	return nil
+}
+
+// install mode upgrade flag.
+type installModeFlag struct {
+	Version string
+	Commit  string
 }
 
 func (i *installModeFlag) String() string {
@@ -131,19 +118,27 @@ func (i *installModeFlag) Set(value string) error {
 	return nil
 }
 
-func (t *sucUpgradeVersion) String() string {
+// suc upgrade flag.
+type sucUpgradeVersionFlag struct {
+	SucUpgradeVersion string
+}
+
+func (t *sucUpgradeVersionFlag) String() string {
 	return t.SucUpgradeVersion
 }
 
-func (t *sucUpgradeVersion) Set(value string) error {
-	if !strings.HasPrefix(value, "v") ||
-		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
+func (t *sucUpgradeVersionFlag) Set(value string) error {
+	if !strings.HasPrefix(value, "v") || (!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
 		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
 	}
+
 	t.SucUpgradeVersion = value
 
 	return nil
 }
+
+// destroy flag.
+type destroyFlag bool
 
 func (d *destroyFlag) String() string {
 	return fmt.Sprintf("%v", *d)
@@ -159,6 +154,11 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
+// external flag.
+type externalConfigFlag struct {
+	SonobuoyVersion string
+}
+
 func (e *externalConfigFlag) String() string {
 	return e.SonobuoyVersion
 }
@@ -167,4 +167,11 @@ func (e *externalConfigFlag) Set(value string) error {
 	e.SonobuoyVersion = value
 
 	return nil
+}
+
+// rancher config flag.
+type rancherConfigFlag struct {
+	CertManagerVersion  string
+	RancherImageVersion string
+	RancherHelmVersion  string
 }

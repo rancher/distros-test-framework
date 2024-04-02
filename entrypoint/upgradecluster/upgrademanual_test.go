@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -76,14 +76,14 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		err := testcase.TestUpgradeClusterManually(productflag.ServiceFlag.InstallMode.String())
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
+			assert.NodeAssertVersionTypeUpgrade(productflag.ServiceFlag),
 		)
 	})
 

@@ -88,6 +88,9 @@ test-create-mixedos:
 test-create-dualstack:
 	@go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
 
+test-deploy-rancher:
+	@go test -timeout=65m -v -count=1 ./entrypoint/deployrancher/... -certManagerVersion ${CERT_MANAGER_VERSION} -rancherImageVersion ${RANCHER_IMAGE_VERSION} -rancherHelmVersion ${RANCHER_HELM_VERSION}
+
 .PHONY: test-version-bump
 test-version-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump \

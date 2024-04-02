@@ -6,7 +6,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,7 +33,7 @@ func TestRestartServiceSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	g := GinkgoT()
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if productflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster(g)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

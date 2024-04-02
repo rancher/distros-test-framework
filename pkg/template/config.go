@@ -1,7 +1,7 @@
 package template
 
 import (
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/productflag"
 )
 
 // TestTemplate represents a version test scenario with test configurations and commands.
@@ -14,7 +14,7 @@ type TestTemplate struct {
 
 // RunCmd represents the command sets to run on host and node.
 type RunCmd struct {
-	Run []customflag.TestMap
+	Run []productflag.TestMapConfig
 }
 
 // TestConfig represents the testcase function configuration
@@ -36,7 +36,7 @@ func testCaseWrapper(v TestTemplate) {
 }
 
 // ConvertToTestCase converts the TestCaseFlag to testCase
-func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
+func ConvertToTestCase(testCaseFlags []productflag.TestCaseFlag) []testCase {
 	var testCases []testCase
 	for _, tcf := range testCaseFlags {
 		tc := testCase(tcf)
