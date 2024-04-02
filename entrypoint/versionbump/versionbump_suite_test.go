@@ -7,6 +7,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
@@ -72,4 +73,6 @@ var _ = AfterSuite(func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
+	shared.PrintGetAll()
+	assert.PrintResults()
 })

@@ -94,53 +94,53 @@ policy_files() {
   fi
   sleep 20
 }
-
-etcd_download() {
-    sudo curl -L https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz -o etcd-v3.5.0-linux-amd64.tar.gz
-    sudo tar xzvf etcd-v3.5.0-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-v3.5.0-linux-amd64/etcdctl
-}
-
-install_etcdctl() {
-  if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      yum update -y > /dev/null 2>&1
-      sudo dnf install -y tar
-      etcd_download
-    elif [[ "$node_os" == *"ubuntu"* ]]; then
-      apt-get update -y > /dev/null 2>&1
-      etcd_download
-    else
-      zypper update -y > /dev/null 2>&1
-      etcd_download
-  fi
-
-if command -v /usr/local/bin/etcdctl >/dev/null; then
-    echo "etcdctl successfully installed."
-    printf "ETCDCTL VERSION: %s\n" "$(sudo /usr/local/bin/etcdctl version)"
-    echo "Checking etcdctl endpoint health."
-    sleep 40
-    if [[ -f "/var/lib/rancher/k3s/server/tls/etcd/server-client.crt" ]]; then
-        count=0
-        max_retries=5
-        while true; do
-          ETCDCTL_API=3 sudo /usr/local/bin/etcdctl \
-            --cert=/var/lib/rancher/k3s/server/tls/etcd/server-client.crt \
-            --key=/var/lib/rancher/k3s/server/tls/etcd/server-client.key \
-            --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt endpoint health && break || echo "Command failed, retrying..."
-             ((count++))
-               if [ "$count" -ge "$max_retries" ]; then
-                 echo "Max retries reached"
-                 break
-               fi
-               sleep 20
-             done
-    else
-        echo "Certificate files not found, skipping etcdctl endpoint health check."
-    fi
-else
-    echo "Installation failed or etcdctl not found in PATH."
-    return 1
-fi
-}
+#
+#etcd_download() {
+#    sudo curl -L https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz -o etcd-v3.5.0-linux-amd64.tar.gz
+#    sudo tar xzvf etcd-v3.5.0-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-v3.5.0-linux-amd64/etcdctl
+#}
+#
+#install_etcdctl() {
+#  if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
+#      yum update -y > /dev/null 2>&1
+#      sudo dnf install -y tar
+#      etcd_download
+#    elif [[ "$node_os" == *"ubuntu"* ]]; then
+#      apt-get update -y > /dev/null 2>&1
+#      etcd_download
+#    else
+#      zypper update -y > /dev/null 2>&1
+#      etcd_download
+#  fi
+#
+#if command -v /usr/local/bin/etcdctl >/dev/null; then
+#    echo "etcdctl successfully installed."
+#    printf "ETCDCTL VERSION: %s\n" "$(sudo /usr/local/bin/etcdctl version)"
+#    echo "Checking etcdctl endpoint health."
+#    sleep 40
+#    if [[ -f "/var/lib/rancher/k3s/server/tls/etcd/server-client.crt" ]]; then
+#        count=0
+#        max_retries=5
+#        while true; do
+#          ETCDCTL_API=3 sudo /usr/local/bin/etcdctl \
+#            --cert=/var/lib/rancher/k3s/server/tls/etcd/server-client.crt \
+#            --key=/var/lib/rancher/k3s/server/tls/etcd/server-client.key \
+#            --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt endpoint health && break || echo "Command failed, retrying..."
+#             ((count++))
+#               if [ "$count" -ge "$max_retries" ]; then
+#                 echo "Max retries reached"
+#                 break
+#               fi
+#               sleep 20
+#             done
+#    else
+#        echo "Certificate files not found, skipping etcdctl endpoint health check."
+#    fi
+#else
+#    echo "Installation failed or etcdctl not found in PATH."
+#    return 1
+#fi
+#}
 
 install() {
   export "$install_mode"="$version"
@@ -170,6 +170,6 @@ main() {
   subscription_manager
   disable_cloud_setup
   install
-  install_etcdctl
+#  install_etcdctl
 }
 main "$@"

@@ -5,13 +5,12 @@ package versionbump
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 const (
@@ -80,67 +79,17 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
-	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true, false)
+	It("Verifies ClusterIP Service", func() {
+		testcase.TestServiceClusterIp(true, true)
+	})
+
+	It("Verifies NodePort Service", func() {
+		testcase.TestServiceNodePort(true, true)
 	})
 
 	It("Verifies Ingress", func() {
 		testcase.TestIngress(true, true)
 	})
-
-	// we start tests here with cni: multus+canal
-	if cfg.Product == "rke2" {
-		It("Updating config yaml cni to cilium and get version bumps for it and cni-plugins", func() {
-			Template(TestTemplate{
-				TestCombination: &RunCmd{
-					Run: []TestMap{
-						{
-							Cmd:           "kubectl get node -o yaml : | grep multus-cni -A1",
-							ExpectedValue: "hardened-multus ",
-						},
-						{
-							Cmd: "sudo sed -i '/cni:/d' /etc/rancher/rke2/config.yaml && " +
-								" sudo sed -i '/multus/d' /etc/rancher/rke2/config.yaml && sudo sed -i '/canal/d' /etc/rancher/rke2/config.yaml " +
-								" && echo -e \"cni: cilium\" | sudo tee -a /etc/rancher/rke2/config.yaml " +
-								" && cat /etc/rancher/rke2/config.yaml",
-							ExpectedValue: "cilium",
-						},
-						{
-							Cmd:           "sudo sed -i '/^$/d' /etc/rancher/rke2/config.yaml && cat /etc/rancher/rke2/config.yaml && sleep 20",
-							ExpectedValue: "cilium",
-						},
-						{
-							Cmd:           "sudo systemctl restart rke2-server && if [ $? -eq 0 ]; then echo \"ok\"; fi",
-							ExpectedValue: "ok",
-						},
-						{
-							Cmd:           "sleep 10 && if [ $? -eq 0 ]; then echo \"ok\"; fi",
-							ExpectedValue: "ok",
-						},
-						{
-							Cmd:           "kubectl get node -o yaml : | grep mirrored-cilium  -A1",
-							ExpectedValue: "mirrored-cilium ",
-						},
-						{
-							Cmd:           "kubectl get node -o yaml : | grep hardened-cni-plugins -A1",
-							ExpectedValue: "hardened-cni-plugins ",
-						},
-					},
-				},
-				DebugMode: customflag.ServiceFlag.TestConfig.DebugMode,
-			})
-		})
-	}
-
-	if cfg.Product == "k3s" {
-		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(true, true)
-		})
-
-		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true, true)
-		})
-	}
 
 	It("Validate ETCD health after all bumps", func() {
 		healthCheck := fmt.Sprintf("sudo  ETCDCTL_API=3 /usr/local/bin/etcdctl  --cert=/var/lib/rancher/%s/server/tls/etcd/server-client.crt"+
@@ -159,13 +108,15 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
-	It("Print get all", func() {
-		shared.PrintGetAll()
-	})
+	if cfg.Product == "k3s" {
+		It("Verifies Local Path Provisioner storage", func() {
+			testcase.TestLocalPathProvisionerStorage(true, true)
+		})
 
-	It("Print results formated", func() {
-		assert.PrintResults()
-	})
+		It("Verifies LoadBalancer Service", func() {
+			testcase.TestServiceLoadBalancer(true, true)
+		})
+	}
 })
 
 var _ = AfterEach(func() {

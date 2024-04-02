@@ -94,8 +94,10 @@ disable_cloud_setup() {
 }
 
 etcd_download() {
-    sudo curl -L https://github.com/etcd-io/etcd/releases/download/v3.5.0/etcd-v3.5.0-linux-amd64.tar.gz -o etcd-v3.5.0-linux-amd64.tar.gz
-    sudo tar xzvf etcd-v3.5.0-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-v3.5.0-linux-amd64/etcdctl
+    local etcd_version="v3.5.0"
+
+    sudo curl -L https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-linux-amd64.tar.gz -o etcd-${etcd_version}-linux-amd64.tar.gz
+    sudo tar xzvf etcd-${etcd_version}-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-${etcd_version}-linux-amd64/etcdctl
 }
 
 install_etcdctl() {
