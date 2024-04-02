@@ -21,13 +21,13 @@ func TestMain(m *testing.M) {
 		"installVersionOrCommit", "channel", "testCase", "workloadName",
 		"applyWorkload", "deleteWorkload", "destroy", "description")
 
+	productflag.ValidateTemplateFlags()
+
 	var err error
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return
 	}
-
-	productflag.ValidateTemplateFlags()
 
 	// validating and adding test cases field on template testConfigFlag.
 	productflag.ServiceFlag.TestTemplateConfig.TestFuncNames = productflag.TestCaseNameFlag
