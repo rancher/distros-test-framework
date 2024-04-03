@@ -20,8 +20,8 @@ func processTestCombination(
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
 
-			if strings.Contains(testMap.Cmd, "etcd") {
-				nodes, err := shared.GetNodesByRoles("etcd")
+			if strings.Contains(testMap.Cmd, "etcd ") {
+				nodes, err := shared.GetNodesByRoles("control-plane")
 				if err != nil {
 					shared.LogLevel("error", "error from getting nodes by roles: %w\n", err)
 					return err
@@ -38,9 +38,6 @@ func processTestCombination(
 			}
 
 			for _, ip := range ips {
-				if err := validateCmdxValue(cmds, expectedValues); err != nil {
-					return shared.ReturnLogError("error from validateCmdXValue: %w", err)
-				}
 				if processErr := processCmds(ip, cmds, expectedValues, currentVersion); processErr != nil {
 					return shared.ReturnLogError("error from processCmds: %w", processErr)
 				}
@@ -58,7 +55,6 @@ func processCmds(
 	expectedValues []string,
 	currentProductVersion string,
 ) error {
-
 	for i := range cmds {
 		cmd := cmds[i]
 		expectedValue := expectedValues[i]
@@ -74,23 +70,6 @@ func processCmds(
 				return shared.ReturnLogError("error from processOnNode: %w", processNodeErr)
 			}
 		}
-	}
-
-	return nil
-}
-
-// validateCmdxValue validates the commands and expected values.
-func validateCmdxValue(cmds, expectedValues []string) error {
-	if customflag.ServiceFlag.InstallMode.String() != "" && TestMapTemplate.ExpectedValueUpgrade == "" {
-		return shared.ReturnLogError("expected value upgrade is empty")
-	}
-
-	if len(cmds) != len(expectedValues) {
-		return shared.ReturnLogError("mismatched length commands x expected values: %s x %s", cmds, expectedValues)
-	}
-
-	if expectedValues[0] == "" || cmds[0] == "" {
-		return shared.ReturnLogError("empty arg for assert and/or cmd")
 	}
 
 	return nil
@@ -116,6 +95,8 @@ func processOnNode(cmd, expectedValue, ip, currentProductVersion string) error {
 	expectedValue = strings.TrimSpace(expectedValue)
 	cmdsRun := strings.Split(cmd, ",")
 	for _, cmdRun := range cmdsRun {
+		cmdRun = strings.TrimSpace(cmdRun)
+		cmdRun = strings.ReplaceAll(cmdRun, `"`, "")
 		err := assert.ValidateOnNode(ip, cmdRun, expectedValue)
 		if err != nil {
 			return shared.ReturnLogError("error from validate on node: %w\n", err)
@@ -135,13 +116,14 @@ func processOnHost(cmd, expectedValue, currentProductVersion string) error {
 		fmt.Printf("\n---------------------\n"+
 			"Version Check: %s\n"+
 			"Command to Execute: %s\n"+
-			"Execution Location: Node\n"+
+			"Execution Location: Host\n"+
 			"Expected Value: %s\n---------------------\n",
 			currentProductVersion, cmd, expectedValue)
 	}
 
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
+	fullCmd = strings.ReplaceAll(fullCmd, `"`, "")
 
 	expectedValue = strings.TrimSpace(expectedValue)
 	err := assert.ValidateOnHost(fullCmd, expectedValue)

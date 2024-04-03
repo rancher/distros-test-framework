@@ -120,8 +120,10 @@ install() {
   if [ "$datastore_type" = "etcd" ]; then
     if [[ -n "$channel" ]]; then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
+      install_etcdctl
     else
       curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
+      install_etcdctl
     fi
   elif  [[ "$datastore_type" = "external" ]]; then
     if [[ -n "$channel" ]]; then
@@ -226,7 +228,6 @@ main() {
     # add sleep to make sure install finished and the node token file is present on the node for a copy
     sleep 30
   fi
-  install_etcdctl
   config_files
 }
 main "$@"
