@@ -114,34 +114,6 @@ install_etcdctl() {
       zypper update -y > /dev/null 2>&1
       etcd_download
   fi
-
-if command -v /usr/local/bin/etcdctl >/dev/null; then
-    echo "etcdctl successfully installed."
-    printf "ETCDCTL VERSION: %s\n" "$(sudo /usr/local/bin/etcdctl version)"
-    echo "Checking etcdctl endpoint health."
-    sleep 40
-    if [[ -f "/var/lib/rancher/rke2/server/tls/etcd/server-client.crt" ]]; then
-        count=0
-        max_retries=5
-        while true; do
-          ETCDCTL_API=3 sudo /usr/local/bin/etcdctl \
-            --cert=/var/lib/rancher/rke2/server/tls/etcd/server-client.crt \
-            --key=/var/lib/rancher/rke2/server/tls/etcd/server-client.key \
-            --cacert=/var/lib/rancher/rke2/server/tls/etcd/server-ca.crt endpoint health && break || echo "Command failed, retrying..."
-             ((count++))
-               if [ "$count" -ge "$max_retries" ]; then
-                 echo "Max retries reached"
-                 break
-               fi
-               sleep 20
-             done
-    else
-        echo "Certificate files not found, skipping etcdctl endpoint health check."
-    fi
-else
-    echo "Installation failed or etcdctl not found in PATH."
-    return 1
-fi
 }
 
 install() {
