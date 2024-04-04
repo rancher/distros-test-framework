@@ -38,24 +38,8 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	It("Verifies Killall", func() {
-		testcase.TestKillall()
-	})
-
-	It("Verifies Stopped Server", func() {
-		testcase.StopServer()
-	})
-
 	It("Verifies Cluster Reset", func() {
-		testcase.ClusterReset()
-	})
-
-	It("Verifies Database Directories Deleted", func() {
-		testcase.DeleteDatabaseDirectories()
-	})
-
-	It("Verifies Started Server", func() {
-		testcase.StartServer()
+		testcase.TestClusterReset()
 	})
 
 	It("Validate Nodes", func() {

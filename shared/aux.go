@@ -56,11 +56,10 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
-			"command: %s failed on run ssh: %s with error: %w\n %v\n %v",
+			"command: %s failed on run ssh: %s with error: %w\n, stderr: %v\n",
 			cmd,
 			ip,
 			err,
-			stdout,
 			stderr,
 		)
 	}
@@ -200,7 +199,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		return stdoutStr, stderrStr, errssh
+		return "", stderrStr, errssh
 	}
 
 	return stdoutStr, stderrStr, nil

@@ -114,35 +114,3 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 		Expect(agentIPs).Should(BeEmpty())
 	}
 }
-
-func ClusterReset() {
-	product, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred())
-
-	g := GinkgoT()
-	cluster := factory.ClusterConfig(g)
-	ip := cluster.ServerIPs[0]
-
-	var cmd string
-	var res string
-	var cmdErr error
-
-	cmd = fmt.Sprintf("sudo %s server --cluster-reset", product)
-
-	switch product {
-	case "k3s":
-		res, cmdErr = shared.RunCommandOnNode(cmd, ip)
-		Expect(cmdErr).NotTo(HaveOccurred())
-		Expect(res).To(ContainSubstring("Managed etcd cluster"))
-		Expect(res).To(ContainSubstring("has been reset"))
-	case "rke2":
-		_, cmdErr = shared.RunCommandOnNode(cmd, ip)
-		Expect(cmdErr).To(HaveOccurred())
-		Expect(cmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
-		Expect(cmdErr.Error()).To(ContainSubstring("has been reset"))
-	default:
-		shared.LogLevel("error", "unsupported product: %s", product)
-		g.Fail()
-	}
-
-}
