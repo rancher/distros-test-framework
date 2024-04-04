@@ -1,6 +1,7 @@
 package restartservice
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -16,8 +17,10 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	var err error
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Parse()
 
+	var err error
 	cfg, err = shared.EnvConfig()
 	if err != nil {
 		return

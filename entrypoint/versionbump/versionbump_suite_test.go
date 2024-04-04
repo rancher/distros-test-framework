@@ -1,6 +1,7 @@
 package versionbump
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -17,9 +18,18 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	productflag.AddFlags("cmd", "expectedValue", "expectedValueUpgrade",
-		"installVersionOrCommit", "channel", "testCase", "workloadName",
-		"applyWorkload", "deleteWorkload", "destroy", "description")
+	flag.StringVar(&productflag.TestMap.Cmd, "cmd", "", "Comma separated list of commands to execute")
+	flag.StringVar(&productflag.TestMap.ExpectedValue, "expectedValue", "", "Comma separated list of expected values for commands")
+	flag.StringVar(&productflag.TestMap.ExpectedValueUpgrade, "expectedValueUpgrade", "", "Expected value of the command ran after upgrading")
+	flag.Var(&productflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&productflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
+	flag.Var(&productflag.TestCaseNameFlag, "testCase", "Comma separated list of test case names to run")
+	flag.StringVar(&productflag.ServiceFlag.TestTemplateConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
+	flag.BoolVar(&productflag.ServiceFlag.TestTemplateConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
+	flag.BoolVar(&productflag.ServiceFlag.TestTemplateConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&productflag.ServiceFlag.TestTemplateConfig.Description, "description", "", "Description of the test")
+	flag.Parse()
 
 	productflag.ValidateTemplateFlags()
 

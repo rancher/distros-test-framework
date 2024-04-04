@@ -1,6 +1,7 @@
 package validatecluster
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	productflag.AddFlags("destroy")
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 
 	var err error
 	cfg, err = shared.EnvConfig()

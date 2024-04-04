@@ -1,6 +1,7 @@
 package mixedoscluster
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -16,7 +17,8 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	productflag.AddFlags("destroy", "sonobuoyVersion")
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Parse()
 
 	var err error
 	cfg, err = shared.EnvConfig()

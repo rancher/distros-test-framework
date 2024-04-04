@@ -1,6 +1,7 @@
 package selinux
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -13,7 +14,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	productflag.AddFlags("channel", "installVersionOrCommit", "destroy")
+	flag.Var(&productflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Install upgrade customflag for version bump")
+	flag.Var(&productflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Parse()
 
 	_, err := shared.EnvConfig()
 	if err != nil {

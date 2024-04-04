@@ -1,6 +1,7 @@
 package deployrancher
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -18,7 +19,11 @@ import (
 var cfg *config.Product
 
 func TestMain(m *testing.M) {
-	productflag.AddFlags("destroy", "certManagerVersion", "rancherHelmVersion", "rancherImageVersion")
+	flag.Var(&productflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&productflag.ServiceFlag.RancherConfig.CertManagerVersion, "certManagerVersion", "v1.13.1", "cert-manager version that will be deployed on the cluster")
+	flag.StringVar(&productflag.ServiceFlag.RancherConfig.RancherHelmVersion, "rancherHelmVersion", "v2.8.0", "rancher helm chart version to use to deploy rancher manager")
+	flag.StringVar(&productflag.ServiceFlag.RancherConfig.RancherImageVersion, "rancherImageVersion", "v2.8.3", "rancher version that will be deployed on the cluster")
+	flag.Parse()
 	productflag.ValidateVersionFormat()
 
 	var err error
