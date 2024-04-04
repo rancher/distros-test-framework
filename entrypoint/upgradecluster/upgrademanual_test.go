@@ -8,7 +8,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -77,9 +76,8 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		fmt.Println("Current cluster state before upgrade:")
-		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
