@@ -86,16 +86,15 @@ func waitForHashMatch(cpIp, product string, defaultTime time.Duration, times int
 	var secretEncryptStatus string
 	var errGetStatus error
 	for i := 1; i <= times; i++ {
-		secretEncryptStatus, errGetStatus := shared.SecretEncryptOps("status", cpIp, product)
+		secretEncryptStatus, errGetStatus = shared.SecretEncryptOps("status", cpIp, product)
 		if errGetStatus != nil {
 			shared.LogLevel("DEBUG", "error getting secret-encryption status. Retry.")
 		}
 		if secretEncryptStatus != "" && strings.Contains(secretEncryptStatus, "All hashes match") {
 			shared.LogLevel("DEBUG", "Total sleep time before hashes matched: %d seconds", i*int(defaultTime))
 			return secretEncryptStatus, nil
-		} else {
-			time.Sleep(defaultTime * time.Second)
 		}
+		time.Sleep(defaultTime * time.Second)
 	}
 	shared.LogLevel("WARN", "Hashes did not match after %d seconds", times*int(defaultTime))
 	return secretEncryptStatus, errGetStatus
@@ -139,7 +138,9 @@ func getNodeIps(nodes []shared.Node) []string {
 	var nodeIps []string
 	for _, node := range nodes {
 		nodeIps = append(nodeIps, node.ExternalIP)
-		shared.LogLevel("DEBUG", "Node details: name: %s status: %s roles: %s external ip: %s", node.Name, node.Status, node.Roles, node.ExternalIP)
+		shared.LogLevel("DEBUG",
+			"Node details: name: %s status: %s roles: %s external ip: %s",
+			node.Name, node.Status, node.Roles, node.ExternalIP)
 	}
 	return nodeIps
 }

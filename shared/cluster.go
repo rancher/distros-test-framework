@@ -712,7 +712,7 @@ func WaitForPodsRunning(defaultTime time.Duration, times int, print bool) error 
 		}
 	}
 	if !podsRunning {
-		ReturnLogError("All pods were not up at the end of wait period %d", int(defaultTime)*times)
+		return ReturnLogError("All pods were not up at the end of wait period %d", int(defaultTime)*times)
 	}
 	return nil
 }
