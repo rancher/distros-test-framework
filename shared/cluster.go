@@ -670,5 +670,49 @@ func CreateSecret(secret, namespace string) error {
 	if strings.Contains(createStdOut, "failed to create secret") {
 		return ReturnLogError("failed to create secret: \n%w", err)
 	}
+	LogLevel("DEBUG", "Create Secret Output: %s", createStdOut)
+	return nil
+}
+
+func checkPodStatus(print bool) bool {
+	podsRunningStatus := false
+	pods, errGetPods := GetPods(print)
+	if errGetPods != nil || len(pods) == 0 {
+		LogLevel("DEBUG", "Error getting pods. Retry.")
+		return podsRunningStatus
+	}
+	podReady := 0
+	podNotReady := 0
+	for _, pod := range pods {
+		if pod.Status == "Running" || pod.Status == "Completed" {
+			podReady = podReady + 1
+		} else {
+			podNotReady = podNotReady + 1
+			LogLevel("DEBUG", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
+		}
+	}
+	if podReady+podNotReady != len(pods) {
+		LogLevel("DEBUG", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
+	}
+	if podNotReady == 0 {
+		podsRunningStatus = true
+	}
+	return podsRunningStatus
+}
+
+// Wait for pods to reach running state.
+func WaitForPodsRunning(defaultTime time.Duration, times int, print bool) error {
+	var podsRunning bool
+	for i := 1; i <= times; i++ {
+		time.Sleep(defaultTime * time.Second)
+		podsRunning = checkPodStatus(print)
+		if podsRunning {
+			LogLevel("DEBUG", "All pods are up. Exiting sleep cycle after: %d seconds", i*int(defaultTime))
+			break
+		}
+	}
+	if !podsRunning {
+		ReturnLogError("All pods were not up at the end of wait period %d", int(defaultTime)*times)
+	}
 	return nil
 }

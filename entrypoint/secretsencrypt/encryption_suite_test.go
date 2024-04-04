@@ -40,9 +40,10 @@ var _ = BeforeSuite(func() {
 	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cfg.Product)); err != nil {
 		Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
 	}
-	Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
-		"FATAL: Add secrets-encryption:true to server_flags for this test")
-
+	if cfg.Product == "k3s" {
+		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
+			"ERROR: Add secrets-encryption:true to server_flags for this test")
+	}
 	version := os.Getenv(fmt.Sprintf("%s_version", cfg.Product))
 	if strings.Contains(version, "1.27") || strings.Contains(version, "1.26") {
 		os.Setenv("TEST_TYPE", "classic")

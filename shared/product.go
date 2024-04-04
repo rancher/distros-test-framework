@@ -79,9 +79,12 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 		if getError != nil {
 			return ip, getError
 		}
-		_, err := RunCommandOnNode(cmd, ip)
+		manageServiceOut, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err
+		}
+		if manageServiceOut != "" {
+			LogLevel("DEBUG", "service %s output: \n %s", action, manageServiceOut)
 		}
 	}
 
@@ -92,10 +95,11 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 func CertRotate(product string, ips []string) (string, error) {
 	for _, ip := range ips {
 		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
-		_, err := RunCommandOnNode(cmd, ip)
+		certRotateOut, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err
 		}
+		LogLevel("DEBUG", "On %s, cert rotate output:\n %s", ip, certRotateOut)
 	}
 
 	return "", nil
@@ -114,11 +118,11 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 
 	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
 	if err != nil {
-		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action), err)
+		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action), err)
 	}
 	if strings.Contains(secretsEncryptStdOut, "fatal") {
-		return "", ReturnLogError(fmt.Sprintf("FATAL: secrets-encryption %s action failed", action))
+		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action))
 	}
-
+	LogLevel("DEBUG", "%s output:\n %s", action, secretsEncryptStdOut)
 	return secretsEncryptStdOut, nil
 }

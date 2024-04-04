@@ -30,7 +30,7 @@ agent1 ->  agent/worker node
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
 ### Secret-Encryption tests Setup Requirements/Assumptions
-We need a split role setup for this test:
+For patch validation test runs, we need a split role setup for this test:
 1 Etcd ONLY node
 2 Control Plane ONLY node
 1 Agent node
@@ -47,13 +47,20 @@ etcd_worker_nodes  = 0
 cp_only_nodes      = 2  # control plane only node count
 cp_worker_nodes    = 0
 # Numbers 1-6 correspond to: all-roles (1), etcd-only (2), etcd-cp (3), etcd-worker (4), cp-only (5), cp-worker (6).
-role_order         = "2,5,5"
+role_order         = "2,5"
 ```
+Please note, we can also run this test on a regular HA setup - 3 all-roles server, 1 worker node. (without split roles)
 
-Please set the server_flags in .tfvars file:
+Please set the server_flags in .tfvars file for k3s:
 ```
 server_flags   = "secrets-encryption: true\n"
 ```
+In case of rke2 - do not leave this empty for now.
+At least set a "token: secret\n" for both server and agent flags as a workaround for:
+https://github.com/rancher/distros-test-framework/issues/86
+
+For versions 1.26 and 1.27 - we run the traditional tests only: prepare/rotate/renenrypt (TEST_TYPE gets set to 'classic' in env var. We use this to determine which tests to run.)
+For versions 1.28 and greater - we run both the traditional tests and new method - rotate-keys (TEST_TYPE gets set to 'both' in env var)
 
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
