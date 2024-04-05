@@ -30,14 +30,13 @@ func updateExpectedValue(template TestTemplate) {
 //
 // to execute test combination on group of IPs
 func executeTestCombination(template TestTemplate) error {
-	ips := shared.FetchNodeExternalIPs()
-
-	version, err := currentProductVersion()
+	currentVersion, err := currentProductVersion()
 	if err != nil {
 		return shared.ReturnLogError("failed to get current version: %w", err)
 	}
 
-	processErr := processTestCombination(ips, version, &template)
+	ips := shared.FetchNodeExternalIPs()
+	processErr := processTestCombination(ips, currentVersion, &template)
 	if processErr != nil {
 		return shared.ReturnLogError("failed to process test combination: %w", processErr)
 	}

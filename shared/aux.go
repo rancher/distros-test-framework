@@ -46,8 +46,10 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
+	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
+
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %w\n", err)
@@ -220,6 +222,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
+
 	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
 		return nil, ReturnLogError("failed to dial: %w", err)

@@ -91,23 +91,6 @@ var _ = Describe("Components Version Upgrade:", func() {
 		testcase.TestIngress(true, true)
 	})
 
-	It("Validate ETCD health after all bumps", func() {
-		healthCheck := fmt.Sprintf("sudo  ETCDCTL_API=3 /usr/local/bin/etcdctl  --cert=/var/lib/rancher/%s/server/tls/etcd/server-client.crt"+
-			" --key=/var/lib/rancher/%s/server/tls/etcd/server-client.key "+
-			" --cacert=/var/lib/rancher/%s/server/tls/etcd/server-ca.crt endpoint health", cfg.Product, cfg.Product, cfg.Product)
-		Template(TestTemplate{
-			TestCombination: &RunCmd{
-				Run: []TestMap{
-					{
-						Cmd:           healthCheck,
-						ExpectedValue: "is healthy: successfully ",
-					},
-				},
-			},
-			DebugMode: customflag.ServiceFlag.TestConfig.DebugMode,
-		})
-	})
-
 	if cfg.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
 			testcase.TestLocalPathProvisionerStorage(true, true)

@@ -5,6 +5,48 @@ We have a template model interface for testing version bumps. The idea is to pro
 The test can be created by adding one version or commit, run some commands on it, and check it against respective expected values then upgrade and repeat the same commands and check the respective new (or not) expected values.
 
 
+### Tests:
+Right now we have 4 tests/jobs that you can run:
+ 
+ CNIs:
+`cilium`
+
+`multus + canal` ( looking for calico and flannel also)
+
+ 
+General components: 
+`components` (which runs all those at once )
+
+- Rke2        
+```
+1- flannel
+2- calico
+3- ingressController
+4- coredns
+5- metricsServer
+6- etcd
+7- containerd
+8- runc
+```
+- k3s
+```
+1- flannel
+2- coredns
+3- metrics
+4- etcd
+5- plugins
+6- traefik
+7- local-path-storage
+8- containerd
+9- klipper
+10- runc
+```
+
+Version bump: 
+- Runs any combination of cmd x expected value you want.
+
+
+
 ### How can I do that?
 
 Available flags to create your tests with some data examples:

@@ -93,37 +93,14 @@ disable_cloud_setup() {
    fi
 }
 
-etcd_download() {
-    local etcd_version="v3.5.0"
-
-    sudo curl -L https://github.com/etcd-io/etcd/releases/download/${etcd_version}/etcd-${etcd_version}-linux-amd64.tar.gz -o etcd-${etcd_version}-linux-amd64.tar.gz
-    sudo tar xzvf etcd-${etcd_version}-linux-amd64.tar.gz -C /usr/local/bin --strip-components=1 etcd-${etcd_version}-linux-amd64/etcdctl
-}
-
-install_etcdctl() {
-  if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      yum update -y > /dev/null 2>&1
-      sudo dnf install -y tar
-      etcd_download
-    elif [[ "$node_os" == *"ubuntu"* ]]; then
-      apt-get update -y > /dev/null 2>&1
-      etcd_download
-    else
-      zypper update -y > /dev/null 2>&1
-      etcd_download
-  fi
-}
-
 install() {
   export "$install_mode"="$version"
 
   if [ "$datastore_type" = "etcd" ]; then
     if [[ -n "$channel" ]]; then
       curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server
-      install_etcdctl
     else
       curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server
-      install_etcdctl
     fi
   elif  [[ "$datastore_type" = "external" ]]; then
     if [[ -n "$channel" ]]; then

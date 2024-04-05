@@ -242,9 +242,13 @@ func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 
 // FetchNodeExternalIPs returns the external IP of the nodes.
 func FetchNodeExternalIPs() []string {
-	res, _ := RunCommandHost("kubectl get nodes " +
+	res, err := RunCommandHost("kubectl get nodes " +
 		"--output=jsonpath='{.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}' " +
 		"--kubeconfig=" + KubeConfigFile)
+	if err != nil {
+		LogLevel("error", "%w", err)
+	}
+
 	nodeExternalIP := strings.Trim(res, " ")
 	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
 
@@ -253,11 +257,8 @@ func FetchNodeExternalIPs() []string {
 
 // RestartCluster restarts the service on each node given by external IP.
 func RestartCluster(product, ip string) {
-	delay := time.After(40 * time.Second)
 	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	// TODO: revisit upgrade concunrrency.
-	// delay needed due to concurrency on restarting all ckluster at once.
-	<-delay
+	time.Sleep(20 * time.Second)
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace
