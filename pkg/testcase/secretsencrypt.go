@@ -23,7 +23,9 @@ func TestSecretsEncryption() {
 
 	errSecret := shared.CreateSecret("secret1", "default")
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
+
 	shared.LogLevel("INFO", "TEST: 'CLASSIC' Secrets Encryption method")
+
 	index := len(nodes) - 1
 	secretsEncryptOps("prepare", product, nodes[index].ExternalIP, ips)
 	secretsEncryptOps("rotate", product, nodes[index].ExternalIP, ips)
@@ -56,7 +58,7 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 		waitEtcdErr := shared.WaitForPodsRunning(5, 4, false)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 20 seconds.")
-			if i != len(ips) {
+			if i != len(ips)-1 {
 				shared.LogLevel("DEBUG", "continue service restarts")
 			}
 		}
@@ -92,11 +94,13 @@ func waitForHashMatch(cpIp, product string, defaultTime time.Duration, times int
 		}
 		if secretEncryptStatus != "" && strings.Contains(secretEncryptStatus, "All hashes match") {
 			shared.LogLevel("DEBUG", "Total sleep time before hashes matched: %d seconds", i*int(defaultTime))
+
 			return secretEncryptStatus, nil
 		}
 		time.Sleep(defaultTime * time.Second)
 	}
 	shared.LogLevel("WARN", "Hashes did not match after %d seconds", times*int(defaultTime))
+
 	return secretEncryptStatus, errGetStatus
 }
 
@@ -142,6 +146,7 @@ func getNodeIps(nodes []shared.Node) []string {
 			"Node details: name: %s status: %s roles: %s external ip: %s",
 			node.Name, node.Status, node.Roles, node.ExternalIP)
 	}
+
 	return nodeIps
 }
 
@@ -166,5 +171,6 @@ func logEncryptionFileContents(ips []string, product string) error {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", stateFile))
 		}
 	}
+
 	return nil
 }
