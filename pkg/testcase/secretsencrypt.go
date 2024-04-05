@@ -118,23 +118,17 @@ func verifyStdOut(action, stdout string) {
 }
 
 func verifyStatusOutput(action, stdout string) {
+	Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
+	Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))
 	switch action {
 	case "prepare":
-		Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: prepare"))
-		Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))
 	case "rotate":
-		Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: rotate"))
-		Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))
 	case "reencrypt":
-		Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: reencrypt_finished"))
-		Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))
 	case "rotate-keys":
-		Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: reencrypt_finished"))
-		Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))
 	}
 }
 
