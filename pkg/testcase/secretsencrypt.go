@@ -125,9 +125,7 @@ func verifyStatusOutput(action, stdout string) {
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: prepare"))
 	case "rotate":
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: rotate"))
-	case "reencrypt":
-		Expect(stdout).To(ContainSubstring("Current Rotation Stage: reencrypt_finished"))
-	case "rotate-keys":
+	default:
 		Expect(stdout).To(ContainSubstring("Current Rotation Stage: reencrypt_finished"))
 	}
 }
