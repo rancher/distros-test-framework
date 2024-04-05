@@ -696,10 +696,11 @@ func checkPodStatus(print bool) bool {
 	if podNotReady == 0 {
 		podsRunningStatus = true
 	}
+
 	return podsRunningStatus
 }
 
-// Wait for pods to reach running state.
+// WaitForPodsRunning Waits for pods to reach running state.
 func WaitForPodsRunning(defaultTime time.Duration, times int, print bool) error {
 	var podsRunning bool
 	for i := 1; i <= times; i++ {
@@ -713,5 +714,6 @@ func WaitForPodsRunning(defaultTime time.Duration, times int, print bool) error 
 	if !podsRunning {
 		return ReturnLogError("All pods were not up at the end of wait period %d", int(defaultTime)*times)
 	}
+
 	return nil
 }

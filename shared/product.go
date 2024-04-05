@@ -124,5 +124,6 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action))
 	}
 	LogLevel("DEBUG", "%s output:\n %s", action, secretsEncryptStdOut)
+
 	return secretsEncryptStdOut, nil
 }
