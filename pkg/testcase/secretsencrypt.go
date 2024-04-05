@@ -19,25 +19,24 @@ func TestSecretsEncryption() {
 	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
 
-	ips := getNodeIps(nodes)
-
 	errSecret := shared.CreateSecret("secret1", "default", false)
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
 
 	shared.LogLevel("INFO", "TEST: 'CLASSIC' Secrets Encryption method")
 
 	index := len(nodes) - 1
-	secretsEncryptOps("prepare", product, nodes[index].ExternalIP, ips)
-	secretsEncryptOps("rotate", product, nodes[index].ExternalIP, ips)
-	secretsEncryptOps("reencrypt", product, nodes[index].ExternalIP, ips)
+	cpIp := nodes[index].ExternalIP
+	secretsEncryptOps("prepare", product, cpIp, nodes)
+	secretsEncryptOps("rotate", product, cpIp, nodes)
+	secretsEncryptOps("reencrypt", product, cpIp, nodes)
 
 	if strings.Contains(os.Getenv("TEST_TYPE"), "both") {
 		shared.LogLevel("INFO", "TEST: 'NEW' Secrets Encryption method")
-		secretsEncryptOps("rotate-keys", product, nodes[index].ExternalIP, ips)
+		secretsEncryptOps("rotate-keys", product, cpIp, nodes)
 	}
 }
 
-func secretsEncryptOps(action, product, cpIp string, ips []string) {
+func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 	shared.LogLevel("INFO", fmt.Sprintf("TEST: Secrets-Encryption: %s", action))
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIp, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
@@ -49,8 +48,8 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
 		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services
 	}
-	for i, node := range ips {
-		nodearr := []string{node}
+	for i, node := range nodes {
+		nodearr := []string{node.ExternalIP}
 		nodeIp, errRestart := shared.ManageService(product, "restart", "server", nodearr)
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
 		// Order of reboot matters. Etcd first then control plane nodes.
@@ -58,7 +57,7 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 		waitEtcdErr := shared.WaitForPodsRunning(5, 4, false)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 20 seconds.")
-			if i != len(ips)-1 {
+			if i != len(nodes)-1 {
 				shared.LogLevel("DEBUG", "continue service restarts")
 			}
 		}
@@ -80,7 +79,7 @@ func secretsEncryptOps(action, product, cpIp string, ips []string) {
 	Expect(errGetStatus).NotTo(HaveOccurred(), "error getting secret-encryption status")
 	verifyStatusStdOut(action, secretEncryptStatus)
 
-	errLog := logEncryptionFileContents(ips, product)
+	errLog := logEncryptionFileContents(nodes, product)
 	Expect(errLog).NotTo(HaveOccurred())
 }
 
@@ -135,25 +134,14 @@ func verifyStatusStdOut(action, stdout string) {
 	}
 }
 
-func getNodeIps(nodes []shared.Node) []string {
-	var nodeIps []string
-	for _, node := range nodes {
-		nodeIps = append(nodeIps, node.ExternalIP)
-		shared.LogLevel("DEBUG",
-			"Node details: name: %s status: %s roles: %s external ip: %s",
-			node.Name, node.Status, node.Roles, node.ExternalIP)
-	}
-
-	return nodeIps
-}
-
-func logEncryptionFileContents(ips []string, product string) error {
+func logEncryptionFileContents(nodes []shared.Node, product string) error {
 	configFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-config.json", product)
 	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
 	cmdShowConfig := fmt.Sprintf("sudo cat %s", configFile)
 	cmdShowState := fmt.Sprintf("sudo cat %s", stateFile)
 
-	for _, ip := range ips {
+	for _, node := range nodes {
+		ip := node.ExternalIP
 		configStdOut, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
 		if errConfig != nil {
 			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", configFile))
