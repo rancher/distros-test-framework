@@ -54,7 +54,7 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
 		// Order of reboot matters. Etcd first then control plane nodes.
 		// Little lag needed between node restarts to avoid issues.
-		waitEtcdErr := shared.WaitForPodsRunning(5, 4, false)
+		waitEtcdErr := shared.WaitForPodsRunning(5, 4)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 20 seconds.")
 			if i != len(nodes)-1 {
@@ -64,12 +64,12 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 	}
 	switch product {
 	case "k3s":
-		waitPodsErr := shared.WaitForPodsRunning(5, 6, false)
+		waitPodsErr := shared.WaitForPodsRunning(5, 6)
 		if waitPodsErr != nil {
 			shared.LogLevel("WARN", "pods not up after 30 seconds")
 		}
 	case "rke2":
-		waitPodsErr := shared.WaitForPodsRunning(5, 12, false)
+		waitPodsErr := shared.WaitForPodsRunning(5, 12)
 		if waitPodsErr != nil {
 			shared.LogLevel("WARN", "pods not up after 60 seconds")
 		}
@@ -104,7 +104,7 @@ func waitForHashMatch(cpIp, product string, defaultTime time.Duration, times int
 }
 
 // verifyActionStdOut Verifies secrets-encryption action outputs
-// Verfies std outputs of: sudo k3s|rke2 secrets-encryption prepare|rotate|reencrypt|rotate-keys actions
+// Verifies std outputs of: sudo k3s|rke2 secrets-encryption prepare|rotate|reencrypt|rotate-keys actions
 func verifyActionStdOut(action, stdout string) {
 	switch action {
 	case "prepare":
@@ -118,7 +118,7 @@ func verifyActionStdOut(action, stdout string) {
 	}
 }
 
-// verifyStatusStdOut Verfies secrets-encryption status outputs post different actions.
+// verifyStatusStdOut Verifies secrets-encryption status outputs post different actions.
 // Verifies std output of: sudo k3s|rke2 secrets-encryption status
 // post the action -prepare|rotate|reencrypt|rotate-keys and restart services have been completed
 func verifyStatusStdOut(action, stdout string) {

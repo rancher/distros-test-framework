@@ -701,8 +701,9 @@ func checkPodStatus(print bool) bool {
 }
 
 // WaitForPodsRunning Waits for pods to reach running state.
-func WaitForPodsRunning(defaultTime time.Duration, times int, print bool) error {
+func WaitForPodsRunning(defaultTime time.Duration, times int) error {
 	var podsRunning bool
+	print := false
 	for i := 1; i <= times; i++ {
 		time.Sleep(defaultTime * time.Second)
 		podsRunning = checkPodStatus(print)
