@@ -17,6 +17,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -31,11 +32,12 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Certificate Rotation", func() {
-		testcase.TestCertRotate()
+		testcase.TestCertRotate(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)

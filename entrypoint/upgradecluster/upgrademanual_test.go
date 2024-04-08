@@ -22,6 +22,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -79,11 +80,12 @@ var _ = Describe("Test:", func() {
 	It("Upgrade Manual", func() {
 		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+		_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
 		)

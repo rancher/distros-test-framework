@@ -3,6 +3,7 @@ package testcase
 import (
 	"strings"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -101,9 +102,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func testServiceNodePortDualStack(td testData) {
-	cluster, err := FetchCluster()
-	Expect(err).NotTo(HaveOccurred())
+func testServiceNodePortDualStack(cluster *factory.Cluster, td testData) {
 	nodeExternalIP := shared.FetchNodeExternalIP()
 	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)

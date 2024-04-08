@@ -12,8 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.ClusterConfig(g)
+func TestBuildCluster(cluster *factory.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -32,7 +31,6 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
 			cluster.ServerIPs[0])
-		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
 		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
 		Expect(err).To(HaveOccurred())
 	}
@@ -88,12 +86,6 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			return
 		}
 	}
-}
-
-// FetchCluster returns the cluster
-func FetchCluster() (*factory.Cluster, error) {
-	cluster := factory.ClusterConfig(GinkgoT())
-	return cluster, nil
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs

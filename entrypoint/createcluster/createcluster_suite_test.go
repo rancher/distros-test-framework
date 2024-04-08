@@ -5,23 +5,27 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/factory"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/shared"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
+
+var c *factory.Cluster
 
 func TestMain(m *testing.M) {
 	var err error
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	_, err = shared.EnvConfig()
+	_, err = config.AddEnv()
 	if err != nil {
 		return
 	}
+
+	c = factory.ClusterConfig(GinkgoT())
 
 	os.Exit(m.Run())
 }

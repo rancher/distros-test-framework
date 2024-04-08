@@ -159,22 +159,17 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmdPrefix = action
 	}
 
-	product, err := Product()
+	cfg, err := config.AddEnv()
 	if err != nil {
-		return "", ReturnLogError("failed to get product: %w\n", err)
+		return "", ReturnLogError("failed to get config path: %v\n", err)
 	}
 
 	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		product)); envErr != nil {
-
+		cfg.Product)); envErr != nil {
 		return "", ReturnLogError("error setting env: %w\n", envErr)
 	}
 
 	resourceName := os.Getenv("resource_name")
-	serverIP, _, err := kubeCfgServerIP(resourceName)
-	if err != nil {
-		return "", ReturnLogError("failed to extract server IP: %w", err)
-	}
 
 	var cmd string
 	switch destination {
@@ -182,7 +177,11 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
+		serverIP, _, err := kubeCfgServerIP(resourceName)
+		if err != nil {
+			return "", ReturnLogError("failed to extract server IP: %w", err)
+		}
+		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cfg.Product, cfg.Product)
 		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
 		return kubectlCmdOnNode(cmd, serverIP)

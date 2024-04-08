@@ -16,7 +16,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var (
+	cfg     *config.Product
+	cluster *factory.Cluster
+)
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -47,10 +50,12 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	cfg, err = shared.EnvConfig()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		return
 	}
+
+	cluster = factory.ClusterConfig(GinkgoT())
 
 	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
 		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")

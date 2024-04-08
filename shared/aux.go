@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -85,16 +84,6 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 func BasePath() string {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(callerFilePath), "..")
-}
-
-func EnvConfig() (*config.Product, error) {
-	path := BasePath() + "/config/.env"
-	env, err := config.AddConfigEnv(path)
-	if err != nil {
-		return nil, ReturnLogError("error getting env config: %w\n", err)
-	}
-
-	return env, nil
 }
 
 // PrintFileContents prints the contents of the file as [] string.

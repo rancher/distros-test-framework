@@ -16,7 +16,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var (
+	cfg     *config.Product
+	cluster *factory.Cluster
+)
 
 func TestMain(m *testing.M) {
 	var err error
@@ -26,10 +29,12 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherImageVersion, "rancherImageVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		return
 	}
+
+	cluster = factory.ClusterConfig(GinkgoT())
 
 	os.Exit(m.Run())
 }

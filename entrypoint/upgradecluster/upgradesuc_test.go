@@ -22,6 +22,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -79,11 +80,12 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("\nUpgrade via SUC", func() {
 		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
+		_ = testcase.TestUpgradeClusterSUC(cfg, customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
