@@ -8,7 +8,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,7 +21,6 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
-			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -78,14 +76,12 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		fmt.Println("Current cluster state before upgrade:")
-		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterSUC(cfg, customflag.ServiceFlag.SUCUpgradeVersion.String())
+		err := testcase.TestUpgradeClusterSUC(customflag.ServiceFlag.SUCUpgradeVersion.String())
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Checks Node status post-upgrade", func() {
 		testcase.TestNodeStatus(
-			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
 		)
