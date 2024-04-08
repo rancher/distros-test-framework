@@ -48,7 +48,7 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
 		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services
 	}
-	for i, node := range nodes {
+	for _, node := range nodes {
 		nodearr := []string{node.ExternalIP}
 		nodeIp, errRestart := shared.ManageService(product, "restart", "server", nodearr)
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
@@ -57,9 +57,6 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		waitEtcdErr := shared.WaitForPodsRunning(5, 4)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 20 seconds.")
-			if i != len(nodes)-1 {
-				shared.LogLevel("DEBUG", "continue service restarts")
-			}
 		}
 	}
 	switch product {
