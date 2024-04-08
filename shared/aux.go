@@ -306,6 +306,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}
+
 		return e
 	}
 
@@ -419,6 +420,7 @@ func stringInSlice(a string, list []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -429,6 +431,7 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 			return slice
 		}
 	}
+
 	return append(slice, i)
 }
 func EncloseSqBraces(ip string) string {

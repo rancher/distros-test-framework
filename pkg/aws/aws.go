@@ -173,6 +173,7 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
 				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running "+
 					"and passed status checks", instanceId))
+
 				return nil
 			}
 		}

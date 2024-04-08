@@ -16,10 +16,12 @@ func TestSnapshotWebhook(applyWorkload bool) error {
 				shared.LogLevel("error", workloadErr.Error())
 				shared.LogLevel("info", "Snapshot Webhook manifest not deployed, "+
 					"as expected related to empty string")
+
 				return workloadErr
 			}
 			shared.LogLevel("error", workloadErr.Error(),
 				"Error: webhook not rejecting bad VolumeSnapshot, please double check")
+
 			return nil
 		}
 	}

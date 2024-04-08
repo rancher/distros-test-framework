@@ -89,6 +89,7 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "error when creating") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
+
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -180,11 +181,13 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 	switch destination {
 	case "host":
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+
 		return kubectlCmdOnHost(cmd)
 	case "node":
 		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", product, product)
 		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
+
 		return kubectlCmdOnNode(cmd, serverIP)
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
@@ -464,6 +467,7 @@ func parsePods(res string) []Pod {
 
 		pods = append(pods, p)
 	}
+
 	return pods
 }
 

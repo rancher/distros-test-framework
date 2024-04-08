@@ -1,6 +1,8 @@
 module github.com/rancher/distros-test-framework
 
-go 1.20
+go 1.21
+
+toolchain go1.21.8
 
 require (
 	github.com/aws/aws-sdk-go v1.48.15

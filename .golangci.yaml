@@ -9,6 +9,8 @@ linters:
     - dupl
     - gosimple
     - staticcheck
+    - nlreturn
+    - misspell
 
 linters-settings:
   gofmt:
@@ -17,7 +19,8 @@ linters-settings:
     check-shadowing: true
   gci:
     local-prefixes: github.com/rancher/distros-test-framework
-
+  nlreturn:
+    block-size: 4
   revive:
     confidence: 0.8
     severity: warning
@@ -75,3 +78,6 @@ issues:
       text: 'Unhandled error in call to function fmt\.Println'
     - linters: [govet]
       text: '`fmt\.Println` arg list ends with redundant newline'
+    - linters: [nlreturn]
+      text: 'continue with no blank line before'
+
