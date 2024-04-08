@@ -35,6 +35,7 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
+
 		return true
 	}, "2500s", "10s").Should(BeTrue(), func() string {
 		shared.LogLevel("error", "\ntimeout for nodes to be ready gathering journal logs...\n")

@@ -33,6 +33,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 			if err != nil {
 				shared.LogLevel("error", "error from runAssertion():\n %s\n", err)
 				close(errorsChan)
+
 				return err
 			}
 		}
@@ -54,6 +55,7 @@ func runAssertion(
 		res, err := exec(cmd)
 		if err != nil {
 			errorsChan <- err
+
 			return fmt.Errorf("error from runCmd: %s\n %s", cmd, res)
 		}
 
@@ -63,8 +65,8 @@ func runAssertion(
 				"Trying to assert with:\n %s",
 				cmd, res)
 			errorsChan <- timeoutErr
-			return timeoutErr
 
+			return timeoutErr
 		case <-ticker:
 			if strings.Contains(res, assert) {
 				fmt.Printf("\nCommand:\n"+
@@ -73,6 +75,7 @@ func runAssertion(
 					"%s"+
 					"\n----------------------\nMatched with result:\n%s\n", cmd, assert, res)
 				errorsChan <- nil
+
 				return nil
 			}
 		}
