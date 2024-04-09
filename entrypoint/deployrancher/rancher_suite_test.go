@@ -66,10 +66,8 @@ var _ = BeforeSuite(func() {
 		flags.ExternalFlag.HelmChartsFlag.RepoName,
 		flags.ExternalFlag.HelmChartsFlag.RepoUrl,
 		flags.ExternalFlag.HelmChartsFlag.Version)
-	fmt.Println(res)
-	fmt.Println(err)
-	Expect(err).To(BeNil(), "Error while checking helm repo", err)
-	Expect(res).ToNot(BeEmpty(), "No version found in helm repo", flags.ExternalFlag.HelmChartsFlag.RepoName)
+	Expect(err).To(BeNil(), "Error while checking helm repo ", err)
+	Expect(res).ToNot(BeEmpty(), "No version found in helm repo ", flags.ExternalFlag.HelmChartsFlag.RepoName)
 })
 
 var _ = AfterSuite(func() {
