@@ -77,7 +77,7 @@ go test -timeout=45m -v -tags=versionbump  ./entrypoint/versionbump/... \
 -cmd "/var/lib/rancher/k3s/data/current/bin/cni, kubectl get pod test-pod -o yaml : | grep -A2 annotations, k3s -v" \
 -expectedValue "v1.2.0-k3s1,1M, v1.26" \
 -expectedValueUpgrade "v1.2.0-k3s1,1M, v1.27" \
--installVersionOrCommit 1.27.2+k3s1 \
+-installVersionOrCommit v1.27.2+k3s1 \
 -testCase "TestServiceClusterIP, TestLocalPathProvisionerStorage" \
 -applyWorkload=true \
 -deleteWorkload=false \
