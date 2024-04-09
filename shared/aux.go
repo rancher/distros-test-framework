@@ -49,9 +49,10 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
+
 	conn, err := configureSSH(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %v\n", err)
+		return "", ReturnLogError("failed to configure SSH: %w\n", err)
 	}
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
@@ -101,7 +102,7 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return ReturnLogError("failed to read file: %v\n", err)
+			return ReturnLogError("failed to read file: %w\n", err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
@@ -197,11 +198,11 @@ func AddHelmRepo(name, url string) (string, error) {
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
-		return nil, ReturnLogError("failed to read private key: %v", err)
+		return nil, ReturnLogError("failed to read private key: %w", err)
 	}
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return nil, ReturnLogError("failed to parse private key: %v", err)
+		return nil, ReturnLogError("failed to parse private key: %w", err)
 	}
 
 	return ssh.PublicKeys(signer), nil
@@ -212,7 +213,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 
 	authMethod, err := publicKey(AccessKey)
 	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %v", err)
+		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 	cfg = &ssh.ClientConfig{
 		User: AwsUser,
@@ -221,9 +222,10 @@ func configureSSH(host string) (*ssh.Client, error) {
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
+
 	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
-		return nil, ReturnLogError("failed to dial: %v", err)
+		return nil, ReturnLogError("failed to dial: %w", err)
 	}
 
 	return conn, nil
@@ -232,7 +234,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %v\n", err)
+		return "", "", ReturnLogError("failed to create session: %w\n", err)
 	}
 
 	defer session.Close()
@@ -399,7 +401,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 
 	foundPath, err := findScriptPath(paths, scriptName, ip)
 	if err != nil {
-		return fmt.Errorf("failed to find uninstall script for %s: %v", product, err)
+		return fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
 	}
 
 	pathName := fmt.Sprintf("%s-uninstall.sh", product)
@@ -480,6 +482,7 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 	}
 	return append(slice, i)
 }
+
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }
