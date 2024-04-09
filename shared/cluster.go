@@ -638,3 +638,17 @@ func FetchToken(ip string) (string, error) {
 
 	return token, nil
 }
+
+// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide
+func PrintGetAll() {
+	kubeconfigFile := " --kubeconfig=" + KubeConfigFile
+	cmd := "kubectl get all -A -o wide  " + kubeconfigFile + " && kubectl get nodes -o wide " + kubeconfigFile
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		LogLevel("error", "error from RunCommandHost: %v\n", err)
+		return
+	}
+
+	fmt.Printf("\n\n\n-----------------  Results from kubectl get all -A -o wide"+
+		"  -------------------\n\n%v\n\n\n\n", res)
+}

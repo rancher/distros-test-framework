@@ -40,14 +40,20 @@ var _ = Describe("Multus + canal Version bump:", func() {
 							"kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
 							"| awk '{for(i=1;i<=NF;i++) if($i ~ /calico/) print $i}', " +
 							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
-							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}'",
+							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}' , " +
+							"kubectl get pods -n kube-system : | grep multus | awk '{print $1} {print $3}'",
 						ExpectedValue:        TestMapTemplate.ExpectedValue,
 						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
 					},
 				},
 			},
-			DebugMode: customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: customflag.ServiceFlag.InstallMode.String(),
+			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
 		})
+	})
+
+	It("Verifies dns access", func() {
+		testcase.TestDnsAccess(true, true)
 	})
 
 	It("Verifies ClusterIP Service", func() {

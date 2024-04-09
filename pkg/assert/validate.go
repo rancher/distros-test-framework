@@ -9,14 +9,14 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-type TestResult struct {
+type testResult struct {
 	Command   string
 	Assertion string
 	Result    string
 }
 
 var (
-	results []TestResult
+	Results []testResult
 	mutex   sync.Mutex
 )
 
@@ -123,38 +123,6 @@ func addResult(command, assertion, result string) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	results = append(results, TestResult{Command: "\nCommand:\n" + command + "\n", Assertion: "\nAssertion:\n" +
+	Results = append(Results, testResult{Command: "\nCommand:\n" + command + "\n", Assertion: "\nAssertion:\n" +
 		assertion + "\n", Result: "\nMatched with result:\n" + result + "\n"})
-}
-
-// PrintResults prints the results from the tests called
-func PrintResults() {
-	product, err := shared.Product()
-	if err != nil {
-		return
-	}
-
-	v, err := shared.ProductVersion(product)
-	if err != nil {
-		return
-	}
-
-	var components []string
-	for _, result := range results {
-		if product == "rke2" {
-			components = []string{"flannel", "calico", "ingressController", "coredns", "metricsServer", "etcd",
-				"containerd", "runc"}
-		} else {
-			components = []string{"flannel", "coredns", "metricsServer", "etcd", "cniPlugins", "traefik", "local-path",
-				"containerd", "klipper", "runc"}
-		}
-		for _, component := range components {
-			if strings.Contains(result.Command, component) {
-				fmt.Printf("\n---------------------\nResults from %s on version: %s\n``` \n%v\n ```\n---------------------"+
-					"\n\n\n", component, v, result)
-			}
-		}
-		fmt.Printf("\n---------------------\nResults from %s\n``` \n%v\n ```\n---------------------\n\n\n",
-			result.Command, result)
-	}
 }

@@ -42,7 +42,8 @@ var _ = Describe("Cilium Version bump:", func() {
 					},
 				},
 			},
-			DebugMode: customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: customflag.ServiceFlag.InstallMode.String(),
+			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
 		})
 	})
 

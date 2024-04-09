@@ -21,7 +21,7 @@ func processTestCombination(
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
 
 			if strings.Contains(testMap.Cmd, "etcd ") {
-				nodes, err := shared.GetNodesByRoles("control-plane")
+				nodes, err := shared.GetNodesByRoles("etcd")
 				if err != nil {
 					shared.LogLevel("error", "error from getting nodes by roles: %w\n", err)
 					return err

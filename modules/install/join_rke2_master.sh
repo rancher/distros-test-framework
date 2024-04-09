@@ -132,7 +132,6 @@ main() {
   subscription_manager
   disable_cloud_setup
   install
-#  install_etcdctl
   path_setup
 }
 main "$@"

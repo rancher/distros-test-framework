@@ -1,8 +1,10 @@
 package template
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -114,4 +116,35 @@ func currentProductVersion() (string, error) {
 	}
 
 	return version, nil
+}
+
+func ComponentsBumpResults() {
+	product, err := shared.Product()
+	if err != nil {
+		return
+	}
+
+	v, err := shared.ProductVersion(product)
+	if err != nil {
+		return
+	}
+
+	var components []string
+	for _, result := range assert.Results {
+		if product == "rke2" {
+			components = []string{"flannel", "calico", "ingressController", "coredns", "metricsServer", "etcd",
+				"containerd", "runc"}
+		} else {
+			components = []string{"flannel", "coredns", "metricsServer", "etcd", "cniPlugins", "traefik", "local-path",
+				"containerd", "klipper", "runc"}
+		}
+		for _, component := range components {
+			if strings.Contains(result.Command, component) {
+				fmt.Printf("\n---------------------\nResults from %s on version: %s\n``` \n%v\n ```\n---------------------"+
+					"\n\n\n", component, v, result)
+			}
+		}
+		fmt.Printf("\n---------------------\nResults from %s\n``` \n%v\n ```\n---------------------\n\n\n",
+			result.Command, result)
+	}
 }

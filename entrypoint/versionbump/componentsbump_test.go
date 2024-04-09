@@ -79,6 +79,10 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
+	It("Verifies dns access", func() {
+		testcase.TestDnsAccess(true, true)
+	})
+
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIp(true, true)
 	})
@@ -100,6 +104,20 @@ var _ = Describe("Components Version Upgrade:", func() {
 			testcase.TestServiceLoadBalancer(true, true)
 		})
 	}
+
+	It("Verifies top node and pods", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMap{
+					{
+						Cmd:                  "kubectl top node : | grep 'CPU(cores)' -A1, kubectl top pods -A : | grep 'CPU(cores)' -A1",
+						ExpectedValue:        "CPU,MEMORY",
+						ExpectedValueUpgrade: "CPU,MEMORY",
+					},
+				},
+			},
+		})
+	})
 })
 
 var _ = AfterEach(func() {

@@ -2,12 +2,12 @@ package versionbump
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
-	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
@@ -73,6 +73,16 @@ var _ = AfterSuite(func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
-	shared.PrintGetAll()
-	assert.PrintResults()
+
+	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
+		Expect(err).To(BeNil(), fmt.Sprintf("error loading env vars: %v\n", err))
+	}
+
+	testTag := os.Getenv("TEST_TAG")
+	if testTag == "components" {
+		template.ComponentsBumpResults()
+	}
+	if testTag != "versionbump" {
+		shared.PrintGetAll()
+	}
 })
