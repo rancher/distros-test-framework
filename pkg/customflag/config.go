@@ -45,11 +45,18 @@ type testConfigFlag struct {
 }
 
 type externalConfigFlag struct {
-	SonobuoyVersion     string
-	CertManagerVersion  string
-	RancherHelmVersion  string
-	RancherHelmArgs     string
-	RancherImageVersion string
+	SonobuoyVersion    string
+	CertManagerVersion string
+	HelmChartsFlag     helmChartsFlag
+	RancherImage       string
+	RancherVersion     string
+}
+
+type helmChartsFlag struct {
+	Args     string
+	Version  string
+	RepoName string
+	RepoUrl  string
 }
 
 type clusterConfigFlag struct {
@@ -148,12 +155,12 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
-func (e *externalConfigFlag) String() string {
-	return e.SonobuoyVersion
-}
+// func (e *externalConfigFlag) String() string {
+// 	return e.SonobuoyVersion
+// }
 
-func (e *externalConfigFlag) Set(value string) error {
-	e.SonobuoyVersion = value
+// func (e *externalConfigFlag) Set(value string) error {
+// 	e.SonobuoyVersion = value
 
-	return nil
-}
+// 	return nil
+// }

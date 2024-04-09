@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -44,35 +45,39 @@ func TestDeployCertManager(version string) {
 	}, "120s", "5s").Should(Succeed())
 }
 
-func TestDeployRancher(helmVersion, helmArgs, imageVersion string) {
+func TestDeployRancher(flags *customflag.FlagConfig) {
 	cluster := factory.ClusterConfig(GinkgoT())
-	addRepoCmd := "helm repo add rancher-latest https://releases.rancher.com/server-charts/latest && " +
-		"helm repo update"
-	installRancherCmd := "kubectl create namespace cattle-system --kubeconfig=" +
-		shared.KubeConfigFile + " && helm install rancher rancher-latest/rancher"
+	addRepoCmd := fmt.Sprintf(
+		"helm repo add %s %s && "+
+			"helm repo update",
+		flags.ExternalFlag.HelmChartsFlag.RepoName,
+		flags.ExternalFlag.HelmChartsFlag.RepoUrl)
 
-	// Needed for rancher v2.7
-	if strings.Contains(imageVersion, "v2.7") {
-		imgReg := "stgregistry.suse.com/rancher/rancher"
-		addRepoCmd = "helm repo add rancher-prime https://charts.optimus.rancher.io/server-charts/latest && " +
-			"helm repo update"
-		installRancherCmd = fmt.Sprintf("kubectl create namespace cattle-system --kubeconfig=%s "+
-			"&& helm install rancher rancher-prime/rancher "+
-			"--set bootstrapPassword=admin "+
-			"--set rancherImage=%s "+
-			"--set 'extraEnv[0].name=CATTLE_AGENT_IMAGE' "+
-			"--set 'extraEnv[0].value=%s-agent:%s'",
-			shared.KubeConfigFile, imgReg, imgReg, imageVersion)
-	}
-	if helmArgs != "" {
-		installRancherCmd += helmArgs
-	}
-	installRancherCmd += " -n cattle-system --set global.cattle.psp.enabled=false " +
-		fmt.Sprintf("--set hostname=%s --set rancherImageTag=%s --version=%s --kubeconfig=%s",
-			cluster.FQDN, imageVersion, helmVersion, shared.KubeConfigFile)
+	installRancherCmd := fmt.Sprintf(
+		"kubectl create namespace cattle-system --kubeconfig=%s && "+
+			"helm install rancher %s/rancher ",
+		shared.KubeConfigFile,
+		flags.ExternalFlag.HelmChartsFlag.RepoName)
 
-	fmt.Println("Install command: ", installRancherCmd)
-	res, err := shared.RunCommandHost(addRepoCmd, installRancherCmd)
+	if flags.ExternalFlag.HelmChartsFlag.Args != "" {
+		installRancherCmd += helmArgsBuilder(flags)
+	}
+
+	installRancherCmd += fmt.Sprintf("-n cattle-system "+
+		"--version=%s "+
+		"--set global.cattle.psp.enabled=false "+
+		"--set hostname=%s "+
+		"--kubeconfig=%s",
+		flags.ExternalFlag.RancherVersion,
+		cluster.FQDN,
+		shared.KubeConfigFile)
+
+	shared.LogLevel("info", "Helm command: %s", addRepoCmd)
+	res, err := shared.RunCommandHost(addRepoCmd)
+	Expect(err).NotTo(HaveOccurred(),
+		"failed to add helm repo: %v\nCommand: %s\nResult: %s\n", err, addRepoCmd, res)
+	shared.LogLevel("info", "Install command: %s", installRancherCmd)
+	res, err = shared.RunCommandHost(installRancherCmd)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n", err, installRancherCmd, res)
 
@@ -105,4 +110,30 @@ func TestDeployRancher(helmVersion, helmArgs, imageVersion string) {
 		}
 	}
 	fmt.Println("\nRancher URL:", rancherUrl)
+}
+
+func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
+	helmArgs := flags.ExternalFlag.HelmChartsFlag.Args
+	if strings.Contains(helmArgs, ",") {
+		argsSlice := strings.Split(helmArgs, ",")
+		for _, arg := range argsSlice {
+			if !strings.Contains(finalArgs, arg) {
+				finalArgs += fmt.Sprintf("--set %s ", arg)
+			}
+		}
+	} else {
+		finalArgs = fmt.Sprintf("--set %s ", helmArgs)
+	}
+
+	if strings.Contains(flags.ExternalFlag.RancherVersion, "v2.7.12") {
+		finalArgs += fmt.Sprintf(
+			"--set rancherImage=%s "+
+				"--set 'extraEnv[0].name=CATTLE_AGENT_IMAGE' "+
+				"--set 'extraEnv[0].value=%s-agent:%s' ",
+			flags.ExternalFlag.RancherImage,
+			flags.ExternalFlag.RancherImage,
+			flags.ExternalFlag.RancherVersion)
+	}
+
+	return finalArgs
 }

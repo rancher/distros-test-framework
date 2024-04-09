@@ -186,6 +186,15 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 	return nil
 }
 
+// CheckHelmRepo checks a helm chart is available on the repo.
+func CheckHelmRepo(name, url, version string) (string, error) {
+	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
+	update := "helm repo update"
+	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
+
+	return RunCommandHost(addRepo, update, searchRepo)
+}
+
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)

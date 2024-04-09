@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,15 +31,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Deploys cert-manager", func() {
-		testcase.TestDeployCertManager(customflag.ServiceFlag.ExternalFlag.CertManagerVersion)
+		testcase.TestDeployCertManager(flags.ExternalFlag.CertManagerVersion)
 	})
 
 	It("Deploys rancher manager", func() {
-		testcase.TestDeployRancher(
-			customflag.ServiceFlag.ExternalFlag.RancherHelmVersion,
-			customflag.ServiceFlag.ExternalFlag.RancherHelmArgs,
-			customflag.ServiceFlag.ExternalFlag.RancherImageVersion,
-		)
+		testcase.TestDeployRancher(flags)
 	})
 })
 
