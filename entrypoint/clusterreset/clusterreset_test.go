@@ -15,14 +15,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestBuildCluster(GinkgoT())
 	})
 
-	It("Validate Nodes", func() {
+	It("Validate Nodes Before Reset", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validate Pods", func() {
+	It("Validate Pods Before Reset", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -30,7 +30,7 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies ClusterIP Service", func() {
+	It("Verifies ClusterIP Service Before Reset", func() {
 		testcase.TestServiceClusterIp(true, true)
 	})
 
@@ -42,14 +42,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestClusterReset()
 	})
 
-	It("Validate Nodes", func() {
+	It("Validate Nodes After Reset", func() {
 		testcase.TestNodeStatus(
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validate Pods", func() {
+	It("Validate Pods After Reset", func() {
 		testcase.TestPodStatus(
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
@@ -57,11 +57,11 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies Ingress", func() {
+	It("Verifies Ingress After Reset", func() {
 		testcase.TestIngress(true, true)
 	})
 
-	It("Verifies Daemonset", func() {
+	It("Verifies Daemonset After Reset", func() {
 		testcase.TestDaemonset(true, true)
 	})
 
@@ -69,7 +69,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(false, true)
 	})
 
-	It("Verifies dns access", func() {
+	It("Verifies dns access After Reset", func() {
 		testcase.TestDnsAccess(true, true)
 	})
 

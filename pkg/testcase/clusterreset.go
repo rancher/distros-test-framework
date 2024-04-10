@@ -11,53 +11,74 @@ import (
 )
 
 func TestClusterReset() {
-	killall()
-	stopServer()
-
 	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
+	killall()
+	shared.LogLevel("INFO", "%s-service killed", product)
+
+	stopServer()
+	shared.LogLevel("INFO", "%s-service stopped", product)
+
 	g := GinkgoT()
 	cluster := factory.ClusterConfig(g)
-	ip := cluster.ServerIPs[0]
 
-	var resetCmd string
-	var res string
-	var resetCmdErr error
+	var (
+		resetRes           string
+		resetCmd           string
+		resetCmdErr        error
+		productLocation    string
+		productLocationCmd string
+		productLocationErr error
+	)
 
-	resetCmd = fmt.Sprintf("sudo %s server --cluster-reset", product)
+	productLocationCmd = fmt.Sprintf("which %s", product)
+	productLocation, productLocationErr = shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[0])
+	Expect(productLocationErr).NotTo(HaveOccurred())
+	resetCmd = fmt.Sprintf("sudo %s server --cluster-reset", productLocation)
+	shared.LogLevel("INFO", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 
-	switch product {
-	case "k3s":
-		res, resetCmdErr = shared.RunCommandOnNode(resetCmd, ip)
+	if product == "k3s" {
+		// k3s cluster reset output returns stdout channel
+		resetRes, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
 		Expect(resetCmdErr).NotTo(HaveOccurred())
-		Expect(res).To(ContainSubstring("Managed etcd cluster"))
-		Expect(res).To(ContainSubstring("has been reset"))
-	case "rke2":
-		_, resetCmdErr = shared.RunCommandOnNode(resetCmd, ip)
+		Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
+		Expect(resetRes).To(ContainSubstring("has been reset"))
+	} else if product == "rke2" {
+		// rke2 cluster reset output returns stderr channel
+		_, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
 		Expect(resetCmdErr).To(HaveOccurred())
 		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
-	default:
+	} else {
 		shared.LogLevel("error", "unsupported product: %s", product)
 		g.Fail()
 	}
+	shared.LogLevel("INFO", "cluster reset successful")
 
 	deleteDataDirectories()
+	shared.LogLevel("INFO", "data directories deleted")
 	startServer()
+	shared.LogLevel("INFO", "%s-service started", product)
 }
 
 func killall() {
 	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 
+	var (
+		productLocation    string
+		productLocationCmd string
+		productLocationErr error
+	)
+
 	g := GinkgoT()
 	cluster := factory.ClusterConfig(g)
-
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
-
-		killallCmd := fmt.Sprintf("sudo %s-killall.sh", product)
-		_, err := shared.RunCommandOnNode(killallCmd, cluster.ServerIPs[i])
+		productLocationCmd = fmt.Sprintf("which %s", product)
+		productLocation, productLocationErr = shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[i])
+		Expect(productLocationErr).NotTo(HaveOccurred())
+		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s-killall.sh", productLocation), cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
 
@@ -106,7 +127,6 @@ func deleteDataDirectories() {
 
 	g := GinkgoT()
 	cluster := factory.ClusterConfig(g)
-
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", product)
