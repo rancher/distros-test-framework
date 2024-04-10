@@ -156,7 +156,8 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
-			"scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i %s %s %s@%s:%s",
+			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
+			ip,
 			AccessKey,
 			localPath,
 			AwsUser,
