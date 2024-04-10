@@ -74,11 +74,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	if cfg.Product == "k3s" {
-		It("Verifies Local Path Provisioner storage", func() {
+		It("Verifies Local Path Provisioner storage After Reset", func() {
 			testcase.TestLocalPathProvisionerStorage(true, true)
 		})
 
-		It("Verifies LoadBalancer Service", func() {
+		It("Verifies LoadBalancer Service After Reset", func() {
 			testcase.TestServiceLoadBalancer(true, true)
 		})
 	}
