@@ -62,7 +62,6 @@ CHARTSVERSION=v2.7.12
 CHARTSREPONAME=<helm repo name>
 CHARTSREPOURL=<helm chart repo url>
 CHARTSARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args)
-RANCHERIMAGE=<rancher image name or image registry>
 RANCHERVERSION=v2.7.12
 ```
 
@@ -75,6 +74,10 @@ go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 -chartsRepoName <helm repo name> \
 -chartsRepoUrl <helm chart repo url> \
 -chartsArgs bootstrapPassword=admin,replicas=1 \
--rancherImage <rancher image name or image registry> \
 -rancherVersion v2.7.12
+```
+
+#### For Rancher v2.7.12, need to add these additional helm args
+```
+chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
 ```

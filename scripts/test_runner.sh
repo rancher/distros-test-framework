@@ -78,7 +78,6 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${CHARTSREPONAME}" ] && OPTS+=(-chartsRepoName "${CHARTSREPONAME}")
             [ -n "${CHARTSREPOURL}" ] && OPTS+=(-chartsRepoUrl "${CHARTSREPOURL}")
             [ -n "${CHARTSARGS}" ] && OPTS+=(-chartsArgs "${CHARTSARGS}")
-            [ -n "${RANCHERIMAGE}" ] && OPTS+=(-rancherImage "${RANCHERIMAGE}")
             [ -n "${RANCHERVERSION}" ] && OPTS+=(-rancherVersion "${RANCHERVERSION}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then

@@ -125,15 +125,5 @@ func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
 		finalArgs = fmt.Sprintf("--set %s ", helmArgs)
 	}
 
-	if strings.Contains(flags.ExternalFlag.RancherVersion, "v2.7.12") {
-		finalArgs += fmt.Sprintf(
-			"--set rancherImage=%s "+
-				"--set 'extraEnv[0].name=CATTLE_AGENT_IMAGE' "+
-				"--set 'extraEnv[0].value=%s-agent:%s' ",
-			flags.ExternalFlag.RancherImage,
-			flags.ExternalFlag.RancherImage,
-			flags.ExternalFlag.RancherVersion)
-	}
-
 	return finalArgs
 }

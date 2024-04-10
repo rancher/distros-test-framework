@@ -30,7 +30,6 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoName, "chartsRepoName", "rancher-latest", "rancher helm repo name")
 	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoUrl, "chartsRepoUrl", "https://releases.rancher.com/server-charts/latest", "rancher helm repo url")
 	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
-	flag.StringVar(&flags.ExternalFlag.RancherImage, "rancherImage", "", "rancher image name or registry url")
 	flag.StringVar(&flags.ExternalFlag.RancherVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
