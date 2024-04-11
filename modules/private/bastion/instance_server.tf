@@ -120,62 +120,62 @@ locals {
   shell_options = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes"
 }
 
-resource "null_resource" "uploader" {
-  depends_on = [ 
-    aws_instance.bastion,
-    aws_instance.server,
-    aws_instance.agent 
-  ]
+# resource "null_resource" "uploader" {
+#   depends_on = [ 
+#     aws_instance.bastion,
+#     aws_instance.server,
+#     aws_instance.agent 
+#   ]
 
-  count = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? 1 : 0
+#   count = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? 1 : 0
 
-  connection {
-    type          = "ssh"
-    user          = var.aws_user
-    host          = "${aws_instance.bastion[0].public_ip}"
-    private_key   = file(var.access_key)
-  }
+#   connection {
+#     type          = "ssh"
+#     user          = var.aws_user
+#     host          = "${aws_instance.bastion[0].public_ip}"
+#     private_key   = file(var.access_key)
+#   }
 
-  provisioner "remote-exec" {
-    inline = [<<-EOT
-      chmod +x /tmp/download_product.sh
-      sudo /tmp/download_product.sh ${var.product} ${var.product_version} ${var.arch} "${var.channel}"
-      chmod 400 /tmp/${var.key_name}.pem
-      scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/install_product.sh ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/install_product.sh
-      scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.resource_name}_bastion_ip ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/${var.resource_name}_bastion_ip
-      scp -r ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.product}-assets ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/${var.product}-assets
-      scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/install_product.sh ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/install_product.sh
-      scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.resource_name}_bastion_ip ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/${var.resource_name}_bastion_ip
-      scp -r ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.product}-assets ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/${var.product}-assets
-     EOT
-     ]
-  }
-}
+#   provisioner "remote-exec" {
+#     inline = [<<-EOT
+#       chmod +x /tmp/download_product.sh
+#       sudo /tmp/download_product.sh ${var.product} ${var.product_version} ${var.arch} "${var.channel}"
+#       chmod 400 /tmp/${var.key_name}.pem
+#       scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/install_product.sh ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/install_product.sh
+#       scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.resource_name}_bastion_ip ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/${var.resource_name}_bastion_ip
+#       scp -r ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.product}-assets ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.server[0].ipv6_addresses[0]) : aws_instance.server[0].private_ip}:/tmp/${var.product}-assets
+#       scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/install_product.sh ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/install_product.sh
+#       scp ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.resource_name}_bastion_ip ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/${var.resource_name}_bastion_ip
+#       scp -r ${local.shell_options} -i /tmp/${var.key_name}.pem /tmp/${var.product}-assets ${var.aws_user}@${var.enable_ipv6 ? format("[%#v]",aws_instance.agent[0].ipv6_addresses[0]) : aws_instance.agent[0].private_ip}:/tmp/${var.product}-assets
+#      EOT
+#      ]
+#   }
+# }
 
-resource "null_resource" "installer" {
-  depends_on = [ 
-    aws_instance.bastion,
-    aws_instance.server,
-    aws_instance.agent,
-    null_resource.uploader
-  ]
+# resource "null_resource" "installer" {
+#   depends_on = [ 
+#     aws_instance.bastion,
+#     aws_instance.server,
+#     aws_instance.agent,
+#     null_resource.uploader
+#   ]
 
-  count = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? 1 : 0
+#   count = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? 1 : 0
 
-  connection {
-    type          = "ssh"
-    user          = var.aws_user
-    host          = "${aws_instance.bastion[0].public_ip}"
-    private_key   = file(var.access_key)
-  }
+#   connection {
+#     type          = "ssh"
+#     user          = var.aws_user
+#     host          = "${aws_instance.bastion[0].public_ip}"
+#     private_key   = file(var.access_key)
+#   }
 
-  provisioner "remote-exec" {
-    inline = [<<-EOT
-      chmod 400 /tmp/${var.key_name}.pem
-      ssh -i /tmp/${var.key_name}.pem ${local.shell_options} ${var.aws_user}@${var.enable_ipv6 ? aws_instance.server[0].ipv6_addresses[0] : aws_instance.server[0].private_ip} 'sudo cp -p /tmp/${var.product}-assets/${var.product} /usr/local/bin/${var.product} && chmod +x /usr/local/bin/${var.product}'
-      ssh -i /tmp/${var.key_name}.pem ${local.shell_options} ${var.aws_user}@${var.enable_ipv6 ? aws_instance.agent[0].ipv6_addresses[0] : aws_instance.agent[0].private_ip} 'sudo cp -p /tmp/${var.product}-assets/${var.product} /usr/local/bin/${var.product} && chmod +x /usr/local/bin/${var.product}'
-     EOT
-     ]
-  }
+#   provisioner "remote-exec" {
+#     inline = [<<-EOT
+#       chmod 400 /tmp/${var.key_name}.pem
+#       ssh -i /tmp/${var.key_name}.pem ${local.shell_options} ${var.aws_user}@${var.enable_ipv6 ? aws_instance.server[0].ipv6_addresses[0] : aws_instance.server[0].private_ip} 'sudo cp -p /tmp/${var.product}-assets/${var.product} /usr/local/bin/${var.product} && chmod +x /usr/local/bin/${var.product}'
+#       ssh -i /tmp/${var.key_name}.pem ${local.shell_options} ${var.aws_user}@${var.enable_ipv6 ? aws_instance.agent[0].ipv6_addresses[0] : aws_instance.agent[0].private_ip} 'sudo cp -p /tmp/${var.product}-assets/${var.product} /usr/local/bin/${var.product} && chmod +x /usr/local/bin/${var.product}'
+#      EOT
+#      ]
+#   }
   
-}
+# }
