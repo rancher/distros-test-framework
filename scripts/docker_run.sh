@@ -25,8 +25,8 @@ test_run() {
         exit 1
       else
         printf "\nContainer started successfully."
-        image_stats "${IMG_NAME}"
-        docker logs -f "acceptance-test-${IMG_NAME}"
+        #image_stats "${IMG_NAME}"
+        #docker logs -f "acceptance-test-${IMG_NAME}"
       fi
 }
 

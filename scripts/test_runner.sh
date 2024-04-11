@@ -15,11 +15,22 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
                 upgrademanual|upgradesuc|upgradereplacement)
+                ;;
+                *)
+                printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
+                exit 1
+                ;;
+            esac
+       fi
+       if [[ "$TEST_DIR" == "airgap" ]];
+        then
+            case "$TEST_TAG"  in
+                privateregistry)
                 ;;
                 *)
                 printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
@@ -99,6 +110,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
+    elif [ "${TEST_DIR}" = "airgap" ]; then
+        go test -timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}"
     fi
 fi
 }
