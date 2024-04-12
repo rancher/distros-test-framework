@@ -41,9 +41,43 @@ server_flags         = "cluster-cidr: <ipv4-cluster-cidr>,<ipv6-cluster-cider>\n
 worker_flags         = "\nkubelet-arg: \n - node-ip=0.0.0.0\n"
 no_of_bastion_nodes  = 1
 bastion_subnets      = "<dual-stack-subnet>"
-
 ```
 - Test package should be `dualstack`
 - AWS config (sg, vpc) is available only in US-WEST-1 region
 - Split roles is not supported at this time (Future enhancement)
 - Reorder IP is not supported at this time (Future enhancement)
+
+### Rancher Deployment Testing
+
+- Required flags in `*.tfvars` file
+```
+create_lb: true
+```
+
+#### For executing locally via docker
+- Optional flags that can be added in `.env` file. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
+```
+CERTMANAGERVERSION=v1.13.3
+CHARTSVERSION=v2.7.12
+CHARTSREPONAME=<helm repo name>
+CHARTSREPOURL=<helm chart repo url>
+CHARTSARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args)
+RANCHERVERSION=v2.7.12
+```
+
+#### For executing in Jenkins or locally without docker
+- Optional flags that can be passed as test parameters. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
+```
+go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
+-certManagerVersion v1.13.3 \
+-chartsVersion v2.7.12 \
+-chartsRepoName <helm repo name> \
+-chartsRepoUrl <helm chart repo url> \
+-chartsArgs bootstrapPassword=admin,replicas=1 \
+-rancherVersion v2.7.12
+```
+
+#### For Rancher v2.7.12, need to add these additional helm args
+```
+chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
+```

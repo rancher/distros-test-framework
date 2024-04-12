@@ -45,10 +45,17 @@ type testConfigFlag struct {
 }
 
 type externalConfigFlag struct {
-	SonobuoyVersion     string
-	CertManagerVersion  string
-	RancherHelmVersion  string
-	RancherImageVersion string
+	SonobuoyVersion    string
+	CertManagerVersion string
+	HelmChartsFlag     helmChartsFlag
+	RancherVersion     string
+}
+
+type helmChartsFlag struct {
+	Args     string
+	Version  string
+	RepoName string
+	RepoUrl  string
 }
 
 type clusterConfigFlag struct {
