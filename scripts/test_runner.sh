@@ -69,6 +69,16 @@ if [ -n "${TEST_DIR}" ]; then
             else
                 go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
          fi
+    elif [ "${TEST_DIR}" = "deployrancher" ]; then
+        declare -a OPTS
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/deployrancher/... -tags=deployrancher)
+            [ -n "${CERTMANAGERVERSION}" ] && OPTS+=(-certManagerVersion "${CERTMANAGERVERSION}")
+            [ -n "${CHARTSVERSION}" ] && OPTS+=(-chartsVersion "${CHARTSVERSION}")
+            [ -n "${CHARTSREPONAME}" ] && OPTS+=(-chartsRepoName "${CHARTSREPONAME}")
+            [ -n "${CHARTSREPOURL}" ] && OPTS+=(-chartsRepoUrl "${CHARTSREPOURL}")
+            [ -n "${CHARTSARGS}" ] && OPTS+=(-chartsArgs "${CHARTSARGS}")
+            [ -n "${RANCHERVERSION}" ] && OPTS+=(-rancherVersion "${RANCHERVERSION}")
+      go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=55m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
