@@ -37,7 +37,7 @@ update_config() {
     echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
   fi
 
-  if [[ "$worker_flags" != *"cloud-provider-name"* ]]; then
+  if [[ "$worker_flags" != *"cloud-provider-name"* ]] || [[ -z "$worker_flags" ]]; then
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
