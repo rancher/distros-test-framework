@@ -195,9 +195,9 @@ main() {
   disable_cloud_setup
   install
   if [ "$etcd_only_node" -eq 0 ]; then
-    # If etcd only node count is 0, then wait for nodes/pods to come up. 
-    # etcd only node needs api server to come up fully, which is in control plane node. 
-    # and hence we cannot wait for node/pod status in this case. 
+    # If etcd only node count is 0, then wait for nodes/pods to come up.
+    # etcd only node needs api server to come up fully, which is in control plane node.
+    # and hence we cannot wait for node/pod status in this case.
     wait_nodes
     wait_ready_nodes
     wait_pods

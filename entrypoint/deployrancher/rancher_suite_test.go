@@ -16,14 +16,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var (
+	cfg   *config.Product
+	flags *customflag.FlagConfig
+)
 
 func TestMain(m *testing.M) {
 	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version that will be deployed on the cluster")
-	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherHelmVersion, "rancherHelmVersion", "v2.8.0", "rancher helm chart version to use to deploy rancher manager")
-	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.RancherImageVersion, "rancherImageVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.ExternalFlag.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version")
+	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.Version, "chartsVersion", "v2.8.0", "rancher helm chart version")
+	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoName, "chartsRepoName", "rancher-latest", "rancher helm repo name")
+	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoUrl, "chartsRepoUrl", "https://releases.rancher.com/server-charts/latest", "rancher helm repo url")
+	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
+	flag.StringVar(&flags.ExternalFlag.RancherVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
 	cfg, err = shared.EnvConfig()
@@ -52,6 +59,14 @@ var _ = BeforeSuite(func() {
 		Expect(os.Getenv("server_flags")).To(ContainSubstring("pod-security-admission-config-file:"),
 			"Wrong value passed in tfvars for 'server_flags'")
 	}
+
+	// Check helm chart repo
+	res, err := shared.CheckHelmRepo(
+		flags.ExternalFlag.HelmChartsFlag.RepoName,
+		flags.ExternalFlag.HelmChartsFlag.RepoUrl,
+		flags.ExternalFlag.HelmChartsFlag.Version)
+	Expect(err).To(BeNil(), "Error while checking helm repo ", err)
+	Expect(res).ToNot(BeEmpty(), "No version found in helm repo ", flags.ExternalFlag.HelmChartsFlag.RepoName)
 })
 
 var _ = AfterSuite(func() {
