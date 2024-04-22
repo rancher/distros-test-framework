@@ -54,6 +54,7 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
 		// Order of reboot matters. Etcd first then control plane nodes.
 		// Little lag needed between node restarts to avoid issues.
+		time.Sleep(30 * time.Second)
 		waitEtcdErr := shared.WaitForPodsRunning(5, 4)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 20 seconds.")
