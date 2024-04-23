@@ -1,8 +1,7 @@
 #!/bin/bash
 # This script is used to join one or more nodes as agents
 echo "$@"
-# the following lines are to enable debug mode
-set -x
+
 PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
@@ -93,25 +92,55 @@ disable_cloud_setup() {
   fi
 }
 
-install() {
+export_variables() {
   export "$install_mode"="$version"
-  if [ -n "$install_method" ]; then
-    export INSTALL_RKE2_METHOD="$install_method"
+   if [ -n "$install_method" ]; then
+      export INSTALL_RKE2_METHOD="$install_method"
   fi
+}
 
-  if [[ -z "$channel" ]]; then
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -
-  else
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" INSTALL_RKE2_TYPE='agent' sh -
+install_rke2() {
+  install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -"
+    if [ -n "$channel" ]; then
+        install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=$channel INSTALL_RKE2_TYPE='agent' sh -"
+    fi
+
+    if ! eval "$install_cmd"; then
+        printf "Failed to install rke2-server join agent node ip: %s\n" "$public_ip"
+        exit 1
+    fi
+}
+
+install_dependencies() {
+ if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
+     yum install tar iptables -y
   fi
+}
 
+enable_service() {
+  if ! sudo systemctl enable rke2-agent --now; then
+      printf "Failed to start rke2-agent on agent ip: %s\n" "$public_ip"
+
+      ## rke2 can sometimes fail to start but some time after it starts successfully.
+      sleep 20
+
+      if ! sudo systemctl is-active --quiet rke2-agent; then
+        printf "Exiting after failed retry to start rke2-agent on agent ip: %s\n" "$public_ip"
+        sudo journalctl -xeu rke2-agent.service --no-pager | grep -i "error\|failed\|fatal"
+        exit 1
+      else
+      printf "rke2-server started successfully on agent ip: %s\n" "$public_ip"
+      fi
+  fi
+}
+
+install() {
+  export_variables
+  install_rke2
   sleep 10
-  if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
-    yum install tar iptables -y
-  fi
+  install_dependencies
   cis_setup
-
-  sudo systemctl enable rke2-agent --now
+  enable_service
 }
 
 main() {

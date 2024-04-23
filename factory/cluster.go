@@ -2,6 +2,7 @@ package factory
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -18,8 +19,17 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 		var err error
 		cluster, err = newCluster(g)
 		if err != nil {
-			err = shared.ReturnLogError("error getting cluster: %w\n", err)
-			g.Errorf("%s", err)
+			status, destroyErr := DestroyCluster(g)
+			if destroyErr != nil {
+				shared.LogLevel("error", "error destroying cluster: %w\n", destroyErr)
+				return
+			}
+			if status != "cluster destroyed" {
+				shared.LogLevel("error", "cluster not destroyed: %s\n", status)
+				os.Exit(1)
+			}
+			shared.LogLevel("error", "building cluster failed!: %w\nmoving to start destroy operation\n", err)
+			os.Exit(1)
 		}
 	})
 
@@ -56,7 +66,7 @@ func newCluster(g GinkgoTInterface) (*Cluster, error) {
 	shared.LogLevel("info", "\nCreating cluster\n")
 	_, err = terraform.InitAndApplyE(g, terraformOptions)
 	if err != nil {
-		shared.LogLevel("error", "\nCreating cluster Failed!!!\n")
+		shared.LogLevel("error", "\nTerraform apply Failed: %w", err)
 		return nil, err
 	}
 

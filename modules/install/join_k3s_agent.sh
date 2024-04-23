@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# the following lines are to enable debug mode
-set -x
 PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
@@ -82,16 +80,32 @@ disable_cloud_setup() {
   fi
 }
 
-install(){
-  export "$install_mode"="$version"
-
+export_variables() {
+    export "$install_mode"="$version"
+}
+install_k3s(){
   if [[ -n "$channel"  ]]; then
     curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent
   else
     curl -sfL https://get.k3s.io | sh -s - agent
   fi
-  sleep 15
+}
 
+check_service() {
+  if systemctl is-active --quiet k3s-agent; then
+      printf "K3s is running on agent node ip: %s\n" "$public_ip"
+  else
+      printf "K3s failed to start on agent node ip %s\n" "$public_ip"
+      sudo journalctl -xeu k3s-agent.service | grep -i "error\|failed\|fatal"
+      exit 1
+  fi
+}
+
+install() {
+  export_variables
+  install_k3s
+  sleep 15
+  check_service
 }
 
 main() {

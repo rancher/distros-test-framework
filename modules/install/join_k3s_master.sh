@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# the following lines are to enable debug mode
-set -x
 PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
@@ -95,25 +93,43 @@ policy_files() {
   sleep 20
 }
 
-install() {
+export_variables() {
   export "$install_mode"="$version"
+  alias k=kubectl
+}
 
-  if [ "$datastore_type" = "etcd" ]; then
+install_k3s() {
+  url="https://get.k3s.io"
+  params="INSTALL_K3S_TYPE='server'"
+
     if [[ -n "$channel" ]]; then
-      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -
-    else
-      curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -
+       params="$params INSTALL_K3S_CHANNEL=$channel"
     fi
-  else
-    if [[ -n "$channel" ]]; then
-      curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel INSTALL_K3S_TYPE='server' sh -s - server --datastore-endpoint="$datastore_endpoint"
-    else
-      curl -sfL https://get.k3s.io | INSTALL_K3S_TYPE='server' sh -s - server --datastore-endpoint="$datastore_endpoint"
+
+    if [ "$datastore_type" = "etcd" ]; then
+        install_command="curl -sfL $url | $params sh -s - server"
+    elif [[ "$datastore_type" = "external" ]]; then
+        install_command="curl -sfL $url | $params sh -s - server --datastore-endpoint=\"$datastore_endpoint\""
     fi
-  fi
-  
-  echo "alias k=kubectl" >> ~/.bashrc
-  source ~/.bashrc
+
+    eval "$install_command"
+}
+
+check_service() {
+    if systemctl is-active --quiet k3s; then
+         echo "K3s is running on joining server node ip $public_ip"
+    else
+         printf "K3s failed to start on joining server node ip %s\n" "$public_ip"
+         sudo journalctl -xeu k3s.service | grep -i "error\|failed\|fatal"
+         exit 1
+    fi
+}
+
+install() {
+  export_variables
+  install_k3s
+  sleep 20
+  check_service
 }
 
 main() {

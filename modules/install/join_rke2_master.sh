@@ -1,8 +1,7 @@
 #!/bin/bash
 # This script is used to join one or more nodes as servers to the first sertver
 echo "$@"
-# the following lines are to enable debug mode
-set -x
+
 PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
@@ -97,25 +96,55 @@ cis_setup() {
   fi
 }
 
-install() {
+
+export_variables() {
   export "$install_mode"="$version"
-  if [ -n "$install_method" ]; then
-    export INSTALL_RKE2_METHOD="$install_method"
+   if [ -n "$install_method" ]; then
+      export INSTALL_RKE2_METHOD="$install_method"
   fi
+}
 
-  if [[ -z "$channel"  ]]; then
-    curl -sfL https://get.rke2.io | sh -
-  else
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" sh -
-  fi
-  
-  sleep 10
+install_rke2() {
+ install_cmd="curl -sfL https://get.rke2.io | sh -"
+    if [ -n "$channel" ]; then
+        install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=\"$channel\" sh -"
+    fi
+
+    if ! eval "$install_cmd"; then
+        printf "Failed to install rke2-server join on ip: %s\n,Retrying install 20s." "$public_ip"
+    fi
+}
+
+install_dependencies() {
   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
-    yum install tar iptables -y
+       yum install tar iptables -y
   fi
-  cis_setup
+}
 
-  sudo systemctl enable rke2-server --now
+enable_service() {
+  if ! sudo systemctl enable rke2-server --now; then
+      printf "Failed to start rke2-server on joining ip: %s,Retrying to start in 20s.\n" "$public_ip"
+
+      ## rke2 can sometimes fail to start but some time after it starts successfully.
+      sleep 20
+
+      if ! sudo systemctl is-active --quiet rke2-server; then
+        printf "Exiting after failed retry to start rke2-server on joining ip: %s\n" "$public_ip"
+        sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
+        exit 1
+      else
+      printf "rke2-server started successfully on joining ip: %s\n" "$public_ip"
+      fi
+  fi
+}
+
+install() {
+  export_variables
+  install_rke2
+  sleep 10
+  install_dependencies
+  cis_setup
+  enable_service
 }
 
 path_setup() {
