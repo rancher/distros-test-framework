@@ -106,6 +106,9 @@ func CertRotate(product string, ips []string) (string, error) {
 }
 
 func SecretEncryptOps(action, ip, product string) (string, error) {
+	if product == "rke2" {
+		product = "-E env \"PATH=$PATH:/usr/local/bin\" rke2"
+	}
 	secretEncryptCmd := map[string]string{
 		"status":      fmt.Sprintf("sudo %s secrets-encrypt status", product),
 		"enable":      fmt.Sprintf("sudo %s secrets-encrypt enable", product),

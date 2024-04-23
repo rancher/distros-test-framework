@@ -42,11 +42,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Pods", func() {
-		testcase.TestPodStatus(nil, nil, nil)
-		// assert.PodAssertRestart(),
-		// assert.PodAssertReady(),
-		// assert.PodAssertStatus(),
-		// )
+		testcase.TestPodStatus(
+			assert.PodAssertRestart(),
+			assert.PodAssertReady(),
+			assert.PodAssertStatus(),
+		)
 	})
 })
 
