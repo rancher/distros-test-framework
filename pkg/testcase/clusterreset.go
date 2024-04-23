@@ -19,7 +19,7 @@ func TestClusterReset() {
 	stopServer(cluster)
 	shared.LogLevel("INFO", "%s-service stopped", cluster.Config.Product)
 
-	productLocationCmd := fmt.Sprintf("sudo find / -type f -executable -name %s", cluster.Config.Product)
+	productLocationCmd := fmt.Sprintf("which %s", cluster.Config.Product)
 	productLocation, productLocationErr := shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[0])
 	Expect(productLocationErr).NotTo(HaveOccurred())
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset", productLocation)
