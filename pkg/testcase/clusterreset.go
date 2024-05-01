@@ -49,8 +49,8 @@ func TestClusterReset() {
 func killall(cluster *factory.Cluster) {
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 		productLocationCmd := fmt.Sprintf("sudo find / -type f -executable -name %s 2> /dev/null", cluster.Config.Product)
-		productLocation, productLocationErr := shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[i])
-		Expect(productLocationErr).NotTo(HaveOccurred())
+		productLocation, _ := shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[i])
+		Expect(productLocation).To(ContainSubstring(cluster.Config.Product))
 		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s-killall.sh", productLocation), cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
