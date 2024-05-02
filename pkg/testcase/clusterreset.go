@@ -54,6 +54,7 @@ func killall(cluster *factory.Cluster) {
 		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s", killallLocation), cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
+
 	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 }
