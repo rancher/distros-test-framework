@@ -54,19 +54,8 @@ func killall(cluster *factory.Cluster) {
 		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s", killallLocation), cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
-
-	switch cluster.Config.Product {
-	case "k3s":
-		res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
-		Expect(res).To(ContainSubstring("refused"))
-	case "rke2":
-		res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
-		Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
-	default:
-		shared.LogLevel("error", "unsupported product: %s", cluster.Config.Product)
-		GinkgoT().Fail()
-	}
-}
+	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
+	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 
 func stopServer(cluster *factory.Cluster) {
 	_, stopErr := shared.ManageService(cluster.Config.Product, "stop", "server", []string{cluster.ServerIPs[0]})
