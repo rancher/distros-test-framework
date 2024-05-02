@@ -56,6 +56,7 @@ func killall(cluster *factory.Cluster) {
 	}
 	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
+}
 
 func stopServer(cluster *factory.Cluster) {
 	_, stopErr := shared.ManageService(cluster.Config.Product, "stop", "server", []string{cluster.ServerIPs[0]})
