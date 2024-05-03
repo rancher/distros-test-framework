@@ -14,17 +14,17 @@ func TestClusterReset() {
 	cluster := factory.ClusterConfig(GinkgoT())
 
 	killall(cluster)
-	shared.LogLevel("INFO", "%s-service killed", cluster.Config.Product)
+	shared.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
 	stopServer(cluster)
-	shared.LogLevel("INFO", "%s-service stopped", cluster.Config.Product)
+	shared.LogLevel("info", "%s-service stopped", cluster.Config.Product)
 
 	productLocationCmd := fmt.Sprintf("sudo find / -type f -executable -name %s "+
 		"2> /dev/null | grep -v data | sed 1q", cluster.Config.Product)
 	productLocation, _ := shared.RunCommandOnNode(productLocationCmd, cluster.ServerIPs[0])
 	Expect(productLocation).To(ContainSubstring(cluster.Config.Product))
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset", productLocation)
-	shared.LogLevel("INFO", "running cluster reset on server %s\n", cluster.ServerIPs[0])
+	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 
 	if cluster.Config.Product == "k3s" {
 		// k3s cluster reset output returns stdout channel
@@ -39,12 +39,12 @@ func TestClusterReset() {
 		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
 	}
-	shared.LogLevel("INFO", "cluster reset successful")
+	shared.LogLevel("info", "cluster reset successful")
 
 	deleteDataDirectories(cluster)
-	shared.LogLevel("INFO", "data directories deleted")
+	shared.LogLevel("info", "data directories deleted")
 	startServer(cluster)
-	shared.LogLevel("INFO", "%s-service started", cluster.Config.Product)
+	shared.LogLevel("info", "%s-service started", cluster.Config.Product)
 }
 
 func killall(cluster *factory.Cluster) {
