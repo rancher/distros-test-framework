@@ -53,7 +53,8 @@ func processPodStatus(
 		), pod.Name)
 
 		// process cilium-operator status that should be at least one running pod.
-	} else if strings.Contains(pod.Name, "cilium-operator") && cluster.Config.Product == "rke2" && cluster.NumServers == 1 && cluster.NumAgents == 0 {
+	} else if strings.Contains(pod.Name, "cilium-operator") && cluster.Config.Product == "rke2" &&
+		cluster.NumServers == 1 && cluster.NumAgents == 0 {
 		processCiliumStatus(pod)
 
 		// process other pods status that should be running.
