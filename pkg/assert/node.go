@@ -48,7 +48,8 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	ending := strings.Index(commit, ")")
 	commit = commit[initial+1 : ending]
 
-	fmt.Printf("Asserting Commit: %s\n", c.InstallMode.Commit)
+	shared.LogLevel("info", "Asserting Commit: %s\n", c.InstallMode.Commit)
+
 	return func(g Gomega, node shared.Node) {
 		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commit),
 			"Nodes should all be upgraded to the specified commit", node.Name)
