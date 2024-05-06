@@ -110,7 +110,7 @@ func ValidateOnHost(args ...string) error {
 	return validate(exec, args...)
 }
 
-// ValidateOnNode runs an exec function on RunCommandHost and assert given is fulfilled.
+// ValidateOnNode runs an exec function on RunCommandOnNode and assert given is fulfilled.
 // The last argument should be the assertion.
 func ValidateOnNode(ip string, args ...string) error {
 	exec := func(cmd string) (string, error) {
