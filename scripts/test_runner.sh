@@ -14,7 +14,7 @@ function validate_test_image() {
 
 function validate_dir(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice|deployrancher)
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice|deployrancher|clusterreset)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -63,7 +63,7 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
              [ -n "${DEBUG_MODE}" ] && OPTS+=(-debug "${DEBUG_MODE}")
-          go test "${OPTS[@]}"
+      go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOYVERSION}" ]; then
                 go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
@@ -92,6 +92,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
+    elif [ "${TEST_DIR}" = "clusterreset" ]; then
+        go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     fi
 fi
 }
