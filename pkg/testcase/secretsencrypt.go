@@ -21,7 +21,7 @@ func TestSecretsEncryption() {
 
 	ips := getNodeIps(nodes)
 
-	errSecret := shared.CreateSecret("secret1", "default")
+	errSecret := shared.CreateSecret("secret1", "default", false)
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
 
 	shared.LogLevel("INFO", "TEST: 'CLASSIC' Secrets Encryption method")

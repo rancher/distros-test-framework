@@ -670,7 +670,6 @@ func CreateSecret(secret, namespace string) error {
 	if strings.Contains(createStdOut, "failed to create secret") {
 		return ReturnLogError("failed to create secret: \n%w", err)
 	}
-	LogLevel("DEBUG", "Create Secret Output: %s", createStdOut)
 	return nil
 }
 
