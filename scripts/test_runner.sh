@@ -14,7 +14,8 @@ function validate_test_image() {
 
 function validate_dir(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice|deployrancher|clusterreset)
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -90,6 +91,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
+    elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...        
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then

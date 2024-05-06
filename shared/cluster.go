@@ -655,3 +655,20 @@ func PrintGetAll() {
 	fmt.Printf("\n\n\n-----------------  Results from kubectl get all -A -o wide"+
 		"  -------------------\n\n%v\n\n\n\n", res)
 }
+
+func CreateSecret(secret, namespace string) error {
+	kubectl := fmt.Sprintf("kubectl --kubeconfig %s", KubeConfigFile)
+	if namespace == "" {
+		namespace = "default"
+	}
+	cmd := fmt.Sprintf("%s create secret generic %s -n %s --from-literal=mykey=mydata",
+		kubectl, secret, namespace)
+	stdout, err := RunCommandHost(cmd)
+	if err != nil {
+		return ReturnLogError("failed to create secret: \n%w", err)
+	}
+	if strings.Contains(stdout, "failed to create secret") {
+		return ReturnLogError("failed to create secret: \n%w", err)
+	}
+	return nil
+}
