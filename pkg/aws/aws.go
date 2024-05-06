@@ -24,9 +24,10 @@ type Client struct {
 type response struct {
 	nodeId     string
 	externalIp string
+	privateIp  string
 }
 
-func AddAwsNode() (*Client, error) {
+func AddNode() (*Client, error) {
 	c := factory.ClusterConfig(GinkgoT())
 
 	sess, err := session.NewSession(&aws.Config{
@@ -41,9 +42,9 @@ func AddAwsNode() (*Client, error) {
 	}, nil
 }
 
-func (c Client) CreateInstances(names ...string) (ids, ips []string, err error) {
+func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids []string, err error) {
 	if len(names) == 0 {
-		return nil, nil, shared.ReturnLogError("must sent a name: %s\n", names)
+		return nil, nil, nil, shared.ReturnLogError("must sent name for the instance")
 	}
 
 	errChan := make(chan error, len(names))
@@ -67,13 +68,13 @@ func (c Client) CreateInstances(names ...string) (ids, ips []string, err error) 
 				return
 			}
 
-			externalIp, err := c.fetchIP(nodeID)
+			externalIp, privateIp, err := c.fetchIP(nodeID)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error fetching ip: %w\n", err)
 				return
 			}
 
-			resChan <- response{nodeId: nodeID, externalIp: externalIp}
+			resChan <- response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
 		}(n)
 	}
 	go func() {
@@ -84,17 +85,18 @@ func (c Client) CreateInstances(names ...string) (ids, ips []string, err error) 
 
 	for e := range errChan {
 		if e != nil {
-			return nil, nil, shared.ReturnLogError("error from errChan: %w\n", e)
+			return nil, nil, nil, shared.ReturnLogError("error from errChan: %w\n", e)
 		}
 	}
 
-	var nodeIps, nodeIds []string
+	var externalIps, privateIps, nodeIds []string
 	for i := range resChan {
 		nodeIds = append(nodeIds, i.nodeId)
-		nodeIps = append(nodeIps, i.externalIp)
+		externalIps = append(externalIps, i.externalIp)
+		privateIps = append(privateIps, i.privateIp)
 	}
 
-	return nodeIps, nodeIds, nil
+	return externalIps, privateIps, nodeIds, nil
 }
 
 func (c Client) DeleteInstance(ip string) error {
@@ -133,7 +135,7 @@ func (c Client) DeleteInstance(ip string) error {
 				if len(node.Tags) > 0 {
 					instanceName = *node.Tags[0].Value
 				}
-				shared.LogLevel("info", fmt.Sprintf("\nTerminated instance: %s (ID: %s)",
+				shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
 					instanceName, *node.InstanceId))
 			}
 		}
@@ -173,6 +175,7 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
 				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running "+
 					"and passed status checks", instanceId))
+
 				return nil
 			}
 		}
@@ -229,10 +232,10 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 	return c.ec2.RunInstances(input)
 }
 
-func (c Client) fetchIP(nodeID string) (string, error) {
+func (c Client) fetchIP(nodeID string) (publicIP string, privateIP string, err error) {
 	waitErr := c.WaitForInstanceRunning(nodeID)
 	if waitErr != nil {
-		return "", shared.ReturnLogError("error waiting for instance to be in running state: %w\n", waitErr)
+		return "", "", shared.ReturnLogError("error waiting for instance to be running: %w\n", waitErr)
 	}
 
 	id := &ec2.DescribeInstancesInput{
@@ -240,18 +243,18 @@ func (c Client) fetchIP(nodeID string) (string, error) {
 	}
 	result, err := c.ec2.DescribeInstances(id)
 	if err != nil {
-		return "", shared.ReturnLogError("error describing instances: %w\n", err)
+		return "", "", shared.ReturnLogError("error describing instances: %w\n", err)
 	}
 
 	for _, r := range result.Reservations {
 		for _, i := range r.Instances {
-			if i.PublicIpAddress != nil {
-				return *i.PublicIpAddress, nil
+			if i.PublicIpAddress != nil && i.PrivateIpAddress != nil {
+				return *i.PublicIpAddress, *i.PrivateIpAddress, nil
 			}
 		}
 	}
 
-	return "", shared.ReturnLogError("no public ip found for instance: %s\n", nodeID)
+	return "", "", shared.ReturnLogError("no ip found for instance: %s\n", nodeID)
 }
 
 func extractID(reservation *ec2.Reservation) (string, error) {

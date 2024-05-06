@@ -14,7 +14,11 @@ function validate_test_image() {
 
 function validate_dir(){
   case "$TEST_DIR" in
+<<<<<<< HEAD
        upgradecluster|versionbump|clusterreset|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice)
+=======
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|certrotate|restartservice|deployrancher|clusterreset)
+>>>>>>> upstream/main
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -47,10 +51,12 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=65m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradesuc" ]; then
             go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
+        elif [ "${TEST_TAG}" = "upgradereplacement" ]; then
+            go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
        declare -a OPTS
-          OPTS=(-timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump)
+          OPTS=(-timeout=65m -v -count=1 ./entrypoint/versionbump/... -tags="${TEST_TAG}")
             OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
              [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
              [ -n "${INSTALL_VERSION_OR_COMMIT}" ] && OPTS+=(-installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}")
@@ -60,6 +66,7 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${APPLY_WORKLOAD}" ] && OPTS+=(-applyWorkload "${APPLY_WORKLOAD}")
              [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
+             [ -n "${DEBUG_MODE}" ] && OPTS+=(-debug "${DEBUG_MODE}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOYVERSION}" ]; then
@@ -67,20 +74,36 @@ if [ -n "${TEST_DIR}" ]; then
             else
                 go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
          fi
+    elif [ "${TEST_DIR}" = "deployrancher" ]; then
+        declare -a OPTS
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/deployrancher/... -tags=deployrancher)
+            [ -n "${CERTMANAGERVERSION}" ] && OPTS+=(-certManagerVersion "${CERTMANAGERVERSION}")
+            [ -n "${CHARTSVERSION}" ] && OPTS+=(-chartsVersion "${CHARTSVERSION}")
+            [ -n "${CHARTSREPONAME}" ] && OPTS+=(-chartsRepoName "${CHARTSREPONAME}")
+            [ -n "${CHARTSREPOURL}" ] && OPTS+=(-chartsRepoUrl "${CHARTSREPOURL}")
+            [ -n "${CHARTSARGS}" ] && OPTS+=(-chartsArgs "${CHARTSARGS}")
+            [ -n "${RANCHERVERSION}" ] && OPTS+=(-rancherVersion "${RANCHERVERSION}")
+      go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
-        go test -timeout=55m -v -count=1 ./entrypoint/dualstack/...
+        go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
+        go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
+<<<<<<< HEAD
         go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
         go test -timeout=90m -v -count=1 ./entrypoint/clusterreset/...
+=======
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
+>>>>>>> upstream/main
     elif [ "${TEST_DIR}" = "selinux" ]; then
-        go test -timeout=50m -v -count=1 ./entrypoint/selinux/...
+        go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
+        go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
+    elif [ "${TEST_DIR}" = "clusterreset" ]; then
+        go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     fi
 fi
 }

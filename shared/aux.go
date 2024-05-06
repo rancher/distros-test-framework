@@ -46,13 +46,15 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", fmt.Sprintf("Execute: %s on %s", cmd, ip))
+	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
+
 	conn, err := configureSSH(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %v\n", err)
+		return "", ReturnLogError("failed to configure SSH: %w\n", err)
 	}
+
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
@@ -70,14 +72,12 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	cleanedStderr := strings.ReplaceAll(stderr, "\n", "")
 	cleanedStderr = strings.ReplaceAll(cleanedStderr, "\t", "")
 
-	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") ||
-		!strings.Contains(cleanedStderr, "1") ||
+	if cleanedStderr != "" && (!strings.Contains(stderr, "exited") || !strings.Contains(cleanedStderr, "1") ||
 		!strings.Contains(cleanedStderr, "2")) {
 		return cleanedStderr, nil
 	} else if cleanedStderr != "" {
 		return "", fmt.Errorf("command: %s failed with error: %v\n", cmd, stderr)
 	}
-	LogLevel("debug", fmt.Sprintf("StdOut: %s", stdout))
 
 	return stdout, err
 }
@@ -103,7 +103,7 @@ func PrintFileContents(f ...string) error {
 	for _, file := range f {
 		content, err := os.ReadFile(file)
 		if err != nil {
-			return ReturnLogError("failed to read file: %v\n", err)
+			return ReturnLogError("failed to read file: %w\n", err)
 		}
 		fmt.Println(string(content) + "\n")
 	}
@@ -136,6 +136,66 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 	return count
 }
 
+// RunScp copies files from local to remote host based on a list of local and remote paths.
+func RunScp(ip, product string, localPaths, remotePaths []string) error {
+	if ip == "" {
+		return ReturnLogError("ip is needed.\n")
+	}
+
+	if product != "rke2" && product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", product)
+	}
+
+	if len(localPaths) != len(remotePaths) {
+		return ReturnLogError("the number of local paths and remote paths must be the same\n")
+	}
+
+	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
+		return err
+	}
+
+	for i, localPath := range localPaths {
+		remotePath := remotePaths[i]
+		scp := fmt.Sprintf(
+			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
+			ip,
+			AccessKey,
+			localPath,
+			AwsUser,
+			ip,
+			remotePath,
+		)
+
+		res, cmdErr := RunCommandHost(scp)
+		if res != "" {
+			LogLevel("warn", "scp output: %s\n", res)
+		}
+		if cmdErr != nil {
+			LogLevel("error", "failed to run scp: %v\n", cmdErr)
+			return cmdErr
+		}
+
+		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
+		_, cmdErr = RunCommandOnNode(chmod, ip)
+		if cmdErr != nil {
+			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
+			return cmdErr
+		}
+	}
+	LogLevel("info", "Files copied and chmod successfully\n")
+
+	return nil
+}
+
+// CheckHelmRepo checks a helm chart is available on the repo.
+func CheckHelmRepo(name, url, version string) (string, error) {
+	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
+	update := "helm repo update"
+	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
+
+	return RunCommandHost(addRepo, update, searchRepo)
+}
+
 // AddHelmRepo adds a helm repo to the cluster.
 func AddHelmRepo(name, url string) (string, error) {
 	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
@@ -149,11 +209,11 @@ func AddHelmRepo(name, url string) (string, error) {
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
-		return nil, ReturnLogError("failed to read private key: %v", err)
+		return nil, ReturnLogError("failed to read private key: %w", err)
 	}
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return nil, ReturnLogError("failed to parse private key: %v", err)
+		return nil, ReturnLogError("failed to parse private key: %w", err)
 	}
 
 	return ssh.PublicKeys(signer), nil
@@ -164,7 +224,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 
 	authMethod, err := publicKey(AccessKey)
 	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %v", err)
+		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 	cfg = &ssh.ClientConfig{
 		User: AwsUser,
@@ -173,9 +233,10 @@ func configureSSH(host string) (*ssh.Client, error) {
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
+
 	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
-		return nil, ReturnLogError("failed to dial: %v", err)
+		return nil, ReturnLogError("failed to dial: %w", err)
 	}
 
 	return conn, nil
@@ -184,7 +245,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %v\n", err)
+		return "", "", ReturnLogError("failed to create session: %w\n", err)
 	}
 
 	defer session.Close()
@@ -306,6 +367,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}
+
 		return e
 	}
 
@@ -350,7 +412,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 
 	foundPath, err := findScriptPath(paths, scriptName, ip)
 	if err != nil {
-		return fmt.Errorf("failed to find uninstall script for %s: %v", product, err)
+		return fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
 	}
 
 	pathName := fmt.Sprintf("%s-uninstall.sh", product)
@@ -419,6 +481,7 @@ func stringInSlice(a string, list []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -429,8 +492,10 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 			return slice
 		}
 	}
+
 	return append(slice, i)
 }
+
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }

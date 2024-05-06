@@ -3,9 +3,21 @@ package assert
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rancher/distros-test-framework/shared"
+)
+
+type testResult struct {
+	Command   string
+	Assertion string
+	Result    string
+}
+
+var (
+	Results []testResult
+	mutex   sync.Mutex
 )
 
 // validate calls runAssertion for each cmd/assert pair
@@ -15,7 +27,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(420 * time.Second)
+	timeout := time.After(120 * time.Second)
 	ticker := time.NewTicker(3 * time.Second)
 
 	for i := 0; i < len(args); i++ {
@@ -29,15 +41,15 @@ func validate(exec func(string) (string, error), args ...string) error {
 					"and/or cmd:%s",
 					assert, cmd)
 			}
+
 			err := runAssertion(cmd, assert, exec, ticker.C, timeout, errorsChan)
 			if err != nil {
-				shared.LogLevel("error", "error from runAssertion():\n %s\n", err)
+				shared.LogLevel("error", "error from runAssertion():\n %w\n", err)
 				close(errorsChan)
-				return err
+				return shared.ReturnLogError("error from runAssertion():\n %w\n", err)
 			}
 		}
 	}
-	close(errorsChan)
 
 	return nil
 }
@@ -50,29 +62,39 @@ func runAssertion(
 	timeout <-chan time.Time,
 	errorsChan chan<- error,
 ) error {
+	var res string
+	var err error
 	for {
-		res, err := exec(cmd)
-		if err != nil {
-			errorsChan <- err
-			return fmt.Errorf("error from runCmd: %s\n %s", cmd, res)
-		}
-
 		select {
 		case <-timeout:
-			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n "+
-				"Trying to assert with:\n %s",
-				cmd, res)
+			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n"+
+				"Trying to assert with:\n%s\nExpected value: %s\n", cmd, res, assert)
 			errorsChan <- timeoutErr
-			return timeoutErr
 
+			return timeoutErr
 		case <-ticker:
+			i := 0
+			res, err = exec(cmd)
+			if err != nil {
+				i++
+				shared.LogLevel("warn", "error from exec runAssertion: %v\n with res: %v\nRetrying...", err, res)
+				if i > 5 {
+					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\n with res: %v\n", err, res)
+					return shared.ReturnLogError("error from exec runAssertion: %v\n with res: %v\n", err, res)
+				}
+				continue
+			}
+
+			res = strings.TrimSpace(res)
 			if strings.Contains(res, assert) {
 				fmt.Printf("\nCommand:\n"+
 					"%s"+
 					"\n---------------------\nAssertion:\n"+
 					"%s"+
 					"\n----------------------\nMatched with result:\n%s\n", cmd, assert, res)
+				addResult(cmd, assert, res)
 				errorsChan <- nil
+
 				return nil
 			}
 		}
@@ -96,4 +118,12 @@ func ValidateOnNode(ip string, args ...string) error {
 		return shared.RunCommandOnNode(cmd, ip)
 	}
 	return validate(exec, args...)
+}
+
+func addResult(command, assertion, result string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	Results = append(Results, testResult{Command: "\nCommand:\n" + command + "\n", Assertion: "\nAssertion:\n" +
+		assertion + "\n", Result: "\nMatched with result:\n" + result + "\n"})
 }
