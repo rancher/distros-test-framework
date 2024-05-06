@@ -18,7 +18,7 @@ func TestUpgradeClusterManually(version string) error {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
 	shared.PrintClusterState()
-	fmt.Printf("\nUpgrading cluster to: %s\n", version)
+	shared.LogLevel("info", fmt.Sprintf("Upgrading cluster to: %s\n", version))
 
 	cluster := factory.ClusterConfig(GinkgoT())
 
@@ -54,7 +54,7 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 			defer wg.Done()
 			defer GinkgoRecover()
 
-			fmt.Printf("\nUpgrading %s %s to: %s", ip, nodeType, upgradeCommand)
+			shared.LogLevel("info", fmt.Sprintf("Upgrading %s %s: %s", ip, nodeType, upgradeCommand))
 
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
 				shared.LogLevel("\nwarn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
@@ -67,7 +67,7 @@ func upgradeProduct(nodeType string, installType string, ips []string) error {
 				return
 			}
 
-			fmt.Println("\nRestarting " + nodeType + ": " + ip)
+			shared.LogLevel("info", fmt.Sprintf("Restarting %s %s", nodeType, ip))
 			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}

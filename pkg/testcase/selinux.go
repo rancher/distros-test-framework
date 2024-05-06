@@ -24,7 +24,7 @@ func TestSelinuxEnabled() {
 	cluster, err := fetchCluster()
 	Expect(err).NotTo(HaveOccurred())
 
-	ips := shared.FetchNodeExternalIP()
+	ips := shared.FetchNodeExternalIPs()
 	selinuxConfigAssert := "selinux: true"
 	selinuxContainerdAssert := "enable_selinux = true"
 
