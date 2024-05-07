@@ -39,12 +39,25 @@ func TestClusterReset() {
 		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
 	}
+<<<<<<< Updated upstream
 	shared.LogLevel("info", "cluster reset successful")
+=======
+	shared.LogLevel("info", "cluster reset successful. Waiting 60 seconds for cluster "+
+		"to complete background processes after reset.")
+	time.Sleep(60 * time.Second)
+>>>>>>> Stashed changes
 
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
 	startServer(cluster)
+<<<<<<< Updated upstream
 	shared.LogLevel("info", "%s-service started", cluster.Config.Product)
+=======
+	shared.LogLevel("info", "%s-service started. Waiting 60 seconds for nodes "+
+		"and pods to sync after reset.", cluster.Config.Product)
+
+	time.Sleep(60 * time.Second)
+>>>>>>> Stashed changes
 }
 
 func killall(cluster *factory.Cluster) {
