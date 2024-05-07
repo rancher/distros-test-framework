@@ -671,6 +671,7 @@ func CreateSecret(secret, namespace string) error {
 	if strings.Contains(createStdOut, "failed to create secret") {
 		return ReturnLogError("failed to create secret: \n%w", err)
 	}
+
 	return nil
 }
 
@@ -711,7 +712,7 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 		},
 		retry.Attempts(attempts),
 		retry.Delay(defaultTime),
-		retry.OnRetry(func(n uint, err error) {
+		retry.OnRetry(func(n uint, _ error) {
 			LogLevel("DEBUG", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
