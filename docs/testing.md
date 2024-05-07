@@ -55,9 +55,6 @@ Please set the server_flags in .tfvars file for k3s:
 ```
 server_flags   = "secrets-encryption: true\n"
 ```
-In case of rke2 - do not leave this empty for now.
-At least set a "token: secret\n" for both server and agent flags as a workaround for:
-https://github.com/rancher/distros-test-framework/issues/86
 
 For versions 1.26 and 1.27 - we run the traditional tests only: prepare/rotate/reencrypt (TEST_TYPE gets set to 'classic' in env var. We use this to determine which tests to run.)
 For versions 1.28 and greater - we run both the traditional tests and new method - rotate-keys (TEST_TYPE gets set to 'both' in env var)
