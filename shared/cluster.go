@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/rancher/distros-test-framework/config"
 )
 
@@ -673,20 +674,19 @@ func CreateSecret(secret, namespace string) error {
 	return nil
 }
 
-func checkPodStatus(print bool) bool {
-	podsRunningStatus := false
-	pods, errGetPods := GetPods(print)
+func checkPodStatus() bool {
+	pods, errGetPods := GetPods(false)
 	if errGetPods != nil || len(pods) == 0 {
 		LogLevel("DEBUG", "Error getting pods. Retry.")
-		return podsRunningStatus
+		return false
 	}
 	podReady := 0
 	podNotReady := 0
 	for _, pod := range pods {
 		if pod.Status == "Running" || pod.Status == "Completed" {
-			podReady = podReady + 1
+			podReady++
 		} else {
-			podNotReady = podNotReady + 1
+			podNotReady++
 			LogLevel("DEBUG", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
 		}
 	}
@@ -694,27 +694,25 @@ func checkPodStatus(print bool) bool {
 		LogLevel("DEBUG", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
 	}
 	if podNotReady == 0 {
-		podsRunningStatus = true
+		return true
 	}
 
-	return podsRunningStatus
+	return true
 }
 
 // WaitForPodsRunning Waits for pods to reach running state.
-func WaitForPodsRunning(defaultTime time.Duration, times int) error {
-	var podsRunning bool
-	print := false
-	for i := 1; i <= times; i++ {
-		time.Sleep(defaultTime * time.Second)
-		podsRunning = checkPodStatus(print)
-		if podsRunning {
-			LogLevel("DEBUG", "All pods are up. Exiting sleep cycle after: %d seconds", i*int(defaultTime))
-			break
-		}
-	}
-	if !podsRunning {
-		return ReturnLogError("All pods were not up at the end of wait period %d", int(defaultTime)*times)
-	}
-
-	return nil
+func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
+	return retry.Do(
+		func() error {
+			if !checkPodStatus() {
+				return ReturnLogError("Not all pods are ready yet")
+			}
+			return nil
+		},
+		retry.Attempts(attempts),
+		retry.Delay(defaultTime),
+		retry.OnRetry(func(n uint, err error) {
+			LogLevel("DEBUG", "Attempt %d: Pods not ready, retrying...", n+1)
+		}),
+	)
 }

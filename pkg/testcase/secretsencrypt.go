@@ -19,10 +19,10 @@ func TestSecretsEncryption() {
 	product, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
 
-	errSecret := shared.CreateSecret("secret1", "default", false)
+	errSecret := shared.CreateSecret("secret1", "default")
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
 
-	shared.LogLevel("INFO", "TEST: 'CLASSIC' Secrets Encryption method")
+	shared.LogLevel("info", "TEST: 'CLASSIC' Secrets Encryption method")
 
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
@@ -31,13 +31,13 @@ func TestSecretsEncryption() {
 	secretsEncryptOps("reencrypt", product, cpIp, nodes)
 
 	if strings.Contains(os.Getenv("TEST_TYPE"), "both") {
-		shared.LogLevel("INFO", "TEST: 'NEW' Secrets Encryption method")
+		shared.LogLevel("info", "TEST: 'NEW' Secrets Encryption method")
 		secretsEncryptOps("rotate-keys", product, cpIp, nodes)
 	}
 }
 
 func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
-	shared.LogLevel("INFO", fmt.Sprintf("TEST: Secrets-Encryption: %s", action))
+	shared.LogLevel("info", fmt.Sprintf("TEST: Secrets-Encryption: %s", action))
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIp, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
 
@@ -55,25 +55,25 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		// Order of reboot matters. Etcd first then control plane nodes.
 		// Little lag needed between node restarts to avoid issues.
 		time.Sleep(30 * time.Second)
-		waitEtcdErr := shared.WaitForPodsRunning(5, 4)
+		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
 		if waitEtcdErr != nil {
-			shared.LogLevel("WARN", "pods not up after 20 seconds.")
+			shared.LogLevel("WARN", "pods not up after 30 seconds.")
 		}
 	}
 	switch product {
 	case "k3s":
-		waitPodsErr := shared.WaitForPodsRunning(5, 6)
+		waitPodsErr := shared.WaitForPodsRunning(10, 3)
 		if waitPodsErr != nil {
 			shared.LogLevel("WARN", "pods not up after 30 seconds")
 		}
 	case "rke2":
-		waitPodsErr := shared.WaitForPodsRunning(5, 12)
+		waitPodsErr := shared.WaitForPodsRunning(10, 6)
 		if waitPodsErr != nil {
 			shared.LogLevel("WARN", "pods not up after 60 seconds")
 		}
 	}
 
-	secretEncryptStatus, errGetStatus := waitForHashMatch(cpIp, product, 5, 36) // Max 3 minute wait time for hash to match
+	secretEncryptStatus, errGetStatus := waitForHashMatch(cpIp, product)
 	Expect(errGetStatus).NotTo(HaveOccurred(), "error getting secret-encryption status")
 	verifyStatusStdOut(action, secretEncryptStatus)
 
@@ -81,7 +81,10 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 	Expect(errLog).NotTo(HaveOccurred())
 }
 
-func waitForHashMatch(cpIp, product string, defaultTime time.Duration, times int) (string, error) {
+func waitForHashMatch(cpIp, product string) (string, error) {
+	// Max 3 minute wait time for hash match
+	defaultTime := time.Duration(10)
+	times := 6 * 3
 	var secretEncryptStatus string
 	var errGetStatus error
 	for i := 1; i <= times; i++ {
