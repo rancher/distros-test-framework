@@ -85,11 +85,19 @@ export_variables() {
 }
 
 install_k3s() {
+  url="https://get.k3s.io"
+  params="INSTALL_K3S_TYPE='agent'"
   if [[ -n "$channel" ]]; then
-    curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent
-  else
-    curl -sfL https://get.k3s.io | sh -s - agent
+    params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
+
+  install_cmd="curl -sfL $url | $params sh -"
+  
+   if ! eval "$install_cmd"; then
+    printf "Failed to install k3s-agent on joining node ip: %s\n" "$public_ip"
+    exit 1
+  fi
+
 }
 
 check_service() {

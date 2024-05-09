@@ -97,42 +97,18 @@ func loadTFconfig(
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = cfg.Product
 
-	var err error
-	if c.Config.Product == "k3s" {
-		err = loadK3sTFCfg(t, varDir, terraformOptions, c)
-	} else {
-		err = loadRke2TFCfg(t, varDir, terraformOptions, c)
-	}
-	if err != nil {
-		log.Errorf("error loading %s config\n", c.Config.Product)
-		return nil, err
-	}
-
-	return c, nil
-}
-
-func loadRke2TFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
-	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
-	if rawWinAgentIPs != "" {
-		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
-	}
-	numWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
-	if err != nil {
-		return fmt.Errorf("error getting no_of_windows_worker_nodes: \n%w", err)
-	}
-	c.NumWinAgents = numWinAgents
-
-	return nil
-}
-
-func loadK3sTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
 
-	return nil
+	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
+	if c.Config.Product == "rke2" && numWinAgents >= 1 {
+		loadWinTFCfg(t, numWinAgents, terraformOptions, c)
+	}
+
+	return c, nil
 }
 
 func loadAwsEc2(t *testing.T, varDir string, c *Cluster) {
@@ -157,6 +133,16 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster)
 	if rawAgentIPs != "" {
 		c.AgentIPs = strings.Split(rawAgentIPs, ",")
 	}
+}
+
+func loadWinTFCfg(t *testing.T, numWinAgents int, terraformOptions *terraform.Options, c *Cluster) error {
+	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
+	if rawWinAgentIPs != "" {
+		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
+	}
+	c.NumWinAgents = numWinAgents
+
+	return nil
 }
 
 func addSplitRole(t *testing.T, varDir string, numServers int) (int, error) {

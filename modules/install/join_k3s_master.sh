@@ -51,6 +51,10 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
+
+  if [ "$datastore_type" = "external" ]; then
+    echo -e "datastore-endpoint: $datastore_endpoint" >> /etc/rancher/k3s/config.yaml
+  fi
   cat /etc/rancher/k3s/config.yaml
 }
 
@@ -106,12 +110,8 @@ install_k3s() {
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
-  if [ "$datastore_type" = "etcd" ]; then
-    install_command="curl -sfL $url | $params sh -s"
-  elif [[ "$datastore_type" = "external" ]]; then
-    install_command="curl -sfL $url | $params sh -s --datastore-endpoint=\"$datastore_endpoint\""
-  fi
-
+  install_command="curl -sfL $url | $params sh -"
+  
   eval "$install_command"
 }
 

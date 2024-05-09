@@ -101,10 +101,14 @@ export_variables() {
 }
 
 install_rke2() {
-  install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -"
+  url="https://get.rke2.io"
+  params="INSTALL_RKE2_TYPE='agent'"
+  
   if [ -n "$channel" ]; then
-    install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=$channel INSTALL_RKE2_TYPE='agent' sh -"
+    params="$params INSTALL_RKE2_CHANNEL=$channel"
   fi
+
+  install_cmd="curl -sfL $url | $params sh -"
 
   if ! eval "$install_cmd"; then
     printf "Failed to install rke2-agent on joining node ip: %s\n" "$public_ip"

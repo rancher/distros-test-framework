@@ -18,9 +18,11 @@ install_mode=${8}
 version=${9}
 channel=${10}
 install_method=${11}
-server_flags=${12}
-rhel_username=${13}
-rhel_password=${14}
+datastore_type=${12}
+datastore_endpoint=${13}
+server_flags=${14}
+rhel_username=${15}
+rhel_password=${16}
 
 create_config() {
   hostname=$(hostname -f)
@@ -42,15 +44,19 @@ update_config() {
 
   if [[ "$server_flags" != *"cloud-provider-name"* ]] || [[ -z "$server_flags" ]]; then
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
-      echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
-      echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-      echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
-      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
     else
-      echo -e "node-external-ip: $public_ip" >>/etc/rancher/rke2/config.yaml
-      echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip" >> /etc/rancher/rke2/config.yaml
     fi
+  fi
+
+  if [ "$datastore_type" = "external" ]; then
+    echo -e "datastore-endpoint: $datastore_endpoint" >> /etc/rancher/rke2/config.yaml
   fi
   cat /etc/rancher/rke2/config.yaml
 }
@@ -105,10 +111,14 @@ export_variables() {
 }
 
 install_rke2() {
-  install_cmd="curl -sfL https://get.rke2.io | sh -"
+  url="https://get.rke2.io"
+  params="INSTALL_RKE2_TYPE='server'"
+  
   if [ -n "$channel" ]; then
-    install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=\"$channel\" sh -"
+    params="$params INSTALL_RKE2_CHANNEL=$channel"
   fi
+
+  install_cmd="curl -sfL $url | $params sh -"
 
   if ! eval "$install_cmd"; then
     printf "Failed to install rke2-server on joining node ip: %s\n" "$public_ip"
