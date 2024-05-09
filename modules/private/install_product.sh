@@ -24,44 +24,41 @@ EOF
 }
 
 add_config() {
-  if [ -n "$flags" ] && [[ "$flags" == *":"* ]]; then
-    echo "$flags"
-    echo -e "$flags" >> /etc/rancher/$product/config.yaml
+  if [ -n "$flags" ]; then
+    echo "$flags" >> /etc/rancher/$product/config.yaml
   fi
 
-  if [[ "$flags" != *"cloud-provider-name"* ]]; then
+  if [ "$flags" != *"cloud-provider-name"* ]; then
     if [ -n "$ipv6_ip" ] && [ -n "$private_ip" ]; then
-      echo -e "node-external-ip: $private_ip,$ipv6_ip" >> /etc/rancher/$product/config.yaml
-      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/$product/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/$product/config.yaml
-      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $ipv6_ip" >> /etc/rancher/$product/config.yaml
+      server_ip="[$server_ip]"
     else
-      echo -e "node-external-ip: $private_ip" >> /etc/rancher/$product/config.yaml
-      echo -e "node-ip: $private_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $private_ip" >> /etc/rancher/$product/config.yaml
     fi
   fi
   cat /etc/rancher/$product/config.yaml
 }
 
 install() {
-  if [[ "$product" == "k3s" ]]; then
-    if [[ "$node_type" == "server" ]]; then
+  if [ "$product" = "k3s" ]; then
+    if [ "$node_type" = "server" ]; then
       INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --cluster-init
-      sleep 15
-    elif [[ "$node_type" == "agent" ]]; then
+      sleep 30
+    elif [ "$node_type" = "agent" ]; then
       INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh
-      sleep 15
+      sleep 30
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"
     fi
-  elif [[ "$product" == "rke2" ]]; then
-    if [[ "$node_type" == "server" ]]; then
+  elif [ "$product" = "rke2" ]; then
+    if [ "$node_type" = "server" ]; then
       sudo rke2 server --write-kubeconfig-mode 644 > /dev/null 2>&1 &
-      sleep 30
-    elif [[ "$node_type" == "agent" ]]; then
+      sleep 60
+    elif [ "$node_type" = "agent" ]; then
       sudo rke2 agent --server "https://$server_ip:9345" --token "$token" > /dev/null 2>&1 &
-      sleep 20
+      sleep 60
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"
     fi
@@ -117,9 +114,9 @@ wait_ready_nodes() {
 }
 
 config_files() {
-  cat /etc/rancher/$product/config.yaml > /tmp/joinflags
-  cat /var/lib/rancher/$product/server/node-token > /tmp/nodetoken
-  cat /etc/rancher/$product/$product.yaml > /tmp/config
+  sudo cat /etc/rancher/$product/config.yaml > /tmp/joinflags
+  sudo cat /var/lib/rancher/$product/server/node-token > /tmp/nodetoken
+  sudo cat /etc/rancher/$product/$product.yaml > /tmp/config
   cat << EOF >> .bashrc
 export KUBECONFIG=/etc/rancher/$product/$product.yaml PATH=$PATH:/var/lib/rancher/$product/bin:/opt/$product/bin && \
 alias k=kubectl
@@ -131,10 +128,11 @@ main() {
   create_config
   add_config
   install
-  if [[ "$node_type" == "server" ]]; then
+  if [ "$node_type" = "server" ]; then
+    config_files
     wait_nodes
     wait_ready_nodes
   fi
-  config_files
+  
 }
 main "$@"

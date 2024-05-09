@@ -10,8 +10,8 @@ resource "aws_instance" "server" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
-  count                       = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? var.no_of_server_nodes : 0
+  ipv6_address_count          = 0
+  count                       = var.no_of_server_nodes
   
   root_block_device {
     volume_size          = "20"
@@ -32,7 +32,7 @@ resource "aws_instance" "agent" {
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
   ipv6_address_count          = var.enable_ipv6 ? 1 : 0
-  count                       = (tobool(data.template_file.is_airgap.rendered) == true || tobool(data.template_file.is_ipv6only.rendered) == true) ? var.no_of_worker_nodes : 0
+  count                       = var.no_of_worker_nodes
   
   root_block_device {
     volume_size          = "20"
@@ -71,7 +71,7 @@ resource "aws_instance" "bastion" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  ipv6_address_count          = 1
   count                       = var.no_of_bastion_nodes
   
   connection {
@@ -110,6 +110,8 @@ resource "aws_instance" "bastion" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip
+      curl -fsSL https://get.docker.com -o get-docker.sh
+      sudo sh get-docker.sh
     EOT
     ]
   }
@@ -117,7 +119,7 @@ resource "aws_instance" "bastion" {
 }
 
 locals {
-  shell_options = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes"
+  shell_options = "-o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes"
 }
 
 # resource "null_resource" "uploader" {
