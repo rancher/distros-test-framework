@@ -662,6 +662,10 @@ func CreateSecret(secret, namespace string) error {
 	if namespace == "" {
 		namespace = "default"
 	}
+	if secret == "" {
+		secret = "defaultSecret"
+	}
+
 	cmd := fmt.Sprintf("%s create secret generic %s -n %s --from-literal=mykey=mydata",
 		kubectl, secret, namespace)
 	createStdOut, err := RunCommandHost(cmd)
@@ -678,9 +682,10 @@ func CreateSecret(secret, namespace string) error {
 func checkPodStatus() bool {
 	pods, errGetPods := GetPods(false)
 	if errGetPods != nil || len(pods) == 0 {
-		LogLevel("DEBUG", "Error getting pods. Retry.")
+		LogLevel("debug", "Error getting pods. Retry.")
 		return false
 	}
+
 	podReady := 0
 	podNotReady := 0
 	for _, pod := range pods {
@@ -688,11 +693,11 @@ func checkPodStatus() bool {
 			podReady++
 		} else {
 			podNotReady++
-			LogLevel("DEBUG", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
+			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
 		}
 	}
 	if podReady+podNotReady != len(pods) {
-		LogLevel("DEBUG", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
+		LogLevel("debug", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
 	}
 	if podNotReady == 0 {
 		return true
@@ -706,14 +711,14 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 	return retry.Do(
 		func() error {
 			if !checkPodStatus() {
-				return ReturnLogError("Not all pods are ready yet")
+				return ReturnLogError("not all pods are ready yet")
 			}
 			return nil
 		},
 		retry.Attempts(attempts),
 		retry.Delay(defaultTime),
 		retry.OnRetry(func(n uint, _ error) {
-			LogLevel("DEBUG", "Attempt %d: Pods not ready, retrying...", n+1)
+			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
 }
