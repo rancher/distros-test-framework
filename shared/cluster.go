@@ -696,6 +696,7 @@ func checkPodStatus() bool {
 			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
 		}
 	}
+
 	if podReady+podNotReady != len(pods) {
 		LogLevel("debug", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
 	}
