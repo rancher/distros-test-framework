@@ -659,6 +659,7 @@ func PrintGetAll() {
 
 func CreateSecret(secret, namespace string) error {
 	kubectl := fmt.Sprintf("kubectl --kubeconfig %s", KubeConfigFile)
+
 	if namespace == "" {
 		namespace = "default"
 	}
