@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/onsi/gomega/types"
+
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -90,6 +91,7 @@ func ValidatePodIPByLabel(labels, expected []string) {
 				}
 			}
 		}
+
 		return nil
 	}, "180s", "30s").Should(Succeed(),
 		"failed to validate expected: %s on %s", expected, labels)
@@ -111,6 +113,7 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 				return nil
 			}
 		}
+
 		return nil
 	}, "180s", "5s").Should(Succeed(),
 		"failed to validate podIPs in expected range %s for label  %s",

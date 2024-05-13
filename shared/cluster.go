@@ -88,6 +88,7 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "error when creating") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
+
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -175,6 +176,7 @@ func KubectlCommand(destination, action, source string, args ...string) (string,
 	switch destination {
 	case "host":
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlag
+
 		return kubectlCmdOnHost(cmd)
 	case "node":
 		serverIP, _, err := ExtractServerIP(resourceName)
@@ -468,6 +470,7 @@ func parsePods(res string) []Pod {
 
 		pods = append(pods, p)
 	}
+
 	return pods
 }
 

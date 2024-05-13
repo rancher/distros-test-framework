@@ -58,10 +58,11 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
-			"command: %s failed on run ssh: %s with error: %w\n",
+			"command: %s failed on run ssh: %s with error: %w\n, stderr: %v\n",
 			cmd,
 			ip,
 			err,
+			stderr,
 		)
 	}
 
@@ -367,6 +368,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}
+
 		return e
 	}
 
@@ -480,6 +482,7 @@ func stringInSlice(a string, list []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -490,6 +493,7 @@ func appendNodeIfMissing(slice []Node, i Node) []Node {
 			return slice
 		}
 	}
+
 	return append(slice, i)
 }
 

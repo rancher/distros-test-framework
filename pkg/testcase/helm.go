@@ -106,6 +106,7 @@ func TestDeployRancher(flags *customflag.FlagConfig) {
 			Expect(err).NotTo(HaveOccurred(),
 				"failed to retrieve rancher bootstrap password: %v\nCommand: %s\n", err, bootstrapPassCmd)
 			rancherUrl = rancherUrl + bootstrapPassword
+
 			break
 		}
 	}

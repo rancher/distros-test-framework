@@ -36,20 +36,21 @@ EOF
 update_config() {
   if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
     echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
-    if [[ "$server_flags" != *"cloud-provider-name"* ]]; then
-      if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
+  fi
+
+  if [[ "$server_flags" != *"cloud-provider-name"* ]] || [[ -z "$server_flags" ]]; then
+    if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
         echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
-      elif [ -n "$ipv6_ip" ]; then
+    elif [ -n "$ipv6_ip" ]; then
         echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
-      else
+    else
         echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
         echo -e "node-ip: $private_ip" >> /etc/rancher/rke2/config.yaml
-      fi
     fi
-    cat /etc/rancher/rke2/config.yaml
   fi
+    cat /etc/rancher/rke2/config.yaml
 }
 
 subscription_manager() {
