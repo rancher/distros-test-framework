@@ -74,6 +74,10 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
+	if len(ips) == 0 {
+		return "", ReturnLogError("ips string array cannot be empty")
+	}
+
 	for _, ip := range ips {
 		cmd, getError := SystemCtlCmd(product, action, nodeType)
 		if getError != nil {
@@ -84,7 +88,7 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 			return ip, err
 		}
 		if manageServiceOut != "" {
-			LogLevel("DEBUG", "service %s output: \n %s", action, manageServiceOut)
+			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
 		}
 	}
 
@@ -93,13 +97,17 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 
 // CertRotate certificate rotate for k3s or rke2
 func CertRotate(product string, ips []string) (string, error) {
+	if len(ips) == 0 {
+		return "", ReturnLogError("ips string array cannot be empty")
+	}
+
 	for _, ip := range ips {
 		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
 		certRotateOut, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err
 		}
-		LogLevel("DEBUG", "On %s, cert rotate output:\n %s", ip, certRotateOut)
+		LogLevel("debug", "On %s, cert rotate output:\n %s", ip, certRotateOut)
 	}
 
 	return "", nil
@@ -124,7 +132,7 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	if strings.Contains(secretsEncryptStdOut, "fatal") {
 		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action))
 	}
-	LogLevel("DEBUG", "%s output:\n %s", action, secretsEncryptStdOut)
+	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
 }
