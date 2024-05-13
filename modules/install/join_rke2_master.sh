@@ -100,7 +100,7 @@ cis_setup() {
 
 export_variables() {
   export "$install_mode"="$version"
-   if [ -n "$install_method" ]; then
+  if [ -n "$install_method" ]; then
       export INSTALL_RKE2_METHOD="$install_method"
   fi
 }

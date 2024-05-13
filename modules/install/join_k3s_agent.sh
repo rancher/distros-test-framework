@@ -83,6 +83,7 @@ disable_cloud_setup() {
 export_variables() {
     export "$install_mode"="$version"
 }
+
 install_k3s(){
   if [[ -n "$channel"  ]]; then
     curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent

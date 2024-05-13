@@ -19,6 +19,7 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 		var err error
 		cluster, err = newCluster(g)
 		if err != nil {
+			shared.LogLevel("error", "building cluster failed!: %w\nmoving to start destroy operation\n", err)
 			status, destroyErr := DestroyCluster(g)
 			if destroyErr != nil {
 				shared.LogLevel("error", "error destroying cluster: %w\n", destroyErr)
@@ -28,7 +29,6 @@ func ClusterConfig(g GinkgoTInterface) *Cluster {
 				shared.LogLevel("error", "cluster not destroyed: %s\n", status)
 				os.Exit(1)
 			}
-			shared.LogLevel("error", "building cluster failed!: %w\nmoving to start destroy operation\n", err)
 			os.Exit(1)
 		}
 	})

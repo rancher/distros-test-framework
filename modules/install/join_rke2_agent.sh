@@ -95,7 +95,7 @@ disable_cloud_setup() {
 
 export_variables() {
   export "$install_mode"="$version"
-   if [ -n "$install_method" ]; then
+  if [ -n "$install_method" ]; then
       export INSTALL_RKE2_METHOD="$install_method"
   fi
 }
@@ -107,7 +107,7 @@ install_rke2() {
     fi
 
     if ! eval "$install_cmd"; then
-        printf "Failed to install rke2-server join agent node ip: %s\n" "$public_ip"
+        printf "Failed to install rke2-agent service on joining agent node ip: %s\n" "$public_ip"
         exit 1
     fi
 }
