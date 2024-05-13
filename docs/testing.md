@@ -29,6 +29,39 @@ agent1 ->  agent/worker node
 
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
+### Secret-Encryption tests Setup Requirements/Assumptions
+For patch validation test runs, we need a split role setup for this test:
+1 Etcd ONLY node
+2 Control Plane ONLY node
+1 Agent node
+
+To set this up, please use the following in the tfvars file: 
+
+```
+no_of_server_nodes = 0  # This is for all roles server - etcd + control plane
+no_of_worker_nodes = 1  # Agent node
+split_roles        = true
+etcd_only_nodes    = 1  # etcd only node count
+etcd_cp_nodes      = 0 
+etcd_worker_nodes  = 0
+cp_only_nodes      = 2  # control plane only node count
+cp_worker_nodes    = 0
+# Numbers 1-6 correspond to: all-roles (1), etcd-only (2), etcd-cp (3), etcd-worker (4), cp-only (5), cp-worker (6).
+role_order         = "2,5"
+```
+Please note, we can also run this test on a regular HA setup - 3 all-roles server, 1 worker node. (without split roles)
+
+Please set the server_flags in .tfvars file for k3s:
+```
+server_flags   = "secrets-encryption: true\n"
+```
+
+For versions 1.26 and 1.27 - we run the traditional tests only: prepare/rotate/reencrypt (TEST_TYPE gets set to 'classic' in env var. We use this to determine which tests to run.)
+For versions 1.28 and greater - we run both the traditional tests and new method - rotate-keys (TEST_TYPE gets set to 'both' in env var)
+
+Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
+
+
 ### Dual-Stack Testing
 
 - Required vars for `*.tfvars` file

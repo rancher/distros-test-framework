@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/rancher/distros-test-framework/config"
 )
 
@@ -654,4 +655,72 @@ func PrintGetAll() {
 
 	fmt.Printf("\n\n\n-----------------  Results from kubectl get all -A -o wide"+
 		"  -------------------\n\n%v\n\n\n\n", res)
+}
+
+func CreateSecret(secret, namespace string) error {
+	kubectl := fmt.Sprintf("kubectl --kubeconfig %s", KubeConfigFile)
+
+	if namespace == "" {
+		namespace = "default"
+	}
+	if secret == "" {
+		secret = "defaultSecret"
+	}
+
+	cmd := fmt.Sprintf("%s create secret generic %s -n %s --from-literal=mykey=mydata",
+		kubectl, secret, namespace)
+	createStdOut, err := RunCommandHost(cmd)
+	if err != nil {
+		return ReturnLogError("failed to create secret: \n%w", err)
+	}
+	if strings.Contains(createStdOut, "failed to create secret") {
+		return ReturnLogError("failed to create secret: \n%w", err)
+	}
+
+	return nil
+}
+
+func checkPodStatus() bool {
+	pods, errGetPods := GetPods(false)
+	if errGetPods != nil || len(pods) == 0 {
+		LogLevel("debug", "Error getting pods. Retry.")
+		return false
+	}
+
+	podReady := 0
+	podNotReady := 0
+	for _, pod := range pods {
+		if pod.Status == "Running" || pod.Status == "Completed" {
+			podReady++
+		} else {
+			podNotReady++
+			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
+		}
+	}
+
+	if podReady+podNotReady != len(pods) {
+		LogLevel("debug", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
+	}
+	if podNotReady == 0 {
+		return true
+	}
+
+	return true
+}
+
+// WaitForPodsRunning Waits for pods to reach running state.
+func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
+	return retry.Do(
+		func() error {
+			if !checkPodStatus() {
+				return ReturnLogError("not all pods are ready yet")
+			}
+			return nil
+		},
+		retry.Attempts(attempts),
+		retry.Delay(defaultTime),
+		retry.OnRetry(func(n uint, _ error) {
+			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
+		}),
+	)
 }
