@@ -1,8 +1,7 @@
 #!/bin/bash
 # This script is used to join one or more nodes as agents
 echo "$@"
-# the following lines are to enable debug mode
-set -x
+
 PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
@@ -25,7 +24,7 @@ rhel_password=${13}
 create_config() {
   hostname=$(hostname -f)
   mkdir -p /etc/rancher/rke2
-  cat << EOF >>/etc/rancher/rke2/config.yaml
+  cat <<EOF >>/etc/rancher/rke2/config.yaml
 server: https://${server_ip}:9345
 token:  "${token}"
 node-name: "${hostname}"
@@ -34,22 +33,22 @@ EOF
 
 update_config() {
   if [ -n "$worker_flags" ] && [[ "$worker_flags" == *":"* ]]; then
-    echo -e "$worker_flags" >> /etc/rancher/rke2/config.yaml
+    echo -e "$worker_flags" >>/etc/rancher/rke2/config.yaml
   fi
 
   if [[ "$worker_flags" != *"cloud-provider-name"* ]] || [[ -z "$worker_flags" ]]; then
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
-        echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-        echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
     else
-        echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $private_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
   fi
-    cat /etc/rancher/rke2/config.yaml
+  cat /etc/rancher/rke2/config.yaml
 }
 
 cis_setup() {
@@ -86,33 +85,63 @@ disable_cloud_setup() {
 
     workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
     if [ ! -e /etc/NetworkManager/conf.d/canal.conf ]; then
-      echo -e "$workaround" > /etc/NetworkManager/conf.d/canal.conf
+      echo -e "$workaround" >/etc/NetworkManager/conf.d/canal.conf
     else
-      echo -e "$workaround" >> /etc/NetworkManager/conf.d/canal.conf
+      echo -e "$workaround" >>/etc/NetworkManager/conf.d/canal.conf
     fi
     sudo systemctl reload NetworkManager
   fi
 }
 
-install() {
+export_variables() {
   export "$install_mode"="$version"
   if [ -n "$install_method" ]; then
     export INSTALL_RKE2_METHOD="$install_method"
   fi
+}
 
-  if [[ -z "$channel" ]]; then
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -
-  else
-    curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="$channel" INSTALL_RKE2_TYPE='agent' sh -
+install_rke2() {
+  install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE='agent' sh -"
+  if [ -n "$channel" ]; then
+    install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=$channel INSTALL_RKE2_TYPE='agent' sh -"
   fi
 
-  sleep 10
+  if ! eval "$install_cmd"; then
+    printf "Failed to install rke2-agent on joining node ip: %s\n" "$public_ip"
+    exit 1
+  fi
+}
+
+install_dependencies() {
   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
     yum install tar iptables -y
   fi
-  cis_setup
+}
 
-  sudo systemctl enable rke2-agent --now
+enable_service() {
+  if ! sudo systemctl enable rke2-agent --now; then
+    printf "rke2-agent failed to start on joining node ip: %s\n" "$public_ip"
+
+    ## rke2 can sometimes fail to start but some time after it starts successfully.
+    sleep 20
+
+    if ! sudo systemctl is-active --quiet rke2-agent; then
+      printf "rke2-agent exiting after failed retry to start on node ip: %s\n" "$public_ip"
+      sudo journalctl -xeu rke2-agent.service --no-pager | grep -i "error\|failed\|fatal"
+      exit 1
+    else
+      printf "rke2-agent started successfully on node ip: %s\n" "$public_ip"
+    fi
+  fi
+}
+
+install() {
+  export_variables
+  install_rke2
+  sleep 10
+  install_dependencies
+  cis_setup
+  enable_service
 }
 
 main() {
