@@ -32,26 +32,26 @@ EOF
 
 update_config() {
   if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *":"* ]]; then
-    echo -e "$worker_flags" >> /etc/rancher/k3s/config.yaml
+    echo -e "$worker_flags" >>/etc/rancher/k3s/config.yaml
   fi
 
   if [[ "$worker_flags" != *"cloud-provider-name"* ]] || [[ -z "$worker_flags" ]]; then
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
-      echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-      echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $ipv6_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
     else
-      echo -e "node-external-ip: $public_ip" >> /etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $private_ip" >> /etc/rancher/k3s/config.yaml
+      echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
+      echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
   cat /etc/rancher/k3s/config.yaml
 
   if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]; then
-    cat /tmp/cis_worker_config.yaml >> /etc/rancher/k3s/config.yaml
-    printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >> /etc/sysctl.d/90-kubelet.conf
+    cat /tmp/cis_worker_config.yaml >>/etc/rancher/k3s/config.yaml
+    printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >>/etc/sysctl.d/90-kubelet.conf
     sysctl -p /etc/sysctl.d/90-kubelet.conf
     systemctl restart systemd-sysctl
   fi
@@ -81,11 +81,11 @@ disable_cloud_setup() {
 }
 
 export_variables() {
-    export "$install_mode"="$version"
+  export "$install_mode"="$version"
 }
 
-install_k3s(){
-  if [[ -n "$channel"  ]]; then
+install_k3s() {
+  if [[ -n "$channel" ]]; then
     curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=$channel sh -s - agent
   else
     curl -sfL https://get.k3s.io | sh -s - agent
@@ -94,18 +94,18 @@ install_k3s(){
 
 check_service() {
   if systemctl is-active --quiet k3s-agent; then
-      printf "K3s is running on agent node ip: %s\n" "$public_ip"
+    printf "k3s-agent is running on joining node ip: %s\n" "$public_ip"
   else
-      printf "K3s failed to start on agent node ip %s\n" "$public_ip"
-      sudo journalctl -xeu k3s-agent.service | grep -i "error\|failed\|fatal"
-      exit 1
+    printf "k3s-agent failed to start on joining node ip %s\n" "$public_ip"
+    sudo journalctl -xeu k3s-agent.service | grep -i "error\|failed\|fatal"
+    exit 1
   fi
 }
 
 install() {
   export_variables
   install_k3s
-  sleep 15
+  sleep 10
   check_service
 }
 

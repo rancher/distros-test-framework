@@ -25,7 +25,7 @@ rhel_password=${14}
 create_config() {
   hostname=$(hostname -f)
   mkdir -p /etc/rancher/rke2
-  cat << EOF >>/etc/rancher/rke2/config.yaml
+  cat <<EOF >>/etc/rancher/rke2/config.yaml
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
@@ -37,22 +37,22 @@ EOF
 
 update_config() {
   if [ -n "$server_flags" ] && [[ "$server_flags" == *":"* ]]; then
-    echo -e "$server_flags" >> /etc/rancher/rke2/config.yaml
+    echo -e "$server_flags" >>/etc/rancher/rke2/config.yaml
   fi
 
   if [[ "$server_flags" != *"cloud-provider-name"* ]] || [[ -z "$server_flags" ]]; then
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
-        echo -e "node-external-ip: $public_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-        echo -e "node-external-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $ipv6_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
     else
-        echo -e "node-external-ip: $public_ip" >> /etc/rancher/rke2/config.yaml
-        echo -e "node-ip: $private_ip" >> /etc/rancher/rke2/config.yaml
+      echo -e "node-external-ip: $public_ip" >>/etc/rancher/rke2/config.yaml
+      echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
   fi
-    cat /etc/rancher/rke2/config.yaml
+  cat /etc/rancher/rke2/config.yaml
 }
 
 subscription_manager() {
@@ -78,9 +78,9 @@ disable_cloud_setup() {
 
     workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
     if [ ! -e /etc/NetworkManager/conf.d/canal.conf ]; then
-      echo -e "$workaround" > /etc/NetworkManager/conf.d/canal.conf
+      echo -e "$workaround" >/etc/NetworkManager/conf.d/canal.conf
     else
-      echo -e "$workaround" >> /etc/NetworkManager/conf.d/canal.conf
+      echo -e "$workaround" >>/etc/NetworkManager/conf.d/canal.conf
     fi
   fi
 }
@@ -97,45 +97,45 @@ cis_setup() {
   fi
 }
 
-
 export_variables() {
   export "$install_mode"="$version"
   if [ -n "$install_method" ]; then
-      export INSTALL_RKE2_METHOD="$install_method"
+    export INSTALL_RKE2_METHOD="$install_method"
   fi
 }
 
 install_rke2() {
- install_cmd="curl -sfL https://get.rke2.io | sh -"
-    if [ -n "$channel" ]; then
-        install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=\"$channel\" sh -"
-    fi
+  install_cmd="curl -sfL https://get.rke2.io | sh -"
+  if [ -n "$channel" ]; then
+    install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=\"$channel\" sh -"
+  fi
 
-    if ! eval "$install_cmd"; then
-        printf "Failed to install rke2-server join on ip: %s\n,Retrying install 20s." "$public_ip"
-    fi
+  if ! eval "$install_cmd"; then
+    printf "Failed to install rke2-server on joining node ip: %s\n" "$public_ip"
+    exit 1
+  fi
 }
 
 install_dependencies() {
   if [[ "$node_os" = *"rhel"* ]] || [[ "$node_os" = "centos8" ]] || [[ "$node_os" = *"oracle"* ]]; then
-       yum install tar iptables -y
+    yum install tar iptables -y
   fi
 }
 
 enable_service() {
   if ! sudo systemctl enable rke2-server --now; then
-      printf "Failed to start rke2-server on joining ip: %s,Retrying to start in 20s.\n" "$public_ip"
+    printf "rke2-server failed to start on joining node ip: %s,Retrying to start in 20s.\n" "$public_ip"
 
-      ## rke2 can sometimes fail to start but some time after it starts successfully.
-      sleep 20
+    ## rke2 can sometimes fail to start but some time after it starts successfully.
+    sleep 20
 
-      if ! sudo systemctl is-active --quiet rke2-server; then
-        printf "Exiting after failed retry to start rke2-server on joining ip: %s\n" "$public_ip"
-        sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
-        exit 1
-      else
+    if ! sudo systemctl is-active --quiet rke2-server; then
+      printf "rke2-server exiting after failed retry to start on joining node ip: %s\n" "$public_ip"
+      sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
+      exit 1
+    else
       printf "rke2-server started successfully on joining ip: %s\n" "$public_ip"
-      fi
+    fi
   fi
 }
 
@@ -149,7 +149,7 @@ install() {
 }
 
 path_setup() {
-  cat << EOF >> .bashrc
+  cat <<EOF >>.bashrc
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \
 alias k=kubectl
 EOF
