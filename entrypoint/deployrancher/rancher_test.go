@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,6 +25,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -33,15 +33,11 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Deploys cert-manager", func() {
-		testcase.TestDeployCertManager(customflag.ServiceFlag.ExternalFlag.CertManagerVersion)
+		testcase.TestDeployCertManager(cluster, flags.ExternalFlag.CertManagerVersion)
 	})
 
 	It("Deploys rancher manager", func() {
-		testcase.TestDeployRancher(
-			cluster,
-			customflag.ServiceFlag.ExternalFlag.RancherHelmVersion,
-			customflag.ServiceFlag.ExternalFlag.RancherImageVersion,
-		)
+		testcase.TestDeployRancher(cluster, flags)
 	})
 })
 

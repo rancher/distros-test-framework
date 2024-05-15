@@ -5,12 +5,11 @@ import (
 	"net"
 	"strings"
 
-	"github.com/onsi/gomega/types"
-
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 )
 
 type PodAssertFunc func(g Gomega, pod shared.Pod)
@@ -93,6 +92,7 @@ func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 				}
 			}
 		}
+
 		return nil
 	}, "180s", "30s").Should(Succeed(),
 		"failed to validate expected: %s on %s", expected, labels)
@@ -114,6 +114,7 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 				return nil
 			}
 		}
+
 		return nil
 	}, "180s", "5s").Should(Succeed(),
 		"failed to validate podIPs in expected range %s for label  %s",

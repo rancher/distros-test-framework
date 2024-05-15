@@ -31,6 +31,7 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 
 			fmt.Println("\nResult:", res+"\nMatched with:\n", assert)
 		}
+
 		return nil
 	}, "420s", "5s").Should(Succeed())
 

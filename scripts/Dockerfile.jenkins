@@ -23,7 +23,8 @@ RUN apk update && \
     chmod +x /usr/local/bin/terraform && \
     export VERIFY_CHECKSUM=false && \
     curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
-    rm -rf tmp
+    rm -rf tmp && \
+    mkdir -p /root/.ssh
 
 WORKDIR $GOPATH/src/github.com/rancher/distros-test-framework
 

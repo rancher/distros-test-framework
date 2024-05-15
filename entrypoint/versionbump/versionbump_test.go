@@ -1,4 +1,4 @@
-//go:factory versionbump
+//go:build versionbump
 
 package versionbump
 
@@ -27,6 +27,7 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())

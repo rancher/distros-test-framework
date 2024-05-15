@@ -2,6 +2,7 @@ package factory
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -21,8 +22,17 @@ func ClusterConfig() *Cluster {
 		var err error
 		cluster, err = newCluster()
 		if err != nil {
-			l.Errorf("error creating cluster: %v\n", err)
-			return
+			l.Errorf("building cluster failed!: %v\nmoving to start destroy operation\n", err)
+			status, destroyErr := DestroyCluster()
+			if destroyErr != nil {
+				l.Errorf("error destroying cluster: %v\n", destroyErr)
+				os.Exit(1)
+			}
+			if status != "cluster destroyed" {
+				l.Errorf("cluster not destroyed: %s\n", status)
+				os.Exit(1)
+			}
+			os.Exit(1)
 		}
 	})
 
@@ -62,11 +72,10 @@ func newCluster() (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
-	l.Infof("\nCreating cluster\n")
+	l.Infof("Applying Terraform config and Creating cluster\n")
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
-		l.Errorf("\nCreating cluster Failed!!!\n")
-		return nil, fmt.Errorf("error creating cluster: %w", err)
+		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)
 	}
 
 	numServers, err = addSplitRole(t, varDir, numServers)

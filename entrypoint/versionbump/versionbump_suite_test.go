@@ -16,10 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var (
-	cfg     *config.Product
-	cluster *factory.Cluster
-)
+var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -31,6 +28,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
 	flag.BoolVar(&customflag.ServiceFlag.TestConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
 	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
+	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DebugMode, "debug", false, "Enable debug mode")
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
@@ -40,7 +38,7 @@ func TestMain(m *testing.M) {
 	customflag.ServiceFlag.TestConfig.TestFuncNames = customflag.TestCaseNameFlag
 	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestConfig.TestFuncNames)
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		shared.LogLevel("error", "error adding test cases to template: %w\n", err)
 		return
 	}
 
@@ -52,21 +50,15 @@ func TestMain(m *testing.M) {
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
 	}
 
-	cfg, err = config.AddEnv()
-	if err != nil {
-		return
+	if customflag.ServiceFlag.TestConfig.DebugMode == true {
+		shared.LogLevel("info", "debug mode enabled on template\n\n")
 	}
 
-	if customflag.ServiceFlag.InstallMode.String() != "" && template.TestMapTemplate.ExpectedValueUpgrade == "" {
-		shared.LogLevel("error", "if you are using upgrade, please provide the expected value after upgrade")
-		os.Exit(1)
-	}
-
-	os.Exit(m.Run())
-
+	exitCode := m.Run()
+	os.Exit(exitCode)
 }
 
-func TestVersionTestSuite(t *testing.T) {
+func TestVersionBumpSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Version Test Suite")
 }
@@ -76,5 +68,17 @@ var _ = AfterSuite(func() {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
+	}
+
+	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
+		Expect(err).To(BeNil(), fmt.Sprintf("error loading env vars: %v\n", err))
+	}
+
+	testTag := os.Getenv("TEST_TAG")
+	if testTag == "components" {
+		template.ComponentsBumpResults()
+	}
+	if testTag != "versionbump" {
+		shared.PrintGetAll()
 	}
 })

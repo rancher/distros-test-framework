@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 
@@ -13,24 +12,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var (
-	cfg     *config.Product
-	cluster *factory.Cluster
-)
+var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	var err error
 	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err = config.AddEnv()
-	if err != nil {
-		return
-	}
-
 	cluster = factory.ClusterConfig()
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	os.Exit(exitCode)
 }
 
 func TestValidateClusterSuite(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
@@ -14,8 +13,8 @@ import (
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(cfg *config.Product, version string) error {
-	fmt.Printf("\nUpgrading cluster to: %s\n", version)
+func TestUpgradeClusterSUC(cluster *factory.Cluster, version string) error {
+	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
 
 	workloadErr := shared.ManageWorkload("apply", "suc.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(),
@@ -29,9 +28,9 @@ func TestUpgradeClusterSUC(cfg *config.Product, version string) error {
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	originalFilePath := shared.BasePath() +
-		fmt.Sprintf("/workloads/amd64/%s-upgrade-plan.yaml", cfg.Product)
-	newFilePath := shared.BasePath() + "/workloads/amd64/plan.yaml"
+	originalFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-upgrade-plan.yaml",
+		cluster.Config.Arch, cluster.Config.Product)
+	newFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/plan.yaml", cluster.Config.Arch)
 
 	content, err := os.ReadFile(originalFilePath)
 	if err != nil {

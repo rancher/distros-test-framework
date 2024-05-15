@@ -1,8 +1,6 @@
 package testcase
 
 import (
-	"fmt"
-
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
@@ -35,9 +33,10 @@ func TestNodeStatus(
 				nodeAssertVersion(g, node)
 			}
 		}
+
 		return true
 	}, "2500s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\ntimeout for nodes to be ready gathering journal logs...\n")
+		shared.LogLevel("error", "\ntimeout for nodes to be ready; gathering journal logs...\n")
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
 
 		if cluster.NumAgents > 0 {
@@ -47,7 +46,7 @@ func TestNodeStatus(
 		return logs
 	})
 
-	fmt.Println("\n\nCluster nodes:")
+	shared.LogLevel("info", "\n\nCluster nodes:\n")
 	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }

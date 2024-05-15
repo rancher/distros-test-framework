@@ -26,6 +26,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -52,14 +53,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, true)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred(), err)
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
 		})

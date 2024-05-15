@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 
@@ -20,14 +19,10 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Parse()
 
-	_, err := config.AddEnv()
-	if err != nil {
-		return
-	}
-
 	cluster = factory.ClusterConfig()
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	os.Exit(exitCode)
 }
 
 func TestSelinuxSuite(t *testing.T) {

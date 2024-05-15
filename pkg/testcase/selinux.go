@@ -20,7 +20,7 @@ type configuration struct {
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
 func TestSelinuxEnabled(cluster *factory.Cluster) {
-	ips := shared.FetchNodeExternalIP()
+	ips := shared.FetchNodeExternalIPs()
 	selinuxConfigAssert := "selinux: true"
 	selinuxContainerdAssert := "enable_selinux = true"
 

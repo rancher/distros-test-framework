@@ -8,17 +8,16 @@ import (
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
 func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error {
-	fmt.Printf("\nUpgrading cluster to: %s", version)
+	shared.LogLevel("\ninfo", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
 	}
+	shared.PrintClusterState()
 
 	if cluster.NumServers == 0 && cluster.NumAgents == 0 {
 		return shared.ReturnLogError("no nodes found to upgrade")
@@ -50,9 +49,8 @@ func upgradeProduct(product, nodeType string, installType string, ips []string) 
 		wg.Add(1)
 		go func(ip, upgradeCommand string) {
 			defer wg.Done()
-			defer GinkgoRecover()
 
-			fmt.Printf("\nUpgrading %s %s to: %s", ip, nodeType, upgradeCommand)
+			shared.LogLevel("\ninfo", fmt.Sprintf("Upgrading %s %s: %s", ip, nodeType, upgradeCommand))
 
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
 				shared.LogLevel("\nwarn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
@@ -60,7 +58,7 @@ func upgradeProduct(product, nodeType string, installType string, ips []string) 
 				return
 			}
 
-			fmt.Println("\nRestarting " + nodeType + ": " + ip)
+			shared.LogLevel("\ninfo", "Restarting %s: %s", nodeType, ip)
 			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}

@@ -27,6 +27,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())
@@ -36,7 +37,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceClusterIp(true, false)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
@@ -59,6 +60,7 @@ var _ = Describe("Test:", func() {
 
 	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -77,7 +79,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestIngress(false, true)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})

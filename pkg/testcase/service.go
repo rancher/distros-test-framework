@@ -22,7 +22,8 @@ func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
-	nodeExternalIP := shared.FetchNodeExternalIP()
+
+	nodeExternalIP := shared.FetchNodeExternalIPs()
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
 			":"+port+"/name.html", "test-clusterip")
@@ -42,7 +43,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "nodeport manifest not deployed")
 	}
 
-	nodeExternalIP := shared.FetchNodeExternalIP()
+	nodeExternalIP := shared.FetchNodeExternalIPs()
 	nodeport, err := shared.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
 	Expect(err).NotTo(HaveOccurred(), err)
 
@@ -103,7 +104,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 }
 
 func testServiceNodePortDualStack(cluster *factory.Cluster, td testData) {
-	nodeExternalIP := shared.FetchNodeExternalIP()
+	nodeExternalIP := shared.FetchNodeExternalIPs()
 	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)
 
@@ -123,7 +124,7 @@ func testServiceClusterIPs(td testData) {
 	clusterIPs, port, err := shared.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred(), err)
-	nodeExternalIPs := shared.FetchNodeExternalIP()
+	nodeExternalIPs := shared.FetchNodeExternalIPs()
 
 	for _, clusterIP := range clusterIPSlice {
 		if strings.Contains(clusterIP, ":") {

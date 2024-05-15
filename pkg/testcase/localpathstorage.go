@@ -41,7 +41,7 @@ func TestLocalPathProvisionerStorage(cluster *factory.Cluster, applyWorkload, de
 		g.Expect(err).NotTo(HaveOccurred())
 	}, "300s", "5s").Should(Succeed())
 
-	ips := shared.FetchNodeExternalIP()
+	ips := shared.FetchNodeExternalIPs()
 	for _, ip := range ips {
 		shared.RestartCluster("k3s", ip)
 	}

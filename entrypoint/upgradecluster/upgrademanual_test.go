@@ -30,6 +30,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -56,14 +57,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook pre-upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
@@ -78,7 +79,6 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
 		_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
 	})
@@ -93,6 +93,7 @@ var _ = Describe("Test:", func() {
 
 	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -119,14 +120,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(false, true)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook after upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})

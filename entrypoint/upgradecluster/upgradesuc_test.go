@@ -30,6 +30,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -56,14 +57,14 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook pre-upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service before upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
@@ -78,9 +79,8 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		fmt.Println("Current cluster state before upgrade:")
 		shared.PrintClusterState()
-		_ = testcase.TestUpgradeClusterSUC(cfg, customflag.ServiceFlag.SUCUpgradeVersion.String())
+		_ = testcase.TestUpgradeClusterSUC(cluster, customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {
@@ -93,6 +93,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 	It("Checks Pod status post-upgrade", func() {
 		testcase.TestPodStatus(
+			cluster,
 			nil,
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -119,14 +120,14 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDnsAccess(true, true)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook after upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})

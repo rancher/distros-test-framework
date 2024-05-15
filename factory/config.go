@@ -90,6 +90,7 @@ func loadTFconfig(
 	cfg *config.Product,
 ) (*Cluster, error) {
 	c := &Cluster{}
+
 	loadTFoutput(t, terraformOptions, c)
 	loadAwsConfig(t, varDir, c)
 

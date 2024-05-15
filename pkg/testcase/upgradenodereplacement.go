@@ -31,7 +31,7 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 
 	resourceName := os.Getenv("resource_name")
 
-	awsDependencies, err := aws.AddNode()
+	awsDependencies, err := aws.AddNode(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	var (
@@ -44,18 +44,19 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 
 	// create server names
 	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-server-%d", resourceName, i+1))
+		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace-%d", resourceName, i+1))
 	}
 
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
 		awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
-	shared.LogLevel("info", "\ncreated server public ips: %s ids:%s\n",
+	shared.LogLevel("info", "Created server public ips: %s and ids: %s\n",
 		newExternalServerIps, instanceServerIds)
 
 	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new server nodes done\n")
 
 	serverLeaderIp := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(serverLeaderIp)
@@ -80,20 +81,19 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 		// create agent names
 		var agentNames []string
 		for i := 0; i < len(cluster.AgentIPs); i++ {
-			agentNames = append(agentNames, fmt.Sprintf("%s-agent-%d", resourceName, i+1))
+			agentNames = append(agentNames, fmt.Sprintf("%s-agent-replace-%d", resourceName, i+1))
 		}
 
 		newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
 			awsDependencies.CreateInstances(agentNames...)
 		Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
-		shared.LogLevel("info", "created worker ips: %s worker ids:%s\n",
+		shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
 			newExternalAgentIps, instanceAgentIds)
 
 		scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
 		Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-
-		shared.LogLevel("info", "scp files to new worker nodes done\n")
+		shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
 		agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
 			newPrivateAgentIps,
@@ -253,6 +253,7 @@ func replaceServers(
 	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, c.Config.Product); kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
+	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
 
 	nodeErr := validateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {

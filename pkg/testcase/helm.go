@@ -6,12 +6,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestDeployCertManager(version string) {
+func TestDeployCertManager(cluster *factory.Cluster, version string) {
 	addRepoCmd := "helm repo add jetstack https://charts.jetstack.io && helm repo update"
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
@@ -35,7 +36,9 @@ func TestDeployCertManager(version string) {
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
-			processPodStatus(g, pod,
+			processPodStatus(cluster,
+				g,
+				pod,
 				assert.PodAssertRestart(),
 				assert.PodAssertReady(),
 				assert.PodAssertStatus())
@@ -43,18 +46,40 @@ func TestDeployCertManager(version string) {
 	}, "120s", "5s").Should(Succeed())
 }
 
-func TestDeployRancher(cluster *factory.Cluster, helmVersion, imageVersion string) {
-	addRepoCmd := "helm repo add rancher-latest https://releases.rancher.com/server-charts/latest && " +
-		"helm repo update"
-	installRancherCmd := "kubectl create namespace cattle-system --kubeconfig=" +
-		factory.KubeConfigFile + " && helm install rancher rancher-latest/rancher " +
-		"-n cattle-system --set global.cattle.psp.enabled=false " +
-		fmt.Sprintf("--set hostname=%s --set rancherImageTag=%s --version=%s --kubeconfig=%s",
-			cluster.FQDN, imageVersion, helmVersion, factory.KubeConfigFile)
+func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
+	addRepoCmd := fmt.Sprintf(
+		"helm repo add %s %s && "+
+			"helm repo update",
+		flags.ExternalFlag.HelmChartsFlag.RepoName,
+		flags.ExternalFlag.HelmChartsFlag.RepoUrl)
 
-	res, err := shared.RunCommandHost(addRepoCmd, installRancherCmd)
-	Expect(err).NotTo(HaveOccurred(),
-		"failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n", err, installRancherCmd, res)
+	installRancherCmd := fmt.Sprintf(
+		"kubectl create namespace cattle-system --kubeconfig=%s && "+
+			"helm install rancher %s/rancher ",
+		factory.KubeConfigFile,
+		flags.ExternalFlag.HelmChartsFlag.RepoName)
+
+	if flags.ExternalFlag.HelmChartsFlag.Args != "" {
+		installRancherCmd += helmArgsBuilder(flags)
+	}
+
+	installRancherCmd += fmt.Sprintf("-n cattle-system "+
+		"--version=%s "+
+		"--set global.cattle.psp.enabled=false "+
+		"--set hostname=%s "+
+		"--kubeconfig=%s",
+		flags.ExternalFlag.RancherVersion,
+		cluster.FQDN,
+		factory.KubeConfigFile)
+
+	shared.LogLevel("info", "Helm command: %s", addRepoCmd)
+	res, err := shared.RunCommandHost(addRepoCmd)
+	Expect(err).NotTo(HaveOccurred(), "failed to add helm repo: %v\nCommand: %s\nResult: %s\n", err, addRepoCmd, res)
+
+	shared.LogLevel("info", "Install command: %s", installRancherCmd)
+	res, err = shared.RunCommandHost(installRancherCmd)
+	Expect(err).NotTo(HaveOccurred(), "failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n",
+		err, installRancherCmd, res)
 
 	filters := map[string]string{
 		"namespace": "cattle-system",
@@ -66,7 +91,10 @@ func TestDeployRancher(cluster *factory.Cluster, helmVersion, imageVersion strin
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
-			processPodStatus(g, pod,
+			processPodStatus(
+				cluster,
+				g,
+				pod,
 				assert.PodAssertRestart(),
 				assert.PodAssertReady(),
 				assert.PodAssertStatus())
@@ -81,8 +109,25 @@ func TestDeployRancher(cluster *factory.Cluster, helmVersion, imageVersion strin
 			Expect(err).NotTo(HaveOccurred(),
 				"failed to retrieve rancher bootstrap password: %v\nCommand: %s\n", err, bootstrapPassCmd)
 			rancherUrl = rancherUrl + bootstrapPassword
+
 			break
 		}
 	}
-	fmt.Println("\nRancher URL:", rancherUrl)
+	shared.LogLevel("info", "\nRancher URL: %s", rancherUrl)
+}
+
+func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
+	helmArgs := flags.ExternalFlag.HelmChartsFlag.Args
+	if strings.Contains(helmArgs, ",") {
+		argsSlice := strings.Split(helmArgs, ",")
+		for _, arg := range argsSlice {
+			if !strings.Contains(finalArgs, arg) {
+				finalArgs += fmt.Sprintf("--set %s ", arg)
+			}
+		}
+	} else {
+		finalArgs = fmt.Sprintf("--set %s ", helmArgs)
+	}
+
+	return finalArgs
 }
