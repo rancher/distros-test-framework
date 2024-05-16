@@ -95,7 +95,6 @@ variable "bastion_id" {
   type    = any
   default = null
 }
-
 variable "datastore_type" {}
 variable "external_db" {}
 variable "external_db_version" {}

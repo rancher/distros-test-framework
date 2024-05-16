@@ -80,21 +80,17 @@ disable_cloud_setup() {
   fi
 }
 
-export_variables() {
-  export "$install_mode"="$version"
-}
-
 install_k3s() {
   url="https://get.k3s.io"
-  params="INSTALL_K3S_TYPE='agent'"
+  params="$install_mode=$version"
   if [[ -n "$channel" ]]; then
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
-  install_cmd="curl -sfL $url | $params sh -"
+  install_cmd="curl -sfL $url | $params sh -s - agent"
   
-   if ! eval "$install_cmd"; then
-    printf "Failed to install k3s-agent on joining node ip: %s\n" "$public_ip"
+  if ! eval "$install_cmd"; then
+    echo "Failed to install k3s-agent on node: $public_ip"
     exit 1
   fi
 
@@ -102,16 +98,15 @@ install_k3s() {
 
 check_service() {
   if systemctl is-active --quiet k3s-agent; then
-    printf "k3s-agent is running on joining node ip: %s\n" "$public_ip"
+    echo "k3s-agent is running on node: $public_ip" 
   else
-    printf "k3s-agent failed to start on joining node ip %s\n" "$public_ip"
+    echo "k3s-agent failed to start on node: $public_ip while joining server: $server_ip" 
     sudo journalctl -xeu k3s-agent.service | grep -i "error\|failed\|fatal"
     exit 1
   fi
 }
 
 install() {
-  export_variables
   install_k3s
   sleep 10
   check_service

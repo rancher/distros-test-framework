@@ -27,7 +27,6 @@ create_config() {
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
-cluster-init: true
 node-name: $hostname
 EOF
 }
@@ -51,7 +50,9 @@ update_config() {
   fi
 
   if [ "$datastore_type" = "external" ]; then
-    echo -e "datastore-endpoint: $datastore_endpoint" >> /etc/rancher/k3s/config.yaml
+    echo -e "datastore-endpoint: $datastore_endpoint" >>/etc/rancher/k3s/config.yaml
+  elif [ "$datastore_type" = "etcd" ]; then
+    echo -e "cluster-init: true" >>/etc/rancher/k3s/config.yaml
   fi
   cat /etc/rancher/k3s/config.yaml
 }
@@ -68,7 +69,7 @@ policy_files() {
     cat /tmp/audit.yaml >/var/lib/rancher/k3s/server/audit.yaml
     cat /tmp/cluster-level-pss.yaml >/var/lib/rancher/k3s/server/cluster-level-pss.yaml
     cat /tmp/ingresspolicy.yaml >/var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
-    sleep 20
+    sleep 5
   fi
 }
 
@@ -95,36 +96,33 @@ disable_cloud_setup() {
   fi
 }
 
-export_variables() {
-  export "$install_mode"="$version"
-  alias k=kubectl
-}
-
 install_k3s() {
   url="https://get.k3s.io"
-  params=""
+  params="$install_mode=$version"
 
   if [[ -n "$channel" ]]; then
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
-  install_command="curl -sfL $url | $params sh -"
+  install_cmd="curl -sfL $url | $params sh -"
   
-  eval "$install_command"
+  if ! eval "$install_cmd"; then
+    echo "Failed to install k3s-server on node: $public_ip"
+    exit 1
+  fi
 }
 
 check_service() {
   if systemctl is-active --quiet k3s; then
     echo "k3s-server is running on node ip $public_ip"
   else
-    printf "k3s-server failed to start on node ip %s\n" "$public_ip"
-    sudo journalctl -xeu k3s.service | grep -i "failed\|fatal"
+    echo "k3s-server failed to start on node: $public_ip"
+    sudo journalctl -xeu k3s.service | grep -i "error\|failed\|fatal"
     exit 1
   fi
 }
 
 install() {
-  export_variables
   install_k3s
   sleep 10
   check_service
