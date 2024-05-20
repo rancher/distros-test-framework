@@ -15,7 +15,7 @@ import (
 var (
 	product *Product
 	once    sync.Once
-	l       = logger.AddLogger()
+	log     = logger.AddLogger()
 )
 
 type Product struct {
@@ -42,7 +42,7 @@ func loadEnv() (*Product, error) {
 
 	fullPath := fmt.Sprintf("%s/config/.env", dir)
 	if err := SetEnv(fullPath); err != nil {
-		l.Errorf("failed to set environment variables: %v\n", err)
+		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err
 	}
 
@@ -51,12 +51,12 @@ func loadEnv() (*Product, error) {
 		Product: os.Getenv("ENV_PRODUCT"),
 	}
 	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
-		l.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
+		log.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
 		os.Exit(1)
 	}
 
 	if productConfig.Product == "" || (productConfig.Product != "k3s" && productConfig.Product != "rke2") {
-		l.Errorf("unknown product: %s\n", productConfig.Product)
+		log.Errorf("unknown product: %s\n", productConfig.Product)
 		os.Exit(1)
 	}
 
@@ -66,7 +66,7 @@ func loadEnv() (*Product, error) {
 func SetEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
-		l.Errorf("failed to open file: %v\n", err)
+		log.Errorf("failed to open file: %v\n", err)
 		return err
 	}
 	defer file.Close()
@@ -83,7 +83,7 @@ func SetEnv(fullPath string) error {
 		value := strings.TrimSpace(parts[1])
 		err = os.Setenv(strings.Trim(key, "\""), strings.Trim(value, "\""))
 		if err != nil {
-			l.Errorf("failed to set environment variables: %v\n", err)
+			log.Errorf("failed to set environment variables: %v\n", err)
 			return err
 		}
 	}

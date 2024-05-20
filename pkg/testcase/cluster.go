@@ -101,7 +101,7 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 
 	if agentNum > 0 {
 		Expect(agentIPs).ShouldNot(BeEmpty())
-		fmt.Println(info, agentIPs)
+		shared.LogLevel("\ninfo", info+"  %v", agentIPs)
 	} else {
 		Expect(agentIPs).Should(BeEmpty())
 	}
