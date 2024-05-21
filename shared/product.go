@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Product returns the distro product based on the config file
@@ -73,14 +74,21 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
+	if len(ips) == 0 {
+		return "", ReturnLogError("ips string array cannot be empty")
+	}
+
 	for _, ip := range ips {
 		cmd, getError := SystemCtlCmd(product, action, nodeType)
 		if getError != nil {
 			return ip, getError
 		}
-		_, err := RunCommandOnNode(cmd, ip)
+		manageServiceOut, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err
+		}
+		if manageServiceOut != "" {
+			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
 		}
 	}
 
@@ -89,13 +97,42 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 
 // CertRotate certificate rotate for k3s or rke2
 func CertRotate(product string, ips []string) (string, error) {
+	if len(ips) == 0 {
+		return "", ReturnLogError("ips string array cannot be empty")
+	}
+
 	for _, ip := range ips {
 		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
-		_, err := RunCommandOnNode(cmd, ip)
+		certRotateOut, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
 			return ip, err
 		}
+		LogLevel("debug", "On %s, cert rotate output:\n %s", ip, certRotateOut)
 	}
 
 	return "", nil
+}
+
+func SecretEncryptOps(action, ip, product string) (string, error) {
+	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin\" %s", product)
+	secretEncryptCmd := map[string]string{
+		"status":      fmt.Sprintf("sudo %s secrets-encrypt status", product),
+		"enable":      fmt.Sprintf("sudo %s secrets-encrypt enable", product),
+		"disable":     fmt.Sprintf("sudo %s secrets-encrypt disable", product),
+		"prepare":     fmt.Sprintf("sudo %s secrets-encrypt prepare", product),
+		"rotate":      fmt.Sprintf("sudo %s secrets-encrypt rotate", product),
+		"reencrypt":   fmt.Sprintf("sudo %s secrets-encrypt reencrypt", product),
+		"rotate-keys": fmt.Sprintf("sudo %s secrets-encrypt rotate-keys", product),
+	}
+
+	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
+	if err != nil {
+		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action), err)
+	}
+	if strings.Contains(secretsEncryptStdOut, "fatal") {
+		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action))
+	}
+	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
+
+	return secretsEncryptStdOut, nil
 }
