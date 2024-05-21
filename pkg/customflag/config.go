@@ -49,6 +49,9 @@ type externalConfigFlag struct {
 	CertManagerVersion string
 	HelmChartsFlag     helmChartsFlag
 	RancherVersion     string
+	S3Bucket           string
+	S3Folder           string
+	S3Region           string
 }
 
 type helmChartsFlag struct {

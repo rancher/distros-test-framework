@@ -66,7 +66,7 @@ node {
                 }
                 dir("./config") {
                   //update product info
-                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n"
+                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nENV_ACCESS_KEY_ID=${env.ACCESS_KEY_ID}\nENV_SECRET_ACCESS_KEY=${env.SECRET_ACCESS_KEY}"
                   writeFile(file: '.env', text: data)
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"

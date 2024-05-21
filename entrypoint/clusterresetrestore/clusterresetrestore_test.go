@@ -38,8 +38,8 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	It("Verifies Cluster Reset", func() {
-		testcase.TestClusterReset()
+	It("Verifies Cluster Reset Restore", func() {
+		testcase.TestClusterResetRestore()
 	})
 
 	It("Validate Nodes", func() {

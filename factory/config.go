@@ -45,12 +45,18 @@ type awsEc2Config struct {
 	KeyName          string
 }
 
+type awsS3Config struct {
+	AccessKey       string
+	SecretAccessKey string
+}
+
 type clusterConfig struct {
 	RenderedTemplate string
 	ExternalDb       string
 	DataStore        string
 	Product          string
 	Arch             string
+	AwsS3Config      awsS3Config
 }
 
 type generalConfig struct {
