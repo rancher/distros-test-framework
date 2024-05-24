@@ -16,8 +16,7 @@ var cluster *factory.Cluster
 func TestMain(m *testing.M) {
 	cluster = factory.ClusterConfig()
 
-	exitCode := m.Run()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestRestartServiceSuite(t *testing.T) {

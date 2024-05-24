@@ -21,8 +21,7 @@ func TestMain(m *testing.M) {
 
 	cluster = factory.ClusterConfig()
 
-	exitCode := m.Run()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestSelinuxSuite(t *testing.T) {

@@ -27,8 +27,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	exitCode := m.Run()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestMixedOSClusterCreateSuite(t *testing.T) {

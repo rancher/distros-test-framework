@@ -54,8 +54,7 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("info", "debug mode enabled on template\n\n")
 	}
 
-	exitCode := m.Run()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func TestVersionBumpSuite(t *testing.T) {
