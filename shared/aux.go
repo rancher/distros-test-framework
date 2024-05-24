@@ -148,9 +148,9 @@ func RunScp(c *factory.Cluster, ip string, localPaths, remotePaths []string) err
 		scp := fmt.Sprintf(
 			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
 			ip,
-			c.AwsConfig.AccessKey,
+			c.AwsEc2.AccessKey,
 			localPath,
-			c.AwsConfig.AwsUser,
+			c.AwsEc2.AwsUser,
 			ip,
 			remotePath,
 		)
@@ -201,12 +201,12 @@ func configureSSH(host string) (*ssh.Client, error) {
 	var cfg *ssh.ClientConfig
 	cluster := factory.ClusterConfig()
 
-	authMethod, err := publicKey(cluster.AwsConfig.AccessKey)
+	authMethod, err := publicKey(cluster.AwsEc2.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 	cfg = &ssh.ClientConfig{
-		User: cluster.AwsConfig.AwsUser,
+		User: cluster.AwsEc2.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},

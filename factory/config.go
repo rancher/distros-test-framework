@@ -30,11 +30,11 @@ type Cluster struct {
 	NumAgents     int
 	FQDN          string
 	Config        clusterConfig
-	AwsConfig     awsConfig
+	AwsEc2        awsEc2Config
 	GeneralConfig generalConfig
 }
 
-type awsConfig struct {
+type awsEc2Config struct {
 	AccessKey        string
 	AwsUser          string
 	Ami              string
@@ -92,16 +92,16 @@ func loadTFconfig(
 	c := &Cluster{}
 
 	loadTFoutput(t, terraformOptions, c)
-	loadAwsConfig(t, varDir, c)
+	loadAwsEc2(t, varDir, c)
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = cfg.Product
 
 	var err error
 	if c.Config.Product == "k3s" {
-		err = loadK3sCfg(t, varDir, terraformOptions, c)
+		err = loadK3sTFCfg(t, varDir, terraformOptions, c)
 	} else {
-		err = loadRke2Cfg(t, varDir, terraformOptions, c)
+		err = loadRke2TFCfg(t, varDir, terraformOptions, c)
 	}
 	if err != nil {
 		log.Errorf("error loading %s config\n", c.Config.Product)
@@ -111,7 +111,7 @@ func loadTFconfig(
 	return c, nil
 }
 
-func loadRke2Cfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
+func loadRke2TFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
 	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
 	if rawWinAgentIPs != "" {
 		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
@@ -125,7 +125,7 @@ func loadRke2Cfg(t *testing.T, varDir string, terraformOptions *terraform.Option
 	return nil
 }
 
-func loadK3sCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
+func loadK3sTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
@@ -135,17 +135,17 @@ func loadK3sCfg(t *testing.T, varDir string, terraformOptions *terraform.Options
 	return nil
 }
 
-func loadAwsConfig(t *testing.T, varDir string, c *Cluster) {
-	c.AwsConfig.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
-	c.AwsConfig.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
-	c.AwsConfig.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
-	c.AwsConfig.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
-	c.AwsConfig.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
-	c.AwsConfig.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
-	c.AwsConfig.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
-	c.AwsConfig.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
-	c.AwsConfig.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
-	c.AwsConfig.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
+func loadAwsEc2(t *testing.T, varDir string, c *Cluster) {
+	c.AwsEc2.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
+	c.AwsEc2.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
+	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
+	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
+	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
+	c.AwsEc2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
+	c.AwsEc2.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
+	c.AwsEc2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
+	c.AwsEc2.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
+	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
 func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster) {
