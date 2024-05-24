@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
-var l = logger.AddLogger()
+var log = logger.AddLogger()
 
 // ClusterConfig returns a singleton cluster with all terraform config and vars
 func ClusterConfig() *Cluster {
@@ -22,14 +22,14 @@ func ClusterConfig() *Cluster {
 		var err error
 		cluster, err = newCluster()
 		if err != nil {
-			l.Errorf("building cluster failed!: %v\nmoving to start destroy operation\n", err)
+			log.Errorf("building cluster failed!: %v\nmoving to start destroy operation\n", err)
 			status, destroyErr := DestroyCluster()
 			if destroyErr != nil {
-				l.Errorf("error destroying cluster: %v\n", destroyErr)
+				log.Errorf("error destroying cluster: %v\n", destroyErr)
 				os.Exit(1)
 			}
 			if status != "cluster destroyed" {
-				l.Errorf("cluster not destroyed: %s\n", status)
+				log.Errorf("cluster not destroyed: %s\n", status)
 				os.Exit(1)
 			}
 			os.Exit(1)
@@ -72,7 +72,7 @@ func newCluster() (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
-	l.Infof("Applying Terraform config and Creating cluster\n")
+	log.Infof("Applying Terraform config and Creating cluster\n")
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)

@@ -104,7 +104,7 @@ func loadTFconfig(
 		err = loadRke2Cfg(t, varDir, terraformOptions, c)
 	}
 	if err != nil {
-		l.Errorf("error loading %s config\n", c.Config.Product)
+		log.Errorf("error loading %s config\n", c.Config.Product)
 		return nil, err
 	}
 
