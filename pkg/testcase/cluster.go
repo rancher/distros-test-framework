@@ -35,18 +35,18 @@ func TestBuildCluster(cluster *factory.Cluster) {
 		Expect(err).To(HaveOccurred())
 	}
 
-	shared.LogLevel("\ninfo", "KUBECONFIG: ")
+	shared.LogLevel("info", "KUBECONFIG: ")
 	err := shared.PrintFileContents(factory.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	shared.LogLevel("\ninfo", "BASE64 ENCODED KUBECONFIG:")
+	shared.LogLevel("info", "BASE64 ENCODED KUBECONFIG:")
 	err = shared.PrintBase64Encoded(factory.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if cluster.GeneralConfig.BastionIP != "" {
-		shared.LogLevel("\ninfo", "Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
+		shared.LogLevel("info", "Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
 	}
-	shared.LogLevel("\ninfo", "Server Node IPs: %v", cluster.ServerIPs)
+	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -101,7 +101,7 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 
 	if agentNum > 0 {
 		Expect(agentIPs).ShouldNot(BeEmpty())
-		shared.LogLevel("\ninfo", info+"  %v", agentIPs)
+		shared.LogLevel("info", info+"  %v", agentIPs)
 	} else {
 		Expect(agentIPs).Should(BeEmpty())
 	}

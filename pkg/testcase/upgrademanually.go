@@ -12,7 +12,7 @@ import (
 
 // TestUpgradeClusterManually upgrades the cluster "manually"
 func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error {
-	shared.LogLevel("\ninfo", "Upgrading cluster manually to version: %s", version)
+	shared.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {
 		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
@@ -50,15 +50,15 @@ func upgradeProduct(product, nodeType string, installType string, ips []string) 
 		go func(ip, upgradeCommand string) {
 			defer wg.Done()
 
-			shared.LogLevel("\ninfo", fmt.Sprintf("Upgrading %s %s: %s", ip, nodeType, upgradeCommand))
+			shared.LogLevel("info", fmt.Sprintf("Upgrading %s %s: %s", ip, nodeType, upgradeCommand))
 
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				shared.LogLevel("\nwarn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
+				shared.LogLevel("warn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
 				errCh <- err
 				return
 			}
 
-			shared.LogLevel("\ninfo", "Restarting %s: %s", nodeType, ip)
+			shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
 			shared.RestartCluster(product, ip)
 		}(ip, upgradeCommand)
 	}

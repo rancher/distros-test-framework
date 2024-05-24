@@ -316,7 +316,7 @@ func PrintClusterState() {
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
 	}
-	LogLevel("info", "Current cluster state:\n%s", res)
+	LogLevel("info", "Current cluster state:\n%s\n", res)
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.

@@ -28,7 +28,7 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertVersion returns the NodeAssertFunc for asserting version
 func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
-	shared.LogLevel("\ninfo", "Asserting Version: %s\n", c.InstallMode.Version)
+	shared.LogLevel("info", "Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
 		version := strings.Split(c.InstallMode.Version, "-")
 		g.Expect(node.Version).Should(ContainSubstring(version[0]),
@@ -45,7 +45,7 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	ending := strings.Index(commitVersion, ")")
 	commitVersion = commitVersion[initial+1 : ending]
 
-	shared.LogLevel("\ninfo", "Asserting Commit: %s\n", c.InstallMode.Commit)
+	shared.LogLevel("info", "Asserting Commit: %s\n", c.InstallMode.Commit)
 
 	return func(g Gomega, node shared.Node) {
 		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commitVersion),

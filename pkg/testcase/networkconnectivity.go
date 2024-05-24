@@ -69,7 +69,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 		return fmt.Errorf("slice parameters must not be less than or equal to 2")
 	}
 
-	shared.LogLevel("\ninfo", "Connecting to services")
+	shared.LogLevel("info", "Connecting to services")
 	<-delay
 
 	performCheck := func(svc1, svc2, port, expected string) error {

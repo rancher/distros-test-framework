@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/rancher/distros-test-framework/factory"
@@ -33,7 +32,7 @@ func TestLocalPathProvisionerStorage(cluster *factory.Cluster, applyWorkload, de
 
 	Eventually(func(g Gomega) {
 		var res string
-		fmt.Println("Writing and reading data from pod")
+		shared.LogLevel("info", "Reading data from pod")
 
 		res, err = shared.ReadDataPod(cluster, lps)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -69,7 +68,7 @@ func readData(cluster *factory.Cluster) error {
 		return err
 	}
 
-	fmt.Println("Reading data from newly created pod")
+	shared.LogLevel("info", "Reading data from newly created pod")
 	delay := time.After(30 * time.Second)
 	<-delay
 
