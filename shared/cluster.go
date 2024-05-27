@@ -31,7 +31,7 @@ type Pod struct {
 	Status         string
 	Restarts       string
 	Age            string
-	NodeIP         string
+	IP             string
 	Node           string
 	NominatedNode  string
 	ReadinessGates string
@@ -465,7 +465,7 @@ func parsePods(res string) []Pod {
 		p.Status = fields[offset+2]
 		p.Restarts = regexp.MustCompile(`\([^\)]+\)`).Split(fields[offset+3], -1)[0]
 		p.Age = fields[offset+4]
-		p.NodeIP = fields[offset+5]
+		p.IP = fields[offset+5]
 		p.Node = fields[offset+6]
 		p.NominatedNode = fields[offset+7]
 		p.ReadinessGates = fields[offset+8]

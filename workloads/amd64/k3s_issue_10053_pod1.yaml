@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-k3s-issue-10053
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.25
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: v1.25
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: v1.25
+---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: server
+  namespace: test-k3s-issue-10053
+  labels:
+    role: server
+spec:
+  containers:
+    - name: whoami
+      image: traefik/whoami

@@ -130,3 +130,16 @@ func PodStatusRunning(namespace, label string) {
 		g.Expect(err).NotTo(HaveOccurred(), err)
 	}, "30s", "5s").Should(Succeed())
 }
+
+// ValidateIntraNSPodConnectivity ensures that one pod, the "server", can be reached from another, the "client"
+// within the same namespace
+func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expectedResult string) {
+	execCommand := fmt.Sprintf(
+		"kubectl exec -it -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
+		namespace, clientPodName, shared.KubeConfigFile, serverPodIP)
+	err := ValidateOnHost(
+		execCommand,
+		expectedResult,
+	)
+	Expect(err).NotTo(HaveOccurred(), err)
+}

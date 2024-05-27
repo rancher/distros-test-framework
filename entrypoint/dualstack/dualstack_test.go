@@ -46,6 +46,11 @@ var _ = Describe("Test:", func() {
 	It("Validate Single and Dual-Stack IPFamilies in Dual-Stack", func() {
 		testcase.TestIPFamiliesDualStack(false)
 	})
+
+	// https://github.com/k3s-io/k3s/issues/10053
+	It("Validates Ingress after Pod Restart when Network Policies are present", func() {
+		testcase.TestIngressWithPodRestartAndNetPol()
+	})
 })
 
 var _ = AfterEach(func() {

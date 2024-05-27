@@ -127,7 +127,7 @@ func validateIngressRoute(publicIp string) {
 	for _, pod := range pods {
 		positiveAsserts := []string{
 			fmt.Sprintf("Hostname: %s", pod.Name),
-			fmt.Sprintf("IP: %s", pod.NodeIP),
+			fmt.Sprintf("IP: %s", pod.IP),
 		}
 		Eventually(func(g Gomega) {
 			// Positive test cases
