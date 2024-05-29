@@ -128,7 +128,8 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 
 func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 	// Deploy server and client pods
-	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml", "k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
+	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
+		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
 
 	// Ensure the pods are running
@@ -138,8 +139,8 @@ func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 		"namespace": "test-k3s-issue-10053",
 	}
 	Eventually(func(g Gomega) {
-		pods, err := shared.GetPodsFiltered(filters)
-		g.Expect(err).NotTo(HaveOccurred())
+		pods, poderr := shared.GetPodsFiltered(filters)
+		g.Expect(poderr).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
@@ -171,8 +172,8 @@ func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "whoami pod failed to redeploy")
 
 	Eventually(func(g Gomega) {
-		pods, err := shared.GetPodsFiltered(filters)
-		g.Expect(err).NotTo(HaveOccurred())
+		pods, poderr := shared.GetPodsFiltered(filters)
+		g.Expect(poderr).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
