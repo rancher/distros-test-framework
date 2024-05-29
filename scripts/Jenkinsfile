@@ -74,7 +74,7 @@ node {
                   def channel_param_name = "${env.PRODUCT_NAME}_channel"                  
                   def configContents = env.TFVARS
                   def install_version_or_commit = ""
-                  if ( "${TEST_DIRECTORY}" == "upgradecluster") {
+                  if ("${TEST_DIRECTORY}" == "upgradecluster") {
                     install_version_or_commit = "${PRE_UPGRADE_BUILD}"
                   } else {
                     install_version_or_commit = "${INSTALL_OR_UPGRADE_BUILD}"
