@@ -126,12 +126,10 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestIngressWithPodRestartAndNetPol() {
+func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 	// Deploy server and client pods
-	err := shared.ManageWorkload("apply", "k3s_issue_10053_pod1.yaml")
-	Expect(err).NotTo(HaveOccurred(), "server pod failed to deploy")
-	err = shared.ManageWorkload("apply", "k3s_issue_10053_pod2.yaml")
-	Expect(err).NotTo(HaveOccurred(), "client pod failed to deploy")
+	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml", "k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
+	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
 
 	// Ensure the pods are running
 	var serverPodIP string
@@ -159,11 +157,9 @@ func TestIngressWithPodRestartAndNetPol() {
 	// Ensure connectivity from client pod to server pod
 	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
 
-	// Deploy network policy
+	// Deploy network policy that explicitly allows access to the server pod
 	err = shared.ManageWorkload("apply", "k3s_issue_10053_netpol.yaml")
 	Expect(err).NotTo(HaveOccurred(), "whoami pod failed to deploy")
-
-	// TODO: Potentially add a sleep here to ensure the network policy has applied ?
 
 	// Ensure connectivity from client pod to server pod BEFORE restarting the server
 	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
@@ -194,4 +190,8 @@ func TestIngressWithPodRestartAndNetPol() {
 	// Ensure connectivity from client pod to server pod AFTER restarting the server
 	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
 
+	if deleteWorkload {
+		err = shared.ManageWorkload("delete", "k3s_issue_10053_ns.yaml")
+		Expect(err).NotTo(HaveOccurred())
+	}
 }
