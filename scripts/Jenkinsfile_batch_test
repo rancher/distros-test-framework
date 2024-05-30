@@ -1,0 +1,161 @@
+#!groovy
+
+node {
+  def job_name = "${JOB_NAME}"
+  if (job_name.contains('/')) {
+    job_names = job_name.split('/')
+    job_name = job_names[job_names.size() - 1]
+  }
+
+  def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
+  def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+  def envFile = ".env"
+  def branch = "main"
+  def testdir = "${env.TEST_DIRECTORY_LIST}".split(',')
+
+  if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
+    branch = "${env.BRANCH}"
+  }
+
+  def repo = scm.userRemoteConfigs
+  if ("${env.REPO}" != "null" && "${env.REPO}" != "") {
+    repo = [
+      [url: "${env.REPO}"]
+    ]
+  }
+  def timeout = "60m"
+  if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
+    timeout = "${env.TIMEOUT}"
+  }
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
+    withFolderProperties {
+      paramsMap = []
+      params.each {
+        if (it.value && it.value.trim() != "") {
+          paramsMap << "$it.key=$it.value"
+        }
+      }
+      withCredentials([
+
+        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
+        string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
+        string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
+      ]) {
+        withEnv(paramsMap) {
+          stage('Checkout') {
+            deleteDir()
+            checkout([
+              $class: 'GitSCM',
+              branches: [
+                [name: "*/${branch}"]
+              ],
+              extensions: scm.extensions + [
+                [$class: 'CleanCheckout']
+              ],
+              userRemoteConfigs: repo
+            ])
+          }
+          dir("./") {
+            try {
+              // stage('Configure and Build') {
+              //   if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
+              //     dir("./config/.ssh") {
+              //       def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
+              //       writeFile file: "aws_key.pem", text: decoded
+              //     }
+              //   }
+              //   dir("./config") {
+              //     //update product info
+              //     def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n"
+              //     writeFile(file: '.env', text: data)
+              //     //update tfvars file
+              //     def filename = "${env.PRODUCT_NAME}.tfvars"
+              //     def configContents = env.TFVARS
+              //     writeFile file: filename, text: configContents +
+              //       "\npassword = \"" + RKE2_RHEL_PASSWORD + "\"" +
+              //       "\nkey_name = \"" + AWS_SSH_KEY_NAME + "\"" +
+              //       "\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"" +
+              //       "\nresource_name = \"" + HOSTNAME_PREFIX + "\""
+              //     def testdata = readFile(file: filename)
+              //     println("\n\nTFVARS TEST DATA")
+              //     println(testdata)
+              //   }
+              //   sh "./scripts/configure.sh"
+              //   sh "./scripts/build.sh"
+              // }
+              stage('Run Parallel Jobs') {
+                echo "Running ${testdir.size()} tests: ${testdir}"
+                def jobs = [:]
+
+                for (int i = 0; i < testdir.size(); i++) {
+                  def testname = testdir[i]
+                  def actual_testdir_name = ""  
+                  if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
+                    actual_testdir_name = "upgradecluster"
+                    if ( testname == "sucupgrade") {
+                      TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -sucUpgradeVersion ${INSTALL_OR_UPGRADE_BUILD}"
+                    } else {
+                      TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -channel ${CHANNEL} -installVersionOrCommit ${INSTALL_OR_UPGRADE_BUILD}"
+                    }
+                  } else {
+                    actual_testdir_name = testname
+                  }
+                  if ( testname == "deployrancher" ) {
+                    if ( "${CERT_MANAGER_VERSION}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -certManagerVersion ${CERT_MANAGER_VERSION}"
+                    }
+                    if ( "${CHARTS_VERSION}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -chartsVersion ${CHARTS_VERSION}"
+                    }
+                    if ( "${RANCHER_VERSION}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -rancherVersion ${RANCHER_VERSION}"
+                    }  
+                    if ( "${CHARTS_REPO_NAME}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoName ${CHARTS_REPO_NAME}"
+                    }
+                    if ( "${CHARTS_REPO_URL}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoUrl ${CHARTS_REPO_URL}"
+                    }
+                    if ( "${CHARTS_ARGS}" != "") {
+                      TEST_ARGS = "${TEST_ARGS}" + " -chartsArgs ${CHARTS_ARGS}"
+                    }
+                  }                  
+                  def params = [
+                    string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
+                    string(name: 'REPO', value: "${REPO}"), 
+                    string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                    string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                    string(name: 'PRE_UPGRADE_BUILD', value: "${PRE_UPGRADE_BUILD}"),
+                    string(name: 'INSTALL_OR_UPGRADE_BUILD', value: "${INSTALL_OR_UPGRADE_BUILD}"),
+                    string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
+                    string(name: 'CHANNEL', value: "${CHANNEL}"),
+                    string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
+                    string(name: 'TEST_DIRECTORY', value: actual_testdir_name),                                      
+                  ]
+                  echo "Params are: ${params}"
+                  echo "running ${testname}"
+                  jobs[testname] = { build job: "${env.PRODUCT_NAME}-${testname}", parameters: params }
+                }
+
+                parallel jobs
+              }
+            } finally {
+              stage('Cleanup') {
+                // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+                for (int i = 0; i < testdir.size(); i++) {
+                  def rmcontainername = "${testContainer}_${testdir[i]}_${i}" 
+                  sh "docker stop ${rmcontainername} || true"
+                  sh "docker rm -v ${rmcontainername} || true"
+                }
+                sh "docker rmi -f ${imageName} || true"
+              }
+            } // finally
+          } // dir
+        } // withEnv
+      } // withCredentials
+    } // withFolderProperties
+  } // wrap
+} // node
+//Jenkinsfile_batch_test
