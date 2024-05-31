@@ -136,7 +136,7 @@ node {
                   ]
                   echo "Params are: ${params}"
                   echo "running ${testname}"
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}-${testname}", parameters: params }
+                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
                 }
 
                 parallel jobs
