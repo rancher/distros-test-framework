@@ -118,6 +118,7 @@ node {
                 parallel jobs
               } // stage run parallel jobs
             } // try
+            finally {}
           } // dir
         } // withEnv
       } // withCredentials
