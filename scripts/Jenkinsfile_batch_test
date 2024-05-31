@@ -1,11 +1,11 @@
 #!groovy
 
 node {
-  // def job_name = "${JOB_NAME}"
-  // if (job_name.contains('/')) {
-  //   job_names = job_name.split('/')
-  //   job_name = job_names[job_names.size() - 1]
-  // }
+  def job_name = "${JOB_NAME}"
+  if (job_name.contains('/')) {
+    job_names = job_name.split('/')
+    job_name = job_names[job_names.size() - 1]
+  }
 
   // def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   // def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
@@ -65,7 +65,7 @@ node {
 
                 for (int i = 0; i < testdir.size(); i++) {
                   def testname = testdir[i]
-                  def actual_testdir_name = ""  
+                  def actual_testdir_name = testname  
                   if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
                     actual_testdir_name = "upgradecluster"
                     if ( testname == "sucupgrade") {
@@ -73,8 +73,6 @@ node {
                     } else {
                       TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -channel ${CHANNEL} -installVersionOrCommit ${INSTALL_OR_UPGRADE_BUILD}"
                     }
-                  } else {
-                    actual_testdir_name = testname
                   }
                   if ( testname == "deployrancher" ) {
                     if ( "${CERT_MANAGER_VERSION}" != "") {
@@ -95,7 +93,8 @@ node {
                     if ( "${CHARTS_ARGS}" != "") {
                       TEST_ARGS = "${TEST_ARGS}" + " -chartsArgs ${CHARTS_ARGS}"
                     }
-                  }                  
+                  }
+
                   def params = [
                     string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
                     string(name: 'REPO', value: "${REPO}"), 
@@ -112,6 +111,7 @@ node {
                   ]
                   echo "Params are: ${params}"
                   echo "running ${testname}"
+                  
                   jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
                 }
 
