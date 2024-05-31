@@ -1,15 +1,15 @@
 #!groovy
 
 node {
-  def job_name = "${JOB_NAME}"
-  if (job_name.contains('/')) {
-    job_names = job_name.split('/')
-    job_name = job_names[job_names.size() - 1]
-  }
+  // def job_name = "${JOB_NAME}"
+  // if (job_name.contains('/')) {
+  //   job_names = job_name.split('/')
+  //   job_name = job_names[job_names.size() - 1]
+  // }
 
-  def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
-  def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
-  def envFile = ".env"
+  // def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
+  // def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+  // def envFile = ".env"
   def branch = "main"
   def testdir = "${env.TEST_DIRECTORY_LIST}".split(',')
 
@@ -35,14 +35,14 @@ node {
           paramsMap << "$it.key=$it.value"
         }
       }
-      withCredentials([
+      // withCredentials([
 
-        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-        string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
-        string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
-        string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
-      ]) {
+      //   string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+      //   string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+      //   string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
+      //   string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
+      //   string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
+      // ]) {
         withEnv(paramsMap) {
           stage('Checkout') {
             deleteDir()
@@ -59,32 +59,6 @@ node {
           }
           dir("./") {
             try {
-              // stage('Configure and Build') {
-              //   if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
-              //     dir("./config/.ssh") {
-              //       def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
-              //       writeFile file: "aws_key.pem", text: decoded
-              //     }
-              //   }
-              //   dir("./config") {
-              //     //update product info
-              //     def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n"
-              //     writeFile(file: '.env', text: data)
-              //     //update tfvars file
-              //     def filename = "${env.PRODUCT_NAME}.tfvars"
-              //     def configContents = env.TFVARS
-              //     writeFile file: filename, text: configContents +
-              //       "\npassword = \"" + RKE2_RHEL_PASSWORD + "\"" +
-              //       "\nkey_name = \"" + AWS_SSH_KEY_NAME + "\"" +
-              //       "\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"" +
-              //       "\nresource_name = \"" + HOSTNAME_PREFIX + "\""
-              //     def testdata = readFile(file: filename)
-              //     println("\n\nTFVARS TEST DATA")
-              //     println(testdata)
-              //   }
-              //   sh "./scripts/configure.sh"
-              //   sh "./scripts/build.sh"
-              // }
               stage('Run Parallel Jobs') {
                 echo "Running ${testdir.size()} tests: ${testdir}"
                 def jobs = [:]
@@ -143,22 +117,10 @@ node {
 
                 parallel jobs
               }
-            } 
-            // finally {
-            //   // stage('Cleanup') {
-            //   //   // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
-            //   //   for (int i = 0; i < testdir.size(); i++) {
-            //   //     def rmcontainername = "${testContainer}_${testdir[i]}_${i}" 
-            //   //     sh "docker stop ${rmcontainername} || true"
-            //   //     sh "docker rm -v ${rmcontainername} || true"
-            //   //   }
-            //   //   sh "docker rmi -f ${imageName} || true"
-            //   // }
-            // } // finally
+            }
           } // dir
         } // withEnv
-      } // withCredentials
+      // } // withCredentials
     } // withFolderProperties
   } // wrap
 } // node
-//Jenkinsfile_batch_test
