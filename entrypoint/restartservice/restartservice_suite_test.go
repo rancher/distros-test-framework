@@ -1,6 +1,7 @@
 package restartservice
 
 import (
+	"flag"
 	"os"
 	"testing"
 
@@ -14,6 +15,9 @@ import (
 var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
+	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Parse()
+
 	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())

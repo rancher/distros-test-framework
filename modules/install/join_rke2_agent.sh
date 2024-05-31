@@ -138,9 +138,9 @@ enable_service() {
 
 install() {
   install_dependencies
-  cis_setup
   install_rke2
   sleep 10
+  cis_setup
   enable_service
 }
 
