@@ -58,7 +58,7 @@ node {
             ])
           }
           dir("./") {
-            try {
+            // try {
               stage('Run Parallel Jobs') {
                 echo "Running ${testdir.size()} tests: ${testdir}"
                 def jobs = [:]
@@ -124,8 +124,8 @@ node {
 
                 parallel jobs
               } // stage run parallel jobs
-            } // try
-            finally {}
+            // } // try
+            // finally {}
           } // dir
         } // withEnv
       // } // withCredentials
