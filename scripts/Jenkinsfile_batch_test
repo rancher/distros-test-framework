@@ -143,17 +143,18 @@ node {
 
                 parallel jobs
               }
-            } finally {
-              stage('Cleanup') {
-                // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
-                for (int i = 0; i < testdir.size(); i++) {
-                  def rmcontainername = "${testContainer}_${testdir[i]}_${i}" 
-                  sh "docker stop ${rmcontainername} || true"
-                  sh "docker rm -v ${rmcontainername} || true"
-                }
-                sh "docker rmi -f ${imageName} || true"
-              }
-            } // finally
+            } 
+            // finally {
+            //   // stage('Cleanup') {
+            //   //   // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+            //   //   for (int i = 0; i < testdir.size(); i++) {
+            //   //     def rmcontainername = "${testContainer}_${testdir[i]}_${i}" 
+            //   //     sh "docker stop ${rmcontainername} || true"
+            //   //     sh "docker rm -v ${rmcontainername} || true"
+            //   //   }
+            //   //   sh "docker rmi -f ${imageName} || true"
+            //   // }
+            // } // finally
           } // dir
         } // withEnv
       } // withCredentials
