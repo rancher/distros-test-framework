@@ -111,8 +111,15 @@ node {
                   ]
                   echo "Params are: ${params}"
 
-                  echo "Trigger build job for: ${testname}"                  
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
+                  echo "Trigger build job for: ${testname}"
+                  switch(testname) {
+                    case "certrotate": 
+                      jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
+                    case "upgrademanual": 
+                      jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
+                  }
+
+                  // jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
                 }
 
                 parallel jobs
