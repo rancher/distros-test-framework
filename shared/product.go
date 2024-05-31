@@ -97,6 +97,7 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 
 // CertRotate certificate rotate for k3s or rke2
 func CertRotate(product string, ips []string) (string, error) {
+	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" %s", product)
 	if len(ips) == 0 {
 		return "", ReturnLogError("ips string array cannot be empty")
 	}
@@ -114,7 +115,7 @@ func CertRotate(product string, ips []string) (string, error) {
 }
 
 func SecretEncryptOps(action, ip, product string) (string, error) {
-	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin\" %s", product)
+	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" %s", product)
 	secretEncryptCmd := map[string]string{
 		"status":      fmt.Sprintf("sudo %s secrets-encrypt status", product),
 		"enable":      fmt.Sprintf("sudo %s secrets-encrypt enable", product),
