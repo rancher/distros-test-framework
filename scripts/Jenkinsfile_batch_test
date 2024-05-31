@@ -1,15 +1,6 @@
 #!groovy
 
 node {
-  // def job_name = "${JOB_NAME}"
-  // if (job_name.contains('/')) {
-  //   job_names = job_name.split('/')
-  //   job_name = job_names[job_names.size() - 1]
-  // }
-
-  // def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
-  // def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
-  // def envFile = ".env"
   def branch = "main"
   def testdir = "${env.TEST_DIRECTORY_LIST}".split(',')
 
@@ -35,100 +26,106 @@ node {
           paramsMap << "$it.key=$it.value"
         }
       }
-      // withCredentials([
+      withEnv(paramsMap) {
+        stage('Checkout') {
+          deleteDir()
+          checkout([
+            $class: 'GitSCM',
+            branches: [
+              [name: "*/${branch}"]
+            ],
+            extensions: scm.extensions + [
+              [$class: 'CleanCheckout']
+            ],
+            userRemoteConfigs: repo
+          ])
+        }
+        dir("./") {
+          stage('Run Parallel Jobs') {
+            echo "Running ${testdir.size()} tests: ${testdir}"
+            def jobs = [:]
 
-      //   string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-      //   string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-      //   string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
-      //   string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
-      //   string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
-      // ]) {
-        withEnv(paramsMap) {
-          stage('Checkout') {
-            deleteDir()
-            checkout([
-              $class: 'GitSCM',
-              branches: [
-                [name: "*/${branch}"]
-              ],
-              extensions: scm.extensions + [
-                [$class: 'CleanCheckout']
-              ],
-              userRemoteConfigs: repo
-            ])
-          }
-          dir("./") {
-            // try {
-              stage('Run Parallel Jobs') {
-                echo "Running ${testdir.size()} tests: ${testdir}"
-                def jobs = [:]
+            for (int i = 0; i < testdir.size(); i++) {
+              def testname = testdir[i]
+              def actual_testdir_name = testname
 
-                for (int i = 0; i < testdir.size(); i++) {
-                  def testname = testdir[i]
-                  def actual_testdir_name = testname  
-                  if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
-                    actual_testdir_name = "upgradecluster"
-                    if ( testname == "sucupgrade") {
-                      TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -sucUpgradeVersion ${INSTALL_OR_UPGRADE_BUILD}"
-                    } else {
-                      TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -channel ${CHANNEL} -installVersionOrCommit ${INSTALL_OR_UPGRADE_BUILD}"
-                    }
-                  }
-                  if ( testname == "deployrancher" ) {
-                    if ( "${CERT_MANAGER_VERSION}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -certManagerVersion ${CERT_MANAGER_VERSION}"
-                    }
-                    if ( "${CHARTS_VERSION}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -chartsVersion ${CHARTS_VERSION}"
-                    }
-                    if ( "${RANCHER_VERSION}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -rancherVersion ${RANCHER_VERSION}"
-                    }  
-                    if ( "${CHARTS_REPO_NAME}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoName ${CHARTS_REPO_NAME}"
-                    }
-                    if ( "${CHARTS_REPO_URL}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoUrl ${CHARTS_REPO_URL}"
-                    }
-                    if ( "${CHARTS_ARGS}" != "") {
-                      TEST_ARGS = "${TEST_ARGS}" + " -chartsArgs ${CHARTS_ARGS}"
-                    }
-                  }
-              
-                  def params = [
-                    string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
-                    string(name: 'REPO', value: "${REPO}"), 
-                    string(name: 'BRANCH', value: "${BRANCH}"),                                         
-                    string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
-                    string(name: 'PRE_UPGRADE_BUILD', value: "${PRE_UPGRADE_BUILD}"),
-                    string(name: 'INSTALL_OR_UPGRADE_BUILD', value: "${INSTALL_OR_UPGRADE_BUILD}"),
-                    string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-                    string(name: 'CHANNEL', value: "${CHANNEL}"),
-                    string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
-                    string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-                    string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
-                    string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),                                                          
-                  ]
-                  echo "Params are: ${params}"
-
-                  echo "Trigger build job for: ${testname}"
-                  switch(testname) {
-                    case "certrotate": 
-                      jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
-                    case "upgrademanual": 
-                      jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
-                  }
-
-                  // jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
+              if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
+                actual_testdir_name = "upgradecluster"
+                if ( testname == "sucupgrade") {
+                  TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -sucUpgradeVersion ${INSTALL_OR_UPGRADE_BUILD}"
+                } else {
+                  TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -channel ${CHANNEL} -installVersionOrCommit ${INSTALL_OR_UPGRADE_BUILD}"
                 }
+              }
 
-                parallel jobs
-              } // stage run parallel jobs
-            // } // try
-            // finally {}
-          } // dir
-        } // withEnv
-      // } // withCredentials
+              if ( testname == "deployrancher" ) {
+                if ( "${CERT_MANAGER_VERSION}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -certManagerVersion ${CERT_MANAGER_VERSION}"
+                }
+                if ( "${CHARTS_VERSION}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -chartsVersion ${CHARTS_VERSION}"
+                }
+                if ( "${RANCHER_VERSION}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -rancherVersion ${RANCHER_VERSION}"
+                }  
+                if ( "${CHARTS_REPO_NAME}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoName ${CHARTS_REPO_NAME}"
+                }
+                if ( "${CHARTS_REPO_URL}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoUrl ${CHARTS_REPO_URL}"
+                }
+                if ( "${CHARTS_ARGS}" != "") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -chartsArgs ${CHARTS_ARGS}"
+                }
+              }
+          
+              def params = [
+                string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
+                string(name: 'REPO', value: "${REPO}"), 
+                string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                string(name: 'PRE_UPGRADE_BUILD', value: "${PRE_UPGRADE_BUILD}"),
+                string(name: 'INSTALL_OR_UPGRADE_BUILD', value: "${INSTALL_OR_UPGRADE_BUILD}"),
+                string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
+                string(name: 'CHANNEL', value: "${CHANNEL}"),
+                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
+                string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
+                string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
+                string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),                                                          
+              ]
+              echo "Params are: ${params}"
+
+              echo "Trigger build job for: ${testname}"
+              // switch(testname) {
+              //   case "validatecluster":
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }                 
+              //   case "restartservice":
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }                  
+              //   case "dualstack":
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }                 
+              //   case "deployrancher":
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params } 
+              //   case "certrotate": 
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }                
+              //   case "secretsencrypt": 
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
+              //   case "upgrademanual": 
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
+              //   case "upgradesuc": 
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
+              //   case "upgradereplacement": 
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
+              //   case "clusterreset":
+              //     jobs[testname] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }                                                         
+              // }
+
+              jobs[testname] = { build job: "${env.PRODUCT_NAME}_${testname}_dummy", parameters: params }
+            }
+
+            parallel jobs
+          } // stage run parallel jobs
+        } // dir
+      } // withEnv
     } // withFolderProperties
   } // wrap
 } // node
