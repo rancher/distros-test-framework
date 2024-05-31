@@ -1,11 +1,11 @@
 #!groovy
 
 node {
-  def job_name = "${JOB_NAME}"
-  if (job_name.contains('/')) {
-    job_names = job_name.split('/')
-    job_name = job_names[job_names.size() - 1]
-  }
+  // def job_name = "${JOB_NAME}"
+  // if (job_name.contains('/')) {
+  //   job_names = job_name.split('/')
+  //   job_name = job_names[job_names.size() - 1]
+  // }
 
   // def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   // def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
@@ -35,14 +35,14 @@ node {
           paramsMap << "$it.key=$it.value"
         }
       }
-      withCredentials([
+      // withCredentials([
 
-        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-        string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
-        string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
-        string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
-      ]) {
+      //   string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+      //   string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+      //   string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
+      //   string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
+      //   string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
+      // ]) {
         withEnv(paramsMap) {
           stage('Checkout') {
             deleteDir()
@@ -121,7 +121,7 @@ node {
             finally {}
           } // dir
         } // withEnv
-      } // withCredentials
+      // } // withCredentials
     } // withFolderProperties
   } // wrap
 } // node
