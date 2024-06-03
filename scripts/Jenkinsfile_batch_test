@@ -52,9 +52,12 @@ node {
               if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
                 if ( testname == "sucupgrade") {
-                  TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
+                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${testname} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
-                  TEST_ARGS = "${TEST_ARGS}" + "-tags=${testname} -channel ${UPGRADE_CHANNEL} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${testname} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                  if ( testname == "upgrademanual") {
+                    TEST_ARGS = "${TEST_ARGS}" +  " -channel ${UPGRADE_CHANNEL} "
+                  }
                 }
               }
 
