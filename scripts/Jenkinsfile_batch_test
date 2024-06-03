@@ -2,7 +2,7 @@
 
 node {
   def branch = "main"
-  def testdir = "${env.TEST_DIRECTORY_LIST}".split(',')
+  def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',')
 
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
@@ -42,26 +42,25 @@ node {
         }
         dir("./") {
           stage('Run Parallel Jobs') {
-            echo "Running ${testdir.size()} tests: ${testdir}"
+            echo "Running ${test_dir.size()} tests: ${test_dir}"
             def jobs = [:]
 
-            for (int i = 0; i < testdir.size(); i++) {
-              def testname = testdir[i]
-              def actual_testdir_name = testname
+            test_dir.each { test_name ->
+              def actual_testdir_name = test_name
 
-              if ( testname == "upgrademanual" || testname == "upgradereplacement" || testname == "upgradesuc"){
+              if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
-                if ( testname == "sucupgrade") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${testname} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
+                if ( test_name == "sucupgrade") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
-                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${testname} -installVersionOrCommit ${VERSION_OR_COMMIT}"
-                  if ( testname == "upgrademanual") {
+                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                  if ( test_name == "upgrademanual") {
                     TEST_ARGS = "${TEST_ARGS}" +  " -channel ${UPGRADE_CHANNEL} "
                   }
                 }
               }
 
-              if ( testname == "deployrancher" ) {
+              if ( test_name == "deployrancher" ) {
                 if ( "${CERT_MANAGER_VERSION}" != "") {
                   TEST_ARGS = "${TEST_ARGS}" + " -certManagerVersion ${CERT_MANAGER_VERSION}"
                 }
@@ -98,28 +97,28 @@ node {
               ]
               echo "Params are: ${params}"
 
-              echo "Trigger build job for: ${testname}"
-              switch(testname) {
+              echo "Trigger build job for: ${test_name}"
+              switch(test_name) {
                 case "validatecluster":
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }                 
                 case "restartservice":
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }                  
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }                  
                 case "dualstack":
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }                 
                 case "deployrancher":
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params } 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params } 
                 case "certrotate": 
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }                
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }                
                 case "secretsencrypt": 
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
                 case "upgrademanual": 
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
                 case "upgradesuc": 
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
                 case "upgradereplacement": 
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
                 case "clusterreset":
-                  jobs[testname] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }                                                         
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }                                                         
               }
             }
 
