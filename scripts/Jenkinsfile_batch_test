@@ -90,6 +90,7 @@ node {
                 string(name: 'VERSION_OR_COMMIT', value: "${VERSION_OR_COMMIT}"),
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
                 string(name: 'CHANNEL', value: "${CHANNEL}"),
+                string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
                 string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
