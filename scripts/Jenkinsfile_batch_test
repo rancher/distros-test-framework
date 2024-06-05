@@ -96,30 +96,39 @@ node {
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
                 string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),                                                          
               ]
-              echo "Params are: ${params}"
 
-              echo "Trigger build job for: ${test_name}"
+              echo "Params for job: \"${test_name}\" are:\n${params}"
               switch(test_name) {
                 case "validatecluster":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }
+                  break               
                 case "restartservice":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }                  
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }
+                  break                
                 case "dualstack":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }
+                  break
                 case "deployrancher":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params } 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params }
+                  break 
                 case "certrotate": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }                
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }
+                  break                
                 case "secretsencrypt": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
+                  break
                 case "upgrademanual": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
+                  break
                 case "upgradesuc": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
+                  break
                 case "upgradereplacement": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
+                  break
                 case "clusterreset":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }                                                         
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
+                  break                                                         
               }
             }
 
