@@ -50,7 +50,7 @@ node {
               def job_test_args = "${TEST_ARGS}"
               if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
-                if ( test_name == "sucupgrade") {
+                if ( test_name == "upgradesuc") {
                   job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
                   job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
