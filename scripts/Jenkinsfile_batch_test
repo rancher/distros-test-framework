@@ -47,42 +47,42 @@ node {
 
             test_dir.each { test_name ->
               def actual_testdir_name = test_name
-
+              def job_test_args = "${TEST_ARGS}"
               if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
                 if ( test_name == "sucupgrade") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
+                  job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
-                  TEST_ARGS = "${TEST_ARGS}" + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                  job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
                   if ( test_name == "upgrademanual") {
-                    TEST_ARGS = "${TEST_ARGS}" +  " -channel ${UPGRADE_CHANNEL} "
+                    job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL} "
                   }
                 }
               }
 
               if ( test_name == "deployrancher" ) {
                 if ( "${CERT_MANAGER_VERSION}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -certManagerVersion ${CERT_MANAGER_VERSION}"
+                  job_test_args = job_test_args + " -certManagerVersion ${CERT_MANAGER_VERSION}"
                 }
                 if ( "${CHARTS_VERSION}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -chartsVersion ${CHARTS_VERSION}"
+                  job_test_args = job_test_args + " -chartsVersion ${CHARTS_VERSION}"
                 }
                 if ( "${RANCHER_VERSION}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -rancherVersion ${RANCHER_VERSION}"
+                  job_test_args = job_test_args + " -rancherVersion ${RANCHER_VERSION}"
                 }  
                 if ( "${CHARTS_REPO_NAME}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoName ${CHARTS_REPO_NAME}"
+                  job_test_args = job_test_args + " -chartsRepoName ${CHARTS_REPO_NAME}"
                 }
                 if ( "${CHARTS_REPO_URL}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -chartsRepoUrl ${CHARTS_REPO_URL}"
+                  job_test_args = job_test_args + " -chartsRepoUrl ${CHARTS_REPO_URL}"
                 }
                 if ( "${CHARTS_ARGS}" != "") {
-                  TEST_ARGS = "${TEST_ARGS}" + " -chartsArgs ${CHARTS_ARGS}"
+                  job_test_args = job_test_args + " -chartsArgs ${CHARTS_ARGS}"
                 }
               }
           
               def params = [
-                string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
+                string(name: 'TEST_ARGS', value: job_test_args),
                 string(name: 'REPO', value: "${REPO}"), 
                 string(name: 'BRANCH', value: "${BRANCH}"),                                         
                 string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
@@ -96,30 +96,39 @@ node {
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
                 string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),                                                          
               ]
-              echo "Params are: ${params}"
 
-              echo "Trigger build job for: ${test_name}"
+              echo "Params for job: \"${test_name}\" are:\n${params}"
               switch(test_name) {
                 case "validatecluster":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }
+                  break               
                 case "restartservice":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }                  
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }
+                  break                
                 case "dualstack":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }                 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }
+                  break
                 case "deployrancher":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params } 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params }
+                  break 
                 case "certrotate": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }                
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }
+                  break                
                 case "secretsencrypt": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
+                  break
                 case "upgrademanual": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
+                  break
                 case "upgradesuc": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
+                  break
                 case "upgradereplacement": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
+                  break
                 case "clusterreset":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }                                                         
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
+                  break                                                         
               }
             }
 
