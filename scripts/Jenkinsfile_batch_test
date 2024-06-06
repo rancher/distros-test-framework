@@ -143,7 +143,7 @@ node {
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
                   break
                 case "mixedoscluster":
-                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: params }
+                  jobs[test_name] = { build job: "rke2_with_windows_agent", parameters: params }
                   break                                                         
               } // switch case
             } // for each test_dir loop
