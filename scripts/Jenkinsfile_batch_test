@@ -48,6 +48,8 @@ node {
             test_dir.each { test_name ->
               def actual_testdir_name = test_name
               def job_test_args = "${TEST_ARGS}"
+              def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
+              def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
               if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
                 if ( test_name == "upgradesuc") {
@@ -80,6 +82,11 @@ node {
                   job_test_args = job_test_args + " -chartsArgs ${CHARTS_ARGS}"
                 }
               }
+
+              if ( test_name == "dualstack" ) {
+                job_aws_ssh_key_name = "jenkins-elliptic-validation"
+                job_aws_ssh_pem_key = ""
+              }
           
               def params = [
                 string(name: 'TEST_ARGS', value: job_test_args),
@@ -93,8 +100,8 @@ node {
                 string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
                 string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-                string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
-                string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),                                                          
+                string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
+                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
               ]
 
               echo "Params for job: \"${test_name}\" are:\n${params}"
@@ -128,6 +135,9 @@ node {
                   break
                 case "clusterreset":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
+                  break
+                case "mixedoscluster":
+                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: params }
                   break                                                         
               }
             }
