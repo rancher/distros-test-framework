@@ -56,9 +56,8 @@ node {
                   job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
                   job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
-                  if ( test_name == "upgrademanual") {
-                    job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL} "
-                  }
+                }
+                  job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL} "
                 }
               }
 
