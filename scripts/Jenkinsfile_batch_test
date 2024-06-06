@@ -50,6 +50,7 @@ node {
               def job_test_args = "${TEST_ARGS}"
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
+
               if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
                 if ( test_name == "upgradesuc") {
@@ -57,8 +58,7 @@ node {
                 } else {
                   job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
                 }
-                  job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL} "
-                }
+                job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
               }
 
               if ( test_name == "deployrancher" ) {
@@ -86,6 +86,10 @@ node {
                 job_aws_ssh_key_name = "jenkins-elliptic-validation"
                 job_aws_ssh_pem_key = ""
               }
+
+              if (test_name == "docker_cri" ){
+                actual_testdir_name = "validatecluster"
+              }
           
               def params = [
                 string(name: 'TEST_ARGS', value: job_test_args),
@@ -107,7 +111,10 @@ node {
               switch(test_name) {
                 case "validatecluster":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }
-                  break               
+                  break
+                case "docker_cri":
+                  jobs[test_name] = { build job: "k3s_docker_cri", parameters: params }
+                  break             
                 case "restartservice":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }
                   break                
@@ -138,8 +145,8 @@ node {
                 case "mixedoscluster":
                   jobs[test_name] = { build job: "rke2_windows_agent", parameters: params }
                   break                                                         
-              }
-            }
+              } // switch case
+            } // for each test_dir loop
 
             parallel jobs
           } // stage run parallel jobs
