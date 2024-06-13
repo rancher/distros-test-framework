@@ -52,8 +52,8 @@ func ManageWorkload(action string, workloads ...string) error {
 		prod)); envErr != nil {
 		return ReturnLogError("error setting env: %w\n", envErr)
 	}
-	arch := os.Getenv("arch")
 
+	arch := os.Getenv("arch")
 	resourceDir := BasePath() + "/workloads/" + arch
 
 	files, readErr := os.ReadDir(resourceDir)

@@ -14,6 +14,8 @@ import (
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
 func TestUpgradeClusterSUC(cluster *factory.Cluster, version string) error {
+	shared.PrintClusterState()
+
 	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
 
 	workloadErr := shared.ManageWorkload("apply", "suc.yaml")

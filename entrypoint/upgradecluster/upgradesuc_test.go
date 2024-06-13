@@ -5,13 +5,12 @@ package upgradecluster
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
@@ -79,7 +78,6 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		shared.PrintClusterState()
 		_ = testcase.TestUpgradeClusterSUC(cluster, customflag.ServiceFlag.SUCUpgradeVersion.String())
 	})
 
