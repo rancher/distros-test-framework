@@ -124,6 +124,7 @@ func currentProductVersion() (string, error) {
 		return "", shared.ReturnLogError("failed to get product: %w", err)
 	}
 
+	fmt.Println(version)
 	return version, nil
 }
 

@@ -51,9 +51,9 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if ( test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
+              if (test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
-                if ( test_name == "upgradesuc") {
+                if (test_name == "upgradesuc") {
                   job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
                 } else {
                   job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
@@ -61,33 +61,33 @@ node {
                 job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
               }
 
-              if ( test_name == "deployrancher" ) {
-                if ( "${CERT_MANAGER_VERSION}" != "") {
+              if (test_name == "deployrancher" ) {
+                if ("${CERT_MANAGER_VERSION}" != "") {
                   job_test_args = job_test_args + " -certManagerVersion ${CERT_MANAGER_VERSION}"
                 }
-                if ( "${CHARTS_VERSION}" != "") {
+                if ("${CHARTS_VERSION}" != "") {
                   job_test_args = job_test_args + " -chartsVersion ${CHARTS_VERSION}"
                 }
-                if ( "${RANCHER_VERSION}" != "") {
+                if ("${RANCHER_VERSION}" != "") {
                   job_test_args = job_test_args + " -rancherVersion ${RANCHER_VERSION}"
                 }  
-                if ( "${CHARTS_REPO_NAME}" != "") {
+                if ("${CHARTS_REPO_NAME}" != "") {
                   job_test_args = job_test_args + " -chartsRepoName ${CHARTS_REPO_NAME}"
                 }
-                if ( "${CHARTS_REPO_URL}" != "") {
+                if ("${CHARTS_REPO_URL}" != "") {
                   job_test_args = job_test_args + " -chartsRepoUrl ${CHARTS_REPO_URL}"
                 }
-                if ( "${CHARTS_ARGS}" != "") {
+                if ("${CHARTS_ARGS}" != "") {
                   job_test_args = job_test_args + " -chartsArgs ${CHARTS_ARGS}"
                 }
               }
 
-              if ( test_name == "dualstack" ) {
+              if (test_name == "dualstack") {
                 job_aws_ssh_key_name = "jenkins-elliptic-validation"
                 job_aws_ssh_pem_key = ""
               }
 
-              if (test_name == "docker_cri" ){
+              if (test_name == "docker_cri" || test_name == "external_datastore"){
                 actual_testdir_name = "validatecluster"
               }
           
@@ -142,8 +142,11 @@ node {
                 case "clusterreset":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
                   break
+                case "external_datastore":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_external_datastore", parameters: params }
+                  break
                 case "mixedoscluster":
-                  jobs[test_name] = { build job: "rke2_with_windows_agent", parameters: params }
+                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: params }
                   break                                                         
               } // switch case
             } // for each test_dir loop
