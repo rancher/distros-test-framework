@@ -111,7 +111,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 
 func validateIngressRoute(publicIp string) {
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
-		" --field-selector=status.phase=Running --kubeconfig=%s", factory.KubeConfigFile)
+		" --kubeconfig=%s", factory.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 

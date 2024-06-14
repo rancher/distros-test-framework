@@ -43,6 +43,7 @@ func TestClusterReset(cluster *factory.Cluster) {
 
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
+
 	startServer(cluster)
 	shared.LogLevel("info", "%s-service started. Waiting 60 seconds for nodes "+
 		"and pods to sync after reset.", cluster.Config.Product)
@@ -75,8 +76,22 @@ func stopServer(cluster *factory.Cluster) {
 }
 
 func startServer(cluster *factory.Cluster) {
-	_, startErr := shared.ManageService(cluster.Config.Product, "start", "server", cluster.ServerIPs)
+	var startFirst []string
+	var startLast []string
+	for _, serverIP := range cluster.ServerIPs {
+		if serverIP == cluster.ServerIPs[0] {
+			startFirst = append(startFirst, serverIP)
+			continue
+		}
+		startLast = append(startLast, serverIP)
+	}
+
+	_, startErr := shared.ManageService(cluster.Config.Product, "start", "server", startFirst)
 	Expect(startErr).NotTo(HaveOccurred())
+	time.Sleep(10 * time.Second)
+
+	_, startLastErr := shared.ManageService(cluster.Config.Product, "start", "server", startLast)
+	Expect(startLastErr).NotTo(HaveOccurred())
 }
 
 func deleteDataDirectories(cluster *factory.Cluster) {
