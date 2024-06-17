@@ -390,9 +390,9 @@ func UninstallProduct(product, nodeType, ip string) error {
 		return fmt.Errorf("unsupported product: %s", product)
 	}
 
-	foundPath, err := findScriptPath(paths, scriptName, ip)
-	if err != nil {
-		return fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+	foundPath, findErr := checkFiles(product, paths, scriptName, ip)
+	if findErr != nil {
+		return findErr
 	}
 
 	pathName := fmt.Sprintf("%s-uninstall.sh", product)
@@ -401,37 +401,46 @@ func UninstallProduct(product, nodeType, ip string) error {
 	}
 
 	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err = RunCommandOnNode(uninstallCmd, ip)
+	_, err := RunCommandOnNode(uninstallCmd, ip)
 
 	return err
 }
 
-func findScriptPath(paths []string, pathName, ip string) (string, error) {
+func checkFiles(product string, paths []string, scriptName string, ip string) (string, error) {
+	var foundPath string
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
-			path, pathName)
+			path, scriptName)
 		output, err := RunCommandOnNode(checkCmd, ip)
 		if err != nil {
 			return "", err
 		}
 		output = strings.TrimSpace(output)
 		if output == "found" {
-			return path, nil
+			foundPath = path
+		} else {
+			foundPath, err = FindPath(scriptName, ip)
+			if err != nil {
+				return "", fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+			}
 		}
 	}
 
-	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
+	return foundPath, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
 	}
 
-	fullPath = strings.TrimSpace(fullPath)
 	if fullPath == "" {
-		return "", fmt.Errorf("script %s not found", pathName)
+		return "", fmt.Errorf("path for %s not found", name)
 	}
 
-	return filepath.Dir(fullPath), nil
+	return strings.TrimSpace(fullPath), nil
 }
 
 // MatchWithPath verify expected files found in the actual file list

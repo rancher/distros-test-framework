@@ -30,7 +30,12 @@ func Product() (product string, version string, err error) {
 func productVersion(product string) (string, error) {
 	ips := FetchNodeExternalIPs()
 
-	cmd := fmt.Sprintf("%s -v", product)
+	path, findErr := FindPath(product, ips[0])
+	if findErr != nil {
+		return "", ReturnLogError("failed to find path for product: %s, error: %w\n", product, findErr)
+	}
+
+	cmd := fmt.Sprintf("%s -v", path)
 	v, err := RunCommandOnNode(cmd, ips[0])
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %w\n", product, err)
