@@ -15,17 +15,19 @@ import (
 
 var _ = Describe("Cilium Version bump:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())

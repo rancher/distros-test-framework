@@ -16,7 +16,7 @@ func TestSecretsEncryption() {
 	Expect(nodes).NotTo(BeEmpty())
 	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes")
 
-	product, err := shared.Product()
+	product, _, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
 
 	errSecret := shared.CreateSecret("secret1", "default")

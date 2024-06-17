@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -121,7 +122,7 @@ func processOnHost(cmd, expectedValue, currentProductVersion string) error {
 			currentProductVersion, cmd, expectedValue)
 	}
 
-	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
+	kubeconfigFlag := " --kubeconfig=" + factory.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
 	fullCmd = strings.ReplaceAll(fullCmd, `"`, "")
 

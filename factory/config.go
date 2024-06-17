@@ -3,21 +3,21 @@ package factory
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 var (
-	once    sync.Once
-	cluster *Cluster
+	once           sync.Once
+	cluster        *Cluster
+	KubeConfigFile string
 )
 
 type Cluster struct {
@@ -35,6 +35,8 @@ type Cluster struct {
 }
 
 type awsEc2Config struct {
+	AccessKey        string
+	AwsUser          string
 	Ami              string
 	Region           string
 	VolumeSize       string
@@ -57,34 +59,20 @@ type generalConfig struct {
 	BastionIP string
 }
 
-func loadConfig() (*config.Product, error) {
-	cfg, err := shared.EnvConfig()
-	if err != nil {
-		return nil, err
-	}
+func addTerraformOptions(cfg *config.Product) (*terraform.Options, string, error) {
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
-	return cfg, nil
-}
-
-func addTerraformOptions() (*terraform.Options, string, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, "", shared.ReturnLogError("error loading config: %w\n", err)
-	}
-
-	var varDir string
-	var tfDir string
-
-	varDir, err = filepath.Abs(shared.BasePath() +
+	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
-		return nil, "", shared.ReturnLogError("invalid product: %s\n", cfg.Product)
+		return nil, "", fmt.Errorf("invalid product: %s\n", cfg.Product)
 	}
 
-	tfDir, err = filepath.Abs(shared.BasePath() +
+	tfDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/modules/%s", cfg.Product))
 	if err != nil {
-		return nil, "", shared.ReturnLogError("no module found for product: %s\n", cfg.Product)
+		return nil, "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -96,113 +84,123 @@ func addTerraformOptions() (*terraform.Options, string, error) {
 }
 
 func loadTFconfig(
-	g GinkgoTInterface,
+	t *testing.T,
 	varDir string,
 	terraformOptions *terraform.Options,
+	cfg *config.Product,
 ) (*Cluster, error) {
-	cfg, err := loadConfig()
-	if err != nil {
-		return nil, shared.ReturnLogError("error loading config: %w", err)
-	}
-
 	c := &Cluster{}
 
-	shared.KubeConfigFile = terraform.Output(g, terraformOptions, "kubeconfig")
-	shared.AwsUser = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_user")
-	shared.AccessKey = terraform.GetVariableAsStringFromVarFile(g, varDir, "access_key")
-	shared.Arch = terraform.GetVariableAsStringFromVarFile(g, varDir, "arch")
+	loadTFoutput(t, terraformOptions, c)
+	loadAwsEc2(t, varDir, c)
 
-	c.GeneralConfig.BastionIP = terraform.Output(g, terraformOptions, "bastion_ip")
-
-	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(g, varDir, "aws_ami")
-	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(g, varDir, "region")
-	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(g, varDir, "volume_size")
-	c.AwsEc2.InstanceClass = terraform.GetVariableAsStringFromVarFile(g, varDir, "ec2_instance_class")
-	c.AwsEc2.Subnets = terraform.GetVariableAsStringFromVarFile(g, varDir, "subnets")
-	c.AwsEc2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(g, varDir, "availability_zone")
-	c.AwsEc2.SgId = terraform.GetVariableAsStringFromVarFile(g, varDir, "sg_id")
-	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(g, varDir, "key_name")
-
-	c.Config.Arch = shared.Arch
+	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = cfg.Product
 
-	c.FQDN = terraform.Output(g, terraformOptions, "Route53_info")
-	c.ServerIPs = strings.Split(terraform.Output(g, terraformOptions, "master_ips"), ",")
-
-	if cfg.Product == "k3s" {
-		c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(g, varDir, "datastore_type")
-		if c.Config.DataStore == "external" {
-			c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(g, varDir, "external_db")
-			c.Config.RenderedTemplate = terraform.Output(g, terraformOptions, "rendered_template")
-		} else if c.Config.DataStore == "" {
-			return nil, shared.ReturnLogError("datastore should not be empty \n%w", err)
-		}
+	var err error
+	if c.Config.Product == "k3s" {
+		err = loadK3sTFCfg(t, varDir, terraformOptions, c)
+	} else {
+		err = loadRke2TFCfg(t, varDir, terraformOptions, c)
 	}
-
-	rawAgentIPs := terraform.Output(g, terraformOptions, "worker_ips")
-	if rawAgentIPs != "" {
-		c.AgentIPs = strings.Split(rawAgentIPs, ",")
-	}
-
-	if cfg.Product == "rke2" {
-		rawWinAgentIPs := terraform.Output(g, terraformOptions, "windows_worker_ips")
-		if rawWinAgentIPs != "" {
-			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
-		}
-		numWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(g, varDir,
-			"no_of_windows_worker_nodes"))
-		if err != nil {
-			return nil, shared.ReturnLogError("error getting no_of_windows_worker_nodes: \n%w", err)
-		}
-
-		c.NumWinAgents = numWinAgents
+	if err != nil {
+		log.Errorf("error loading %s config\n", c.Config.Product)
+		return nil, err
 	}
 
 	return c, nil
 }
 
-func addSplitRole(g GinkgoTInterface, varDir string, numServers int) (int, error) {
-	splitRoles := terraform.GetVariableAsStringFromVarFile(g, varDir, "split_roles")
+func loadRke2TFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
+	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
+	if rawWinAgentIPs != "" {
+		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
+	}
+	numWinAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
+	if err != nil {
+		return fmt.Errorf("error getting no_of_windows_worker_nodes: \n%w", err)
+	}
+	c.NumWinAgents = numWinAgents
+
+	return nil
+}
+
+func loadK3sTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) error {
+	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
+	if c.Config.DataStore == "external" {
+		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
+		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
+	}
+
+	return nil
+}
+
+func loadAwsEc2(t *testing.T, varDir string, c *Cluster) {
+	c.AwsEc2.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
+	c.AwsEc2.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
+	c.AwsEc2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
+	c.AwsEc2.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
+	c.AwsEc2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
+	c.AwsEc2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
+	c.AwsEc2.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
+	c.AwsEc2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
+	c.AwsEc2.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
+	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
+}
+
+func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster) {
+	KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
+	c.GeneralConfig.BastionIP = terraform.Output(t, terraformOptions, "bastion_ip")
+	c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
+	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
+	rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
+	if rawAgentIPs != "" {
+		c.AgentIPs = strings.Split(rawAgentIPs, ",")
+	}
+}
+
+func addSplitRole(t *testing.T, varDir string, numServers int) (int, error) {
+	splitRoles := terraform.GetVariableAsStringFromVarFile(t, varDir, "split_roles")
 	if splitRoles == "true" {
 		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			g,
+			t,
 			varDir,
 			"etcd_only_nodes",
 		))
 		if err != nil {
-			return 0, shared.ReturnLogError("error getting etcd_only_nodes %w", err)
+			return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
 		}
 		etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			g,
+			t,
 			varDir,
 			"etcd_cp_nodes",
 		))
 		if err != nil {
-			return 0, shared.ReturnLogError("error getting etcd_cp_nodes %w", err)
+			return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
 		}
 		etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			g,
+			t,
 			varDir,
 			"etcd_worker_nodes",
 		))
 		if err != nil {
-			return 0, shared.ReturnLogError("error getting etcd_worker_nodes %w", err)
+			return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
 		}
 		cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			g,
+			t,
 			varDir,
 			"cp_only_nodes",
 		))
 		if err != nil {
-			return 0, shared.ReturnLogError("error getting cp_only_nodes %w", err)
+			return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
 		}
 		cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			g,
+			t,
 			varDir,
 			"cp_worker_nodes",
 		))
 		if err != nil {
-			return 0, shared.ReturnLogError("error getting cp_worker_nodes %w", err)
+			return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
 		}
 		numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
 	}

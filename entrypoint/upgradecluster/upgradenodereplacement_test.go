@@ -15,17 +15,19 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())
@@ -35,7 +37,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceClusterIp(true, false)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
@@ -46,17 +48,19 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Upgrade by Node replacement", func() {
-		testcase.TestUpgradeReplaceNode(customflag.ServiceFlag.InstallMode.String())
+		testcase.TestUpgradeReplaceNode(cluster, customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag))
 	})
 
 	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -75,7 +79,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestIngress(false, true)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})

@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -21,12 +20,10 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(version string) {
+func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 	if version == "" {
 		Expect(version).NotTo(BeEmpty(), "version not sent")
 	}
-
-	cluster := factory.ClusterConfig(GinkgoT())
 
 	envErr := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars",
 		cluster.Config.Product))
@@ -34,7 +31,7 @@ func TestUpgradeReplaceNode(version string) {
 
 	resourceName := os.Getenv("resource_name")
 
-	awsDependencies, err := aws.AddNode()
+	awsDependencies, err := aws.AddNode(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	var (
@@ -47,18 +44,19 @@ func TestUpgradeReplaceNode(version string) {
 
 	// create server names
 	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-server-%d", resourceName, i+1))
+		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace-%d", resourceName, i+1))
 	}
 
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
 		awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
-	shared.LogLevel("info", "\ncreated server public ips: %s ids:%s\n",
+	shared.LogLevel("info", "Created server public ips: %s and ids: %s\n",
 		newExternalServerIps, instanceServerIds)
 
-	scpErr := scpToNewNodes(cluster.Config.Product, master, newExternalServerIps)
+	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new server nodes done\n")
 
 	serverLeaderIp := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(serverLeaderIp)
@@ -83,20 +81,19 @@ func TestUpgradeReplaceNode(version string) {
 		// create agent names
 		var agentNames []string
 		for i := 0; i < len(cluster.AgentIPs); i++ {
-			agentNames = append(agentNames, fmt.Sprintf("%s-agent-%d", resourceName, i+1))
+			agentNames = append(agentNames, fmt.Sprintf("%s-agent-replace-%d", resourceName, i+1))
 		}
 
 		newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
 			awsDependencies.CreateInstances(agentNames...)
 		Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
-		shared.LogLevel("info", "created worker ips: %s worker ids:%s\n",
+		shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
 			newExternalAgentIps, instanceAgentIds)
 
-		scpErr := scpToNewNodes(cluster.Config.Product, agent, newExternalAgentIps)
+		scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
 		Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-
-		shared.LogLevel("info", "scp files to new worker nodes done\n")
+		shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
 		agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
 			newPrivateAgentIps,
@@ -113,13 +110,13 @@ func TestUpgradeReplaceNode(version string) {
 	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
 }
 
-func scpToNewNodes(product, nodeType string, newNodeIps []string) error {
+func scpToNewNodes(cluster *factory.Cluster, nodeType string, newNodeIps []string) error {
 	if newNodeIps == nil {
 		return shared.ReturnLogError("newServerIps should send at least one ip\n")
 	}
 
-	if product != "k3s" && product != "rke2" {
-		return shared.ReturnLogError("unsupported product: %s\n", product)
+	if cluster.Config.Product != "k3s" && cluster.Config.Product != "rke2" {
+		return shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
 
 	chanErr := make(chan error, len(newNodeIps))
@@ -130,10 +127,10 @@ func scpToNewNodes(product, nodeType string, newNodeIps []string) error {
 		go func(ip string) {
 			defer wg.Done()
 			var err error
-			if product == "k3s" {
-				err = scpK3sFiles(product, nodeType, ip)
+			if cluster.Config.Product == "k3s" {
+				err = scpK3sFiles(cluster, nodeType, ip)
 			} else {
-				err = scpRke2Files(product, nodeType, ip)
+				err = scpRke2Files(cluster, nodeType, ip)
 			}
 			if err != nil {
 				chanErr <- shared.ReturnLogError("error scp files to new nodes: %w\n", err)
@@ -148,18 +145,18 @@ func scpToNewNodes(product, nodeType string, newNodeIps []string) error {
 	return nil
 }
 
-func scpRke2Files(product, nodeType, ip string) error {
+func scpRke2Files(cluster *factory.Cluster, nodeType, ip string) error {
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/tmp/join_rke2_%s.sh", nodeType)
 
-	if err := shared.RunScp(ip, product, []string{joinLocalPath}, []string{joinRemotePath}); err != nil {
+	if err := shared.RunScp(cluster, ip, []string{joinLocalPath}, []string{joinRemotePath}); err != nil {
 		return shared.ReturnLogError("error running scp: %w with ip: %s", err, ip)
 	}
 
 	return nil
 }
 
-func scpK3sFiles(product, nodeType, ip string) error {
+func scpK3sFiles(cluster *factory.Cluster, nodeType, ip string) error {
 	if nodeType == agent {
 		cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
 		cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
@@ -168,8 +165,8 @@ func scpK3sFiles(product, nodeType, ip string) error {
 		joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", agent)
 
 		if err := shared.RunScp(
+			cluster,
 			ip,
-			product,
 			[]string{cisWorkerLocalPath, joinLocalPath},
 			[]string{cisWorkerRemotePath, joinRemotePath},
 		); err != nil {
@@ -195,8 +192,8 @@ func scpK3sFiles(product, nodeType, ip string) error {
 		joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", master)
 
 		if err := shared.RunScp(
+			cluster,
 			ip,
-			product,
 			[]string{
 				cisMasterLocalPath,
 				clusterLevelpssLocalPath,
@@ -256,6 +253,7 @@ func replaceServers(
 	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, c.Config.Product); kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
+	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
 
 	nodeErr := validateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {

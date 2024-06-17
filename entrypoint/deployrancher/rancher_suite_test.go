@@ -17,12 +17,11 @@ import (
 )
 
 var (
-	cfg   *config.Product
-	flags *customflag.FlagConfig
+	cluster *factory.Cluster
+	flags   *customflag.FlagConfig
 )
 
 func TestMain(m *testing.M) {
-	var err error
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
 	flag.StringVar(&flags.ExternalFlag.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version")
@@ -33,10 +32,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.ExternalFlag.RancherVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
-	if err != nil {
-		return
-	}
+	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -47,13 +43,13 @@ func TestRancherSuite(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cfg.Product)); err != nil {
+	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cluster.Config.Product)); err != nil {
 		Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
 	}
 
 	Expect(os.Getenv("create_lb")).To(Equal("true"), "Wrong value passed in tfvars for 'create_lb'")
 
-	if cfg.Product == "rke2" &&
+	if cluster.Config.Product == "rke2" &&
 		strings.Contains(os.Getenv("server_flags"), "profile") {
 		Expect(os.Getenv("optional_files")).NotTo(BeEmpty(), "Need to pass a value in tfvars for 'optional_files'")
 		Expect(os.Getenv("server_flags")).To(ContainSubstring("pod-security-admission-config-file:"),
@@ -70,9 +66,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

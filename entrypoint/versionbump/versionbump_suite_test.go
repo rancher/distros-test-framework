@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cfg *config.Product
+var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -33,8 +33,10 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
 
+	cluster = factory.ClusterConfig()
+
 	customflag.ServiceFlag.TestConfig.TestFuncNames = customflag.TestCaseNameFlag
-	testFuncs, err := template.AddTestCases(customflag.ServiceFlag.TestConfig.TestFuncNames)
+	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestConfig.TestFuncNames)
 	if err != nil {
 		shared.LogLevel("error", "error adding test cases to template: %w\n", err)
 		return
@@ -46,12 +48,6 @@ func TestMain(m *testing.M) {
 			testCaseFlags[i] = customflag.TestCaseFlag(j)
 		}
 		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
-	}
-
-	cfg, err = shared.EnvConfig()
-	if err != nil {
-		shared.LogLevel("error", "error getting config: %w\n", err)
-		return
 	}
 
 	if customflag.ServiceFlag.TestConfig.DebugMode == true {
@@ -67,9 +63,8 @@ func TestVersionBumpSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
 	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

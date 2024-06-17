@@ -11,11 +11,12 @@ import (
 
 var _ = Describe("Test:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -23,6 +24,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -30,15 +32,15 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Ingress Service in Dual-Stack", func() {
-		testcase.TestIngressDualStack(false)
+		testcase.TestIngressDualStack(cluster, false)
 	})
 
 	It("Validate NodePort Service in Dual-Stack", func() {
-		testcase.TestNodePort(false)
+		testcase.TestNodePort(cluster, false)
 	})
 
 	It("Validate ClusterIPs in CIDR range in Dual-Stack", func() {
-		testcase.TestClusterIPsInCIDRRange(true)
+		testcase.TestClusterIPsInCIDRRange(cluster, true)
 	})
 
 	It("Validate Single and Dual-Stack IPFamilies in Dual-Stack", func() {

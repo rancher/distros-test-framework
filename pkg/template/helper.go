@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -11,7 +12,8 @@ import (
 
 // upgradeVersion upgrades the product version
 func upgradeVersion(template TestTemplate, version string) error {
-	err := testcase.TestUpgradeClusterManually(version)
+	cluster := factory.ClusterConfig()
+	err := testcase.TestUpgradeClusterManually(cluster, version)
 	if err != nil {
 		return err
 	}
@@ -51,41 +53,54 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(names []string) ([]testCase, error) {
+func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) {
 	var testCases []testCase
 
 	tcs := map[string]testCase{
-		"TestDaemonset":                    testcase.TestDaemonset,
-		"TestIngress":                      testcase.TestIngress,
-		"TestDnsAccess":                    testcase.TestDnsAccess,
-		"TestServiceClusterIP":             testcase.TestServiceClusterIp,
-		"TestServiceNodePort":              testcase.TestServiceNodePort,
-		"TestLocalPathProvisionerStorage":  testcase.TestLocalPathProvisionerStorage,
-		"TestServiceLoadBalancer":          testcase.TestServiceLoadBalancer,
-		"TestInternodeConnectivityMixedOS": testcase.TestInternodeConnectivityMixedOS,
+		"TestDaemonset":        testcase.TestDaemonset,
+		"TestIngress":          testcase.TestIngress,
+		"TestDnsAccess":        testcase.TestDnsAccess,
+		"TestServiceClusterIP": testcase.TestServiceClusterIp,
+		"TestServiceNodePort":  testcase.TestServiceNodePort,
+		"TestLocalPathProvisionerStorage": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestLocalPathProvisionerStorage(cluster, applyWorkload, deleteWorkload)
+		},
+		"TestServiceLoadBalancer": testcase.TestServiceLoadBalancer,
+		"TestInternodeConnectivityMixedOS": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestInternodeConnectivityMixedOS(cluster, applyWorkload, deleteWorkload)
+		},
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},
 		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinux()
+			testcase.TestSelinux(cluster)
 		},
 		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinux()
+			testcase.TestSelinux(cluster)
 		},
 		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinuxSpcT()
+			testcase.TestSelinuxSpcT(cluster)
 		},
 		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestUninstallPolicy()
+			testcase.TestUninstallPolicy(cluster)
 		},
 		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinuxContext()
+			testcase.TestSelinuxContext(cluster)
 		},
 		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestIngressRoute(applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
+			testcase.TestIngressRoute(cluster, applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
 		},
 		"TestCertRotate": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestCertRotate()
+			testcase.TestCertRotate(cluster)
+		},
+		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSecretsEncryption()
+		},
+		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestRestartService(cluster)
+		},
+		"TestClusterReset": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestClusterReset(cluster)
 		},
 	}
 
@@ -104,27 +119,16 @@ func AddTestCases(names []string) ([]testCase, error) {
 }
 
 func currentProductVersion() (string, error) {
-	product, err := shared.Product()
+	_, version, err := shared.Product()
 	if err != nil {
 		return "", shared.ReturnLogError("failed to get product: %w", err)
-	}
-
-	version, err := shared.ProductVersion(product)
-	if err != nil {
-
-		return "", shared.ReturnLogError("failed to get product version: %w", err)
 	}
 
 	return version, nil
 }
 
 func ComponentsBumpResults() {
-	product, err := shared.Product()
-	if err != nil {
-		return
-	}
-
-	v, err := shared.ProductVersion(product)
+	product, version, err := shared.Product()
 	if err != nil {
 		return
 	}
@@ -141,7 +145,7 @@ func ComponentsBumpResults() {
 		for _, component := range components {
 			if strings.Contains(result.Command, component) {
 				fmt.Printf("\n---------------------\nResults from %s on version: %s\n``` \n%v\n ```\n---------------------"+
-					"\n\n\n", component, v, result)
+					"\n\n\n", component, version, result)
 			}
 		}
 		fmt.Printf("\n---------------------\nResults from %s\n``` \n%v\n ```\n---------------------\n\n\n",

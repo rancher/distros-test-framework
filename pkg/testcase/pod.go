@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -20,6 +19,7 @@ var (
 
 // TestPodStatus test the status of the pods in the cluster using custom assert functions
 func TestPodStatus(
+	cluster *factory.Cluster,
 	podAssertRestarts assert.PodAssertFunc,
 	podAssertReady assert.PodAssertFunc,
 	podAssertStatus assert.PodAssertFunc,
@@ -30,7 +30,7 @@ func TestPodStatus(
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
-			processPodStatus(g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
+			processPodStatus(cluster, g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
 		}
 	}, "2500s", "10s").Should(Succeed(), "failed to process pods status")
 
@@ -39,11 +39,11 @@ func TestPodStatus(
 }
 
 func processPodStatus(
+	cluster *factory.Cluster,
 	g Gomega,
 	pod shared.Pod,
 	podAssertRestarts, podAssertReady, podAssertStatus assert.PodAssertFunc,
 ) {
-	cluster := factory.ClusterConfig(GinkgoT())
 	var ciliumPod bool
 
 	// process Helm install status that should be completed.

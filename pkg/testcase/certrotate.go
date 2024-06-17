@@ -7,23 +7,16 @@ import (
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-func TestCertRotate() {
-	cluster := factory.ClusterConfig(GinkgoT())
-	serverIPs := cluster.ServerIPs
-	agentIPs := cluster.AgentIPs
-	product, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
+func TestCertRotate(cluster *factory.Cluster) {
+	certRotate(cluster.Config.Product, cluster.ServerIPs)
 
-	certRotate(product, serverIPs)
-
-	ip, manageError := shared.ManageService(product, "restart", "agent", agentIPs)
+	ip, manageError := shared.ManageService(cluster.Config.Product, "restart", "agent", cluster.AgentIPs)
 	Expect(manageError).NotTo(HaveOccurred(), fmt.Sprintf("error restarting agent node ip %s", ip))
 
-	verifyTLSDirContent(product, serverIPs)
+	verifyTLSDirContent(cluster.Config.Product, cluster.ServerIPs)
 }
 
 // certRotate Rotate certificate for etcd only and cp only nodes

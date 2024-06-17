@@ -3,6 +3,7 @@ package testcase
 import (
 	"strings"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -16,11 +17,8 @@ type testData struct {
 	Expected  string
 }
 
-func TestIngressDualStack(deleteWorkload bool) {
-	cluster, err := FetchCluster()
-	Expect(err).NotTo(HaveOccurred())
-
-	err = shared.ManageWorkload("apply", "dualstack-ingress.yaml")
+func TestIngressDualStack(cluster *factory.Cluster, deleteWorkload bool) {
+	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
 	td := testData{
@@ -51,7 +49,7 @@ func TestIngressDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestNodePort(deleteWorkload bool) {
+func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -63,7 +61,7 @@ func TestNodePort(deleteWorkload bool) {
 	}
 
 	assert.PodStatusRunning(td.Namespace, td.Label)
-	testServiceNodePortDualStack(td)
+	testServiceNodePortDualStack(cluster, td)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-nodeport.yaml")
@@ -71,7 +69,7 @@ func TestNodePort(deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *factory.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -82,7 +80,7 @@ func TestClusterIPsInCIDRRange(deleteWorkload bool) {
 	}
 
 	assert.PodStatusRunning(td.Namespace, td.Label)
-	testIPsInCIDRRange(td.Label, td.SVC)
+	testIPsInCIDRRange(cluster, td.Label, td.SVC)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-clusterip.yaml")
@@ -116,7 +114,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 		testServiceClusterIPs(td)
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
-			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
+			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + factory.KubeConfigFile
 		res, err2 := shared.RunCommandHost(cmd)
 		Expect(err2).NotTo(HaveOccurred(), err2)
 		Expect(res).To(ContainSubstring(expectedIPFamily[i]))

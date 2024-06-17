@@ -12,11 +12,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -24,6 +25,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -36,6 +38,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -43,6 +46,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),

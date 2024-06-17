@@ -5,12 +5,12 @@ package versionbump
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+
+	. "github.com/onsi/ginkgo/v2"
 )
 
 const (
@@ -32,23 +32,25 @@ const (
 
 var _ = Describe("Components Version Upgrade:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())
 	})
 
-	var runc = fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cfg.Product)
+	var runc = fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cluster.Config.Product)
 
 	// test decription and cmds generated based on product rke2
 	description := "Verifies bump versions for several components on Rke2:\n1-canal\n2-flannel\n" +
@@ -56,7 +58,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 	cmd := flannelRke2 + calico + ingressController + corednsRke2 + metricsServer + etcdRke2 + containerd + runc
 
 	// test decription and cmds updated based on product k3s
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		description = "Verifies bump versions for several components on k3s:\n1-flannel\n2-coredns\n3-metricsServer\n" +
 			"4-etcd\n5-cni plugins\n6-traefik\n7-local path storage\n8-containerd\n9-Klipper\n10-runc"
 		cmd = flannelK3s + coreDnsk3s + metricsServer + etcdK3s + cniPlugins + traefik + localPath + containerd + klipperLB + runc
@@ -95,9 +97,9 @@ var _ = Describe("Components Version Upgrade:", func() {
 		testcase.TestIngress(true, true)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(true, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
 		})
 
 		It("Verifies LoadBalancer Service", func() {

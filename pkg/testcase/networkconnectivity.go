@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,7 +14,7 @@ import (
 
 // TestInternodeConnectivityMixedOS Deploys services in the cluster
 // and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply",
@@ -21,7 +22,7 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
 	}
 
-	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
+	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
 	err := testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
@@ -37,8 +38,8 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 }
 
 // testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
-func testIPsInCIDRRange(label, svc string) {
-	nodeArgs, err := shared.GetNodeArgsMap("server")
+func testIPsInCIDRRange(cluster *factory.Cluster, label, svc string) {
+	nodeArgs, err := shared.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
@@ -68,12 +69,12 @@ func testCrossNodeService(services, ports, expected []string) error {
 		return fmt.Errorf("slice parameters must not be less than or equal to 2")
 	}
 
-	fmt.Println("\nConnecting to services")
+	shared.LogLevel("info", "Connecting to services")
 	<-delay
 
 	performCheck := func(svc1, svc2, port, expected string) error {
 		cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", svc1,
-			shared.KubeConfigFile, svc2, port)
+			factory.KubeConfigFile, svc2, port)
 
 		for {
 			select {

@@ -12,10 +12,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.ClusterConfig(g)
+func TestBuildCluster(cluster *factory.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
-	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
+	Expect(factory.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
@@ -32,23 +31,22 @@ func TestBuildCluster(g GinkgoTInterface) {
 
 		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
 			cluster.ServerIPs[0])
-		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
 		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
 		Expect(err).To(HaveOccurred())
 	}
 
-	fmt.Println("\nKUBECONFIG:")
-	err := shared.PrintFileContents(shared.KubeConfigFile)
+	shared.LogLevel("info", "KUBECONFIG: ")
+	err := shared.PrintFileContents(factory.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("BASE64 ENCODED KUBECONFIG:")
-	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
+	shared.LogLevel("info", "BASE64 ENCODED KUBECONFIG:")
+	err = shared.PrintBase64Encoded(factory.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if cluster.GeneralConfig.BastionIP != "" {
-		fmt.Println("\nBastion Node IP:", cluster.GeneralConfig.BastionIP)
+		shared.LogLevel("info", "Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
 	}
-	fmt.Println("\nServer Node IPs:", cluster.ServerIPs)
+	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -63,13 +61,13 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
-	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
+	cmd := "sonobuoy run --kubeconfig=" + factory.KubeConfigFile +
 		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" +
 		" --aggregator-node-selector kubernetes.io/os:linux --wait"
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed output: "+res)
 
-	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", shared.KubeConfigFile)
+	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", factory.KubeConfigFile)
 	testResultTar, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 
@@ -79,7 +77,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
 	if deleteWorkload {
-		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
+		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", factory.KubeConfigFile)
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
@@ -88,12 +86,6 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			return
 		}
 	}
-}
-
-// FetchCluster returns the cluster
-func FetchCluster() (*factory.Cluster, error) {
-	cluster := factory.ClusterConfig(GinkgoT())
-	return cluster, nil
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs
@@ -109,7 +101,7 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 
 	if agentNum > 0 {
 		Expect(agentIPs).ShouldNot(BeEmpty())
-		fmt.Println(info, agentIPs)
+		shared.LogLevel("info", info+"  %v", agentIPs)
 	} else {
 		Expect(agentIPs).Should(BeEmpty())
 	}

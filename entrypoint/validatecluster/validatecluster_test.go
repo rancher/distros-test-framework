@@ -13,11 +13,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -25,6 +26,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -51,16 +53,16 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, true)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred(), err)
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(true, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
 		})
 
 		It("Verifies LoadBalancer Service", func() {
@@ -68,11 +70,11 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute using old GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, true, "traefik.containo.us/v1alpha1")
 		})
 
 		It("Verifies Traefik IngressRoute using new GKV", func() {
-			testcase.TestIngressRoute(true, true, "traefik.io/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
 	}
 })

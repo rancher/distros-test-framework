@@ -5,11 +5,11 @@ import (
 	"net"
 	"strings"
 
-	"github.com/onsi/gomega/types"
-
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 )
 
 type PodAssertFunc func(g Gomega, pod shared.Pod)
@@ -76,11 +76,12 @@ func PodAssertStatus() PodAssertFunc {
 }
 
 // ValidatePodIPByLabel validates expected pod IP by label
-func ValidatePodIPByLabel(labels, expected []string) {
+func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {
 				res, _ := shared.KubectlCommand(
+					cluster,
 					"host",
 					"get",
 					fmt.Sprintf("pods -l %s", label),
@@ -101,7 +102,7 @@ func ValidatePodIPByLabel(labels, expected []string) {
 func ValidatePodIPsByLabel(label string, expected []string) {
 	cmd := "kubectl get pods -l " + label +
 		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
-		" --kubeconfig=" + shared.KubeConfigFile
+		" --kubeconfig=" + factory.KubeConfigFile
 	Eventually(func() error {
 		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
@@ -123,7 +124,7 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 // PodStatusRunning checks status of pods is Running when searched by namespace and label
 func PodStatusRunning(namespace, label string) {
 	cmd := "kubectl get pods -n " + namespace + " -l " + label +
-		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+		" --field-selector=status.phase=Running --kubeconfig=" + factory.KubeConfigFile
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)

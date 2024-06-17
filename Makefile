@@ -58,7 +58,7 @@ test-create:
 test-cert-rotate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
 
-.PHONY: test-secrets-encrypt
+
 test-secrets-encrypt:
 	@go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
 
@@ -74,8 +74,10 @@ test-upgrade-suc:
 test-upgrade-manual:
 	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
+
 test-upgrade-node-replacement:
 	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}
+
 
 test-create-mixedos:
 	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -46,10 +47,8 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
-
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %w\n", err)
@@ -86,16 +85,6 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 func BasePath() string {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(callerFilePath), "..")
-}
-
-func EnvConfig() (*config.Product, error) {
-	path := BasePath() + "/config/.env"
-	env, err := config.AddConfigEnv(path)
-	if err != nil {
-		return nil, ReturnLogError("error getting env config: %w\n", err)
-	}
-
-	return env, nil
 }
 
 // PrintFileContents prints the contents of the file as [] string.
@@ -137,20 +126,20 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 }
 
 // RunScp copies files from local to remote host based on a list of local and remote paths.
-func RunScp(ip, product string, localPaths, remotePaths []string) error {
+func RunScp(c *factory.Cluster, ip string, localPaths, remotePaths []string) error {
 	if ip == "" {
 		return ReturnLogError("ip is needed.\n")
 	}
 
-	if product != "rke2" && product != "k3s" {
-		return ReturnLogError("unsupported product: %s\n", product)
+	if c.Config.Product != "rke2" && c.Config.Product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", c.Config.Product)
 	}
 
 	if len(localPaths) != len(remotePaths) {
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
 	}
 
-	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
+	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", c.Config.Product)); err != nil {
 		return err
 	}
 
@@ -159,9 +148,9 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 		scp := fmt.Sprintf(
 			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
 			ip,
-			AccessKey,
+			c.AwsEc2.AccessKey,
 			localPath,
-			AwsUser,
+			c.AwsEc2.AwsUser,
 			ip,
 			remotePath,
 		)
@@ -182,7 +171,6 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 			return cmdErr
 		}
 	}
-	LogLevel("info", "Files copied and chmod successfully\n")
 
 	return nil
 }
@@ -194,16 +182,6 @@ func CheckHelmRepo(name, url, version string) (string, error) {
 	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
 
 	return RunCommandHost(addRepo, update, searchRepo)
-}
-
-// AddHelmRepo adds a helm repo to the cluster.
-func AddHelmRepo(name, url string) (string, error) {
-	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
-	update := "helm repo update"
-	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
-		name, name, name, KubeConfigFile)
-
-	return RunCommandHost(addRepo, update, installRepo)
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
@@ -221,13 +199,14 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 
 func configureSSH(host string) (*ssh.Client, error) {
 	var cfg *ssh.ClientConfig
+	cluster := factory.ClusterConfig()
 
-	authMethod, err := publicKey(AccessKey)
+	authMethod, err := publicKey(cluster.AwsEc2.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 	cfg = &ssh.ClientConfig{
-		User: AwsUser,
+		User: cluster.AwsEc2.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -293,7 +272,7 @@ func GetJournalLogs(level, ip string) string {
 		return ""
 	}
 
-	product, err := Product()
+	product, _, err := Product()
 	if err != nil {
 		return ""
 	}
@@ -411,9 +390,9 @@ func UninstallProduct(product, nodeType, ip string) error {
 		return fmt.Errorf("unsupported product: %s", product)
 	}
 
-	foundPath, err := findScriptPath(paths, scriptName, ip)
-	if err != nil {
-		return fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+	foundPath, findErr := checkFiles(product, paths, scriptName, ip)
+	if findErr != nil {
+		return findErr
 	}
 
 	pathName := fmt.Sprintf("%s-uninstall.sh", product)
@@ -422,37 +401,46 @@ func UninstallProduct(product, nodeType, ip string) error {
 	}
 
 	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err = RunCommandOnNode(uninstallCmd, ip)
+	_, err := RunCommandOnNode(uninstallCmd, ip)
 
 	return err
 }
 
-func findScriptPath(paths []string, pathName, ip string) (string, error) {
+func checkFiles(product string, paths []string, scriptName string, ip string) (string, error) {
+	var foundPath string
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
-			path, pathName)
+			path, scriptName)
 		output, err := RunCommandOnNode(checkCmd, ip)
 		if err != nil {
 			return "", err
 		}
 		output = strings.TrimSpace(output)
 		if output == "found" {
-			return path, nil
+			foundPath = path
+		} else {
+			foundPath, err = FindPath(scriptName, ip)
+			if err != nil {
+				return "", fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+			}
 		}
 	}
 
-	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
+	return foundPath, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
 	}
 
-	fullPath = strings.TrimSpace(fullPath)
 	if fullPath == "" {
-		return "", fmt.Errorf("script %s not found", pathName)
+		return "", fmt.Errorf("path for %s not found", name)
 	}
 
-	return filepath.Dir(fullPath), nil
+	return strings.TrimSpace(fullPath), nil
 }
 
 // MatchWithPath verify expected files found in the actual file list

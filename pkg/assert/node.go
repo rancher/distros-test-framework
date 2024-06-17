@@ -28,7 +28,7 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertVersion returns the NodeAssertFunc for asserting version
 func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
-	fmt.Printf("Asserting Version: %s\n", c.InstallMode.Version)
+	shared.LogLevel("info", "Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
 		version := strings.Split(c.InstallMode.Version, "-")
 		g.Expect(node.Version).Should(ContainSubstring(version[0]),
@@ -38,20 +38,17 @@ func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 
 // assertCommit returns the NodeAssertFunc for asserting commit
 func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
-	product, err := shared.Product()
+	_, commitVersion, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 
-	commit, err := shared.ProductVersion(product)
-	Expect(err).NotTo(HaveOccurred(), "error getting commit ID version: %v", err)
-
-	initial := strings.Index(commit, "(")
-	ending := strings.Index(commit, ")")
-	commit = commit[initial+1 : ending]
+	initial := strings.Index(commitVersion, "(")
+	ending := strings.Index(commitVersion, ")")
+	commitVersion = commitVersion[initial+1 : ending]
 
 	shared.LogLevel("info", "Asserting Commit: %s\n", c.InstallMode.Commit)
 
 	return func(g Gomega, node shared.Node) {
-		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commit),
+		g.Expect(c.InstallMode.Commit).Should(ContainSubstring(commitVersion),
 			"Nodes should all be upgraded to the specified commit", node.Name)
 	}
 }

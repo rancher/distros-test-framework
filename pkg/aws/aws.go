@@ -12,8 +12,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 type Client struct {
@@ -27,9 +25,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddNode() (*Client, error) {
-	c := factory.ClusterConfig(GinkgoT())
-
+func AddNode(c *factory.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
@@ -173,7 +169,7 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 
 			status := statusRes.InstanceStatuses[0]
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running "+
+				shared.LogLevel("info", fmt.Sprintf("Instance %s is running "+
 					"and passed status checks", instanceId))
 
 				return nil
@@ -226,8 +222,6 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 	}
-
-	shared.LogLevel("info", fmt.Sprintf("\nCreating instance: %s\n", name))
 
 	return c.ec2.RunInstances(input)
 }

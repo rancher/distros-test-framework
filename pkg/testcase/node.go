@@ -1,22 +1,19 @@
 package testcase
 
 import (
-	"fmt"
-
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 // TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions
 func TestNodeStatus(
+	cluster *factory.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
-	cluster := factory.ClusterConfig(GinkgoT())
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
@@ -39,7 +36,7 @@ func TestNodeStatus(
 
 		return true
 	}, "2500s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\ntimeout for nodes to be ready gathering journal logs...\n")
+		shared.LogLevel("error", "\ntimeout for nodes to be ready; gathering journal logs...\n")
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
 
 		if cluster.NumAgents > 0 {
@@ -49,7 +46,7 @@ func TestNodeStatus(
 		return logs
 	})
 
-	fmt.Println("\n\nCluster nodes:")
+	shared.LogLevel("info", "\n\nCluster nodes:\n")
 	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }

@@ -5,22 +5,23 @@ package upgradecluster
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -28,6 +29,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -54,34 +56,34 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, false)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook pre-upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
 
 		It("Verifies Local Path Provisioner storage pre-upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(true, false)
+			testcase.TestLocalPathProvisionerStorage(cluster, true, false)
 		})
 
 		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-			testcase.TestIngressRoute(true, false, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
 		})
 	}
 
 	It("Upgrade Manual", func() {
-		err := testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
-		Expect(err).NotTo(HaveOccurred())
+		_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
 		)
@@ -89,6 +91,7 @@ var _ = Describe("Test:", func() {
 
 	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -115,24 +118,24 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(false, true)
 	})
 
-	if cfg.Product == "rke2" {
+	if cluster.Config.Product == "rke2" {
 		It("Verifies Snapshot Webhook after upgrade", func() {
 			err := testcase.TestSnapshotWebhook(true)
 			Expect(err).To(HaveOccurred())
 		})
 	}
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(false, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
 		})
 
 		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(false, true, "traefik.containo.us/v1alpha1")
+			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
 		})
 	}
 })

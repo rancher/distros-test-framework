@@ -12,11 +12,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes Before Reset", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -24,6 +25,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods Before Reset", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -39,11 +41,12 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies Cluster Reset", func() {
-		testcase.TestClusterReset()
+		testcase.TestClusterReset(cluster)
 	})
 
 	It("Validate Nodes After Reset", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -51,6 +54,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods After Reset", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -73,9 +77,9 @@ var _ = Describe("Test:", func() {
 		testcase.TestDnsAccess(true, true)
 	})
 
-	if cfg.Product == "k3s" {
+	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage After Reset", func() {
-			testcase.TestLocalPathProvisionerStorage(true, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
 		})
 
 		It("Verifies LoadBalancer Service After Reset", func() {

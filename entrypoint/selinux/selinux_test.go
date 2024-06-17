@@ -13,11 +13,12 @@ import (
 var _ = Describe("Test:", func() {
 
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -25,6 +26,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus(),
@@ -32,28 +34,29 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate selinux is enabled", func() {
-		testcase.TestSelinuxEnabled()
+		testcase.TestSelinuxEnabled(cluster)
 	})
 
 	It("Validate container, server and selinux version", func() {
-		testcase.TestSelinux()
+		testcase.TestSelinux(cluster)
 	})
 
 	It("Validate container security", func() {
-		testcase.TestSelinuxSpcT()
+		testcase.TestSelinuxSpcT(cluster)
 	})
 
 	It("Validate context", func() {
-		testcase.TestSelinuxContext()
+		testcase.TestSelinuxContext(cluster)
 	})
 
 	if customflag.ServiceFlag.InstallMode.String() != "" {
 		It("Upgrade manual", func() {
-			_ = testcase.TestUpgradeClusterManually(customflag.ServiceFlag.InstallMode.String())
+			_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
 		})
 
 		It("Validate Nodes Post upgrade", func() {
 			testcase.TestNodeStatus(
+				cluster,
 				assert.NodeAssertReadyStatus(),
 				assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
 			)
@@ -61,6 +64,7 @@ var _ = Describe("Test:", func() {
 
 		It("Validate Pods Post upgrade", func() {
 			testcase.TestPodStatus(
+				cluster,
 				assert.PodAssertRestart(),
 				assert.PodAssertReady(),
 				assert.PodAssertStatus(),
@@ -68,24 +72,24 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Validate selinux is enabled Post upgrade", func() {
-			testcase.TestSelinuxEnabled()
+			testcase.TestSelinuxEnabled(cluster)
 		})
 
 		It("Validate container, server and selinux version Post upgrade", func() {
-			testcase.TestSelinux()
+			testcase.TestSelinux(cluster)
 		})
 
 		It("Validate container security Post upgrade", func() {
-			testcase.TestSelinuxSpcT()
+			testcase.TestSelinuxSpcT(cluster)
 		})
 
 		It("Validate context", func() {
-			testcase.TestSelinuxContext()
+			testcase.TestSelinuxContext(cluster)
 		})
 	}
 
 	It("Validate uninstall selinux policies", func() {
-		testcase.TestUninstallPolicy()
+		testcase.TestUninstallPolicy(cluster)
 	})
 
 })
