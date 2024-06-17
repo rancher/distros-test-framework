@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	flannelRke2       = "kubectl get node -o yaml : | grep 'hardened-flannel' -A1, "
+	flannelCanalRke2  = "kubectl get node -o yaml : | grep 'hardened-flannel' -A1, "
 	flannelK3s        = "/var/lib/rancher/k3s/data/current/bin/flannel, "
 	calico            = "kubectl get node -o yaml : | grep 'hardened-calico' -A1, "
 	ingressController = "kubectl get node -o yaml : | grep 'nginx-ingress-controller' -A1, "
@@ -55,7 +55,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 	// test decription and cmds generated based on product rke2
 	description := "Verifies bump versions for several components on Rke2:\n1-canal\n2-flannel\n" +
 		"3-calico\n4-ingressController\n5-coredns\n6-metricsServer\n7-etcd\n8-containerd\n9-runc"
-	cmd := flannelRke2 + calico + ingressController + corednsRke2 + metricsServer + etcdRke2 + containerd + runc
+	cmd := flannelCanalRke2 + calico + ingressController + corednsRke2 + metricsServer + etcdRke2 + containerd + runc
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
