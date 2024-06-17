@@ -15,28 +15,30 @@ import (
 
 var _ = Describe("Flannel Version bump:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
 			assert.PodAssertStatus())
 	})
 
-	cmd := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
-	if cfg.Product == "k3s" {
-		cmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
-	}
+	It("Test flannel version bump", func() {
+		cmd := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+		if cluster.Config.Product == "k3s" {
+			cmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
+		}
 
-	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMap{
