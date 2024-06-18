@@ -135,8 +135,8 @@ func PodStatusRunning(namespace, label string) {
 // within the same namespace
 func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expectedResult string) {
 	execCommand := fmt.Sprintf(
-		"kubectl exec -it -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
-		namespace, clientPodName, shared.KubeConfigFile, serverPodIP)
+		"kubectl exec -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
+		namespace, clientPodName, factory.KubeConfigFile, serverPodIP)
 	err := ValidateOnHost(
 		execCommand,
 		expectedResult,

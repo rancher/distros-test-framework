@@ -49,7 +49,7 @@ var _ = Describe("Test:", func() {
 
 	// https://github.com/k3s-io/k3s/issues/10053
 	It("[k3s/10053] Validates Ingress after Pod Restart when Network Policies are present", func() {
-		testcase.TestIngressWithPodRestartAndNetPol(true)
+		testcase.TestIngressWithPodRestartAndNetPol(cluster, true)
 	})
 })
 

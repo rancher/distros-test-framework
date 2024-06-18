@@ -126,7 +126,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
+func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload bool) {
 	// Deploy server and client pods
 	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
@@ -144,7 +144,7 @@ func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
-			processPodStatus(g, pod,
+			processPodStatus(cluster, g, pod,
 				assert.PodAssertRestart(),
 				assert.PodAssertReady(),
 				assert.PodAssertStatus())
@@ -177,7 +177,7 @@ func TestIngressWithPodRestartAndNetPol(deleteWorkload bool) {
 		g.Expect(pods).NotTo(BeEmpty())
 
 		for _, pod := range pods {
-			processPodStatus(g, pod,
+			processPodStatus(cluster, g, pod,
 				assert.PodAssertRestart(),
 				assert.PodAssertReady(),
 				assert.PodAssertStatus())
