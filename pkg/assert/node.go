@@ -21,7 +21,7 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 		return assertCommit(c)
 	}
 
-	return func(g Gomega, node shared.Node) {
+	return func(_ Gomega, _ shared.Node) {
 		GinkgoT().Errorf("no version or commit specified for upgrade assertion")
 	}
 }

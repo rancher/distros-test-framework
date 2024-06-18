@@ -93,6 +93,9 @@ func loadTFconfig(
 
 	loadTFoutput(t, terraformOptions, c)
 	loadAwsEc2(t, varDir, c)
+	if c.Config.Product == "rke2" {
+		loadWinTFCfg(t, varDir, terraformOptions, c)
+	}
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = cfg.Product
@@ -103,11 +106,6 @@ func loadTFconfig(
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
 
-	numWinAgents,_ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
-	if c.Config.Product == "rke2" && numWinAgents >= 1 {
-		loadWinTFCfg(t, numWinAgents, terraformOptions, c)
-	}
-	
 	return c, nil
 }
 
@@ -135,11 +133,13 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster)
 	}
 }
 
-func loadWinTFCfg(t *testing.T, numWinAgents int, terraformOptions *terraform.Options, c *Cluster) {
+func loadWinTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) {
 	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
 	if rawWinAgentIPs != "" {
 		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
 	}
+	
+	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
 	c.NumWinAgents = numWinAgents
 }
 
