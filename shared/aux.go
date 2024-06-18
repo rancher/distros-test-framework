@@ -46,7 +46,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", "Execute: %s on %s", cmd, ip)
+	// LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
 
@@ -222,12 +222,13 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 func configureSSH(host string) (*ssh.Client, error) {
 	var cfg *ssh.ClientConfig
 
-	authMethod, err := publicKey(AccessKey)
+	authMethod, err := publicKey("/Users/moral/jenkins-keys/jenkins-rke-validation.pem")
 	if err != nil {
+		fmt.Printf("failed to get public key: %v\n", err)
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 	cfg = &ssh.ClientConfig{
-		User: AwsUser,
+		User: os.Getenv("access_user"),
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},

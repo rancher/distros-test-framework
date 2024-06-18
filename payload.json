@@ -1,0 +1,17 @@
+
+{"Changes": [
+        {
+            "Action": "DELETE",
+            "ResourceRecordSet": {
+                "Name": "ns-r53.qa.rancher.space.",
+                "Type": "CNAME",
+                "TTL": 300,
+                "ResourceRecords": [
+                    {
+                        "Value": "ns-462.awsdns-57.com"
+                    }
+                ]
+            }
+        }
+    ]
+}
