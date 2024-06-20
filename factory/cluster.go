@@ -11,6 +11,8 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
+
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -22,15 +24,18 @@ func ClusterConfig() *Cluster {
 		var err error
 		cluster, err = newCluster()
 		if err != nil {
-			log.Errorf("building cluster failed!: %v\nmoving to start destroy operation\n", err)
-			status, destroyErr := DestroyCluster()
-			if destroyErr != nil {
-				log.Errorf("error destroying cluster: %v\n", destroyErr)
-				os.Exit(1)
-			}
-			if status != "cluster destroyed" {
-				log.Errorf("cluster not destroyed: %s\n", status)
-				os.Exit(1)
+			log.Errorf("\nbuilding cluster failed!  %v\n", err)
+			if customflag.ServiceFlag.ClusterConfig.Destroy {
+				log.Info("\nmoving to start destroy operation\n")
+				status, destroyErr := DestroyCluster()
+				if destroyErr != nil {
+					log.Errorf("error destroying cluster: %v\n", destroyErr)
+					os.Exit(1)
+				}
+				if status != "cluster destroyed" {
+					log.Errorf("cluster not destroyed: %s\n", status)
+					os.Exit(1)
+				}
 			}
 			os.Exit(1)
 		}
