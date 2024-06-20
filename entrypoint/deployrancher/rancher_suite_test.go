@@ -23,14 +23,16 @@ var (
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
-	flag.Var(&flags.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.ExternalFlag.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version")
-	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.Version, "chartsVersion", "v2.8.0", "rancher helm chart version")
-	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoName, "chartsRepoName", "rancher-latest", "rancher helm repo name")
-	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.RepoUrl, "chartsRepoUrl", "https://releases.rancher.com/server-charts/latest", "rancher helm repo url")
-	flag.StringVar(&flags.ExternalFlag.HelmChartsFlag.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
-	flag.StringVar(&flags.ExternalFlag.RancherVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.RancherConfig.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version")
+	flag.StringVar(&flags.HelmCharts.Version, "chartsVersion", "v2.8.0", "rancher helm chart version")
+	flag.StringVar(&flags.HelmCharts.RepoName, "chartsRepoName", "rancher-latest", "rancher helm repo name")
+	flag.StringVar(&flags.HelmCharts.RepoUrl, "chartsRepoUrl", "https://releases.rancher.com/server-charts/latest", "rancher helm repo url")
+	flag.StringVar(&flags.HelmCharts.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
+	flag.StringVar(&flags.RancherConfig.RancherImageVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
 	flag.Parse()
+
+	customflag.ValidateVersionFormat()
 
 	cluster = factory.ClusterConfig()
 
@@ -58,15 +60,15 @@ var _ = BeforeSuite(func() {
 
 	// Check helm chart repo
 	res, err := shared.CheckHelmRepo(
-		flags.ExternalFlag.HelmChartsFlag.RepoName,
-		flags.ExternalFlag.HelmChartsFlag.RepoUrl,
-		flags.ExternalFlag.HelmChartsFlag.Version)
+		flags.HelmCharts.RepoName,
+		flags.HelmCharts.RepoUrl,
+		flags.HelmCharts.Version)
 	Expect(err).To(BeNil(), "Error while checking helm repo ", err)
-	Expect(res).ToNot(BeEmpty(), "No version found in helm repo ", flags.ExternalFlag.HelmChartsFlag.RepoName)
+	Expect(res).ToNot(BeEmpty(), "No version found in helm repo ", flags.HelmCharts.RepoName)
 })
 
 var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if customflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
