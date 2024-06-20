@@ -67,9 +67,9 @@ if [ -n "${TEST_DIR}" ]; then
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOYVERSION}" ]; then
-            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}" -destroy "${DESTROY}"
+            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
         else
-            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -destroy "${DESTROY}"
+            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
          fi
     elif [ "${TEST_DIR}" = "deployrancher" ]; then
         declare -a OPTS
@@ -82,21 +82,21 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${RANCHERVERSION}" ] && OPTS+=(-rancherVersion "${RANCHERVERSION}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/dualstack/... -destroy "${DESTROY}"
+        go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
-        go test -timeout=60m -v -count=1 ./entrypoint/createcluster/... -destroy "${DESTROY}"
+        go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}"
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
     elif [ "${TEST_DIR}" = "selinux" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/selinux/... -destroy "${DESTROY}"
+        go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/certrotate/... -destroy "${DESTROY}"
+        go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/... -destroy "${DESTROY}"        
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...     
     elif [ "${TEST_DIR}" = "restartservice" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/restartservice/... -destroy "${DESTROY}"
+        go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
-        go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/... -destroy "${DESTROY}"
+        go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     fi
 fi
 }

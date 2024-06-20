@@ -138,7 +138,7 @@ func loadWinTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Optio
 	if rawWinAgentIPs != "" {
 		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
 	}
-	
+
 	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
 	c.NumWinAgents = numWinAgents
 }
