@@ -69,37 +69,37 @@ func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) 
 		"TestInternodeConnectivityMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestInternodeConnectivityMixedOS(cluster, applyWorkload, deleteWorkload)
 		},
-		"TestSonobuoyMixedOS": func(_, deleteWorkload bool) {
+		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
 		},
-		"TestSelinuxEnabled": func(_, _ bool) {
+		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux(cluster)
 		},
-		"TestSelinux": func(_, _ bool) {
+		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux(cluster)
 		},
-		"TestSelinuxSpcT": func(_, _ bool) {
+		"TestSelinuxSpcT": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxSpcT(cluster)
 		},
-		"TestUninstallPolicy": func(_, _ bool) {
+		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestUninstallPolicy(cluster)
 		},
-		"TestSelinuxContext": func(_, _ bool) {
+		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxContext(cluster)
 		},
 		"TestIngressRoute": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestIngressRoute(cluster, applyWorkload, deleteWorkload, "traefik.io/v1alpha1")
 		},
-		"TestCertRotate": func(_, _ bool) {
+		"TestCertRotate": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestCertRotate(cluster)
 		},
-		"TestSecretsEncryption": func(_, _ bool) {
+		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSecretsEncryption()
 		},
-		"TestRestartService": func(_, _ bool) {
+		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)
 		},
-		"TestClusterReset": func(_, _ bool) {
+		"TestClusterReset": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestClusterReset(cluster)
 		},
 	}
@@ -107,7 +107,7 @@ func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			testCases = append(testCases, func(_, _ bool) {})
+			testCases = append(testCases, func(applyWorkload, deleteWorkload bool) {})
 		} else if test, ok := tcs[name]; ok {
 			testCases = append(testCases, test)
 		} else {
