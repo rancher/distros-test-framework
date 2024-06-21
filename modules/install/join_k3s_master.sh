@@ -51,6 +51,10 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
+
+  if [ "$datastore_type" = "external" ]; then
+    echo -e "datastore-endpoint: $datastore_endpoint" >>/etc/rancher/k3s/config.yaml
+  fi
   cat /etc/rancher/k3s/config.yaml
 }
 
@@ -90,43 +94,36 @@ policy_files() {
     cat /tmp/cluster-level-pss.yaml >/var/lib/rancher/k3s/server/cluster-level-pss.yaml
     cat /tmp/ingresspolicy.yaml >/var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
   fi
-  sleep 20
-}
-
-export_variables() {
-  export "$install_mode"="$version"
-  alias k=kubectl
+  sleep 5
 }
 
 install_k3s() {
   url="https://get.k3s.io"
-  params="INSTALL_K3S_TYPE='server'"
+  params="$install_mode=$version"
 
   if [[ -n "$channel" ]]; then
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
-  if [ "$datastore_type" = "etcd" ]; then
-    install_command="curl -sfL $url | $params sh -s"
-  elif [[ "$datastore_type" = "external" ]]; then
-    install_command="curl -sfL $url | $params sh -s --datastore-endpoint=\"$datastore_endpoint\""
+  install_cmd="curl -sfL $url | $params sh -"
+  
+  if ! eval "$install_cmd"; then
+    echo "Failed to install k3s-server on node: $public_ip"
+    exit 1
   fi
-
-  eval "$install_command"
 }
 
 check_service() {
   if systemctl is-active --quiet k3s; then
-    echo "k3s-server is running on joining node ip $public_ip"
+    echo "k3s-server is running on node: $public_ip"
   else
-    printf "k3s-server failed to start on joining node ip %s\n" "$public_ip"
+    echo "k3s-server failed to start on node: $public_ip while joining server: $server_ip"
     sudo journalctl -xeu k3s.service | grep -i "error\|failed\|fatal"
     exit 1
   fi
 }
 
 install() {
-  export_variables
   install_k3s
   sleep 10
   check_service

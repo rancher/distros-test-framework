@@ -129,7 +129,7 @@ func validateIngressRoute(publicIp string) {
 			fmt.Sprintf("Hostname: %s", pod.Name),
 			fmt.Sprintf("IP: %s", pod.NodeIP),
 		}
-		Eventually(func(g Gomega) {
+		Eventually(func(_ Gomega) {
 			// Positive test cases
 			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
 			Expect(err).NotTo(HaveOccurred(), err)
