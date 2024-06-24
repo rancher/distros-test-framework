@@ -1,3 +1,56 @@
+resource "aws_db_instance" "db" {
+  count                  = (var.datastore_type == "etcd" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
+  identifier             = "${var.resource_name}${local.random_string}-db"
+  storage_type           = "gp2"
+  allocated_storage      = 20
+  engine                 = var.external_db
+  engine_version         = var.external_db_version
+  instance_class         = var.instance_class
+  db_name                = "mydb"
+  parameter_group_name   = var.db_group_name
+  username               = var.db_username
+  password               = var.db_password
+  availability_zone      = var.availability_zone
+  tags = {
+    Environment = var.environment
+  }
+  skip_final_snapshot    = true
+}
+
+resource "aws_rds_cluster" "db" {
+  count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
+  cluster_identifier     = "${var.resource_name}${local.random_string}-db"
+  engine                 = var.external_db
+  engine_version         = var.external_db_version
+  availability_zones     = [var.availability_zone]
+  database_name          = "mydb"
+  master_username        = var.db_username
+  master_password        = var.db_password
+  engine_mode            = var.engine_mode
+  tags = {
+    Environment          = var.environment
+  }
+  skip_final_snapshot    = true
+}
+
+resource "aws_rds_cluster_instance" "db" {
+  count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
+  cluster_identifier      = aws_rds_cluster.db[0].id
+  identifier              = "${var.resource_name}${local.random_string}-instance1"
+  instance_class          = var.instance_class
+  engine                 = aws_rds_cluster.db[0].engine
+  engine_version         = aws_rds_cluster.db[0].engine_version
+}
+
+data "template_file" "test" {
+  template   = (var.datastore_type == "etcd" ? "NULL": (var.external_db == "postgres" ? "postgres://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@${aws_db_instance.db[0].endpoint}/${aws_db_instance.db[0].db_name}" : (var.external_db == "aurora-mysql" ? "mysql://${aws_rds_cluster.db[0].master_username}:${aws_rds_cluster.db[0].master_password}@tcp(${aws_rds_cluster.db[0].endpoint})/${aws_rds_cluster.db[0].database_name}" : "mysql://${aws_db_instance.db[0].username}:${aws_db_instance.db[0].password}@tcp(${aws_db_instance.db[0].endpoint})/${aws_db_instance.db[0].db_name}")))
+  depends_on = [data.template_file.test_status]
+}
+
+data "template_file" "test_status" {
+  template = (var.datastore_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
+}
+
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
@@ -49,7 +102,7 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/rke2_master.sh
-      sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
@@ -123,7 +176,7 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_master.sh
-      sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }

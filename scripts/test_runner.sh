@@ -67,9 +67,9 @@ if [ -n "${TEST_DIR}" ]; then
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOYVERSION}" ]; then
-                go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
-            else
-                go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
+            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+        else
+            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
          fi
     elif [ "${TEST_DIR}" = "deployrancher" ]; then
         declare -a OPTS
@@ -92,7 +92,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...        
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...     
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
