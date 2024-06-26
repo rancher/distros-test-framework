@@ -10,7 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// upgradeVersion upgrades the product version
+// upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, version string) error {
 	cluster := factory.ClusterConfig()
 	err := testcase.TestUpgradeClusterManually(cluster, version)
@@ -23,16 +23,16 @@ func upgradeVersion(template TestTemplate, version string) error {
 	return nil
 }
 
-// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
+// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade.
 func updateExpectedValue(template TestTemplate) {
 	for i := range template.TestCombination.Run {
 		template.TestCombination.Run[i].ExpectedValue = template.TestCombination.Run[i].ExpectedValueUpgrade
 	}
 }
 
-// executeTestCombination get a template and pass it to `processTestCombination`
+// executeTestCombination get a template and pass it to `processTestCombination`.
 //
-// to execute test combination on group of IPs
+// to execute test combination on group of IPs.
 func executeTestCombination(template TestTemplate) error {
 	currentVersion, err := currentProductVersion()
 	if err != nil {

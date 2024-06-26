@@ -61,7 +61,6 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		workloadErr = shared.ManageWorkload("delete", "daemonset.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
-
 }
 
 // validateNodesEqual checks if the nodes in the two strings are equal (ignoring order through sorting).

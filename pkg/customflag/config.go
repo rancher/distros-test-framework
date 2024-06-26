@@ -11,7 +11,7 @@ import (
 var ServiceFlag FlagConfig
 var TestCaseNameFlag stringSlice
 
-// FlagConfig is a type that wraps all the flags that can be used
+// FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
 	InstallMode       installModeFlag
 	TestConfig        testConfigFlag
@@ -86,8 +86,8 @@ func (t *testConfigFlag) Set(value string) error {
 	t.TestFuncNames = strings.Split(value, ",")
 
 	return nil
-
 }
+
 func (c *channelFlag) String() string {
 	return c.Channel
 }

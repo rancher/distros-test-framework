@@ -30,23 +30,16 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 	Expect(envErr).NotTo(HaveOccurred(), "error setting env: %s", envErr)
 
 	resourceName := os.Getenv("resource_name")
-
 	awsDependencies, err := aws.AddNode(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
-	var (
-		serverNames,
-		instanceServerIds,
-		newExternalServerIps,
-		newPrivateServerIps []string
-		createErr error
-	)
-
-	// create server names
+	// create server names.
+	var serverNames, instanceServerIds, newExternalServerIps, newPrivateServerIps []string
 	for i := 0; i < len(cluster.ServerIPs); i++ {
 		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace-%d", resourceName, i+1))
 	}
 
+	var createErr error
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
 		awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
@@ -62,7 +55,7 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 	token, err := shared.FetchToken(serverLeaderIp)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	serverErr := replaceServers(
+	serverErr := nodeReplaceServers(
 		cluster,
 		awsDependencies,
 		resourceName,
@@ -73,41 +66,49 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 		newPrivateServerIps,
 	)
 	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
-
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
-	// replace agents only if exists
+	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		// create agent names
-		var agentNames []string
-		for i := 0; i < len(cluster.AgentIPs); i++ {
-			agentNames = append(agentNames, fmt.Sprintf("%s-agent-replace-%d", resourceName, i+1))
-		}
+		nodeReplaceAgents(cluster, version, resourceName, awsDependencies, serverLeaderIp, token)
+	}
+	// delete the last remaining server = leader.
+	delErr := deleteRemainServer(serverLeaderIp, awsDependencies)
+	Expect(delErr).NotTo(HaveOccurred(), delErr)
+	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
+}
 
-		newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
-			awsDependencies.CreateInstances(agentNames...)
-		Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
-
-		shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
-			newExternalAgentIps, instanceAgentIds)
-
-		scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
-		Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-		shared.LogLevel("info", "Scp files to new worker nodes done\n")
-
-		agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
-			newPrivateAgentIps,
-		)
-		Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
-
-		shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
+func nodeReplaceAgents(
+	cluster *factory.Cluster,
+	version string,
+	resourceName string,
+	awsDependencies *aws.Client,
+	serverLeaderIp string,
+	token string,
+) {
+	// create agent names.
+	var agentNames []string
+	for i := 0; i < len(cluster.AgentIPs); i++ {
+		agentNames = append(agentNames, fmt.Sprintf("%s-agent-replace-%d", resourceName, i+1))
 	}
 
-	// delete the last remaining server = leader
-	delErr := deleteServer(serverLeaderIp, awsDependencies)
-	Expect(delErr).NotTo(HaveOccurred(), delErr)
+	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
+		awsDependencies.CreateInstances(agentNames...)
+	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
-	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
+	shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
+		newExternalAgentIps, instanceAgentIds)
+
+	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new worker nodes done\n")
+
+	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
+		newPrivateAgentIps,
+	)
+	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
+
+	shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 }
 
 func scpToNewNodes(cluster *factory.Cluster, nodeType string, newNodeIps []string) error {
@@ -158,58 +159,13 @@ func scpRke2Files(cluster *factory.Cluster, nodeType, ip string) error {
 
 func scpK3sFiles(cluster *factory.Cluster, nodeType, ip string) error {
 	if nodeType == agent {
-		cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
-		cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
-
-		joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
-		joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", agent)
-
-		if err := shared.RunScp(
-			cluster,
-			ip,
-			[]string{cisWorkerLocalPath, joinLocalPath},
-			[]string{cisWorkerRemotePath, joinRemotePath},
-		); err != nil {
+		err := k3sAgentSCP(cluster, ip)
+		if err != nil {
 			return err
 		}
 	} else {
-		cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
-		cisMasterRemotePath := "/tmp/cis_master_config.yaml"
-
-		clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
-		clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
-
-		auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
-		auditRemotePath := "/tmp/audit.yaml"
-
-		policyLocalPath := shared.BasePath() + "/modules/k3s/master/policy.yaml"
-		policyRemotePath := "/tmp/policy.yaml"
-
-		ingressPolicyLocalPath := shared.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
-		ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
-
-		joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
-		joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", master)
-
-		if err := shared.RunScp(
-			cluster,
-			ip,
-			[]string{
-				cisMasterLocalPath,
-				clusterLevelpssLocalPath,
-				auditLocalPath,
-				policyLocalPath,
-				ingressPolicyLocalPath,
-				joinLocalPath,
-			},
-			[]string{
-				cisMasterRemotePath,
-				clusterLevelpssRemotePath,
-				auditRemotePath,
-				policyRemotePath,
-				ingressPolicyRemotePath,
-				joinRemotePath,
-			}); err != nil {
+		err := k3sServerSCP(cluster, ip)
+		if err != nil {
 			return err
 		}
 	}
@@ -217,7 +173,62 @@ func scpK3sFiles(cluster *factory.Cluster, nodeType, ip string) error {
 	return nil
 }
 
-func replaceServers(
+func k3sAgentSCP(cluster *factory.Cluster, ip string) error {
+	cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
+	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
+
+	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
+	joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", agent)
+
+	return shared.RunScp(
+		cluster,
+		ip,
+		[]string{cisWorkerLocalPath, joinLocalPath},
+		[]string{cisWorkerRemotePath, joinRemotePath},
+	)
+}
+
+func k3sServerSCP(cluster *factory.Cluster, ip string) error {
+	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
+	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
+
+	clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
+	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
+
+	auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
+	auditRemotePath := "/tmp/audit.yaml"
+
+	policyLocalPath := shared.BasePath() + "/modules/k3s/master/policy.yaml"
+	policyRemotePath := "/tmp/policy.yaml"
+
+	ingressPolicyLocalPath := shared.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
+	ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
+
+	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
+	joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", master)
+
+	return shared.RunScp(
+		cluster,
+		ip,
+		[]string{
+			cisMasterLocalPath,
+			clusterLevelpssLocalPath,
+			auditLocalPath,
+			policyLocalPath,
+			ingressPolicyLocalPath,
+			joinLocalPath,
+		},
+		[]string{
+			cisMasterRemotePath,
+			clusterLevelpssRemotePath,
+			auditRemotePath,
+			policyRemotePath,
+			ingressPolicyRemotePath,
+			joinRemotePath,
+		})
+}
+
+func nodeReplaceServers(
 	c *factory.Cluster,
 	a *aws.Client,
 	resourceName, serverLeaderIp, token, version string,
@@ -231,7 +242,7 @@ func replaceServers(
 		return shared.ReturnLogError("externalIps or privateIps empty\n")
 	}
 
-	// join the first new server
+	// join the first new server.
 	newFirstServerIP := newExternalServerIps[0]
 	err := serverJoin(c.Config.Product, serverLeaderIp, token, version, newFirstServerIP, newPrivateServerIps[0])
 	if err != nil {
@@ -241,15 +252,15 @@ func replaceServers(
 	}
 	shared.LogLevel("info", "Proceeding to update config file after first server join %s\n", newFirstServerIP)
 
-	// delete first the server that is not the leader neither the server ip in the kubeconfig
+	// delete first the server that is not the leader neither the server ip in the kubeconfig.
 	oldServerIPs := c.ServerIPs
-	if delErr := deleteServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
+	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
 		shared.LogLevel("error", "error deleting server: %w\n", delErr)
 
 		return delErr
 	}
 
-	// update the kubeconfig file to point to the new added server
+	// update the kubeconfig file to point to the new added server.
 	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, c.Config.Product); kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
@@ -262,13 +273,31 @@ func replaceServers(
 		return nodeErr
 	}
 
-	// join the rest of the servers and delete all except the leader
+	// join the rest of the servers and delete all except the leader.
+	err = joinRemainServers(c, a, newExternalServerIps, newPrivateServerIps, oldServerIPs, serverLeaderIp, token, version)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func joinRemainServers(
+	c *factory.Cluster,
+	a *aws.Client,
+	newExternalServerIps,
+	newPrivateServerIps,
+	oldServerIPs []string,
+	serverLeaderIp,
+	token,
+	version string,
+) error {
 	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
 		privateIp := newPrivateServerIps[i]
 		externalIp := newExternalServerIps[i]
 
 		if i < len(oldServerIPs[1:]) {
-			if delErr := deleteServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
+			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
 				shared.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldServerIPs[i])
 
 				return delErr
@@ -281,11 +310,11 @@ func replaceServers(
 			return joinErr
 		}
 
-		nodeErr = validateNodeJoin(externalIp)
-		if nodeErr != nil {
-			shared.LogLevel("error", "error validating node join: %w with ip: %s", nodeErr, externalIp)
+		joinErr := validateNodeJoin(externalIp)
+		if joinErr != nil {
+			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
 
-			return nodeErr
+			return joinErr
 		}
 	}
 
@@ -320,7 +349,7 @@ func serverJoin(product, serverLeaderIP, token, version, newExternalIP, newPriva
 	return nil
 }
 
-func deleteServer(ip string, a *aws.Client) error {
+func deleteRemainServer(ip string, a *aws.Client) error {
 	if ip == "" {
 		return shared.ReturnLogError("ip not sent\n")
 	}

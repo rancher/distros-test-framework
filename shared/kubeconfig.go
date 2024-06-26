@@ -30,13 +30,13 @@ func ExtractServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 	if err != nil {
 		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
 	}
-	// get server ip value from `server:` key
+	// get server ip value from `server:` key.
 	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
-	// removing newline
+	// removing newline.
 	serverIP = strings.Split(serverIP, "\n")[0]
-	// removing the https://
+	// removing the https://.
 	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
-	// removing the port
+	// removing the port.
 	serverIP = strings.Split(serverIP, ":")[0]
 
 	return serverIP, string(kubeconfigContent), nil

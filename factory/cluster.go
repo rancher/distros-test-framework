@@ -16,7 +16,7 @@ import (
 
 var log = logger.AddLogger()
 
-// ClusterConfig returns a singleton cluster with all terraform config and vars
+// ClusterConfig returns a singleton cluster with all terraform config and vars.
 func ClusterConfig() *Cluster {
 	once.Do(func() {
 		var err error
@@ -39,7 +39,7 @@ func ClusterConfig() *Cluster {
 	return cluster
 }
 
-// newCluster creates a new cluster and returns his values from terraform config and vars
+// newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster() (*Cluster, error) {
 	cfg, err := config.AddEnv()
 	if err != nil {
@@ -95,7 +95,7 @@ func newCluster() (*Cluster, error) {
 	return c, nil
 }
 
-// DestroyCluster destroys the cluster and returns it
+// DestroyCluster destroys the cluster and returns it.
 func DestroyCluster() (string, error) {
 	cfg, err := config.AddEnv()
 	if err != nil {

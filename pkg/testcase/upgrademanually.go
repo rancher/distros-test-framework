@@ -10,7 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// TestUpgradeClusterManually upgrades the cluster "manually"
+// TestUpgradeClusterManually upgrades the cluster "manually".
 func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error {
 	shared.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
@@ -38,7 +38,7 @@ func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error 
 	return nil
 }
 
-// upgradeProduct upgrades a node server or agent type to the specified version
+// upgradeProduct upgrades a node server or agent type to the specified version.
 func upgradeProduct(product, nodeType string, installType string, ips []string) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(ips))

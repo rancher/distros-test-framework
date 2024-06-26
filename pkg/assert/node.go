@@ -13,7 +13,7 @@ import (
 
 type NodeAssertFunc func(g Gomega, node shared.Node)
 
-// NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected
+// NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected.
 func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 	if c.InstallMode.Version != "" {
 		return assertVersion(c)
@@ -26,7 +26,7 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 	}
 }
 
-// assertVersion returns the NodeAssertFunc for asserting version
+// assertVersion returns the NodeAssertFunc for asserting version.
 func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 	shared.LogLevel("info", "Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
@@ -36,7 +36,7 @@ func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 	}
 }
 
-// assertCommit returns the NodeAssertFunc for asserting commit
+// assertCommit returns the NodeAssertFunc for asserting commit.
 func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	_, commitVersion, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
@@ -53,7 +53,7 @@ func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
 	}
 }
 
-// NodeAssertVersionUpgraded custom assertion func that asserts that node version is as expected
+// NodeAssertVersionUpgraded custom assertion func that asserts that node version is as expected.
 func NodeAssertVersionUpgraded() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
 		version := strings.Split(customflag.ServiceFlag.SUCUpgradeVersion.String(), "-")
@@ -70,7 +70,7 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 	}
 }
 
-// CheckComponentCmdNode runs a command on a node and asserts that the value received
+// CheckComponentCmdNode runs a command on a node and asserts that the value received.
 // contains the specified substring.
 func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 	if cmd == "" {
@@ -93,7 +93,6 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 		}
 
 		return nil
-
 	}, "420s", "5s").Should(Succeed())
 
 	return nil

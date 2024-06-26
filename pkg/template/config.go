@@ -27,7 +27,7 @@ type TestMap struct {
 	ExpectedValueUpgrade string
 }
 
-// TestConfig represents the testcase function configuration
+// TestConfig represents the testcase function configuration.
 type TestConfig struct {
 	TestFunc       []testCase
 	ApplyWorkload  bool
@@ -45,7 +45,7 @@ func testCaseWrapper(t TestTemplate) {
 	}
 }
 
-// ConvertToTestCase converts the TestCaseFlag to testCase
+// ConvertToTestCase converts the TestCaseFlag to testCase.
 func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
 	var testCases []testCase
 	for _, tcf := range testCaseFlags {

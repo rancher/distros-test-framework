@@ -50,7 +50,7 @@ func TestBuildCluster(cluster *factory.Cluster) {
 	}
 }
 
-// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
+// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
 func TestSonobuoyMixedOS(deleteWorkload bool) {
 	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
@@ -83,10 +83,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-// checkAndPrintAgentNodeIPs Prints out the Agent node IPs
-// agentNum		int			Number of agent nodes
-// agentIPs		[]string	IP list of agent nodes
-// isWindows 	bool 		Check for Windows enablement
+// checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	info := "Agent Node IPs:"
 

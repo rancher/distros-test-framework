@@ -44,7 +44,7 @@ func productVersion(product string) (string, error) {
 	return v, nil
 }
 
-// ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server
+// ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server.
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
 	if len(ips) == 0 {
 		return "", ReturnLogError("ips string array cannot be empty")
@@ -88,7 +88,7 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 	return fmt.Sprintf("%s %s", sysctlPrefix, name), nil
 }
 
-// serviceName Get service name. Used to work with stop/start k3s/rke2 services
+// serviceName Get service name. Used to work with stop/start k3s/rke2 services.
 func serviceName(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
@@ -105,7 +105,7 @@ func serviceName(product, nodeType string) (string, error) {
 	return svcName, nil
 }
 
-// CertRotate certificate rotate for k3s or rke2
+// CertRotate certificate rotate for k3s or rke2.
 func CertRotate(product string, ips []string) (string, error) {
 	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" %s", product)
 	if len(ips) == 0 {

@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// ValidateClusterIPsBySVC retrieves cluster IPs by svc and validates them in CIDR Range
+// ValidateClusterIPsBySVC retrieves cluster IPs by svc and validates them in CIDR Range.
 func ValidateClusterIPsBySVC(svc string, expected []string) {
 	cmd := "kubectl get svc " + svc +
 		` -o jsonpath='{.spec.clusterIPs[*]}' --kubeconfig=` + factory.KubeConfigFile

@@ -19,7 +19,7 @@ func TestCertRotate(cluster *factory.Cluster) {
 	verifyTLSDirContent(cluster.Config.Product, cluster.ServerIPs)
 }
 
-// certRotate Rotate certificate for etcd only and cp only nodes
+// certRotate Rotate certificate for etcd only and cp only nodes.
 func certRotate(product string, ips []string) {
 	ip, stopError := shared.ManageService(product, "stop", "server", ips)
 	Expect(stopError).NotTo(HaveOccurred(),
@@ -34,7 +34,7 @@ func certRotate(product string, ips []string) {
 		fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
 }
 
-// verifyIdenticalFiles Verify the actual and expected identical file lists match
+// verifyIdenticalFiles Verify the actual and expected identical file lists match.
 func verifyIdenticalFiles(identicalFileList string) {
 	expectedFileList := []string{
 		"client-ca.crt", "client-ca.key", "client-ca.nochain.crt",
@@ -49,7 +49,7 @@ func verifyIdenticalFiles(identicalFileList string) {
 	Expect(err).NotTo(HaveOccurred(), "FAIL: Verifying identical file list match")
 }
 
-// verifyTLSDirContent Compare TLS Directories before and after cert rotation to display identical files
+// verifyTLSDirContent Compare TLS Directories before and after cert rotation to display identical files.
 func verifyTLSDirContent(product string, ips []string) {
 	dataDir := fmt.Sprintf("/var/lib/rancher/%s", product)
 	serverDir := fmt.Sprintf("%s/server", dataDir)

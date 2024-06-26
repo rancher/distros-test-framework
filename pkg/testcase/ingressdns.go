@@ -78,7 +78,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 	publicIp := fmt.Sprintf("%s.nip.io", workerNodes[0].ExternalIP)
 
 	if applyWorkload {
-		// Update base IngressRoute manifest to use one of the Node External IPs
+		// Update base IngressRoute manifest to use one of the Node External IPs.
 		originalFilePath := shared.BasePath() +
 			fmt.Sprintf("/workloads/%s/ingressroute.yaml", cluster.Config.Arch)
 		newFilePath := shared.BasePath() +
@@ -96,7 +96,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 				"failed to update file for ingressroute resource to use one of the node external ips")
 		}
 
-		// Deploy manifest and ensure pods are running
+		// Deploy manifest and ensure pods are running.
 		workloadErr := shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
@@ -115,7 +115,7 @@ func validateIngressRoute(publicIp string) {
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	// Query the IngressRoute Host
+	// Query the IngressRoute Host.
 	filters := map[string]string{
 		"namespace": "test-ingressroute",
 		"label":     "app=whoami",
@@ -130,14 +130,14 @@ func validateIngressRoute(publicIp string) {
 			fmt.Sprintf("IP: %s", pod.NodeIP),
 		}
 		Eventually(func(_ Gomega) {
-			// Positive test cases
+			// Positive test cases.
 			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
 			Expect(err).NotTo(HaveOccurred(), err)
 
 			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
 			Expect(err).NotTo(HaveOccurred(), err)
 
-			// Negative test cases
+			// Negative test cases.
 			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
 			Expect(err).NotTo(HaveOccurred(), err)
 

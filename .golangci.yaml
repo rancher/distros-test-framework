@@ -1,3 +1,5 @@
+
+
 linters:
   enable:
     - gofmt
@@ -11,8 +13,21 @@ linters:
     - staticcheck
     - nlreturn
     - misspell
+    - funlen
+    - gocritic
+    - godot
+    - perfsprint
+    - usestdlibvars
+    - varnamelen
+    - whitespace
 
 linters-settings:
+  varnamelen:
+    min-name-length: 1
+  funlen:
+    lines: 55
+  gocritic:
+    enable-all: true
   gofmt:
     simplify: true
   govet:
@@ -66,6 +81,7 @@ run:
   skip-files:
     - "pkg/testcase/selinux.go"
     -  ".*_suite_test.go"
+    - "pkg/template/helper.go"
 issues:
   exclude-rules:
     - linters: [typecheck]
@@ -80,4 +96,3 @@ issues:
       text: '`fmt\.Println` arg list ends with redundant newline'
     - linters: [nlreturn]
       text: 'continue with no blank line before'
-

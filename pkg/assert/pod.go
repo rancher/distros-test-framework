@@ -19,8 +19,9 @@ const (
 	statusRunning   = "Running"
 )
 
-// PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
-// controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once
+// PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason.
+//
+// controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once.
 func PodAssertRestart() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		if strings.Contains(pod.NameSpace, "kube-system") &&
@@ -33,8 +34,7 @@ func PodAssertRestart() PodAssertFunc {
 	}
 }
 
-// PodAssertReady custom assertion func that asserts that the pod is
-// with correct numbers of ready containers.
+// PodAssertReady custom assertion func that asserts that the pod is with correct numbers of ready containers.
 func PodAssertReady() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		g.ExpectWithOffset(1, pod.Ready).To(checkReadyFields(),
@@ -42,8 +42,7 @@ func PodAssertReady() PodAssertFunc {
 	}
 }
 
-// checkReadyFields is a custom matcher that checks
-// if the input string is in N/N format and the same quantity.
+// checkReadyFields is a custom matcher that checks if the input string is in N/N format and the same quantity.
 func checkReadyFields() types.GomegaMatcher {
 	return WithTransform(func(s string) (bool, error) {
 		var a, b int
@@ -57,8 +56,8 @@ func checkReadyFields() types.GomegaMatcher {
 	}, BeTrue())
 }
 
-// PodAssertStatus custom assertion that asserts that pod status is completed or in some cases
-// apply pods can have an error status
+// PodAssertStatus custom assertion that asserts that pod status is completed or in some cases,
+// apply pods can have an error status.
 func PodAssertStatus() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") {
@@ -75,7 +74,7 @@ func PodAssertStatus() PodAssertFunc {
 	}
 }
 
-// ValidatePodIPByLabel validates expected pod IP by label
+// ValidatePodIPByLabel validates expected pod IP by label.
 func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
@@ -98,7 +97,7 @@ func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 		"failed to validate expected: %s on %s", expected, labels)
 }
 
-// ValidatePodIPsByLabel validates expected pod IPs by label
+// ValidatePodIPsByLabel validates expected pod IPs by label.
 func ValidatePodIPsByLabel(label string, expected []string) {
 	cmd := "kubectl get pods -l " + label +
 		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
@@ -121,7 +120,7 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 		expected, label)
 }
 
-// PodStatusRunning checks status of pods is Running when searched by namespace and label
+// PodStatusRunning checks status of pods is Running when searched by namespace and label.
 func PodStatusRunning(namespace, label string) {
 	cmd := "kubectl get pods -n " + namespace + " -l " + label +
 		" --field-selector=status.phase=Running --kubeconfig=" + factory.KubeConfigFile

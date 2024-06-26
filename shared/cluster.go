@@ -152,7 +152,7 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command arguments
+// args   = the rest of your command arguments.
 func KubectlCommand(cluster *factory.Cluster, destination, action, source string, args ...string) (string, error) {
 	shortCmd := map[string]string{
 		"get":      "kubectl get",
@@ -232,7 +232,7 @@ func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 	return ip, port, err
 }
 
-// FetchServiceNodePort returns the node port of the service
+// FetchServiceNodePort returns the node port of the service.
 func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 	cmd := "kubectl get service -n " + namespace + " " + serviceName + " --kubeconfig=" + factory.KubeConfigFile +
 		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
@@ -265,7 +265,7 @@ func RestartCluster(product, ip string) {
 	time.Sleep(20 * time.Second)
 }
 
-// FetchIngressIP returns the ingress IP of the given namespace
+// FetchIngressIP returns the ingress IP of the given namespace.
 func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	res, err := RunCommandHost(
 		"kubectl get ingress -n " +
@@ -286,9 +286,9 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script
-// action	required install or cleanup sonobuoy plugin for mixed OS cluster
-// version	optional sonobouy version to be installed
+// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script.
+// action	required install or cleanup sonobuoy plugin for mixed OS cluster.
+// version	optional sonobouy version to be installed.
 func SonobuoyMixedOS(action, version string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
@@ -309,7 +309,7 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
-// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide
+// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide.
 func PrintClusterState() {
 	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + factory.KubeConfigFile
 	res, err := RunCommandHost(cmd)
@@ -334,8 +334,8 @@ func GetNodes(print bool) ([]Node, error) {
 	return nodes, nil
 }
 
-// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles
-// Valid values for roles are: etcd, control-plane, worker
+// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles.
+// Valid values for roles are: etcd, control-plane, worker.
 func GetNodesByRoles(roles ...string) ([]Node, error) {
 	var nodes []Node
 	var matchedNodes []Node
@@ -416,8 +416,8 @@ func GetPods(print bool) ([]Pod, error) {
 	return pods, nil
 }
 
-// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
-// Example filters are: namespace, label, --field-selector
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters.
+// Example filters are: namespace, label, --field-selector.
 func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", factory.KubeConfigFile)
 	for option, value := range filters {
@@ -476,7 +476,7 @@ func parsePods(res string) []Pod {
 	return pods
 }
 
-// ReadDataPod reads the data from the pod
+// ReadDataPod reads the data from the pod.
 func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
@@ -501,7 +501,7 @@ func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	return res, nil
 }
 
-// WriteDataPod writes data to the pod
+// WriteDataPod writes data to the pod.
 func WriteDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
@@ -520,7 +520,7 @@ func WriteDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	return RunCommandHost(cmd)
 }
 
-// GetNodeArgsMap returns list of nodeArgs map
+// GetNodeArgsMap returns list of nodeArgs map.
 func GetNodeArgsMap(cluster *factory.Cluster, nodeType string) (map[string]string, error) {
 	res, err := KubectlCommand(
 		cluster,
@@ -587,8 +587,8 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to delete node: %w\n", delErr)
 	}
 
-	// delay not meant to wait if node is deleted
-	// but rather to give time for the node to be removed from the cluster
+	// delay not meant to wait if node is deleted.
+	// but rather to give time for the node to be removed from the cluster.
 	delay := time.After(20 * time.Second)
 	<-delay
 
@@ -639,7 +639,7 @@ func FetchToken(ip string) (string, error) {
 	return token, nil
 }
 
-// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide
+// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide.
 func PrintGetAll() {
 	kubeconfigFile := " --kubeconfig=" + factory.KubeConfigFile
 	cmd := "kubectl get all -A -o wide  " + kubeconfigFile + " && kubectl get nodes -o wide " + kubeconfigFile
