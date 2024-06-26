@@ -120,29 +120,34 @@ func validateIngressRoute(publicIp string) {
 		"namespace": "test-ingressroute",
 		"label":     "app=whoami",
 	}
-	pods, err := shared.GetPodsFiltered(filters)
+
+	var positiveAsserts []string
+	negativeAsserts := "404 page not found"
+	// retrying to get the node ip for the pods before running the tests.
+	Eventually(func(_ Gomega) {
+		pods, getErr := shared.GetPodsFiltered(filters)
+		Expect(getErr).NotTo(HaveOccurred(), getErr)
+		for _, pod := range pods {
+			Expect(pod.IP).NotTo(Equal("<none>"))
+			Expect(pod.IP).NotTo(BeEmpty())
+			if pod.IP != "<none>" && pod.IP != "" {
+				positiveAsserts = []string{
+					fmt.Sprintf("Hostname: %s", pod.Name),
+					fmt.Sprintf("IP: %s", pod.IP),
+				}
+			}
+		}
+	}, "40s", "5s").Should(Succeed())
+
+	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	negativeAsserts := "404 page not found"
-	for _, pod := range pods {
-		positiveAsserts := []string{
-			fmt.Sprintf("Hostname: %s", pod.Name),
-			fmt.Sprintf("IP: %s", pod.IP),
-		}
-		Eventually(func(g Gomega) {
-			// Positive test cases
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
-			Expect(err).NotTo(HaveOccurred(), err)
+	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
+	Expect(err).NotTo(HaveOccurred(), err)
 
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
-			Expect(err).NotTo(HaveOccurred(), err)
+	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
+	Expect(err).NotTo(HaveOccurred(), err)
 
-			// Negative test cases
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
-			Expect(err).NotTo(HaveOccurred(), err)
-
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
-			Expect(err).NotTo(HaveOccurred(), err)
-		}, "30s", "5s").Should(Succeed())
-	}
+	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
+	Expect(err).NotTo(HaveOccurred(), err)
 }

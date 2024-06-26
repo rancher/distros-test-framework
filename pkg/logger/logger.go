@@ -36,7 +36,7 @@ func customFormatter() *log.TextFormatter {
 		return &log.TextFormatter{
 			ForceColors:   true,
 			FullTimestamp: true,
-			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			CallerPrettyfier: func(_ *runtime.Frame) (string, string) {
 				return "", ""
 			},
 			QuoteEmptyFields: true,

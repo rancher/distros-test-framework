@@ -5,6 +5,7 @@ go 1.21
 toolchain go1.21.8
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.51.1
 	github.com/gruntwork-io/terratest v0.46.11
 	github.com/onsi/ginkgo/v2 v2.16.0
@@ -21,7 +22,6 @@ require (
 	cloud.google.com/go/storage v1.39.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/avast/retry-go v3.0.0+incompatible // indirect	
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
