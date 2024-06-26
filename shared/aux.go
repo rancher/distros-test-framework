@@ -116,8 +116,8 @@ func PrintBase64Encoded(path string) error {
 // CountOfStringInSlice Used to count the pods using prefix passed in the list of pods.
 func CountOfStringInSlice(str string, pods []Pod) int {
 	var count int
-	for _, p := range pods {
-		if strings.Contains(p.Name, str) {
+	for i := range pods {
+		if strings.Contains(pods[i].Name, str) {
 			count++
 		}
 	}
@@ -341,7 +341,7 @@ func LogLevel(level, format string, args ...interface{}) {
 // formatLogArgs formats the logger message.
 func formatLogArgs(format string, args ...interface{}) error {
 	if len(args) == 0 {
-		return fmt.Errorf(format)
+		return fmt.Errorf("%s", format)
 	}
 	if e, ok := args[0].(error); ok {
 		if len(args) > 1 {
@@ -406,7 +406,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 	return err
 }
 
-func checkFiles(product string, paths []string, scriptName string, ip string) (string, error) {
+func checkFiles(product string, paths []string, scriptName, ip string) (string, error) {
 	var foundPath string
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
@@ -475,14 +475,14 @@ func stringInSlice(a string, list []string) bool {
 }
 
 // appendNodeIfMissing appends a value to a slice if that value does not already exist in the slice.
-func appendNodeIfMissing(slice []Node, i Node) []Node {
+func appendNodeIfMissing(slice []Node, i *Node) []Node {
 	for _, ele := range slice {
-		if ele == i {
+		if ele == *i {
 			return slice
 		}
 	}
 
-	return append(slice, i)
+	return append(slice, *i)
 }
 
 func EncloseSqBraces(ip string) string {

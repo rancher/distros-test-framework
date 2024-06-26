@@ -295,7 +295,7 @@ func SonobuoyMixedOS(action, version string) error {
 	}
 
 	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
-	err := os.Chmod(scriptsDir, 0755)
+	err := os.Chmod(scriptsDir, 0o755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
 	}
@@ -320,14 +320,14 @@ func PrintClusterState() {
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
-func GetNodes(print bool) ([]Node, error) {
+func GetNodes(display bool) ([]Node, error) {
 	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + factory.KubeConfigFile)
 	if err != nil {
 		return nil, err
 	}
 
 	nodes := parseNodes(res)
-	if print {
+	if display {
 		fmt.Println(res)
 	}
 
@@ -365,8 +365,8 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		matchedNodes = append(matchedNodes, parseNodes(res)...)
 	}
 
-	for _, matchedNode := range matchedNodes {
-		nodes = appendNodeIfMissing(nodes, matchedNode)
+	for i := range matchedNodes {
+		nodes = appendNodeIfMissing(nodes, &matchedNodes[i])
 	}
 
 	return nodes, nil
@@ -401,7 +401,7 @@ func parseNodes(res string) []Node {
 }
 
 // GetPods returns pods parsed from kubectl get pods.
-func GetPods(print bool) ([]Pod, error) {
+func GetPods(display bool) ([]Pod, error) {
 	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + factory.KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
@@ -409,7 +409,7 @@ func GetPods(print bool) ([]Pod, error) {
 	}
 
 	pods := parsePods(res)
-	if print {
+	if display {
 		fmt.Println("\nCluster pods:\n", res)
 	}
 
@@ -617,6 +617,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 				if i > 5 {
 					return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
 				}
+
 				continue
 			}
 			if nodeName == "" {
@@ -685,12 +686,12 @@ func checkPodStatus() bool {
 
 	podReady := 0
 	podNotReady := 0
-	for _, pod := range pods {
-		if pod.Status == "Running" || pod.Status == "Completed" {
+	for i := range pods {
+		if pods[i].Status == "Running" || pods[i].Status == "Completed" {
 			podReady++
 		} else {
 			podNotReady++
-			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
+			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pods[i].Name, pods[i].Status)
 		}
 	}
 

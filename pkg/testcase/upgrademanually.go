@@ -39,7 +39,7 @@ func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error 
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(product, nodeType string, installType string, ips []string) error {
+func upgradeProduct(product, nodeType, installType string, ips []string) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(ips))
 
@@ -68,7 +68,7 @@ func upgradeProduct(product, nodeType string, installType string, ips []string) 
 	return nil
 }
 
-func getInstallCmd(product, installType string, nodeType string) string {
+func getInstallCmd(product, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 

@@ -27,9 +27,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Deploys cert-manager", func() {

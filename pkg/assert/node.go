@@ -14,7 +14,7 @@ import (
 type NodeAssertFunc func(g Gomega, node shared.Node)
 
 // NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected.
-func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
+func NodeAssertVersionTypeUpgrade(c *customflag.FlagConfig) NodeAssertFunc {
 	if c.InstallMode.Version != "" {
 		return assertVersion(c)
 	} else if c.InstallMode.Commit != "" {
@@ -27,7 +27,7 @@ func NodeAssertVersionTypeUpgrade(c customflag.FlagConfig) NodeAssertFunc {
 }
 
 // assertVersion returns the NodeAssertFunc for asserting version.
-func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
+func assertVersion(c *customflag.FlagConfig) NodeAssertFunc {
 	shared.LogLevel("info", "Asserting Version: %s\n", c.InstallMode.Version)
 	return func(g Gomega, node shared.Node) {
 		version := strings.Split(c.InstallMode.Version, "-")
@@ -37,7 +37,7 @@ func assertVersion(c customflag.FlagConfig) NodeAssertFunc {
 }
 
 // assertCommit returns the NodeAssertFunc for asserting commit.
-func assertCommit(c customflag.FlagConfig) NodeAssertFunc {
+func assertCommit(c *customflag.FlagConfig) NodeAssertFunc {
 	_, commitVersion, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred(), "error getting product: %v", err)
 

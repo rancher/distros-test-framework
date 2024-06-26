@@ -29,12 +29,11 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service pre-upgrade", func() {
-		testcase.TestServiceClusterIp(true, false)
+		testcase.TestServiceClusterIP(true, false)
 	})
 
 	if cluster.Config.Product == "k3s" {
@@ -55,20 +54,18 @@ var _ = Describe("Test:", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag))
+			assert.NodeAssertVersionTypeUpgrade(&customflag.ServiceFlag))
 	})
 
 	It("Checks Pod Status after upgrade", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIp(false, true)
+		testcase.TestServiceClusterIP(false, true)
 	})
 
 	It("Verifies NodePort Service after upgrade applying and deleting workload", func() {

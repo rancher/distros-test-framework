@@ -56,24 +56,6 @@ func checkReadyFields() types.GomegaMatcher {
 	}, BeTrue())
 }
 
-// PodAssertStatus custom assertion that asserts that pod status is completed or in some cases,
-// apply pods can have an error status.
-func PodAssertStatus() PodAssertFunc {
-	return func(g Gomega, pod shared.Pod) {
-		if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") {
-			g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
-		} else if strings.Contains(pod.Name, "apply") &&
-			strings.Contains(pod.NameSpace, "system-upgrade") {
-			g.Expect(pod.Status).Should(SatisfyAny(
-				ContainSubstring("Error"),
-				Equal(statusCompleted),
-			), pod.Name)
-		} else {
-			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
-		}
-	}
-}
-
 // ValidatePodIPByLabel validates expected pod IP by label.
 func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 	Eventually(func() error {

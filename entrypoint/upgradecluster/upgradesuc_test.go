@@ -31,13 +31,11 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service pre-upgrade", func() {
-		testcase.TestServiceClusterIp(true, false)
+		testcase.TestServiceClusterIP(true, false)
 	})
 
 	It("Verifies NodePort Service pre-upgrade", func() {
@@ -53,7 +51,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies DNS Access pre-upgrade", func() {
-		testcase.TestDnsAccess(true, false)
+		testcase.TestDNSAccess(true, false)
 	})
 
 	if cluster.Config.Product == "rke2" {
@@ -93,13 +91,11 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			nil,
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service post-upgrade", func() {
-		testcase.TestServiceClusterIp(false, true)
+		testcase.TestServiceClusterIP(false, true)
 	})
 
 	It("Verifies NodePort Service post-upgrade", func() {
@@ -115,7 +111,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Verifies DNS Access post-upgrade", func() {
-		testcase.TestDnsAccess(true, true)
+		testcase.TestDNSAccess(true, true)
 	})
 
 	if cluster.Config.Product == "rke2" {

@@ -51,15 +51,15 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new server nodes done\n")
 
-	serverLeaderIp := cluster.ServerIPs[0]
-	token, err := shared.FetchToken(serverLeaderIp)
+	serverLeaderIP := cluster.ServerIPs[0]
+	token, err := shared.FetchToken(serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	serverErr := nodeReplaceServers(
 		cluster,
 		awsDependencies,
 		resourceName,
-		serverLeaderIp,
+		serverLeaderIP,
 		token,
 		version,
 		newExternalServerIps,
@@ -70,12 +70,12 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, version, resourceName, awsDependencies, serverLeaderIp, token)
+		nodeReplaceAgents(cluster, version, resourceName, awsDependencies, serverLeaderIP, token)
 	}
 	// delete the last remaining server = leader.
-	delErr := deleteRemainServer(serverLeaderIp, awsDependencies)
+	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
-	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIp)
+	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIP)
 }
 
 func nodeReplaceAgents(
@@ -490,7 +490,7 @@ func buildJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, s
 	}
 }
 
-func buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
+func buildK3sCmd(nodetype, serverIP, token, version, selfExternalIP, selfPrivateIP, instalMode, flags string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
@@ -499,10 +499,10 @@ func buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivate
 			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
-			serverIp,
+			serverIP,
 			token,
-			selfExternalIp,
-			selfPrivateIp,
+			selfExternalIP,
+			selfPrivateIP,
 			ipv6,
 			instalMode,
 			version,
@@ -517,11 +517,11 @@ func buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivate
 			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
-			serverIp,
-			serverIp,
+			serverIP,
+			serverIP,
 			token,
-			selfExternalIp,
-			selfPrivateIp,
+			selfExternalIP,
+			selfPrivateIP,
 			ipv6,
 			instalMode,
 			version,

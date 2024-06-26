@@ -8,7 +8,7 @@ import (
 )
 
 // Product returns the distro product and its current version.
-func Product() (product string, version string, err error) {
+func Product() (product, version string, err error) {
 	cfg, err := config.AddEnv()
 	if err != nil {
 		return "", "", ReturnLogError("failed to get config path: %w\n", err)

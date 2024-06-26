@@ -47,7 +47,7 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestDnsAccess(applyWorkload, deleteWorkload bool) {
+func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "dnsutils.yaml")
@@ -58,9 +58,9 @@ func TestDnsAccess(applyWorkload, deleteWorkload bool) {
 	err := assert.ValidateOnHost(getPodDnsUtils+factory.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	execDnsUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
+	execDNSUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
 	err = assert.CheckComponentCmdHost(
-		execDnsUtils+factory.KubeConfigFile+" -- nslookup kubernetes.default",
+		execDNSUtils+factory.KubeConfigFile+" -- nslookup kubernetes.default",
 		nslookup,
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -90,7 +90,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 
 		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
-		errWrite := os.WriteFile(newFilePath, []byte(newContent), 0644)
+		errWrite := os.WriteFile(newFilePath, []byte(newContent), 0o644)
 		if errWrite != nil {
 			Expect(errWrite).NotTo(HaveOccurred(),
 				"failed to update file for ingressroute resource to use one of the node external ips")
@@ -109,7 +109,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 	}
 }
 
-func validateIngressRoute(publicIp string) {
+func validateIngressRoute(publicIP string) {
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
 		" --kubeconfig=%s", factory.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
@@ -120,29 +120,34 @@ func validateIngressRoute(publicIp string) {
 		"namespace": "test-ingressroute",
 		"label":     "app=whoami",
 	}
-	pods, err := shared.GetPodsFiltered(filters)
+
+	var positiveAsserts []string
+	negativeAsserts := "404 page not found"
+	// retrying to get the node ip for the pods before running the tests.
+	Eventually(func(_ Gomega) {
+		pods, getErr := shared.GetPodsFiltered(filters)
+		Expect(getErr).NotTo(HaveOccurred(), getErr)
+		for i := range pods {
+			Expect(pods[i].NodeIP).NotTo(Equal("<none>"))
+			Expect(pods[i].NodeIP).NotTo(BeEmpty())
+			if pods[i].NodeIP != "<none>" && pods[i].NodeIP != "" {
+				positiveAsserts = []string{
+					fmt.Sprintf("Hostname: %s", pods[i].Name),
+					fmt.Sprintf("IP: %s", pods[i].NodeIP),
+				}
+			}
+		}
+	}, "40s", "5s").Should(Succeed())
+
+	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIP+"/notls", positiveAsserts...)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	negativeAsserts := "404 page not found"
-	for _, pod := range pods {
-		positiveAsserts := []string{
-			fmt.Sprintf("Hostname: %s", pod.Name),
-			fmt.Sprintf("IP: %s", pod.NodeIP),
-		}
-		Eventually(func(_ Gomega) {
-			// Positive test cases.
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/notls", positiveAsserts...)
-			Expect(err).NotTo(HaveOccurred(), err)
+	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIP+"/tls", positiveAsserts...)
+	Expect(err).NotTo(HaveOccurred(), err)
 
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/tls", positiveAsserts...)
-			Expect(err).NotTo(HaveOccurred(), err)
+	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIP+"/tls", negativeAsserts)
+	Expect(err).NotTo(HaveOccurred(), err)
 
-			// Negative test cases.
-			err = assert.CheckComponentCmdHost("curl -sk http://"+publicIp+"/tls", negativeAsserts)
-			Expect(err).NotTo(HaveOccurred(), err)
-
-			err = assert.CheckComponentCmdHost("curl -sk https://"+publicIp+"/notls", negativeAsserts)
-			Expect(err).NotTo(HaveOccurred(), err)
-		}, "30s", "5s").Should(Succeed())
-	}
+	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIP+"/notls", negativeAsserts)
+	Expect(err).NotTo(HaveOccurred(), err)
 }

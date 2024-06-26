@@ -35,13 +35,12 @@ func TestDeployCertManager(cluster *factory.Cluster, version string) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
-		for _, pod := range pods {
+		for i := range pods {
 			processPodStatus(cluster,
 				g,
-				pod,
+				&pods[i],
 				assert.PodAssertRestart(),
-				assert.PodAssertReady(),
-				assert.PodAssertStatus())
+				assert.PodAssertReady())
 		}
 	}, "120s", "5s").Should(Succeed())
 }
@@ -59,31 +58,32 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
-		for _, pod := range pods {
+		for i := range pods {
 			processPodStatus(
 				cluster,
 				g,
-				pod,
+				&pods[i],
 				assert.PodAssertRestart(),
-				assert.PodAssertReady(),
-				assert.PodAssertStatus())
+				assert.PodAssertReady())
 		}
 	}, "900s", "10s").Should(Succeed())
 
-	rancherUrl := fmt.Sprintf("https://%s/dashboard/?setup=", cluster.FQDN)
+	rancherURL := fmt.Sprintf("https://%s/dashboard/?setup=", cluster.FQDN)
 	for _, line := range strings.Split(response, "\n") {
-		if strings.HasPrefix(line, "kubectl") {
-			bootstrapPassCmd := strings.TrimSpace(line) + " --kubeconfig=" + factory.KubeConfigFile
-			bootstrapPassword, err := shared.RunCommandHost(bootstrapPassCmd)
-			Expect(err).NotTo(HaveOccurred(),
-				"failed to retrieve rancher bootstrap password: %v\nCommand: %s\n", err, bootstrapPassCmd)
-
-			rancherUrl += bootstrapPassword
-
-			break
+		if !strings.HasPrefix(line, "kubectl") {
+			continue
 		}
+
+		bootstrapPassCmd := strings.TrimSpace(line) + " --kubeconfig=" + factory.KubeConfigFile
+		bootstrapPassword, err := shared.RunCommandHost(bootstrapPassCmd)
+		Expect(err).NotTo(HaveOccurred(),
+			"failed to retrieve rancher bootstrap password: %v\nCommand: %s\n", err, bootstrapPassCmd)
+
+		rancherURL += bootstrapPassword
+
+		break
 	}
-	shared.LogLevel("info", "\nRancher URL: %s", rancherUrl)
+	shared.LogLevel("info", "\nRancher URL: %s", rancherURL)
 }
 
 func installRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) string {

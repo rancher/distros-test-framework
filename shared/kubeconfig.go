@@ -59,7 +59,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) error {
 	path := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
 	updatedKubeConfig := strings.ReplaceAll(kubeconfigContent, oldServerIP, newServerIP)
 
-	writeErr := os.WriteFile(path, []byte(updatedKubeConfig), 0644)
+	writeErr := os.WriteFile(path, []byte(updatedKubeConfig), 0o644)
 	if writeErr != nil {
 		return ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}

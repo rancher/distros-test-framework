@@ -82,6 +82,7 @@ func runAssertion(
 					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
 					return shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
 				}
+
 				continue
 			}
 
