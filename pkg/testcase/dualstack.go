@@ -132,7 +132,7 @@ func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
 
-	// Ensure the pods are running
+	// Ensure the pods are running and retrieve the correct pod IP
 	var serverPodIP string
 
 	filters := map[string]string{
