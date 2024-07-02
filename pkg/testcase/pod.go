@@ -47,9 +47,9 @@ func processPodStatus(
 	var ciliumPod bool
 
 	// process Helm install status that should be completed.
-	if strings.Contains(pod.Name, "helm-install") {
+	if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") ||
+		strings.Contains(pod.Name, "helm-delete") {
 		g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
-
 		// process system-upgrade apply status thats should be completed or errors bellow.
 	} else if strings.Contains(pod.Name, "apply") && strings.Contains(pod.NameSpace, "system-upgrade") {
 		g.Expect(pod.Status).Should(SatisfyAny(
