@@ -11,3 +11,6 @@ output "kubeconfig" {
 output "master_ips" {
   value = join("," , aws_instance.master.*.public_ip,aws_instance.master2-ha.*.public_ip)
 }
+output "rendered_template" {
+  value = data.template_file.test.rendered
+}

@@ -33,6 +33,15 @@ module "master" {
   vpc_id             = var.vpc_id
   enable_public_ip   = var.enable_public_ip
   enable_ipv6        = var.enable_ipv6
+  datastore_type       = var.datastore_type
+  db_username          = var.db_username
+  db_password          = var.db_password
+  db_group_name        = var.db_group_name
+  external_db          = var.external_db
+  instance_class       = var.instance_class
+  external_db_version  = var.external_db_version
+  engine_mode          = var.engine_mode
+  environment          = var.environment
 
   # RKE2 variables
   rke2_version   = var.rke2_version

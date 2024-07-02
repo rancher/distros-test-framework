@@ -18,9 +18,11 @@ install_mode=${8}
 version=${9}
 channel=${10}
 install_method=${11}
-server_flags=${12}
-rhel_username=${13}
-rhel_password=${14}
+datastore_type=${12}
+datastore_endpoint=${13}
+server_flags=${14}
+rhel_username=${15}
+rhel_password=${16}
 
 create_config() {
   hostname=$(hostname -f)
@@ -51,6 +53,10 @@ update_config() {
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/rke2/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
+  fi
+
+  if [ "$datastore_type" = "external" ]; then
+    echo -e "datastore-endpoint: $datastore_endpoint" >>/etc/rancher/rke2/config.yaml
   fi
   cat /etc/rancher/rke2/config.yaml
 }
@@ -97,21 +103,22 @@ cis_setup() {
   fi
 }
 
-export_variables() {
-  export "$install_mode"="$version"
-  if [ -n "$install_method" ]; then
-    export INSTALL_RKE2_METHOD="$install_method"
-  fi
-}
-
 install_rke2() {
-  install_cmd="curl -sfL https://get.rke2.io | sh -"
+  url="https://get.rke2.io"
+  params="$install_mode=$version INSTALL_RKE2_TYPE=server"
+  
   if [ -n "$channel" ]; then
-    install_cmd="curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL=\"$channel\" sh -"
+    params="$params INSTALL_RKE2_CHANNEL=$channel"
   fi
+
+  if [ -n "$install_method" ]; then
+    params="$params INSTALL_RKE2_METHOD=$install_method"
+  fi
+
+  install_cmd="curl -sfL $url | $params sh -"
 
   if ! eval "$install_cmd"; then
-    printf "Failed to install rke2-server on joining node ip: %s\n" "$public_ip"
+    echo "Failed to install rke2-server on joining node ip: $public_ip"
     exit 1
   fi
 }
@@ -124,26 +131,25 @@ install_dependencies() {
 
 enable_service() {
   if ! sudo systemctl enable rke2-server --now; then
-    printf "rke2-server failed to start on joining node ip: %s,Retrying to start in 20s.\n" "$public_ip"
+    echo "rke2-server failed to start on node: $public_ip, Waiting for 20s to retry..."
 
     ## rke2 can sometimes fail to start but some time after it starts successfully.
     sleep 20
 
     if ! sudo systemctl is-active --quiet rke2-server; then
-      printf "rke2-server exiting after failed retry to start on joining node ip: %s\n" "$public_ip"
+      echo "rke2-server exiting after failed retry to start on node: $public_ip while joining server: $server_ip"
       sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
       exit 1
     else
-      printf "rke2-server started successfully on joining ip: %s\n" "$public_ip"
+      echo "rke2-server started successfully on node: $public_ip"
     fi
   fi
 }
 
 install() {
-  export_variables
+  install_dependencies
   install_rke2
   sleep 10
-  install_dependencies
   cis_setup
   enable_service
 }

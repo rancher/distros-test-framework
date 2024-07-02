@@ -95,3 +95,12 @@ variable "bastion_id" {
   type    = any
   default = null
 }
+variable "datastore_type" {}
+variable "external_db" {}
+variable "external_db_version" {}
+variable "instance_class" {}
+variable "db_group_name" {}
+variable "db_username" {}
+variable "db_password" {}
+variable "environment" {}
+variable "engine_mode" {}
