@@ -229,7 +229,7 @@ func k3sServerSCP(cluster *factory.Cluster, ip string) error {
 }
 
 func nodeReplaceServers(
-	c *factory.Cluster,
+	cluster *factory.Cluster,
 	a *aws.Client,
 	resourceName, serverLeaderIp, token, version string,
 	newExternalServerIps, newPrivateServerIps []string,
@@ -244,7 +244,7 @@ func nodeReplaceServers(
 
 	// join the first new server.
 	newFirstServerIP := newExternalServerIps[0]
-	err := serverJoin(c.Config.Product, serverLeaderIp, token, version, newFirstServerIP, newPrivateServerIps[0])
+	err := serverJoin(cluster, serverLeaderIp, token, version, newFirstServerIP, newPrivateServerIps[0])
 	if err != nil {
 		shared.LogLevel("error", "error joining first server: %w\n", err)
 
@@ -253,7 +253,7 @@ func nodeReplaceServers(
 	shared.LogLevel("info", "Proceeding to update config file after first server join %s\n", newFirstServerIP)
 
 	// delete first the server that is not the leader neither the server ip in the kubeconfig.
-	oldServerIPs := c.ServerIPs
+	oldServerIPs := cluster.ServerIPs
 	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
 		shared.LogLevel("error", "error deleting server: %w\n", delErr)
 
@@ -261,7 +261,7 @@ func nodeReplaceServers(
 	}
 
 	// update the kubeconfig file to point to the new added server.
-	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, c.Config.Product); kbCfgErr != nil {
+	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product); kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
 	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
@@ -274,7 +274,8 @@ func nodeReplaceServers(
 	}
 
 	// join the rest of the servers and delete all except the leader.
-	err = joinRemainServers(c, a, newExternalServerIps, newPrivateServerIps, oldServerIPs, serverLeaderIp, token, version)
+	err = joinRemainServers(cluster, a, newExternalServerIps, newPrivateServerIps,
+		oldServerIPs, serverLeaderIp, token, version)
 	if err != nil {
 		return err
 	}
@@ -283,7 +284,7 @@ func nodeReplaceServers(
 }
 
 func joinRemainServers(
-	c *factory.Cluster,
+	cluster *factory.Cluster,
 	a *aws.Client,
 	newExternalServerIps,
 	newPrivateServerIps,
@@ -304,7 +305,7 @@ func joinRemainServers(
 			}
 		}
 
-		if joinErr := serverJoin(c.Config.Product, serverLeaderIp, token, version, externalIp, privateIp); joinErr != nil {
+		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, externalIp, privateIp); joinErr != nil {
 			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
 
 			return joinErr
@@ -336,8 +337,8 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoin(product, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(product, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
+func serverJoin(cluster *factory.Cluster, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -392,7 +393,7 @@ func replaceAgents(
 	for i, externalIp := range newExternalAgentIps {
 		privateIp := newPrivateAgentIps[i]
 
-		joinErr := joinAgent(cluster.Config.Product, serverLeaderIp, token, version, externalIp, privateIp)
+		joinErr := joinAgent(cluster, serverLeaderIp, token, version, externalIp, privateIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
 
@@ -422,8 +423,8 @@ func deleteAgents(a *aws.Client, c *factory.Cluster) error {
 	return nil
 }
 
-func joinAgent(product, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(product, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
+func joinAgent(cluster *factory.Cluster, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -461,7 +462,10 @@ func joinNode(cmd, ip string) error {
 	return nil
 }
 
-func buildJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp string) (string, error) {
+func buildJoinCmd(
+	cluster *factory.Cluster,
+	nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP string,
+) (string, error) {
 	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
 	}
@@ -475,22 +479,24 @@ func buildJoinCmd(product, nodetype, serverIp, token, version, selfExternalIp, s
 	}
 
 	if strings.HasPrefix(version, "v") {
-		installMode = fmt.Sprintf("INSTALL_%s_VERSION", strings.ToUpper(product))
+		installMode = fmt.Sprintf("INSTALL_%s_VERSION", strings.ToUpper(cluster.Config.Product))
 	} else {
-		installMode = fmt.Sprintf("INSTALL_%s_COMMIT", strings.ToUpper(product))
+		installMode = fmt.Sprintf("INSTALL_%s_COMMIT", strings.ToUpper(cluster.Config.Product))
 	}
 
-	switch product {
+	switch cluster.Config.Product {
 	case "k3s":
-		return buildK3sCmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, installMode, flags)
+		return buildK3sCmd(cluster, nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP, installMode, flags)
 	case "rke2":
-		return buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, installMode, flags)
+		return buildRke2Cmd(cluster, nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP, installMode, flags)
 	default:
-		return "", shared.ReturnLogError("unsupported product: %s\n", product)
+		return "", shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
 }
 
-func buildK3sCmd(nodetype, serverIP, token, version, selfExternalIP, selfPrivateIP, instalMode, flags string,
+func buildK3sCmd(
+	cluster *factory.Cluster,
+	nodetype, serverIP, token, version, selfExternalIP, selfPrivateIP, instalMode, flags string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
@@ -512,7 +518,7 @@ func buildK3sCmd(nodetype, serverIP, token, version, selfExternalIP, selfPrivate
 			os.Getenv("password"),
 		)
 	} else {
-		datastoreEndpoint := ""
+		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
 			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
 			nodetype,
@@ -537,7 +543,9 @@ func buildK3sCmd(nodetype, serverIP, token, version, selfExternalIP, selfPrivate
 	return cmd, nil
 }
 
-func buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
+func buildRke2Cmd(
+	cluster *factory.Cluster,
+	nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
@@ -561,8 +569,9 @@ func buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivat
 			os.Getenv("password"),
 		)
 	} else {
+		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIp,
@@ -575,6 +584,8 @@ func buildRke2Cmd(nodetype, serverIp, token, version, selfExternalIp, selfPrivat
 			version,
 			os.Getenv("rke2_channel"),
 			installMethod,
+			os.Getenv("datastore_type"),
+			datastoreEndpoint,
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),

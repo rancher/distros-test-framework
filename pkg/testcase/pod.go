@@ -46,7 +46,9 @@ func processPodStatus(
 	var ciliumPod bool
 
 	switch {
-	case strings.Contains(pod.Name, "helm-install"):
+	case strings.Contains(pod.Name, "helm-install") ||
+		strings.Contains(pod.Name, "helm-delete") ||
+		strings.Contains(pod.Name, "helm-operation"):
 		g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
 
 	case strings.Contains(pod.Name, "apply") && strings.Contains(pod.NameSpace, "system-upgrade"):

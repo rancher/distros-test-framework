@@ -39,6 +39,31 @@ func ClusterConfig() *Cluster {
 	return cluster
 }
 
+func AddClusterFromKubeConfig(cluster *Cluster, ips []string, kubeConfig string) (*Cluster, error) {
+	cfg, err := config.AddEnv()
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %w", err)
+	}
+
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
+
+	fullPath := fmt.Sprintf("%s/config/%s.tfvars", dir, cfg.Product)
+
+	err = config.SetEnv(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %w", err)
+	}
+
+	// cluster.ServerIPs = []string{output.String()}
+	cluster.AgentIPs = []string{"1"}
+
+	cluster.Config.Product = cfg.Product
+	cluster.Config.Arch = os.Getenv("arch")
+
+	return cluster, nil
+}
+
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster() (*Cluster, error) {
 	cfg, err := config.AddEnv()
