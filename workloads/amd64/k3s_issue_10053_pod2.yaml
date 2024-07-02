@@ -1,0 +1,11 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: client
+  namespace: test-k3s-issue-10053
+spec:
+  containers:
+    - name: alpine
+      image: alpine:latest
+      command: [/bin/sh]
+      args: [-c, 'sleep infinity']
