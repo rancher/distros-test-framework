@@ -15,7 +15,7 @@ import (
 var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cluster = factory.ClusterConfig()

@@ -47,7 +47,6 @@ func ValidateTemplateFlags() {
 	default:
 		shared.LogLevel("error", "test tag not found")
 	}
-
 }
 
 func validateVersionBumpTest(expectedValue, expectedUpgrade []string, valuesUpgrade string) {

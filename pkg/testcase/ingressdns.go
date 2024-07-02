@@ -128,12 +128,12 @@ func validateIngressRoute(publicIp string) {
 		pods, getErr := shared.GetPodsFiltered(filters)
 		Expect(getErr).NotTo(HaveOccurred(), getErr)
 		for _, pod := range pods {
-			Expect(pod.NodeIP).NotTo(Equal("<none>"))
-			Expect(pod.NodeIP).NotTo(BeEmpty())
-			if pod.NodeIP != "<none>" && pod.NodeIP != "" {
+			Expect(pod.IP).NotTo(Equal("<none>"))
+			Expect(pod.IP).NotTo(BeEmpty())
+			if pod.IP != "<none>" && pod.IP != "" {
 				positiveAsserts = []string{
 					fmt.Sprintf("Hostname: %s", pod.Name),
-					fmt.Sprintf("IP: %s", pod.NodeIP),
+					fmt.Sprintf("IP: %s", pod.IP),
 				}
 			}
 		}
