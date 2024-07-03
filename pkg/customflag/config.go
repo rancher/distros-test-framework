@@ -116,11 +116,11 @@ func (i *installModeFlag) Set(value string) error {
 }
 
 type sucUpgradeVersionFlag struct {
-	SucUpgradeVersion string
+	SUCUpgradeVersion string
 }
 
 func (t *sucUpgradeVersionFlag) String() string {
-	return t.SucUpgradeVersion
+	return t.SUCUpgradeVersion
 }
 
 func (t *sucUpgradeVersionFlag) Set(value string) error {
@@ -128,7 +128,7 @@ func (t *sucUpgradeVersionFlag) Set(value string) error {
 		return fmt.Errorf("suc upgrade only accepts version format: %s", value)
 	}
 
-	t.SucUpgradeVersion = value
+	t.SUCUpgradeVersion = value
 
 	return nil
 }
@@ -171,6 +171,6 @@ type helmChartsFlag struct {
 }
 
 type rancherConfigFlag struct {
-	CertManagerVersion  string
-	RancherImageVersion string
+	CertManagerVersion string
+	RancherVersion     string
 }

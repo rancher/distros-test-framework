@@ -68,7 +68,7 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 		"--set global.cattle.psp.enabled=false "+
 		"--set hostname=%s "+
 		"--kubeconfig=%s",
-		flags.RancherConfig.RancherImageVersion,
+		flags.RancherConfig.RancherVersion,
 		cluster.FQDN,
 		factory.KubeConfigFile)
 
