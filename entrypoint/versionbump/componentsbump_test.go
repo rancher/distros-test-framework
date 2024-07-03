@@ -19,7 +19,7 @@ const (
 	calico            = kgn + " : | grep 'hardened-calico' -A1, "
 	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1, "
 	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
-	containerd        = kgn + " : | grep  containerd, "
+	containerd        = kgn + " : | grep containerd, "
 	traefik           = kgn + " : | grep traefik  -A1, "
 	localPath         = kgn + " : | grep local-path -A1, "
 	klipperLB         = kgn + " : | grep klipper -A5, "
