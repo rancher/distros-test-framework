@@ -19,7 +19,7 @@ const (
 	calico            = kgn + " : | grep 'hardened-calico' -A1, "
 	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1, "
 	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
-	containerd        = kgn + " : | grep  containerd, "
+	containerd        = kgn + " : | grep containerd, "
 	traefik           = kgn + " : | grep traefik  -A1, "
 	localPath         = kgn + " : | grep local-path -A1, "
 	klipperLB         = kgn + " : | grep klipper -A5, "
@@ -46,11 +46,11 @@ var _ = Describe("Components Version Upgrade:", func() {
 			assert.PodAssertStatus())
 	})
 
-	var runc = fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cluster.Config.Product)
+	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cluster.Config.Product)
 
 	// test decription and cmds generated based on product rke2
-	coredns = kgn + " : | grep 'hardened-coredns' -A1, "
-	etcd = kgn + " : | grep 'hardened-etcd' -A1, "
+	coredns := kgn + " : | grep 'hardened-coredns' -A1, "
+	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
 	description := "Verifies bump versions for several components on rke2:\n1-canal(flannel)\n2-calico" +
 		"\n3-ingressController\n4-coredns\n5-metricsServer\n6-etcd\n7-containerd\n8-runc"
 	cmd := canalFlannel + calico + ingressController + coredns + metricsServer + etcd + containerd + runc
