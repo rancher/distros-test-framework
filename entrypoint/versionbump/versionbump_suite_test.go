@@ -19,26 +19,28 @@ import (
 var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&template.TestMapTemplate.Cmd, "cmd", "", "Comma separated list of commands to execute")
-	flag.StringVar(&template.TestMapTemplate.ExpectedValue, "expectedValue", "", "Comma separated list of expected values for commands")
-	flag.StringVar(&template.TestMapTemplate.ExpectedValueUpgrade, "expectedValueUpgrade", "", "Expected value of the command ran after upgrading")
+	flag.StringVar(&customflag.TestMap.Cmd, "cmd", "", "Comma separated list of commands to execute")
+	flag.StringVar(&customflag.TestMap.ExpectedValue, "expectedValue", "", "Comma separated list of expected values for commands")
+	flag.StringVar(&customflag.TestMap.ExpectedValueUpgrade, "expectedValueUpgrade", "", "Expected value of the command ran after upgrading")
 	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Var(&customflag.TestCaseNameFlag, "testCase", "Comma separated list of test case names to run")
-	flag.StringVar(&customflag.ServiceFlag.TestConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
-	flag.BoolVar(&customflag.ServiceFlag.TestConfig.DebugMode, "debug", false, "Enable debug mode")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&customflag.ServiceFlag.TestConfig.Description, "description", "", "Description of the test")
+	flag.StringVar(&customflag.ServiceFlag.TestTemplateConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
+	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
+	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
+	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.DebugMode, "debug", false, "Enable debug mode")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&customflag.ServiceFlag.TestTemplateConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
 
-	cluster = factory.ClusterConfig()
+	customflag.ValidateTemplateFlags()
 
-	customflag.ServiceFlag.TestConfig.TestFuncNames = customflag.TestCaseNameFlag
-	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestConfig.TestFuncNames)
+	// validating and adding test cases field on template testConfigFlag.
+	customflag.ValidateTemplateTcs()
+	customflag.ServiceFlag.TestTemplateConfig.TestFuncNames = customflag.TestCaseNameFlag
+	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
 	if err != nil {
-		shared.LogLevel("error", "error adding test cases to template: %w\n", err)
+		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
 		return
 	}
 
@@ -47,10 +49,12 @@ func TestMain(m *testing.M) {
 		for i, j := range testFuncs {
 			testCaseFlags[i] = customflag.TestCaseFlag(j)
 		}
-		customflag.ServiceFlag.TestConfig.TestFuncs = testCaseFlags
+		customflag.ServiceFlag.TestTemplateConfig.TestFuncs = testCaseFlags
 	}
 
-	if customflag.ServiceFlag.TestConfig.DebugMode == true {
+	cluster = factory.ClusterConfig()
+
+	if customflag.ServiceFlag.TestTemplateConfig.DebugMode == true {
 		shared.LogLevel("info", "debug mode enabled on template\n\n")
 	}
 
@@ -63,7 +67,7 @@ func TestVersionBumpSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if customflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

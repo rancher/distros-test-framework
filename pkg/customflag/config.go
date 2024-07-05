@@ -4,37 +4,39 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/rancher/distros-test-framework/shared"
 )
 
-var ServiceFlag FlagConfig
-var TestCaseNameFlag stringSlice
+var (
+	ServiceFlag      FlagConfig
+	TestCaseNameFlag stringSlice
+	TestMap          testMapConfigFlag
+)
 
 // FlagConfig is a type that wraps all the flags that can be used
 type FlagConfig struct {
-	InstallMode       installModeFlag
-	TestConfig        testConfigFlag
-	ClusterConfig     clusterConfigFlag
-	SUCUpgradeVersion sucUpgradeVersion
-	Channel           channelFlag
-	ExternalFlag      externalConfigFlag
+	InstallMode        installModeFlag
+	TestTemplateConfig templateConfigFlag
+	Destroy            destroyFlag
+	SUCUpgradeVersion  sucUpgradeVersionFlag
+	Channel            channelFlag
+	External           externalConfigFlag
+	RancherConfig      rancherConfigFlag
+	HelmCharts         helmChartsFlag
 }
 
-type sucUpgradeVersion struct {
-	SucUpgradeVersion string
+// TestMapConfig is a type that wraps the test commands and expected values
+type TestMapConfig testMapConfigFlag
+
+// testMapConfigFlag represents a single test command with key:value pairs.
+type testMapConfigFlag struct {
+	Cmd                  string
+	ExpectedValue        string
+	ExpectedValueUpgrade string
 }
 
-type installModeFlag struct {
-	Version string
-	Commit  string
-}
+type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
-type channelFlag struct {
-	Channel string
-}
-
-type testConfigFlag struct {
+type templateConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
 	ApplyWorkload  bool
@@ -44,27 +46,15 @@ type testConfigFlag struct {
 	DebugMode      bool
 }
 
-type externalConfigFlag struct {
-	SonobuoyVersion    string
-	CertManagerVersion string
-	HelmChartsFlag     helmChartsFlag
-	RancherVersion     string
+func (t *templateConfigFlag) String() string {
+	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
 }
 
-type helmChartsFlag struct {
-	Args     string
-	Version  string
-	RepoName string
-	RepoUrl  string
+func (t *templateConfigFlag) Set(value string) error {
+	t.TestFuncNames = strings.Split(value, ",")
+
+	return nil
 }
-
-type clusterConfigFlag struct {
-	Destroy destroyFlag
-}
-
-type destroyFlag bool
-
-type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
 type stringSlice []string
 
@@ -78,16 +68,10 @@ func (s *stringSlice) Set(value string) error {
 	return nil
 }
 
-func (t *testConfigFlag) String() string {
-	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
+type channelFlag struct {
+	Channel string
 }
 
-func (t *testConfigFlag) Set(value string) error {
-	t.TestFuncNames = strings.Split(value, ",")
-
-	return nil
-
-}
 func (c *channelFlag) String() string {
 	return c.Channel
 }
@@ -98,12 +82,17 @@ func (c *channelFlag) Set(value string) error {
 	}
 
 	if value != "latest" && value != "stable" && value != "testing" {
-		return shared.ReturnLogError("invalid channel: %s", value)
+		return fmt.Errorf("invalid channel: %s", value)
 	}
 
 	c.Channel = value
 
 	return nil
+}
+
+type installModeFlag struct {
+	Version string
+	Commit  string
 }
 
 func (i *installModeFlag) String() string {
@@ -113,12 +102,12 @@ func (i *installModeFlag) String() string {
 func (i *installModeFlag) Set(value string) error {
 	if strings.HasPrefix(value, "v") {
 		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
-			return shared.ReturnLogError("invalid version format: %s", value)
+			return fmt.Errorf("invalid version format: %s", value)
 		}
 		i.Version = value
 	} else {
 		if len(value) != 40 {
-			return shared.ReturnLogError("invalid commit length: %s", value)
+			return fmt.Errorf("invalid commit length: %s", value)
 		}
 		i.Commit = value
 	}
@@ -126,19 +115,25 @@ func (i *installModeFlag) Set(value string) error {
 	return nil
 }
 
-func (t *sucUpgradeVersion) String() string {
-	return t.SucUpgradeVersion
+type sucUpgradeVersionFlag struct {
+	SUCUpgradeVersion string
 }
 
-func (t *sucUpgradeVersion) Set(value string) error {
-	if !strings.HasPrefix(value, "v") ||
-		(!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
-		return shared.ReturnLogError("suc upgrade only accepts version format: %s", value)
+func (t *sucUpgradeVersionFlag) String() string {
+	return t.SUCUpgradeVersion
+}
+
+func (t *sucUpgradeVersionFlag) Set(value string) error {
+	if !strings.HasPrefix(value, "v") || (!strings.Contains(value, "k3s") && !strings.Contains(value, "rke2")) {
+		return fmt.Errorf("suc upgrade only accepts version format: %s", value)
 	}
-	t.SucUpgradeVersion = value
+
+	t.SUCUpgradeVersion = value
 
 	return nil
 }
+
+type destroyFlag bool
 
 func (d *destroyFlag) String() string {
 	return fmt.Sprintf("%v", *d)
@@ -154,6 +149,10 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
+type externalConfigFlag struct {
+	SonobuoyVersion string
+}
+
 func (e *externalConfigFlag) String() string {
 	return e.SonobuoyVersion
 }
@@ -162,4 +161,16 @@ func (e *externalConfigFlag) Set(value string) error {
 	e.SonobuoyVersion = value
 
 	return nil
+}
+
+type helmChartsFlag struct {
+	Args     string
+	Version  string
+	RepoName string
+	RepoUrl  string
+}
+
+type rancherConfigFlag struct {
+	CertManagerVersion string
+	RancherVersion     string
 }

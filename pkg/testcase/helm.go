@@ -50,16 +50,16 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 	addRepoCmd := fmt.Sprintf(
 		"helm repo add %s %s && "+
 			"helm repo update",
-		flags.ExternalFlag.HelmChartsFlag.RepoName,
-		flags.ExternalFlag.HelmChartsFlag.RepoUrl)
+		flags.HelmCharts.RepoName,
+		flags.HelmCharts.RepoUrl)
 
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+
 			"helm install rancher %s/rancher ",
 		factory.KubeConfigFile,
-		flags.ExternalFlag.HelmChartsFlag.RepoName)
+		flags.HelmCharts.RepoName)
 
-	if flags.ExternalFlag.HelmChartsFlag.Args != "" {
+	if flags.HelmCharts.Args != "" {
 		installRancherCmd += helmArgsBuilder(flags)
 	}
 
@@ -68,7 +68,7 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 		"--set global.cattle.psp.enabled=false "+
 		"--set hostname=%s "+
 		"--kubeconfig=%s",
-		flags.ExternalFlag.RancherVersion,
+		flags.RancherConfig.RancherVersion,
 		cluster.FQDN,
 		factory.KubeConfigFile)
 
@@ -117,7 +117,7 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 }
 
 func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
-	helmArgs := flags.ExternalFlag.HelmChartsFlag.Args
+	helmArgs := flags.HelmCharts.Args
 	if strings.Contains(helmArgs, ",") {
 		argsSlice := strings.Split(helmArgs, ",")
 		for _, arg := range argsSlice {
