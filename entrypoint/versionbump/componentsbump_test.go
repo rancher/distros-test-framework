@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
@@ -67,17 +67,17 @@ var _ = Describe("Components Version Upgrade:", func() {
 	It(description, func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
 						Cmd:                  cmd,
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			Description: customflag.ServiceFlag.TestConfig.Description,
-			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: ServiceFlag.InstallMode.String(),
+			Description: ServiceFlag.TestTemplateConfig.Description,
+			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 
@@ -108,13 +108,16 @@ var _ = Describe("Components Version Upgrade:", func() {
 	}
 
 	It("Verifies top node and pods", func() {
+		TestMap.Cmd = "kubectl top node : | grep 'CPU(cores)' -A1, kubectl top pods -A : | grep 'CPU(cores)' -A1"
+		TestMap.ExpectedValue = "CPU,MEMORY"
+		TestMap.ExpectedValueUpgrade = "CPU,MEMORY"
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
-						Cmd:                  "kubectl top node : | grep 'CPU(cores)' -A1, kubectl top pods -A : | grep 'CPU(cores)' -A1",
-						ExpectedValue:        "CPU,MEMORY",
-						ExpectedValueUpgrade: "CPU,MEMORY",
+						Cmd:                  TestMap.Cmd,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},

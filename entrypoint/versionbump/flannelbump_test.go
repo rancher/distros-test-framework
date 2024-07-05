@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
@@ -41,16 +41,16 @@ var _ = Describe("Flannel Version bump:", func() {
 
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
 						Cmd:                  cmd,
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: ServiceFlag.InstallMode.String(),
+			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 
