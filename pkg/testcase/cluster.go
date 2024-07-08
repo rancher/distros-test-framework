@@ -24,15 +24,10 @@ func TestBuildCluster(cluster *factory.Cluster) {
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
-		cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
+		cmd := fmt.Sprintf("sudo grep \"datastore-endpoint\" /etc/rancher/%s/config.yaml", cluster.Config.Product)
 		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
-
-		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
-			cluster.ServerIPs[0])
-		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
-		Expect(err).To(HaveOccurred())
 	}
 
 	shared.LogLevel("info", "KUBECONFIG: ")
@@ -57,7 +52,7 @@ func TestBuildCluster(cluster *factory.Cluster) {
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
+	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 

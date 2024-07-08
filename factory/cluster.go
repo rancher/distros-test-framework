@@ -25,7 +25,7 @@ func ClusterConfig() *Cluster {
 		cluster, err = newCluster()
 		if err != nil {
 			log.Errorf("\nbuilding cluster failed!  %v\n", err)
-			if customflag.ServiceFlag.ClusterConfig.Destroy {
+			if customflag.ServiceFlag.Destroy {
 				log.Info("\nmoving to start destroy operation\n")
 				status, destroyErr := DestroyCluster()
 				if destroyErr != nil {

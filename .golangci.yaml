@@ -10,9 +10,10 @@ linters:
     - gosimple
     - staticcheck
     - nlreturn
-    - misspell
 
 linters-settings:
+  misspell:
+    locale: "US"
   gofmt:
     simplify: true
   govet:

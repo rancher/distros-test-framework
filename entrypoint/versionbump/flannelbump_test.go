@@ -1,4 +1,4 @@
-//go:build cilium
+//go:build flannel
 
 package versionbump
 
@@ -13,7 +13,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
-var _ = Describe("Cilium Version bump:", func() {
+var _ = Describe("Flannel Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -33,12 +33,17 @@ var _ = Describe("Cilium Version bump:", func() {
 			assert.PodAssertStatus())
 	})
 
-	It("Test Bump version", func() {
+	It("Test flannel version bump", func() {
+		cmd := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+		if cluster.Config.Product == "k3s" {
+			cmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
+		}
+
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  "kubectl get node -o yaml : | grep mirrored-cilium  -A1,kubectl get node -o yaml : | grep hardened-cni-plugins -A1",
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
