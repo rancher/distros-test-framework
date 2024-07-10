@@ -5,30 +5,27 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/shared"
+	"github.com/rancher/distros-test-framework/pkg/logger"
 )
+
+var log = logger.AddLogger()
 
 // ValidateTemplateFlags validates version bump template flags that were set on environment variables at .env file.
 func ValidateTemplateFlags() {
-	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
-		os.Exit(1)
-	}
-
 	testTag := os.Getenv("TEST_TAG")
 	expectedValue := os.Getenv("EXPECTED_VALUE")
 
 	// validate if expected value was sent because it is required for all tests.
 	if expectedValue == "" {
-		shared.LogLevel("error", "expected value was not sent")
+		log.Errorf("expected value was not sent")
 		os.Exit(1)
 	}
 
 	// validate if flag for install version or commit was sent we should have the expected value after upgrade.
-	instalVersionOrCommit := os.Getenv("INSTALL_VERSION_OR_COMMIT")
+	installVersionOrCommit := os.Getenv("INSTALL_VERSION_OR_COMMIT")
 	valuesUpgrade := os.Getenv("VALUE_UPGRADED")
-	if instalVersionOrCommit != "" && valuesUpgrade == "" {
-		shared.LogLevel("error", "using upgrade, please provide the expected value after upgrade")
+	if (installVersionOrCommit != "" && valuesUpgrade == "") || (installVersionOrCommit == "" && valuesUpgrade != "") {
+		log.Errorf("using upgrade, please provide the expected value after upgrade and the install version or commit")
 		os.Exit(1)
 	}
 
@@ -44,101 +41,122 @@ func ValidateTemplateFlags() {
 		validateMultusTest(expected, expectedUpgrade, valuesUpgrade)
 	case "components":
 		validateComponentsTest(expected, expectedUpgrade, valuesUpgrade)
+	case "flannel":
+		validateFlannelTest()
 	default:
-		shared.LogLevel("error", "test tag not found")
+		log.Errorf("test tag not found")
 	}
 }
 
 func validateVersionBumpTest(expectedValue, expectedUpgrade []string, valuesUpgrade string) {
 	cmd := os.Getenv("CMD")
 	if cmd == "" {
-		shared.LogLevel("error", "cmd was not sent")
+		log.Errorf("cmd was not sent")
 		os.Exit(1)
 	}
 
 	cmdLenght := strings.Split(cmd, ",")
 	if len(cmdLenght) != len(expectedValue) {
-		shared.LogLevel("error", "mismatched length commands: %d x expected values: %d",
-			len(cmdLenght), len(expectedValue))
+		log.Errorf("mismatched length commands: %d x expected values: %d", len(cmdLenght), len(expectedValue))
 		os.Exit(1)
 	}
 
 	if valuesUpgrade != "" {
 		if len(expectedUpgrade) != len(expectedValue) {
-			shared.LogLevel("error", "mismatched length commands: %d x expected values upgrade: %d",
-				len(cmdLenght), len(expectedValue))
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				len(expectedUpgrade), len(expectedValue))
 			os.Exit(1)
 		}
 	}
 }
 
-func validateCiliumTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	ciliumCmdsLenght := 2
+func validateFlannelTest() {
+	cmd := os.Getenv("CMD")
+	if cmd != "" {
+		log.Errorf("cmd can not be sent for flannel tests as it is already defined in the test file")
+		os.Exit(1)
+	}
+}
 
-	if len(expectedValue) != ciliumCmdsLenght {
-		shared.LogLevel("error", "mismatched length commands: %d x expected values: %d",
-			ciliumCmdsLenght, len(expectedValue))
+func validateCiliumTest(expectedValue, valuesUpgrade []string, upgrade string) {
+	cmd := os.Getenv("CMD")
+	if cmd != "" {
+		log.Errorf("cmd can not be sent for cilium tests as it is already defined in the test file")
+		os.Exit(1)
+	}
+
+	ciliumCmdsLength := 2
+	if len(expectedValue) != ciliumCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values: %d", ciliumCmdsLength, len(expectedValue))
 		os.Exit(1)
 	}
 
 	if upgrade != "" {
-		if len(valuesUpgrade) != ciliumCmdsLenght {
-			shared.LogLevel("error", "mismatched length commands: %d x expected values upgrade: %d",
-				ciliumCmdsLenght, len(valuesUpgrade))
+		if len(valuesUpgrade) != ciliumCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				ciliumCmdsLength, len(valuesUpgrade))
 			os.Exit(1)
 		}
 	}
 }
 
 func validateMultusTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	multusCmdsLenght := 4
+	cmd := os.Getenv("CMD")
+	if cmd != "" {
+		log.Errorf("cmd can not be sent for multus tests as it is already defined in the test file")
+		os.Exit(1)
+	}
 
-	if len(expectedValue) != multusCmdsLenght {
-		shared.LogLevel("error", "mismatched length commands: %d x expected values: %d",
-			multusCmdsLenght, len(expectedValue))
+	multusCmdsLength := 4
+	if len(expectedValue) != multusCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values: %d", multusCmdsLength, len(expectedValue))
 		os.Exit(1)
 	}
 
 	if upgrade != "" {
-		if len(valuesUpgrade) != multusCmdsLenght {
-			shared.LogLevel("error", "mismatched length commands: %d x expected values upgrade: %d",
-				multusCmdsLenght, len(valuesUpgrade))
+		if len(valuesUpgrade) != multusCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				multusCmdsLength, len(valuesUpgrade))
 			os.Exit(1)
 		}
 	}
 }
 
 func validateComponentsTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	product := os.Getenv("ENV_PRODUCT")
-	k3scomponentsCmdsLenght := 10
-	rke2componentsCmdsLenght := 8
+	cmd := os.Getenv("CMD")
+	if cmd != "" {
+		log.Errorf("cmd can not be sent for components tests as it is already defined in the test file")
+		os.Exit(1)
+	}
 
+	k3scomponentsCmdsLength := 9
+	rke2componentsCmdsLength := 8
+
+	product := os.Getenv("ENV_PRODUCT")
 	switch product {
 	case "k3s":
-		if len(expectedValue) != k3scomponentsCmdsLenght {
-			shared.LogLevel("error", "mismatched length commands: %d x expected values: %d",
-				k3scomponentsCmdsLenght, len(expectedValue))
+		if len(expectedValue) != k3scomponentsCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values: %d", k3scomponentsCmdsLength, len(expectedValue))
 			os.Exit(1)
 		}
 
 		if upgrade != "" {
-			if len(valuesUpgrade) != k3scomponentsCmdsLenght {
-				shared.LogLevel("error", "mismatched length commands: %d x expected values upgrade: %d",
-					k3scomponentsCmdsLenght, len(valuesUpgrade))
+			if len(valuesUpgrade) != k3scomponentsCmdsLength {
+				log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+					k3scomponentsCmdsLength, len(valuesUpgrade))
 				os.Exit(1)
 			}
 		}
 	case "rke2":
-		if len(expectedValue) != rke2componentsCmdsLenght {
-			shared.LogLevel("error", "mismatched length commands: %d x expected values: %d",
-				rke2componentsCmdsLenght, len(expectedValue))
+		if len(expectedValue) != rke2componentsCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values: %d", rke2componentsCmdsLength, len(expectedValue))
 			os.Exit(1)
 		}
 
 		if upgrade != "" {
-			if len(valuesUpgrade) != rke2componentsCmdsLenght {
-				shared.LogLevel("error", "mismatched length commands: %d x expected values upgrade: %d",
-					rke2componentsCmdsLenght, len(valuesUpgrade))
+			if len(valuesUpgrade) != rke2componentsCmdsLength {
+				log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+					rke2componentsCmdsLength, len(valuesUpgrade))
 				os.Exit(1)
 			}
 		}
@@ -146,10 +164,6 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string, upgrade strin
 }
 
 func ValidateVersionFormat() {
-	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
-		os.Exit(1)
-	}
-
 	re := regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
 	envVars := []string{"CERTMANAGERVERSION", "CHARTSVERSION", "CHARTSREPOURL"}
 
@@ -159,17 +173,13 @@ func ValidateVersionFormat() {
 			continue
 		}
 		if !re.MatchString(value) {
-			shared.LogLevel("error", "invalid format: %s, expected format: v.xx.xx.xx", value)
+			log.Errorf("invalid format: %s, expected format: v.xx.xx", value)
 			os.Exit(1)
 		}
 	}
 }
 
 func ValidateTemplateTcs() {
-	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
-		os.Exit(1)
-	}
-
 	validTestCases := map[string]struct{}{
 		"TestDaemonset":                    {},
 		"TestIngress":                      {},
@@ -199,7 +209,7 @@ func ValidateTemplateTcs() {
 		for _, tc := range testCases {
 			tc = strings.TrimSpace(tc)
 			if _, exists := validTestCases[tc]; !exists {
-				shared.LogLevel("error", "test case %s not found", tcs)
+				log.Errorf("test case %s not found", tc)
 				os.Exit(1)
 			}
 		}
