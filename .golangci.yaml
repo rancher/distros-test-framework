@@ -27,6 +27,8 @@ linters-settings:
       - style
       - performance
       - experimental
+  misspell:
+    locale: "US"
   gofmt:
     simplify: true
   govet:

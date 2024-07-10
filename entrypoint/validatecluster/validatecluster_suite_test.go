@@ -19,7 +19,7 @@ var cluster *factory.Cluster
 var k = flag.String("kubeconfig", "", "kubeconfig file")
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	if *k == "" {
@@ -51,7 +51,7 @@ func TestValidateClusterSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if customflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

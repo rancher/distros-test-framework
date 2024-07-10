@@ -1,19 +1,19 @@
-//go:build multus
+//go:build flannel
 
 package versionbump
 
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Multus + canal Version bump:", func() {
+var _ = Describe("Flannel Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -29,20 +29,21 @@ var _ = Describe("Multus + canal Version bump:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady())
+			assert.PodAssertReady(),
+			assert.PodAssertStatus())
 	})
 
-	It("Test Bump version", func() {
+	It("Test flannel version bump", func() {
+		cmd := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+		if cluster.Config.Product == "k3s" {
+			cmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
+		}
+
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd: "kubectl get node -o yaml : | grep multus-cni -A1, " +
-							"kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
-							"| awk '{for(i=1;i<=NF;i++) if($i ~ /calico/) print $i}', " +
-							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
-							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}' , " +
-							"kubectl get pods -n kube-system : | grep multus | awk '{print $1} {print $3}'",
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
@@ -53,12 +54,8 @@ var _ = Describe("Multus + canal Version bump:", func() {
 		})
 	})
 
-	It("Verifies dns access", func() {
-		testcase.TestDNSAccess(true, true)
-	})
-
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(true, true)
+		testcase.TestServiceClusterIp(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {

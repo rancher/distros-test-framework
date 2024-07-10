@@ -15,7 +15,7 @@ import (
 var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cluster = factory.ClusterConfig()
@@ -29,7 +29,7 @@ func TestRestartServiceSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if customflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

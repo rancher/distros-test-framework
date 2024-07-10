@@ -16,8 +16,8 @@ import (
 var cluster *factory.Cluster
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&customflag.ServiceFlag.ExternalFlag.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cluster = factory.ClusterConfig()
@@ -37,7 +37,7 @@ func TestMixedOSClusterCreateSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
+	if customflag.ServiceFlag.Destroy {
 		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
