@@ -86,12 +86,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-           if [ -n "${KUBECONFIG}" ]; then
-                go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -kubeconfig "${KUBECONFIG}"
-              else
-                go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
-               fi
-
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then

@@ -24,7 +24,7 @@ type FlagConfig struct {
 	HelmCharts         helmChartsFlag
 }
 
-// TestMapConfig is a type that wraps the test commands and expected values
+// TestMapConfig is a type that wraps the test commands and expected values.
 type TestMapConfig testMapConfigFlag
 
 // testMapConfigFlag represents a single test command with key:value pairs.
@@ -70,15 +70,6 @@ func (s *stringSlice) Set(value string) error {
 
 type channelFlag struct {
 	Channel string
-
-func (t *testConfigFlag) String() string {
-	return fmt.Sprintf("TestFuncName: %s", t.TestFuncNames)
-}
-
-func (t *testConfigFlag) Set(value string) error {
-	t.TestFuncNames = strings.Split(value, ",")
-
-	return nil
 }
 
 func (c *channelFlag) String() string {

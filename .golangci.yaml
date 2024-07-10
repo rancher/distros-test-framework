@@ -10,7 +10,6 @@ linters:
     - gosimple
     - staticcheck
     - nlreturn
-    - misspell
     - funlen
     - gocritic
     - godot

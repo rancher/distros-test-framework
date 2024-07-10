@@ -113,7 +113,7 @@ func PodStatusRunning(namespace, label string) {
 }
 
 // ValidateIntraNSPodConnectivity ensures that one pod, the "server", can be reached from another, the "client"
-// within the same namespace
+// within the same namespace.
 func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expectedResult string) {
 	execCommand := fmt.Sprintf(
 		"kubectl exec -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
