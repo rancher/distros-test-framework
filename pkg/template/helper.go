@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -12,7 +11,7 @@ import (
 
 // upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, version string) error {
-	cluster := factory.ClusterConfig()
+	cluster := shared.ClusterConfig()
 	err := testcase.TestUpgradeClusterManually(cluster, version)
 	if err != nil {
 		return err
@@ -53,13 +52,13 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) {
+func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
 	tcs := addTestCaseMap(cluster)
 	return processTestCaseNames(tcs, names)
 }
 
 // addTestCaseMap initializes and returns the map of test cases.
-func addTestCaseMap(cluster *factory.Cluster) map[string]testCase {
+func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
 		"TestIngress":          testcase.TestIngress,

@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -26,7 +25,7 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
-	err := assert.ValidateOnHost(getIngressRunning+factory.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getIngressRunning+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	ingressIps, err := shared.FetchIngressIP("test-ingress")
@@ -55,12 +54,12 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 	}
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
-	err := assert.ValidateOnHost(getPodDnsUtils+factory.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getPodDnsUtils+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	execDNSUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
 	err = assert.CheckComponentCmdHost(
-		execDNSUtils+factory.KubeConfigFile+" -- nslookup kubernetes.default",
+		execDNSUtils+shared.KubeConfigFile+" -- nslookup kubernetes.default",
 		nslookup,
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -71,7 +70,7 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
+func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
 	workerNodes, err := shared.GetNodesByRoles("worker")
 	Expect(workerNodes).NotTo(BeEmpty())
 	Expect(err).NotTo(HaveOccurred())
@@ -111,7 +110,7 @@ func TestIngressRoute(cluster *factory.Cluster, applyWorkload, deleteWorkload bo
 
 func validateIngressRoute(publicIP string) {
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
-		" --kubeconfig=%s", factory.KubeConfigFile)
+		" --kubeconfig=%s", shared.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 

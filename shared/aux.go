@@ -12,8 +12,6 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -126,7 +124,7 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 }
 
 // RunScp copies files from local to remote host based on a list of local and remote paths.
-func RunScp(c *factory.Cluster, ip string, localPaths, remotePaths []string) error {
+func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	if ip == "" {
 		return ReturnLogError("ip is needed.\n")
 	}
@@ -137,10 +135,6 @@ func RunScp(c *factory.Cluster, ip string, localPaths, remotePaths []string) err
 
 	if len(localPaths) != len(remotePaths) {
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
-	}
-
-	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", c.Config.Product)); err != nil {
-		return err
 	}
 
 	for i, localPath := range localPaths {
@@ -198,8 +192,20 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 }
 
 func configureSSH(host string) (*ssh.Client, error) {
-	var cfg *ssh.ClientConfig
-	cluster := factory.ClusterConfig()
+	var (
+		cfg *ssh.ClientConfig
+		err error
+	)
+
+	kubeConfig := os.Getenv("KUBE_CONFIG")
+	if kubeConfig == "" {
+		cluster = ClusterConfig()
+	} else {
+		cluster, err = addClusterFromKubeConfig(nil)
+		if err != nil {
+			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
+		}
+	}
 
 	authMethod, err := publicKey(cluster.AwsEc2.AccessKey)
 	if err != nil {

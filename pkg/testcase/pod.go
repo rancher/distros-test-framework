@@ -3,7 +3,6 @@ package testcase
 import (
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -19,7 +18,7 @@ var (
 
 // TestPodStatus test the status of the pods in the cluster using custom assert functions.
 func TestPodStatus(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
@@ -38,7 +37,7 @@ func TestPodStatus(
 }
 
 func processPodStatus(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	g Gomega,
 	pod *shared.Pod,
 	podAssertRestarts, podAssertReady assert.PodAssertFunc,

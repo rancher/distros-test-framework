@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -18,7 +17,7 @@ type testData struct {
 	Expected  string
 }
 
-func TestIngressDualStack(cluster *factory.Cluster, deleteWorkload bool) {
+func TestIngressDualStack(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -50,7 +49,7 @@ func TestIngressDualStack(cluster *factory.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
+func TestNodePort(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -70,7 +69,7 @@ func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(cluster *factory.Cluster, deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -115,7 +114,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 		testServiceClusterIPs(td)
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
-			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + factory.KubeConfigFile
+			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
 		res, err2 := shared.RunCommandHost(cmd)
 		Expect(err2).NotTo(HaveOccurred(), err2)
 		Expect(res).To(ContainSubstring(expectedIPFamily[i]))
@@ -127,7 +126,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload bool) {
+func TestIngressWithPodRestartAndNetPol(cluster *shared.Cluster, deleteWorkload bool) {
 	serverPodIP, err := getPodIP(cluster)
 	Expect(err).NotTo(HaveOccurred(), "setupPods failed")
 
@@ -135,7 +134,7 @@ func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload
 	Expect(err).NotTo(HaveOccurred(), "validatePodConnectivity failed")
 }
 
-func validatePodConnectivity(cluster *factory.Cluster, serverPodIP string, deleteWorkload bool) error {
+func validatePodConnectivity(cluster *shared.Cluster, serverPodIP string, deleteWorkload bool) error {
 	// Ensure connectivity from client pod to server pod
 	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
 
@@ -190,7 +189,7 @@ func validatePodConnectivity(cluster *factory.Cluster, serverPodIP string, delet
 	return nil
 }
 
-func getPodIP(cluster *factory.Cluster) (string, error) {
+func getPodIP(cluster *shared.Cluster) (string, error) {
 	// Deploy server and client pods.
 	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")

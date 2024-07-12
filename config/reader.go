@@ -23,7 +23,7 @@ type Product struct {
 	Product string
 }
 
-// AddEnv sets environment variables from the .env file and returns the Product configuration.
+// AddEnv sets environment variables from the .env file,tf vars and returns the Product configuration.
 func AddEnv() (*Product, error) {
 	var err error
 	once.Do(func() {
@@ -40,8 +40,9 @@ func loadEnv() (*Product, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
-	fullPath := fmt.Sprintf("%s/config/.env", dir)
-	if err := SetEnv(fullPath); err != nil {
+	// set the environment variables from the .env file.
+	dotEnvPath := fmt.Sprintf("%s/config/.env", dir)
+	if err := setEnv(dotEnvPath); err != nil {
 		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err
 	}
@@ -60,10 +61,17 @@ func loadEnv() (*Product, error) {
 		os.Exit(1)
 	}
 
+	// set the environment variables from the tfvars file.
+	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
+	if err := setEnv(tfPath); err != nil {
+		log.Errorf("failed to set environment variables: %v\n", err)
+		return nil, err
+	}
+
 	return productConfig, nil
 }
 
-func SetEnv(fullPath string) error {
+func setEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
 		log.Errorf("failed to open file: %v\n", err)

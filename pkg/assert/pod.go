@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -57,7 +56,7 @@ func checkReadyFields() types.GomegaMatcher {
 }
 
 // ValidatePodIPByLabel validates expected pod IP by label.
-func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
+func ValidatePodIPByLabel(cluster *shared.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {
@@ -83,7 +82,7 @@ func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 func ValidatePodIPsByLabel(label string, expected []string) {
 	cmd := "kubectl get pods -l " + label +
 		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
-		" --kubeconfig=" + factory.KubeConfigFile
+		" --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() error {
 		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
@@ -105,7 +104,7 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 // PodStatusRunning checks status of pods is Running when searched by namespace and label.
 func PodStatusRunning(namespace, label string) {
 	cmd := "kubectl get pods -n " + namespace + " -l " + label +
-		" --field-selector=status.phase=Running --kubeconfig=" + factory.KubeConfigFile
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)
@@ -117,7 +116,7 @@ func PodStatusRunning(namespace, label string) {
 func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expectedResult string) {
 	execCommand := fmt.Sprintf(
 		"kubectl exec -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
-		namespace, clientPodName, factory.KubeConfigFile, serverPodIP)
+		namespace, clientPodName, shared.KubeConfigFile, serverPodIP)
 	err := ValidateOnHost(
 		execCommand,
 		expectedResult,

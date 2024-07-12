@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestCertRotate(cluster *factory.Cluster) {
+func TestCertRotate(cluster *shared.Cluster) {
 	certRotate(cluster.Config.Product, cluster.ServerIPs)
 
 	ip, manageError := shared.ManageService(cluster.Config.Product, "restart", "agent", cluster.AgentIPs)
