@@ -41,8 +41,8 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\n\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\n\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

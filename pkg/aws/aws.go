@@ -10,12 +10,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 type Client struct {
-	infra *factory.Cluster
+	infra *shared.Cluster
 	ec2   *ec2.EC2
 }
 
@@ -25,7 +24,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddNode(c *factory.Cluster) (*Client, error) {
+func AddNode(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
@@ -33,7 +32,7 @@ func AddNode(c *factory.Cluster) (*Client, error) {
 	}
 
 	return &Client{
-		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		infra: &shared.Cluster{AwsEc2: c.AwsEc2},
 		ec2:   ec2.New(sess),
 	}, nil
 }

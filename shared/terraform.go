@@ -1,4 +1,4 @@
-package factory
+package shared
 
 import (
 	"fmt"
@@ -6,73 +6,25 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-
-	"github.com/rancher/distros-test-framework/config"
 )
 
-var (
-	once           sync.Once
-	cluster        *Cluster
-	KubeConfigFile string
-)
-
-type Cluster struct {
-	Status        string
-	ServerIPs     []string
-	AgentIPs      []string
-	WinAgentIPs   []string
-	NumWinAgents  int
-	NumServers    int
-	NumAgents     int
-	FQDN          string
-	Config        clusterConfig
-	AwsEc2        awsEc2Config
-	GeneralConfig generalConfig
-}
-
-type awsEc2Config struct {
-	AccessKey        string
-	AwsUser          string
-	Ami              string
-	Region           string
-	VolumeSize       string
-	InstanceClass    string
-	Subnets          string
-	AvailabilityZone string
-	SgId             string
-	KeyName          string
-}
-
-type clusterConfig struct {
-	RenderedTemplate string
-	ExternalDb       string
-	DataStore        string
-	Product          string
-	Arch             string
-}
-
-type generalConfig struct {
-	BastionIP string
-}
-
-func addTerraformOptions(cfg *config.Product) (*terraform.Options, string, error) {
+func addTerraformOptions(product string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", product))
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid product: %s\n", cfg.Product)
+		return nil, "", fmt.Errorf("invalid product: %s\n", product)
 	}
 
 	tfDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", product))
 	if err != nil {
-		return nil, "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
+		return nil, "", fmt.Errorf("no module found for product: %s\n", product)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -87,7 +39,7 @@ func loadTFconfig(
 	t *testing.T,
 	varDir string,
 	terraformOptions *terraform.Options,
-	cfg *config.Product,
+	product string,
 ) (*Cluster, error) {
 	c := &Cluster{}
 
@@ -98,7 +50,7 @@ func loadTFconfig(
 	}
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
-	c.Config.Product = cfg.Product
+	c.Config.Product = product
 
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
