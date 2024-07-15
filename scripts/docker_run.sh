@@ -12,22 +12,22 @@ fi
 
 # Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
-   Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
+    printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
-      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-      --env-file ./config/.env \
-      -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
-      "acceptance-test-${TAG_NAME}")
+        -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+        -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+        --env-file ./config/.env \
+        -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+        "acceptance-test-${TAG_NAME}")
 
-      if ! [ "$run" ]; then
+        if ! [ "$run" ]; then
         echo "Failed to run acceptance-test-${IMG_NAME} container."
         exit 1
-      else
+        else
         printf "\nContainer started successfully."
         #image_stats "${IMG_NAME}"
         #docker logs -f "acceptance-test-${IMG_NAME}"
-      fi
+        fi
 }
 
 # Runs a new Docker container with a random suffix and version-specific image name
@@ -152,7 +152,7 @@ test_env_up() {
 
 # Cleans up the test environment by removing containers,images and dangling images.
 clean_env() {
-    read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
+  read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
   if [[ $REPLY =~ ^[Yyes]$ ]]; then
     printf "\nRemoving acceptance-test containers"
     docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_"${IMG_NAME}".log || true

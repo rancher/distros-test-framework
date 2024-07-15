@@ -6,11 +6,11 @@ data "template_file" "is_ipv6only" {
     template = (var.enable_public_ip == false && var.enable_ipv6 == true) ? true : false
 }
 
-resource "aws_instance" "server" {
+resource "aws_instance" "master" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
-  ipv6_address_count          = 0
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_server_nodes
   
   root_block_device {
@@ -27,7 +27,7 @@ resource "aws_instance" "server" {
 
 }
 
-resource "aws_instance" "agent" {
+resource "aws_instance" "worker" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
@@ -43,11 +43,11 @@ resource "aws_instance" "agent" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-agent"
+    Name                 = "${var.resource_name}-worker"
   }
 }
 
-# resource "aws_instance" "windows_agent" {
+# resource "aws_instance" "windows_worker" {
 #   ami                         = var.windows_aws_ami
 #   instance_type               = var.windows_ec2_instance_class  
 #   associate_public_ip_address = false
@@ -71,7 +71,7 @@ resource "aws_instance" "bastion" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
-  ipv6_address_count          = 1
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_bastion_nodes
   
   connection {
@@ -89,7 +89,7 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-bastion-server"
+    Name                 = "${var.resource_name}-bastion"
   }
 
   provisioner "file" {
@@ -98,23 +98,44 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = "download_product.sh"
+    source = "setup/download_product.sh"
     destination = "/tmp/download_product.sh"
   }
 
   provisioner "file" {
-    source = "install_product.sh"
+    source = "setup/install_product.sh"
     destination = "/tmp/install_product.sh"
+  }
+
+  provisioner "file" {
+    source = "setup/bastion_prepare.sh"
+    destination = "/tmp/bastion_prepare.sh"
+  }
+
+  provisioner "file" {
+    source = "setup/private_registry.sh"
+    destination = "/tmp/private_registry.sh"
+  }
+
+  provisioner "file" {
+    source = "setup/basic-registry"
+    destination = "/tmp"
   }
 
   provisioner "remote-exec" {
     inline = [<<-EOT
       echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip
-      curl -fsSL https://get.docker.com -o get-docker.sh
-      sudo sh get-docker.sh
+      sudo cp /tmp/bastion_prepare.sh /tmp/download_product.sh /tmp/install_product.sh /tmp/private_registry.sh ~/
+      sudo cp -r /tmp/basic-registry ~/
+      sudo chmod +x bastion_prepare.sh
+      sudo ./bastion_prepare.sh
+      sudo chmod +x download_product.sh
+      sudo ./download_product.sh ${var.product} ${var.product_version}
     EOT
     ]
   }
+  #sudo bastion_prepare.sh
+  #sudo /tmp/download_product.sh ${var.product} ${var.product_version} ${var.arch}
 
 }
 

@@ -40,9 +40,9 @@ function validate_dir(){
        fi
        if [[ "$TEST_TAG" != "" ]];
         then
-          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG} on ${ENV_PRODUCT}"
+          printf "\n\nRunning ${ENV_PRODUCT} tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
         else
-          printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
+          printf "\n\nRunning ${ENV_PRODUCT} tests for %s\n\n" "${TEST_DIR}"
         fi
           ;;
       *)
@@ -63,7 +63,7 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
-       declare -a OPTS
+        declare -a OPTS
           OPTS=(-timeout=65m -v -count=1 ./entrypoint/versionbump/... -tags="${TEST_TAG}")
             OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
              [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
@@ -75,7 +75,7 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
              [ -n "${DEBUG_MODE}" ] && OPTS+=(-debug "${DEBUG_MODE}")
-      go test "${OPTS[@]}"
+        go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOY_VERSION}" ]; then
             go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOY_VERSION}"
@@ -111,7 +111,11 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "airgap" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}"
+        declare -a OPTS
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}")
+            [ -n "${REGISTRYUSERNAME}" ] && OPTS+=(-registryUsername "${REGISTRYUSERNAME}")
+            [ -n "${REGISTRYPASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRYPASSWORD}")
+        go test "${OPTS[@]}"
     fi
 fi
 }

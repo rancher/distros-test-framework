@@ -1,5 +1,5 @@
-module "bastion" {
-   source     = "./bastion"
+module "instance" {
+   source     = "./instance"
 
    # Basic Variables
    username   = var.username
