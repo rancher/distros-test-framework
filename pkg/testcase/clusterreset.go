@@ -78,6 +78,7 @@ func startServer(cluster *factory.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		if serverIP == cluster.ServerIPs[0] {
 			startFirst = append(startFirst, serverIP)
+
 			continue
 		}
 		startLast = append(startLast, serverIP)

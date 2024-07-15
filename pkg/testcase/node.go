@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions
+// TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions.
 func TestNodeStatus(
 	cluster *factory.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,

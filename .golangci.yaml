@@ -10,8 +10,22 @@ linters:
     - gosimple
     - staticcheck
     - nlreturn
+    - funlen
+    - gocritic
+    - godot
+    - perfsprint
+    - usestdlibvars
+    - whitespace
 
 linters-settings:
+  funlen:
+    lines: 55
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
   misspell:
     locale: "US"
   gofmt:
@@ -67,6 +81,7 @@ run:
   skip-files:
     - "pkg/testcase/selinux.go"
     -  ".*_suite_test.go"
+
 issues:
   exclude-rules:
     - linters: [typecheck]
@@ -81,4 +96,5 @@ issues:
       text: '`fmt\.Println` arg list ends with redundant newline'
     - linters: [nlreturn]
       text: 'continue with no blank line before'
-
+    - linters: [revive]
+      text: 'should not use dot imports '

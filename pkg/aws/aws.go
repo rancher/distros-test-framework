@@ -117,25 +117,28 @@ func (c Client) DeleteInstance(ip string) error {
 	found := false
 	for _, r := range res.Reservations {
 		for _, node := range r.Instances {
-			if *node.State.Name == "running" {
-				found = true
-				terminateInput := &ec2.TerminateInstancesInput{
-					InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
-				}
-
-				_, err := c.ec2.TerminateInstances(terminateInput)
-				if err != nil {
-					return fmt.Errorf("error terminating instance: %w", err)
-				}
-				instanceName := "Unknown"
-				if len(node.Tags) > 0 {
-					instanceName = *node.Tags[0].Value
-				}
-				shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
-					instanceName, *node.InstanceId))
+			if *node.State.Name != "running" {
+				continue
 			}
+
+			found = true
+			terminateInput := &ec2.TerminateInstancesInput{
+				InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
+			}
+
+			_, err := c.ec2.TerminateInstances(terminateInput)
+			if err != nil {
+				return fmt.Errorf("error terminating instance: %w", err)
+			}
+			instanceName := "Unknown"
+			if len(node.Tags) > 0 {
+				instanceName = *node.Tags[0].Value
+			}
+			shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
+				instanceName, *node.InstanceId))
 		}
 	}
+
 	if !found {
 		return shared.ReturnLogError("no running instances found for ip: %s\n", ip)
 	}
@@ -226,7 +229,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 	return c.ec2.RunInstances(input)
 }
 
-func (c Client) fetchIP(nodeID string) (publicIP string, privateIP string, err error) {
+func (c Client) fetchIP(nodeID string) (publicIP, privateIP string, err error) {
 	waitErr := c.WaitForInstanceRunning(nodeID)
 	if waitErr != nil {
 		return "", "", shared.ReturnLogError("error waiting for instance to be running: %w\n", waitErr)
