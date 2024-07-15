@@ -165,7 +165,7 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string, upgrade strin
 
 func ValidateVersionFormat() {
 	re := regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
-	envVars := []string{"CERTMANAGERVERSION", "CHARTSVERSION", "CHARTSREPOURL"}
+	envVars := []string{"CERT_MANAGER_VERSION", "CHARTS_VERSION", "CHARTS_REPO_URL"}
 
 	for _, v := range envVars {
 		value := os.Getenv(v)

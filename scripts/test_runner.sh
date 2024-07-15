@@ -66,20 +66,20 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${DEBUG_MODE}" ] && OPTS+=(-debug "${DEBUG_MODE}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
-         if [ -n "${SONOBUOYVERSION}" ]; then
-            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOYVERSION}"
+         if [ -n "${SONOBUOY_VERSION}" ]; then
+            go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOY_VERSION}"
         else
             go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/...
          fi
     elif [ "${TEST_DIR}" = "deployrancher" ]; then
         declare -a OPTS
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/deployrancher/... -tags=deployrancher)
-            [ -n "${CERTMANAGERVERSION}" ] && OPTS+=(-certManagerVersion "${CERTMANAGERVERSION}")
-            [ -n "${CHARTSVERSION}" ] && OPTS+=(-chartsVersion "${CHARTSVERSION}")
-            [ -n "${CHARTSREPONAME}" ] && OPTS+=(-chartsRepoName "${CHARTSREPONAME}")
-            [ -n "${CHARTSREPOURL}" ] && OPTS+=(-chartsRepoUrl "${CHARTSREPOURL}")
-            [ -n "${CHARTSARGS}" ] && OPTS+=(-chartsArgs "${CHARTSARGS}")
-            [ -n "${RANCHERVERSION}" ] && OPTS+=(-rancherVersion "${RANCHERVERSION}")
+            [ -n "${CERT_MANAGER_VERSION}" ] && OPTS+=(-certManagerVersion "${CERT_MANAGER_VERSION}")
+            [ -n "${CHARTS_VERSION}" ] && OPTS+=(-chartsVersion "${CHARTS_VERSION}")
+            [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")
+            [ -n "${CHARTS_REPO_URL}" ] && OPTS+=(-chartsRepoUrl "${CHARTS_REPO_URL}")
+            [ -n "${CHARTS_ARGS}" ] && OPTS+=(-chartsArgs "${CHARTS_ARGS}")
+            [ -n "${RANCHER_VERSION}" ] && OPTS+=(-rancherVersion "${RANCHER_VERSION}")
       go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
