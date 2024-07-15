@@ -430,7 +430,7 @@ func checkFiles(product string, paths []string, scriptName, ip string) (string, 
 }
 
 func FindPath(name, ip string) (string, error) {
-	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | sed 1q", name)
+	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | grep -v data | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
