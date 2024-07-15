@@ -44,7 +44,11 @@ add_config() {
 install() {
   if [ "$product" = "k3s" ]; then
     if [ "$node_type" = "server" ]; then
-      INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --cluster-init
+      if [ -z "$server_ip" ] && [ -z "$token" ]; then
+        INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --cluster-init
+      else
+        INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh --write-kubeconfig-mode 644
+      fi
       sleep 30
     elif [ "$node_type" = "agent" ]; then
       INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh
@@ -54,10 +58,10 @@ install() {
     fi
   elif [ "$product" = "rke2" ]; then
     if [ "$node_type" = "server" ]; then
-      sudo rke2 server --write-kubeconfig-mode 644 > /dev/null 2>&1 &
+      rke2 server --write-kubeconfig-mode 644 > /dev/null 2>&1 &
       sleep 60
     elif [ "$node_type" = "agent" ]; then
-      sudo rke2 agent --server "https://$server_ip:9345" --token "$token" > /dev/null 2>&1 &
+      rke2 agent --server "https://$server_ip:9345" --token "$token" > /dev/null 2>&1 &
       sleep 60
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"

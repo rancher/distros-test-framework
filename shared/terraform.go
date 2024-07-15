@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-func addTerraformOptions(product string) (*terraform.Options, string, error) {
+func addTerraformOptions(product, module string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
@@ -21,9 +21,14 @@ func addTerraformOptions(product string) (*terraform.Options, string, error) {
 		return nil, "", fmt.Errorf("invalid product: %s\n", product)
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + product)
+	prodOrMod := product
+	if module != "" {
+		prodOrMod = module
+	}
+	tfDir, err := filepath.Abs(dir +
+		fmt.Sprintf("/modules/%s", prodOrMod))
 	if err != nil {
-		return nil, "", fmt.Errorf("no module found for product: %s\n", product)
+		return nil, "", fmt.Errorf("no module found for product: %s\n", prodOrMod)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -39,10 +44,11 @@ func loadTFconfig(
 	varDir string,
 	terraformOptions *terraform.Options,
 	product string,
+	module string,
 ) (*Cluster, error) {
 	c := &Cluster{}
 
-	loadTFoutput(t, terraformOptions, c)
+	loadTFoutput(t, terraformOptions, c, module)
 	loadAwsEc2(t, varDir, c)
 	if product == "rke2" {
 		loadWinTFCfg(t, varDir, terraformOptions, c)
@@ -73,10 +79,12 @@ func loadAwsEc2(t *testing.T, varDir string, c *Cluster) {
 	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
-func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster) {
-	KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
+func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {
+	if module == "" {
+		KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
+		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
+	}
 	c.GeneralConfig.BastionIP = terraform.Output(t, terraformOptions, "bastion_ip")
-	c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
 	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
 	rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
