@@ -7,21 +7,24 @@ import (
 
 	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
+var (
+	cluster *factory.Cluster
+	flags   *customflag.FlagConfig
+)
+
 func TestMain(m *testing.M) {
-	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.RegistryFlag.RegistryUsername, "registryUsername", "", "private registry username")
+	flag.StringVar(&flags.RegistryFlag.RegistryPassword, "registryPassword", "", "private registry password")
 	flag.Parse()
 
-	_, err = shared.EnvConfig()
-	if err != nil {
-		return
-	}
+	cluster = factory.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -32,9 +35,8 @@ func TestAirgapSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+	if customflag.ServiceFlag.Destroy {
+		status, err := factory.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

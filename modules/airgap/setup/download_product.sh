@@ -87,6 +87,7 @@ main() {
   check_tar
   download_product
   validate_download
-  save_to_directory
+  #save_to_directory
+  sleep 5
 }
 main "$@"

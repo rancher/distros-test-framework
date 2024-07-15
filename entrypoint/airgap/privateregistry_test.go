@@ -3,35 +3,24 @@ package airgap
 import (
 	"fmt"
 
-	//"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test:", func() {
-	FIt("Sets up private instances", func() {
-		testcase.TestBuildPrivateCluster(GinkgoT())
+var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
+	It("Sets up private instances", func() {
+		testcase.TestBuildPrivateCluster(cluster)
 	})
 
 	It("Deploys a private cluster", func() {
-		testcase.TestAirgapPrivateRegistry()
+		testcase.TestAirgapPrivateRegistry(cluster, flags)
 	})
 
-	// It("Validate Nodes", func() {
-	// 	testcase.TestNodeStatus(
-	// 		assert.NodeAssertReadyStatus(),
-	// 		nil,
-	// 	)
-	// })
+	// Validate images available from private registry
 
-	// It("Validate Pods", func() {
-	// 	testcase.TestPodStatus(
-	// 		assert.PodAssertRestart(),
-	// 		assert.PodAssertReady(),
-	// 		assert.PodAssertStatus(),
-	// 	)
-	// })
+	// Validate deployment, eg: cluster-ip
+
 })
 
 var _ = AfterEach(func() {

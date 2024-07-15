@@ -50,8 +50,6 @@ func TestBuildCluster(cluster *factory.Cluster) {
 	}
 }
 
-
-
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
 func TestSonobuoyMixedOS(deleteWorkload bool) {
 	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
