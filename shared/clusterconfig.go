@@ -13,13 +13,11 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
 var (
 	once    sync.Once
 	cluster *Cluster
-	log     = logger.AddLogger()
 )
 
 type Cluster struct {
@@ -62,12 +60,13 @@ type generalConfig struct {
 }
 
 type Node struct {
-	Name       string
-	Status     string
-	Roles      string
-	Version    string
-	InternalIP string
-	ExternalIP string
+	Name              string
+	Status            string
+	Roles             string
+	Version           string
+	InternalIP        string
+	ExternalIP        string
+	OperationalSystem string
 }
 
 type Pod struct {
@@ -89,16 +88,16 @@ func ClusterConfig() *Cluster {
 		var err error
 		cluster, err = newCluster()
 		if err != nil {
-			log.Errorf("\nbuilding cluster failed!  %v\n", err)
+			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
-				log.Info("\nmoving to start destroy operation\n")
+				LogLevel("info", "\nmoving to start destroy operation\n")
 				status, destroyErr := DestroyCluster()
 				if destroyErr != nil {
-					log.Errorf("error destroying cluster: %v\n", destroyErr)
+					LogLevel("error", "error destroying cluster: %w\n", destroyErr)
 					os.Exit(1)
 				}
 				if status != "cluster destroyed" {
-					log.Errorf("cluster not destroyed: %s\n", status)
+					LogLevel("error", "cluster not destroyed: %s\n", status)
 					os.Exit(1)
 				}
 			}
@@ -115,7 +114,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		return &Cluster{
 			AwsEc2: awsEc2Config{
 				AccessKey: os.Getenv("access_key"),
-				AwsUser:   os.Getenv("aws_user"),
+				AwsUser:   os.Getenv("AWS_USER_LOGIN"),
 			},
 		}, nil
 	}
@@ -194,7 +193,7 @@ func newCluster() (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w\n", err)
 	}
 
-	log.Infof("Applying Terraform config and Creating cluster\n")
+	LogLevel("info", "Applying Terraform config and Creating cluster\n")
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)
@@ -232,8 +231,7 @@ func DestroyCluster() (string, error) {
 		return "", fmt.Errorf("invalid product: %s\n", cfg.Product)
 	}
 
-	tfDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/modules/%s", cfg.Product))
+	tfDir, err := filepath.Abs(dir + "/modules/" + cfg.Product)
 	if err != nil {
 		return "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
 	}

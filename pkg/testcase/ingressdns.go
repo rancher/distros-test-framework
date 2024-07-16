@@ -74,7 +74,7 @@ func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload boo
 	workerNodes, err := shared.GetNodesByRoles("worker")
 	Expect(workerNodes).NotTo(BeEmpty())
 	Expect(err).NotTo(HaveOccurred())
-	publicIp := fmt.Sprintf("%s.nip.io", workerNodes[0].ExternalIP)
+	publicIp := workerNodes[0].ExternalIP + ".nip.io"
 
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs.
@@ -132,8 +132,8 @@ func validateIngressRoute(publicIP string) {
 			g.Expect(pods[i].IP).NotTo(BeEmpty())
 			if pods[i].IP != "<none>" && pods[i].IP != "" {
 				positiveAsserts = []string{
-					fmt.Sprintf("Hostname: %s", pods[i].Name),
-					fmt.Sprintf("IP: %s", pods[i].IP),
+					"Hostname:  " + pods[i].Name,
+					"IP: " + pods[i].IP,
 				}
 			}
 		}

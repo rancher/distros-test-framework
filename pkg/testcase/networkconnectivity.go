@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -61,10 +62,10 @@ func testCrossNodeService(services, ports, expected []string) error {
 	delay := time.After(160 * time.Second)
 
 	if len(services) != len(ports) && len(ports) != len(expected) {
-		return fmt.Errorf("slice parameters must have equal length")
+		return errors.New("slice parameters must have equal length")
 	}
 	if len(services) < 2 || len(ports) < 2 || len(expected) < 2 {
-		return fmt.Errorf("slice parameters must not be less than or equal to 2")
+		return errors.New("slice parameters must not be less than or equal to 2")
 	}
 
 	shared.LogLevel("info", "Connecting to services")
@@ -77,7 +78,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 		for {
 			select {
 			case <-timeout:
-				return fmt.Errorf("timeout reached")
+				return errors.New("timeout reached")
 			case <-ticker.C:
 				result, err := shared.RunCommandHost(cmd)
 				if err != nil {

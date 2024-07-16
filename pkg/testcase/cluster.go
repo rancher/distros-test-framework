@@ -61,17 +61,17 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed output: "+res)
 
-	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", shared.KubeConfigFile)
+	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	testResultTar, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 
-	cmd = fmt.Sprintf("sonobuoy results %s", testResultTar)
+	cmd = "sonobuoy results  " + testResultTar
 	res, err = shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
 	if deleteWorkload {
-		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
+		cmd = "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)

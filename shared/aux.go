@@ -158,7 +158,7 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			return cmdErr
 		}
 
-		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
+		chmod := "sudo chmod +wx " + remotePath
 		_, cmdErr = RunCommandOnNode(chmod, ip)
 		if cmdErr != nil {
 			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
@@ -212,6 +212,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
+
 	cfg = &ssh.ClientConfig{
 		User: cluster.AwsEc2.AwsUser,
 		Auth: []ssh.AuthMethod{
@@ -402,7 +403,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 		return findErr
 	}
 
-	pathName := fmt.Sprintf("%s-uninstall.sh", product)
+	pathName := product + "-uninstall.sh"
 	if product == "k3s" && nodeType == "agent" {
 		pathName = "k3s-agent-uninstall.sh"
 	}

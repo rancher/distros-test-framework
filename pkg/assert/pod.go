@@ -64,7 +64,7 @@ func ValidatePodIPByLabel(cluster *shared.Cluster, labels, expected []string) {
 					cluster,
 					"host",
 					"get",
-					fmt.Sprintf("pods -l %s", label),
+					"pods -l  "+label,
 					`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
 				ips := strings.Split(res, " ")
 				if strings.Contains(ips[0], expected[i]) {

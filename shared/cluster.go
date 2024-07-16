@@ -341,17 +341,18 @@ func parseNodes(res string) []Node {
 		}
 
 		fields := strings.Fields(rec)
-		if len(fields) < 7 {
+		if len(fields) < 8 {
 			continue
 		}
 
 		n := Node{
-			Name:       fields[0],
-			Status:     fields[1],
-			Roles:      fields[2],
-			Version:    fields[4],
-			InternalIP: fields[5],
-			ExternalIP: fields[6],
+			Name:              fields[0],
+			Status:            fields[1],
+			Roles:             fields[2],
+			Version:           fields[4],
+			InternalIP:        fields[5],
+			ExternalIP:        fields[6],
+			OperationalSystem: fields[7],
 		}
 		nodes = append(nodes, n)
 	}
@@ -378,7 +379,7 @@ func GetPods(display bool) ([]Pod, error) {
 // GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters.
 // Example filters are: namespace, label, --field-selector.
 func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", KubeConfigFile)
+	cmd := "kubectl get pods -o wide --no-headers --kubeconfig=" + KubeConfigFile
 	for option, value := range filters {
 		var opt string
 
@@ -614,7 +615,7 @@ func PrintGetAll() {
 }
 
 func CreateSecret(secret, namespace string) error {
-	kubectl := fmt.Sprintf("kubectl --kubeconfig %s", KubeConfigFile)
+	kubectl := "kubectl --kubeconfig  " + KubeConfigFile
 
 	if namespace == "" {
 		namespace = "default"

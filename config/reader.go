@@ -41,7 +41,7 @@ func loadEnv() (*Product, error) {
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	// set the environment variables from the .env file.
-	dotEnvPath := fmt.Sprintf("%s/config/.env", dir)
+	dotEnvPath := dir + "/config/.env"
 	if err := setEnv(dotEnvPath); err != nil {
 		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err

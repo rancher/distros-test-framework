@@ -58,6 +58,8 @@ func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
 }
 
 // addTestCaseMap initializes and returns the map of test cases.
+//
+//nolint:revive // we want to keep the argument for visibility.
 func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
@@ -106,6 +108,8 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 }
 
 // processTestCaseNames processes the test case names and returns the corresponding test cases.
+//
+//nolint:revive // we want to keep the argument for visibility.
 func processTestCaseNames(tcs map[string]testCase, names []string) ([]testCase, error) {
 	var testCases []testCase
 

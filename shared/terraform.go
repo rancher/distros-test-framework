@@ -21,8 +21,7 @@ func addTerraformOptions(product string) (*terraform.Options, string, error) {
 		return nil, "", fmt.Errorf("invalid product: %s\n", product)
 	}
 
-	tfDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/modules/%s", product))
+	tfDir, err := filepath.Abs(dir + "/modules/" + product)
 	if err != nil {
 		return nil, "", fmt.Errorf("no module found for product: %s\n", product)
 	}

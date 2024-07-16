@@ -57,10 +57,6 @@ func TestRancherSuite(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cluster.Config.DistroProduct)); err != nil {
-	// 	Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
-	// }
-
 	Expect(os.Getenv("create_lb")).To(Equal("true"), "Wrong value passed in tfvars for 'create_lb'")
 
 	if cluster.Config.Product == "rke2" &&

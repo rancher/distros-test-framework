@@ -53,7 +53,7 @@ func killall(cluster *shared.Cluster) {
 	Expect(findErr).NotTo(HaveOccurred())
 
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
-		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s", killallLocationCmd), cluster.ServerIPs[i])
+		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
 

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -158,7 +159,7 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("timed out waiting for instance to be in running state and pass status checks")
+			return errors.New("timed out waiting for instance to be in running state and pass status checks")
 		case <-ticker.C:
 			statusRes, err := c.ec2.DescribeInstanceStatus(input)
 			if err != nil {
@@ -255,7 +256,7 @@ func (c Client) fetchIP(nodeID string) (publicIP, privateIP string, err error) {
 
 func extractID(reservation *ec2.Reservation) (string, error) {
 	if len(reservation.Instances) == 0 || reservation.Instances[0].InstanceId == nil {
-		return "", fmt.Errorf("no instance ID found")
+		return "", errors.New("no instance ID found")
 	}
 
 	return *reservation.Instances[0].InstanceId, nil
