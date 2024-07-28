@@ -10,8 +10,10 @@ echo "$@"
 arch=$(uname -m)
 
 install_docker() {
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sudo sh get-docker.sh
+    install_cmd="curl -fsSL https://get.docker.com | sh"
+    if ! eval "$install_cmd"; then
+        echo "Failed to install docker on bastion node"
+    fi
 }
 
 install_kubectl() {
