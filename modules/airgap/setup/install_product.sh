@@ -47,7 +47,7 @@ install() {
       if [ -z "$server_ip" ] && [ -z "$token" ]; then
         INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --cluster-init
       else
-        INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh --write-kubeconfig-mode 644
+        INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --server "https://$server_ip:6443" --token "$token"
       fi
       sleep 30
     elif [ "$node_type" = "agent" ]; then
@@ -58,10 +58,10 @@ install() {
     fi
   elif [ "$product" = "rke2" ]; then
     if [ "$node_type" = "server" ]; then
-      rke2 server --write-kubeconfig-mode 644 > /dev/null 2>&1 &
+      rke2 server --write-kubeconfig-mode 644 >/dev/null 2>&1 &
       sleep 60
     elif [ "$node_type" = "agent" ]; then
-      rke2 agent --server "https://$server_ip:9345" --token "$token" > /dev/null 2>&1 &
+      rke2 agent --server "https://$server_ip:9345" --token "$token" >/dev/null 2>&1 &
       sleep 60
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"
@@ -97,10 +97,12 @@ wait_ready_nodes() {
   IFS=$'\n'
   timeElapsed=0
   sleep 10
-
-  while (( timeElapsed < 420 )); do
+  PATH=$PATH:/var/lib/rancher/$product/bin:/opt/$product/bin
+  while [[ $timeElapsed -lt 600 ]]; do
     not_ready=false
+    kubectl get nodes --kubeconfig=/etc/rancher/$product/$product.yaml
     for rec in $(kubectl get nodes --kubeconfig=/etc/rancher/$product/$product.yaml); do
+      echo $rec
       if [[ "$rec" == *"NotReady"* ]]; then
         not_ready=true
         break
@@ -115,6 +117,21 @@ wait_ready_nodes() {
 
   echo "Timed out while waiting for ready nodes."
   exit 1
+}
+
+wait_nodes_rke2() {
+  timeElapsed=0
+  while [[ $timeElapsed -lt 1200 ]]; do
+    notready=false
+    if [[ ! -f /var/lib/rancher/rke2/server/node-token ]] || [[ ! -f /etc/rancher/rke2/rke2.yaml ]]; then
+      notready=true
+    fi
+    if [[ $notready == false ]]; then
+      break
+    fi
+    sleep 5
+    ((timeElapsed += 5))
+  done
 }
 
 config_files() {
@@ -133,10 +150,15 @@ main() {
   add_config
   install
   if [ "$node_type" = "server" ]; then
-    config_files
-    wait_nodes
-    wait_ready_nodes
+    if [ "$product" = "k3s" ]; then
+      # config_files
+      wait_nodes
+      wait_ready_nodes
+    elif [ "$product" = "rke2" ]; then
+      wait_nodes_rke2
+      wait_ready_nodes
+    fi
   fi
-  
 }
+
 main "$@"

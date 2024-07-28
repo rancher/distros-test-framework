@@ -151,8 +151,6 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			remotePath,
 		)
 
-		fmt.Println(scp)
-
 		res, cmdErr := RunCommandHost(scp)
 		if res != "" {
 			LogLevel("warn", "scp output: %s\n", res)

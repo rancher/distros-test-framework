@@ -113,8 +113,8 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "airgap" ]; then
         declare -a OPTS
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}")
-            [ -n "${REGISTRYUSERNAME}" ] && OPTS+=(-registryUsername "${REGISTRYUSERNAME}")
-            [ -n "${REGISTRYPASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRYPASSWORD}")
+            [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
+            [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
         go test "${OPTS[@]}"
     fi
 fi
