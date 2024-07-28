@@ -22,7 +22,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-server"
+    Name                 = "${var.resource_name}-server${count.index + 1}"
   }
 
 }
@@ -43,7 +43,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-worker"
+    Name                 = "${var.resource_name}-worker${count.index + 1}"
   }
 }
 
@@ -121,6 +121,19 @@ resource "aws_instance" "bastion" {
     source = "setup/basic-registry"
     destination = "/tmp"
   }
+  
+  #sudo bastion_prepare.sh
+  #sudo /tmp/download_product.sh ${var.product} ${var.product_version} ${var.arch}
+
+}
+
+resource "null_resource" "prepare_bastion" {
+  connection {
+    type          = "ssh"
+    user          = var.aws_user
+    host          = aws_instance.bastion[0].public_ip
+    private_key   = file(var.access_key)
+  }
 
   provisioner "remote-exec" {
     inline = [<<-EOT
@@ -130,13 +143,10 @@ resource "aws_instance" "bastion" {
       sudo chmod +x bastion_prepare.sh
       sudo ./bastion_prepare.sh
       sudo chmod +x download_product.sh
-      sudo ./download_product.sh ${var.product} ${var.product_version}
+      sudo ./download_product.sh ${var.product} ${var.product_version} ${var.arch}
     EOT
     ]
   }
-  #sudo bastion_prepare.sh
-  #sudo /tmp/download_product.sh ${var.product} ${var.product_version} ${var.arch}
-
 }
 
 locals {

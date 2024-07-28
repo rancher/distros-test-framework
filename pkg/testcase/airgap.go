@@ -1,8 +1,6 @@
 package testcase
 
 import (
-	//"fmt"
-
 	"fmt"
 	"strings"
 	"time"
@@ -45,7 +43,8 @@ func TestAirgapPrivateRegistry(cluster *factory.Cluster, flags *customflag.FlagC
 	// Setting up private instances
 	var token string
 	for idx, serverIP := range cluster.ServerIPs {
-		// cmd = fmt.Sprintf("sudo ssh-keyscan %v >> ~/.ssh/known_hosts", serverIP)	
+		// cmd = fmt.Sprintf("sudo ssh-keyscan %v >> ~/.ssh/known_hosts", serverIP)
+		log.Info(idx)
 		
 		// copy files
 		CopyAssets(cluster, serverIP)
@@ -72,7 +71,7 @@ func TestAirgapPrivateRegistry(cluster *factory.Cluster, flags *customflag.FlagC
 		_, err = CmdForPrivateNode(cluster, cmd, serverIP)
 		Expect(err).To(BeNil())
 
-		if idx >= 2 {
+		if idx >= 1 {
 			cmd = fmt.Sprintf(
 				"sudo chmod +x install_product.sh ; " +
 				"sudo ./install_product.sh %v \"%v\" \"%v\" \"server\" \"%v\" \"\" \"\"",
@@ -82,7 +81,7 @@ func TestAirgapPrivateRegistry(cluster *factory.Cluster, flags *customflag.FlagC
 		}
 
 		// get token
-		if idx == 1 {
+		if idx == 0 {
 			cmd = fmt.Sprintf("sudo cat /var/lib/rancher/%v/server/token", cluster.Config.Product)
 			token, err = CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
@@ -123,7 +122,15 @@ func TestAirgapPrivateRegistry(cluster *factory.Cluster, flags *customflag.FlagC
 	}
 
 	// display nodes,pods
-	cmd := "kubectl get nodes,pods -A -o wide"
+	cmd := fmt.Sprintf(
+		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; " + 
+		"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ", 
+		cluster.Config.Product)
+	cmd += "kubectl get nodes,pods -A -o wide"
+	if cluster.Config.Product == "rke2" {
+		log.Info("Waiting for 5 minutes for rke2 cluster to be up...")
+		time.Sleep(5 * time.Minute)
+	}
 	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	Expect(err).To(BeNil())
 
@@ -148,7 +155,8 @@ func SetupBastion(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 	images := strings.Split(res, "\n")
 	Expect(images).NotTo(BeEmpty())
 
-	for _,image := range images {
+	log.Info("Running Docker operations on bastion node...")
+	for _, image := range images {
 		DockerActions(cluster, flags, hostname, image)
 	}
 	log.Info("Docker operations completed")
@@ -187,30 +195,31 @@ func DockerActions(cluster *factory.Cluster, flags *customflag.FlagConfig, hostn
 	cmd = fmt.Sprintf("sudo docker image ls %v/%v",hostname, image)
 	_, err = shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
+	log.Info("Docker pull/tag/push completed for: " + image)
+
 }
 
 func updateRegistry(cluster *factory.Cluster, regMap map[string]string) {
 	regPath := shared.BasePath() + "/modules/airgap/setup/registries.yaml"
 	shared.ReplaceFileContents(regPath,regMap)
 	
-	err := shared.RunScp(cluster, cluster.GeneralConfig.BastionIP, []string{regPath}, []string{"~/registries.yaml"})
+	err := shared.RunScp(
+		cluster, cluster.GeneralConfig.BastionIP, 
+		[]string{regPath}, []string{"~/registries.yaml"})
 	Expect(err).To(BeNil())
 }
 
 func CopyAssets(cluster *factory.Cluster, ip string) {
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%[1]v.pem && " +
-		"sudo scp -i /tmp/%[1]v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes /tmp/%[1]v.pem %[3]v@%[4]v:~/%[1]v.pem && " +
-		"sudo scp -i /tmp/%[1]v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes ./%[2]v %[3]v@%[4]v:~/%[2]v && " + 
-		"sudo scp -i /tmp/%[1]v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes certs/* %[3]v@%[4]v:~/ && " +
-		"sudo scp -i /tmp/%[1]v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes ./install_product.sh %[3]v@%[4]v:~/install_product.sh",
-		cluster.AwsEc2.KeyName, cluster.Config.Product, cluster.AwsEc2.AwsUser, ip)
-	
-	if cluster.Config.Product == "k3s" {
-		cmd += fmt.Sprintf(
-			" && sudo scp -i /tmp/%[1]v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes ./%[2]v-install.sh %[3]v@%[4]v:~/%[2]v-install.sh",
-			cluster.AwsEc2.KeyName, cluster.Config.Product, cluster.AwsEc2.AwsUser, ip)
-	}
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)	
+	cmd += fmt.Sprintf(
+		"sudo %[1]v ./%[2]v %[3]v@%[4]v:~/%[2]v && " + 
+		"sudo %[1]v certs/* %[3]v@%[4]v:~/ && " +
+		"sudo %[1]v ./install_product.sh %[3]v@%[4]v:~/install_product.sh && " +
+		"sudo %[1]v ./%[2]v-install.sh %[3]v@%[4]v:~/%[2]v-install.sh",
+		ssPrefix("scp", cluster.AwsEc2.KeyName),
+		cluster.Config.Product, 
+		cluster.AwsEc2.AwsUser, ip)
 
 	log.Info(cmd)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
@@ -221,8 +230,9 @@ func CopyAssets(cluster *factory.Cluster, ip string) {
 
 func PublishRegistry(cluster *factory.Cluster, ip string) {
 	cmd := fmt.Sprintf(
-		"sudo scp -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes ./registries.yaml %v@%v:~/registries.yaml", 
-		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser, ip)
+		"sudo %v ./registries.yaml %v@%v:~/registries.yaml", 
+		ssPrefix("scp", cluster.AwsEc2.KeyName), 
+		cluster.AwsEc2.AwsUser, ip)
 	
 	log.Info(cmd)
 	_,err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
@@ -233,23 +243,31 @@ func PublishRegistry(cluster *factory.Cluster, ip string) {
 		"sudo mkdir -p /etc/rancher/%[2]v ; " + 
 		"sudo cp registries.yaml /etc/rancher/%[2]v",
 		cluster.AwsEc2.KeyName, cluster.Config.Product)
-	serverCmd := fmt.Sprintf(
-		"ssh -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes %v@%v '%v'",
-		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser, ip, cmd)
-		
-	log.Info(serverCmd)
-	_,err = shared.RunCommandOnNode(serverCmd, cluster.GeneralConfig.BastionIP)
+	
+	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	Expect(err).To(BeNil())
 }
 
 func CmdForPrivateNode(cluster *factory.Cluster, cmd, ip string) (res string, err error){
-	log.Info(cmd)
 	serverCmd := fmt.Sprintf(
-		"ssh -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes %v@%v '%v'",
-		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser, ip, cmd)
+		"%v %v@%v '%v'",
+		ssPrefix("ssh", cluster.AwsEc2.KeyName),
+		cluster.AwsEc2.AwsUser, ip, cmd)
 		
 	log.Info(serverCmd)
 	res, err = shared.RunCommandOnNode(serverCmd, cluster.GeneralConfig.BastionIP)
 
 	return res, err
+}
+
+func ssPrefix(ssCmdType, sshKey string) (cmd string) {
+	if ssCmdType != "scp" || ssCmdType != "ssh" {
+		log.Errorf("Invalid shell command type: %v", ssCmdType)
+	}
+
+	cmd = ssCmdType + fmt.Sprintf(
+		" -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes",
+		sshKey)
+
+	return cmd
 }

@@ -39,16 +39,15 @@ check_tar(){
 
 download_product() {
   echo "Downloading $product dependencies..."
-  if [[ "$product" == "k3s" ]]
-  then
+  if [[ "$product" == "k3s" ]]; then
     wget -O k3s-images.txt https://github.com/k3s-io/k3s/releases/download/$version/k3s-images.txt
     wget -O k3s-install.sh https://get.k3s.io/
     wget -O k3s https://github.com/k3s-io/k3s/releases/download/$version/$prodbin
-  elif [[ "$product" == "rke2" ]]
-  then
-    wget -O rke2-airgap-images.$tarball_type https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.$tarball_type
-    wget -O rke2-images.txt https://github.com/rancher/rke2/releases/download/$version/rke2-images-all.linux-amd64.txt
+  elif [[ "$product" == "rke2" ]]; then
+    wget -O rke2-images.$tarball_type https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.$tarball_type
+    wget -O rke2-images.txt https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.txt
     wget -O rke2 https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch
+    wget -O rke2-install.sh https://get.rke2.io/
   else
     echo "Invalid product: $product. Please provide k3s or rke2 as product"
   fi
