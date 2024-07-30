@@ -4,7 +4,7 @@ output "Route53_info" {
 }
 
 output "master_ips" {
-  value = join("," , aws_instance.master.*.public_ip,aws_instance.master2-ha.*.public_ip)
+  value = length(aws_eip.master_with_eip) > 0 ? join("," , aws_eip.master_with_eip.*.public_ip,aws_eip.master2_with_eip.*.public_ip): join("," , aws_instance.master.*.public_ip,aws_instance.master2-ha.*.public_ip)
   description = "The public IP of the AWS node"
 }
 
@@ -20,4 +20,12 @@ output "rendered_template" {
 output "server_flags" {
   value = var.server_flags
   description = "The server flags:"
+}
+
+output "instance_public_ip" {
+  value = aws_instance.master.public_ip
+}
+
+output "eip_public_ip" {
+  value = length(aws_eip.master_with_eip) > 0 ? aws_eip.master_with_eip[0].public_ip : null
 }

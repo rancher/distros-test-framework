@@ -25,7 +25,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddNode(c *shared.Cluster) (*Client, error) {
+func AddAWSClient(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
@@ -260,4 +260,65 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 	}
 
 	return *reservation.Instances[0].InstanceId, nil
+}
+
+func (c Client) StopInstance(instanceID string) (string, error) {
+	input := &ec2.StopInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	result, err := c.ec2.StopInstances(input)
+	if err != nil {
+		return "", shared.ReturnLogError("failed to stop instance %s: %v", instanceID, err)
+	}
+
+	fmt.Printf("Successfully stopped instance: %s, current state: %s\n",
+		instanceID, *result.StoppingInstances[0].CurrentState.Name)
+
+	return *result.StoppingInstances[0].CurrentState.Name, nil
+}
+func (c Client) StartInstance(instanceID string) (string, error) {
+	input := &ec2.StartInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	result, err := c.ec2.StartInstances(input)
+	if err != nil {
+		return "", shared.ReturnLogError("failed to start instance %s: %v", instanceID, err)
+	}
+
+	fmt.Printf("Successfully started instance: %s, current state: %s\n",
+		instanceID, *result.StartingInstances[0].CurrentState.Name)
+
+	return *result.StartingInstances[0].CurrentState.Name, nil
+}
+
+func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("ip-address"),
+				Values: []*string{aws.String(ipAddress)},
+			},
+		},
+	}
+
+	result, err := c.ec2.DescribeInstances(input)
+	if err != nil {
+		return "", shared.ReturnLogError("failed to describe instances: %v", err)
+	}
+
+	// Check if any instances were found.
+	if len(result.Reservations) == 0 {
+		return "", shared.ReturnLogError("no instances found with the public IP address: %s", ipAddress)
+	}
+
+	// Extract and return the instance ID.
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			return *instance.InstanceId, nil
+		}
+	}
+
+	return "", shared.ReturnLogError("no instances found with the public IP address: ")
 }
