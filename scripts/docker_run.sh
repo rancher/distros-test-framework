@@ -88,31 +88,30 @@ test_run_state() {
 test_run_updates() {
     CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
 
+    RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
+    NEW_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"
+
     if [ -z "${CONTAINER_ID}" ]; then
         echo "No matching container found."
         exit 1
     else
-        rm -rf modules/ tmp/
-        docker cp "${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/" modules/
-        docker cp "${CONTAINER_ID}:/tmp/" tmp/
-
         test_env_up "${TAG_NAME}"
-        run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
+        run=$(docker run -dt --name "acceptance-test-${NEW_IMG_NAME}" \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             --env-file ./config/.env \
             -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
             -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
-            -v "${PWD}/tmp/:/tmp" \
+            --volumes-from "${CONTAINER_ID}" \
             "acceptance-test-${TAG_NAME}")
 
       if ! [ "$run" ]; then
-        echo "Failed to run updated acceptance-test-${IMG_NAME} container."
+        echo "Failed to run updated acceptance-test-${NEW_IMG_NAME} container."
         exit 1
       else
         printf "\nContainer started successfully."
-        image_stats "${IMG_NAME}"
-        docker logs -f "acceptance-test-${IMG_NAME}"
+        image_stats "${NEW_IMG_NAME}"
+        docker logs -f "acceptance-test-${NEW_IMG_NAME}"
       fi
     fi
 }
