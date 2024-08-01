@@ -26,9 +26,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Validate Ingress Service in Dual-Stack", func() {

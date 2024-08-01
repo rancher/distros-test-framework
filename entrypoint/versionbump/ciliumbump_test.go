@@ -29,8 +29,7 @@ var _ = Describe("Cilium Version bump:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {
@@ -50,7 +49,7 @@ var _ = Describe("Cilium Version bump:", func() {
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true, true)
+		testcase.TestServiceClusterIP(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {

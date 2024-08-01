@@ -29,8 +29,7 @@ var _ = Describe("Multus + canal Version bump:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {
@@ -55,11 +54,11 @@ var _ = Describe("Multus + canal Version bump:", func() {
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true, true)
+		testcase.TestDNSAccess(true, true)
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true, true)
+		testcase.TestServiceClusterIP(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {

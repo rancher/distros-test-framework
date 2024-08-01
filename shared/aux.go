@@ -17,7 +17,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
-// RunCommandHost executes a command on the host
+// RunCommandHost executes a command on the host.
 func RunCommandHost(cmds ...string) (string, error) {
 	if cmds == nil {
 		return "", ReturnLogError("should send at least one command")
@@ -42,7 +42,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 	return output.String(), nil
 }
 
-// RunCommandOnNode executes a command on the node SSH
+// RunCommandOnNode executes a command on the node SSH.
 func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
@@ -116,8 +116,8 @@ func PrintBase64Encoded(path string) error {
 // CountOfStringInSlice Used to count the pods using prefix passed in the list of pods.
 func CountOfStringInSlice(str string, pods []Pod) int {
 	var count int
-	for _, p := range pods {
-		if strings.Contains(p.Name, str) {
+	for i := range pods {
+		if strings.Contains(pods[i].Name, str) {
 			count++
 		}
 	}
@@ -246,7 +246,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	return stdoutStr, stderrStr, nil
 }
 
-// JoinCommands joins the first command with some arg
+// JoinCommands joins the first command with some arg.
 func JoinCommands(cmd, kubeconfigFlag string) string {
 	cmds := strings.Split(cmd, ":")
 	joinedCmd := cmds[0] + kubeconfigFlag
@@ -259,7 +259,7 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	return joinedCmd
 }
 
-// GetJournalLogs returns the journal logs for a specific product
+// GetJournalLogs returns the journal logs for a specific product.
 func GetJournalLogs(level, ip string) string {
 	if level == "" {
 		LogLevel("warn", "level should not be empty")
@@ -341,7 +341,7 @@ func LogLevel(level, format string, args ...interface{}) {
 // formatLogArgs formats the logger message.
 func formatLogArgs(format string, args ...interface{}) error {
 	if len(args) == 0 {
-		return fmt.Errorf(format)
+		return fmt.Errorf("%s", format)
 	}
 	if e, ok := args[0].(error); ok {
 		if len(args) > 1 {
@@ -354,7 +354,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 	return fmt.Errorf(format, args...)
 }
 
-// fileExists Checks if a file exists in a directory
+// fileExists Checks if a file exists in a directory.
 func fileExists(files []os.DirEntry, workload string) bool {
 	for _, file := range files {
 		if file.Name() == workload {
@@ -406,7 +406,7 @@ func UninstallProduct(product, nodeType, ip string) error {
 	return err
 }
 
-func checkFiles(product string, paths []string, scriptName string, ip string) (string, error) {
+func checkFiles(product string, paths []string, scriptName, ip string) (string, error) {
 	var foundPath string
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
@@ -430,7 +430,7 @@ func checkFiles(product string, paths []string, scriptName string, ip string) (s
 }
 
 func FindPath(name, ip string) (string, error) {
-	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | sed 1q", name)
+	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | grep -v data | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
@@ -443,7 +443,7 @@ func FindPath(name, ip string) (string, error) {
 	return strings.TrimSpace(fullPath), nil
 }
 
-// MatchWithPath verify expected files found in the actual file list
+// MatchWithPath verify expected files found in the actual file list.
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
@@ -463,7 +463,7 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	return nil
 }
 
-// stringInSlice verify if a string is found in the list of strings
+// stringInSlice verify if a string is found in the list of strings.
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
@@ -475,14 +475,14 @@ func stringInSlice(a string, list []string) bool {
 }
 
 // appendNodeIfMissing appends a value to a slice if that value does not already exist in the slice.
-func appendNodeIfMissing(slice []Node, i Node) []Node {
+func appendNodeIfMissing(slice []Node, i *Node) []Node {
 	for _, ele := range slice {
-		if ele == i {
+		if ele == *i {
 			return slice
 		}
 	}
 
-	return append(slice, i)
+	return append(slice, *i)
 }
 
 func EncloseSqBraces(ip string) string {

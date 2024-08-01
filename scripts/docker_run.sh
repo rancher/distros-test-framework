@@ -95,6 +95,9 @@ test_run_updates() {
         echo "No matching container found."
         exit 1
     else
+        docker cp "${CONTAINER_ID}:/tmp/" tmp/
+        docker cp "${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/" tmp/modules/
+
         test_env_up "${TAG_NAME}"
         run=$(docker run -dt --name "acceptance-test-${NEW_IMG_NAME}" \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
@@ -102,7 +105,8 @@ test_run_updates() {
             --env-file ./config/.env \
             -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
             -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
-            --volumes-from "${CONTAINER_ID}" \
+            -v "${PWD}/tmp/modules/:/go/src/github.com/rancher/distros-test-framework/modules/" \
+            -v "${PWD}/tmp/:/tmp" \
             "acceptance-test-${TAG_NAME}")
 
       if ! [ "$run" ]; then
@@ -115,6 +119,7 @@ test_run_updates() {
       fi
     fi
 }
+
 
 image_stats() {
     local container_name=$1

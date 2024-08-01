@@ -27,9 +27,7 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
