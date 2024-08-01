@@ -11,7 +11,6 @@ import (
 )
 
 var _ = Describe("Test:", func() {
-
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -28,13 +27,11 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true, true)
+		testcase.TestServiceClusterIP(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {
@@ -50,7 +47,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true, true)
+		testcase.TestDNSAccess(true, true)
 	})
 
 	if cluster.Config.Product == "rke2" {

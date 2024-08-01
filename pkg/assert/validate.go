@@ -20,7 +20,7 @@ var (
 	mutex   sync.Mutex
 )
 
-// validate calls runAssertion for each cmd/assert pair
+// validate calls runAssertion for each cmd/assert pair.
 func validate(exec func(string) (string, error), args ...string) error {
 	if len(args) < 2 || len(args)%2 != 0 {
 		return shared.ReturnLogError("should send even number of args")
@@ -54,7 +54,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 	return nil
 }
 
-// runAssertion runs a command and asserts that the value received against his respective command
+// runAssertion runs a command and asserts that the value received against his respective command.
 func runAssertion(
 	cmd, assert string,
 	exec func(string) (string, error),
@@ -82,6 +82,7 @@ func runAssertion(
 					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
 					return shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
 				}
+
 				continue
 			}
 

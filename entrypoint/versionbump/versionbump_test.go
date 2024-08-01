@@ -29,8 +29,7 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {

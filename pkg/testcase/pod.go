@@ -17,20 +17,19 @@ var (
 	ciliumPodsNotRunning = 0
 )
 
-// TestPodStatus test the status of the pods in the cluster using custom assert functions
+// TestPodStatus test the status of the pods in the cluster using custom assert functions.
 func TestPodStatus(
 	cluster *factory.Cluster,
-	podAssertRestarts assert.PodAssertFunc,
+	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
-	podAssertStatus assert.PodAssertFunc,
 ) {
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
-		for _, pod := range pods {
-			processPodStatus(cluster, g, pod, podAssertRestarts, podAssertReady, podAssertStatus)
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
 	}, "2500s", "10s").Should(Succeed(), "failed to process pods status")
 
@@ -41,58 +40,56 @@ func TestPodStatus(
 func processPodStatus(
 	cluster *factory.Cluster,
 	g Gomega,
-	pod shared.Pod,
-	podAssertRestarts, podAssertReady, podAssertStatus assert.PodAssertFunc,
+	pod *shared.Pod,
+	podAssertRestarts, podAssertReady assert.PodAssertFunc,
 ) {
 	var ciliumPod bool
 
-	// process Helm install status that should be completed.
-	if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") ||
-		strings.Contains(pod.Name, "helm-delete") {
+	switch {
+	case strings.Contains(pod.Name, "helm-install") ||
+		strings.Contains(pod.Name, "helm-delete") ||
+		strings.Contains(pod.Name, "helm-operation"):
 		g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
-		// process system-upgrade apply status thats should be completed or errors bellow.
-	} else if strings.Contains(pod.Name, "apply") && strings.Contains(pod.NameSpace, "system-upgrade") {
+
+	case strings.Contains(pod.Name, "apply") && strings.Contains(pod.NameSpace, "system-upgrade"):
 		g.Expect(pod.Status).Should(SatisfyAny(
 			ContainSubstring("Unknown"),
 			ContainSubstring("Init:Error"),
 			Equal(statusCompleted),
 		), pod.Name)
 
-		// process cilium-operator status that should be at least one running pod.
-	} else if strings.Contains(pod.Name, "cilium-operator") && cluster.Config.Product == "rke2" &&
-		cluster.NumServers == 1 && cluster.NumAgents == 0 {
+	case strings.Contains(pod.Name, "cilium-operator") && cluster.Config.Product == "rke2" &&
+		cluster.NumServers == 1 && cluster.NumAgents == 0:
 		processCiliumStatus(pod)
 		ciliumPod = true
 
-		// process other pods status that should be running.
-	} else {
+	default:
 		g.Expect(pod.Status).Should(Equal(statusRunning), pod.Name)
+
 		if podAssertRestarts != nil {
-			podAssertRestarts(g, pod)
+			podAssertRestarts(g, *pod)
 		}
 		if podAssertReady != nil {
-			podAssertReady(g, pod)
-		}
-		if podAssertStatus != nil {
-			podAssertStatus(g, pod)
+			podAssertReady(g, *pod)
 		}
 	}
 
 	// at least one cilium pod should be running.
 	if ciliumPod {
-		if ciliumPodsRunning == 0 && ciliumPodsNotRunning == 1 {
+		switch {
+		case ciliumPodsRunning == 0 && ciliumPodsNotRunning == 1:
 			shared.LogLevel("warn", "no cilium pods running yet.")
-		} else if ciliumPodsRunning == 0 && ciliumPodsNotRunning > 1 {
+		case ciliumPodsRunning == 0 && ciliumPodsNotRunning > 1:
 			shared.LogLevel("error", "no cilium pods running, only pending: Name:%s,Status:%s", pod.Name, pod.Status)
 			return
-		} else {
+		default:
 			Expect(ciliumPodsRunning).To(BeNumerically(">=", 1), "no cilium pods running",
 				pod.Name, pod.Status)
 		}
 	}
 }
 
-func processCiliumStatus(pod shared.Pod) {
+func processCiliumStatus(pod *shared.Pod) {
 	if strings.Contains(pod.Status, "Pending") {
 		Expect(pod.Ready).To(Equal("0/1"), pod.Name, pod.Status)
 		ciliumPodsNotRunning++

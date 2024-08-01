@@ -43,10 +43,10 @@ jobs:
           files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.go$' || true)
           if [ -z "$files" ]; then
             echo "No Go files changed"
-            echo "::set-output name=go_files_changed::false"
+            echo "name=go_files_changed::false" >> $GITHUB_OUTPUT
           else
             echo "Go files changed"
-            echo "::set-output name=go_files_changed::true"
+            echo "name=go_files_changed::true" >> $GITHUB_OUTPUT
           fi
 
       - name: golangci-lint

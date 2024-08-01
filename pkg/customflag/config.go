@@ -12,7 +12,7 @@ var (
 	TestMap          testMapConfigFlag
 )
 
-// FlagConfig is a type that wraps all the flags that can be used
+// FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
 	InstallMode        installModeFlag
 	TestTemplateConfig templateConfigFlag
@@ -24,7 +24,7 @@ type FlagConfig struct {
 	HelmCharts         helmChartsFlag
 }
 
-// TestMapConfig is a type that wraps the test commands and expected values
+// TestMapConfig is a type that wraps the test commands and expected values.
 type TestMapConfig testMapConfigFlag
 
 // testMapConfigFlag represents a single test command with key:value pairs.

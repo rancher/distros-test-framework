@@ -36,22 +36,22 @@ func TestSecretsEncryption() {
 	}
 }
 
-func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
+func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	shared.LogLevel("info", fmt.Sprintf("TEST: Secrets-Encryption: %s", action))
-	_, errStatusB4 := shared.SecretEncryptOps("status", cpIp, product)
+	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
 
-	stdOutput, err := shared.SecretEncryptOps(action, cpIp, product)
+	stdOutput, err := shared.SecretEncryptOps(action, cpIP, product)
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
-		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services
+		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
 	}
 	for _, node := range nodes {
 		nodearr := []string{node.ExternalIP}
-		nodeIp, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIp)
+		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
 		// Order of reboot matters. Etcd first then control plane nodes.
 		// Little lag needed between node restarts to avoid issues.
 		time.Sleep(30 * time.Second)
@@ -73,7 +73,7 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 		}
 	}
 
-	secretEncryptStatus, errGetStatus := waitForHashMatch(cpIp, product)
+	secretEncryptStatus, errGetStatus := waitForHashMatch(cpIP, product)
 	Expect(errGetStatus).NotTo(HaveOccurred(), "error getting secret-encryption status")
 	verifyStatusStdOut(action, secretEncryptStatus)
 
@@ -81,14 +81,14 @@ func secretsEncryptOps(action, product, cpIp string, nodes []shared.Node) {
 	Expect(errLog).NotTo(HaveOccurred())
 }
 
-func waitForHashMatch(cpIp, product string) (string, error) {
-	// Max 3 minute wait time for hash match
+func waitForHashMatch(cpIP, product string) (string, error) {
+	// Max 3 minute wait time for hash match.
 	defaultTime := time.Duration(10)
 	times := 6 * 3
 	var secretEncryptStatus string
 	var errGetStatus error
 	for i := 1; i <= times; i++ {
-		secretEncryptStatus, errGetStatus = shared.SecretEncryptOps("status", cpIp, product)
+		secretEncryptStatus, errGetStatus = shared.SecretEncryptOps("status", cpIP, product)
 		if errGetStatus != nil {
 			shared.LogLevel("DEBUG", "error getting secret-encryption status. Retry.")
 		}
@@ -104,8 +104,9 @@ func waitForHashMatch(cpIp, product string) (string, error) {
 	return secretEncryptStatus, errGetStatus
 }
 
-// verifyActionStdOut Verifies secrets-encryption action outputs
-// Verifies std outputs of: sudo k3s|rke2 secrets-encryption prepare|rotate|reencrypt|rotate-keys actions
+// verifyActionStdOut Verifies secrets-encryption action outputs.
+//
+// Verifies std outputs of: sudo k3s|rke2 secrets-encryption prepare|rotate|reencrypt|rotate-keys actions.
 func verifyActionStdOut(action, stdout string) {
 	switch action {
 	case "prepare":
@@ -120,8 +121,10 @@ func verifyActionStdOut(action, stdout string) {
 }
 
 // verifyStatusStdOut Verifies secrets-encryption status outputs post different actions.
-// Verifies std output of: sudo k3s|rke2 secrets-encryption status
-// post the action -prepare|rotate|reencrypt|rotate-keys and restart services have been completed
+//
+// Verifies std output of: sudo k3s|rke2 secrets-encryption status.
+//
+// post the action -prepare|rotate|reencrypt|rotate-keys and restart services have been completed.
 func verifyStatusStdOut(action, stdout string) {
 	Expect(stdout).To(ContainSubstring("Encryption Status: Enabled"))
 	Expect(stdout).To(ContainSubstring("Server Encryption Hashes: All hashes match"))

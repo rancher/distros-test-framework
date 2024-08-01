@@ -40,7 +40,7 @@ func TestUpgradeClusterSUC(cluster *factory.Cluster, version string) error {
 	}
 
 	newContent := strings.ReplaceAll(string(content), "$UPGRADEVERSION", version)
-	err = os.WriteFile(newFilePath, []byte(newContent), 0644)
+	err = os.WriteFile(newFilePath, []byte(newContent), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %s", err)
 	}
