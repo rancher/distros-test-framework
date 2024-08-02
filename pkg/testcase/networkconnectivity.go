@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rancher/distros-test-framework/factory"
@@ -112,6 +113,8 @@ func testCrossNodeService(services, ports, expected []string) error {
 }
 
 func TestEndpointReadiness(cluster *factory.Cluster) {
+	var err error
+	var wg sync.WaitGroup
 	//do more checks on the filesystem to ensure the certs are all created and in the correct location before this
 	commands := []string{
 		"sudo curl -sk http://127.0.0.1:10248/healthz",  //kubelet
@@ -123,16 +126,19 @@ func TestEndpointReadiness(cluster *factory.Cluster) {
 		// {Command: "sudo curl -sk http://127.0.0.1:10256/healthz"}, //SearchString: "lastUpdated" or "nodeEligible: true" //check with devs for this versus second kube-proxy port
 		// "sudo curl -sk " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/etcd/server-client.crt", cluster.Config.Product) + fmt.Sprintf(" --key /var/lib/rancher/%s/server/tls/etcd/server-client.key", cluster.Config.Product) + " https://127.0.0.1:2379/livez?verbose",
 	}
-	var err error
 	for _, serverIP := range cluster.ServerIPs {
 		for _, endpoint := range commands {
-			fmt.Printf("Running command %s against server %s", commands, serverIP)
-			err = assert.CheckComponentCmdNode(
-				endpoint,
-				serverIP,
-				"ok")
+			wg.Add(1)
+			go func(serverIP, endpoint string) {
+				defer wg.Done()
+				err = assert.CheckComponentCmdNode(endpoint, serverIP, "ok")
+				if err != nil {
+					fmt.Printf("Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
+				}
+			}(serverIP, endpoint)
 		}
 	}
+	wg.Wait()
 	Expect(err).NotTo(HaveOccurred(), err)
 }
 
