@@ -11,7 +11,6 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
-	// . "github.com/onsi/gomega/gstruct"
 )
 
 // TestInternodeConnectivityMixedOS validates communication between linux and windows nodes.
@@ -115,16 +114,21 @@ func testCrossNodeService(services, ports, expected []string) error {
 func TestEndpointReadiness(cluster *factory.Cluster) {
 	var err error
 	var wg sync.WaitGroup
-	//do more checks on the filesystem to ensure the certs are all created and in the correct location before this
+	// do more checks on the filesystem to ensure the certs are all created and in the correct location before this.
 	commands := []string{
-		"sudo curl -sk http://127.0.0.1:10248/healthz",  //kubelet
-		"sudo curl -sk http://127.0.0.1:10249/healthz",  //kube-proxy
-		"sudo curl -sk https://127.0.0.1:10257/healthz", //kube-controller
-		"sudo curl -sk https://127.0.0.1:10258/healthz", //cloud-controller
-		"sudo curl -sk https://127.0.0.1:10259/healthz", //kube-scheduler
-		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt", cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key", cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
-		// {Command: "sudo curl -sk http://127.0.0.1:10256/healthz"}, //SearchString: "lastUpdated" or "nodeEligible: true" //check with devs for this versus second kube-proxy port
-		// "sudo curl -sk " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/etcd/server-client.crt", cluster.Config.Product) + fmt.Sprintf(" --key /var/lib/rancher/%s/server/tls/etcd/server-client.key", cluster.Config.Product) + " https://127.0.0.1:2379/livez?verbose",
+		"sudo curl -sk http://127.0.0.1:10248/healthz",  // kubelet
+		"sudo curl -sk http://127.0.0.1:10249/healthz",  // kube-proxy
+		"sudo curl -sk https://127.0.0.1:10257/healthz", // kube-controller
+		"sudo curl -sk https://127.0.0.1:10258/healthz", // cloud-controller
+		"sudo curl -sk https://127.0.0.1:10259/healthz", // kube-scheduler
+		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
+			cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
+			cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
+		// "sudo curl -sk http://127.0.0.1:10256/healthz", SearchString: "lastUpdated" or "nodeEligible: true"
+		// check with devs for this versus second kube-proxy port
+		// "sudo curl -sk " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/etcd/server-client.crt",
+		//  cluster.Config.Product) + fmt.Sprintf(" --key /var/lib/rancher/%s/server/tls/etcd/server-client.key",
+		//  cluster.Config.Product) + " https://127.0.0.1:2379/livez?verbose",
 	}
 	for _, serverIP := range cluster.ServerIPs {
 		for _, endpoint := range commands {
