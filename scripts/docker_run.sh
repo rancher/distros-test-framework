@@ -10,7 +10,7 @@ if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"
 fi
 
-# Runs a Docker container with the specified image name and tag read from .env file
+# Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
    Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
