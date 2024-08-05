@@ -10,6 +10,7 @@ if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"
 fi
 
+# Runs a Docker container with the specified image name and tag read from .env file
 test_run() {
    Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
@@ -29,6 +30,8 @@ test_run() {
       fi
 }
 
+# Runs a new Docker container with a random suffix and version-specific image name
+# Uses the same base image as the original container, so dont need to rebuild.
 test_run_new() {
     RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
 
@@ -58,6 +61,9 @@ test_run_new() {
       fi
 }
 
+# Commits the state of a previous running container and runs a new container from that state
+# This is useful for running other tests with the same state as a previous test, meaning using the same terraform state
+# using same instances.
 test_run_state() {
      CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
 
@@ -85,6 +91,9 @@ test_run_state() {
      fi
 }
 
+# Copies /tmp files for config and terraform modules from a previous running container,
+# and starts a new container with the same state as the previous container.
+# This is useful for running other tests and also you can change the current code and run the tests again within the same instances.
 test_run_updates() {
     CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
 
@@ -120,7 +129,7 @@ test_run_updates() {
     fi
 }
 
-
+# Collects and logs Docker container stats.
 image_stats() {
     local container_name=$1
 
@@ -131,14 +140,17 @@ image_stats() {
       fi
 }
 
+# Displays logs of the running Docker container
 test_logs() {
    docker logs -f "acceptance-test-${IMG_NAME}"
 }
 
+# Builds the Docker image for the test environment
 test_env_up() {
     docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-"${TAG_NAME}"
 }
 
+# Cleans up the test environment by removing containers,images and dangling images.
 clean_env() {
     read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
   if [[ $REPLY =~ ^[Yyes]$ ]]; then
