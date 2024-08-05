@@ -320,13 +320,28 @@ func LogLevel(level, format string, args ...interface{}) {
 	log := logger.AddLogger()
 	msg := formatLogArgs(format, args...)
 
+	envLogLevel := os.Getenv("LOG_LEVEL")
+	envLogLevel = strings.ToLower(envLogLevel)
+
 	switch level {
 	case "debug":
-		log.Debug(msg)
+		if envLogLevel == "debug" {
+			log.Debug(msg)
+		} else {
+			return
+		}
 	case "info":
-		log.Info(msg)
+		if envLogLevel == "info" || envLogLevel == "" || envLogLevel == "debug" {
+			log.Info(msg)
+		} else {
+			return
+		}
 	case "warn":
-		log.Warn(msg)
+		if envLogLevel == "warn" || envLogLevel == "" || envLogLevel == "info" || envLogLevel == "debug" {
+			log.Warn(msg)
+		} else {
+			return
+		}
 	case "error":
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
