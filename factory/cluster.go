@@ -115,10 +115,15 @@ func DestroyCluster() (string, error) {
 		return "", fmt.Errorf("invalid product: %s\n", cfg.Product)
 	}
 
+	prodOrMod := cfg.Product
+	if cfg.Module != "" {
+		prodOrMod = cfg.Module
+	}
+
 	tfDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/modules/%s", cfg.Product))
+		fmt.Sprintf("/modules/%s", prodOrMod))
 	if err != nil {
-		return "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
+		return "", fmt.Errorf("no module found for product: %s\n", prodOrMod)
 	}
 
 	terraformOptions := terraform.Options{
