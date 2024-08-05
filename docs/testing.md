@@ -119,7 +119,6 @@ chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extra
 
 - Required variables in `.env` file
 ```
-KUBE_CONFIG=<kubeconfig file 64 base encoded>
+KUBE_CONFIG=<kubeconfig file base64-encoded>
 BASTION_IP=<bastion public ip> when testing Dual-Stack
-AWS_USER_LOGIN=<aws user login> for ssh operations needed by `RunCommandOnNode()`
 ```

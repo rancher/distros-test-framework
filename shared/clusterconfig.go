@@ -114,7 +114,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		return &Cluster{
 			AwsEc2: awsEc2Config{
 				AccessKey: os.Getenv("access_key"),
-				AwsUser:   os.Getenv("AWS_USER_LOGIN"),
+				AwsUser:   os.Getenv("aws_user"),
 			},
 		}, nil
 	}
