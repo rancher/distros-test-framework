@@ -90,12 +90,12 @@ create_lb: true
 #### For executing locally via docker
 - Optional flags that can be added in `.env` file. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
 ```
-CERTMANAGERVERSION=v1.13.3
-CHARTSVERSION=v2.7.12
-CHARTSREPONAME=<helm repo name>
-CHARTSREPOURL=<helm chart repo url>
-CHARTSARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args)
-RANCHERVERSION=v2.7.12
+CERT_MANAGER_VERSION=v1.13.3
+CHARTS_VERSION=v2.7.12
+CHARTS_REPO_NAME=<helm repo name>
+CHARTS_REPO_URL=<helm chart repo url>
+CHARTS_ARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args)
+RANCHER_VERSION=v2.7.12
 ```
 
 #### For executing in Jenkins or locally without docker

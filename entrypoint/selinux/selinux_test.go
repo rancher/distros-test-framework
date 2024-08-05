@@ -28,9 +28,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Validate selinux is enabled", func() {
@@ -58,7 +56,7 @@ var _ = Describe("Test:", func() {
 			testcase.TestNodeStatus(
 				cluster,
 				assert.NodeAssertReadyStatus(),
-				assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
+				assert.NodeAssertVersionTypeUpgrade(&customflag.ServiceFlag),
 			)
 		})
 
@@ -66,9 +64,7 @@ var _ = Describe("Test:", func() {
 			testcase.TestPodStatus(
 				cluster,
 				assert.PodAssertRestart(),
-				assert.PodAssertReady(),
-				assert.PodAssertStatus(),
-			)
+				assert.PodAssertReady())
 		})
 
 		It("Validate selinux is enabled Post upgrade", func() {

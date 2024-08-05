@@ -42,7 +42,7 @@ jobs:
         run: |
           files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '.*\.go$' || true)
           if [ -z "$files" ]; then
-            echo "No Go files changed"
+            echo "No Go files changed in this PR"
             echo "go_files_changed=false" >> $GITHUB_OUTPUT
           else
             echo "Go Changed files: $files"

@@ -12,8 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestInternodeConnectivityMixedOS Deploys services in the cluster
-// and validates communication between linux and windows nodes
+// TestInternodeConnectivityMixedOS validates communication between linux and windows nodes.
 func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
@@ -37,7 +36,7 @@ func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, d
 	}
 }
 
-// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
+// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range.
 func testIPsInCIDRRange(cluster *factory.Cluster, label, svc string) {
 	nodeArgs, err := shared.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -49,13 +48,13 @@ func testIPsInCIDRRange(cluster *factory.Cluster, label, svc string) {
 	assert.ValidateClusterIPsBySVC(svc, serviceCIDR)
 }
 
-// testCrossNodeService Perform testing cross node communication via service exec call
+// testCrossNodeService Perform testing cross node communication via service exec call.
 //
-// services Slice Takes service names as parameters in the array
+// services Slice Takes service names as parameters in the array.
 //
-// ports	Slice Takes service ports needed to access the services
+// ports	Slice Takes service ports needed to access the services.
 //
-// expected	Slice Takes the expected substring from the curl response
+// expected	Slice Takes the expected substring from the curl response.
 func testCrossNodeService(services, ports, expected []string) error {
 	var cmd string
 	timeout := time.After(220 * time.Second)

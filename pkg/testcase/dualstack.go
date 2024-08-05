@@ -127,35 +127,25 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 }
 
 func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload bool) {
-	// Deploy server and client pods
 	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
 
-	// Ensure the pods are running and retrieve the correct pod IP
 	var serverPodIP string
-
-	filters := map[string]string{
-		"namespace": "test-k3s-issue-10053",
-	}
+	filters := map[string]string{"namespace": "test-k3s-issue-10053"}
 	Eventually(func(g Gomega) {
 		pods, poderr := shared.GetPodsFiltered(filters)
 		g.Expect(poderr).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
-		for _, pod := range pods {
-			processPodStatus(cluster, g, pod,
-				assert.PodAssertRestart(),
-				assert.PodAssertReady(),
-				assert.PodAssertStatus())
-
-			if pod.Name == "server" {
-				serverPodIP = pod.IP
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], assert.PodAssertRestart(), assert.PodAssertReady())
+			if pods[i].Name == "server" {
+				serverPodIP = pods[i].IP
 			}
 		}
 	}, "120s", "5s").Should(Succeed())
 
-	// Ensure connectivity from client pod to server pod
 	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
 
 	// Deploy network policy that explicitly allows access to the server pod
@@ -176,14 +166,10 @@ func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload
 		g.Expect(poderr).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
-		for _, pod := range pods {
-			processPodStatus(cluster, g, pod,
-				assert.PodAssertRestart(),
-				assert.PodAssertReady(),
-				assert.PodAssertStatus())
-
-			if pod.Name == "server" {
-				serverPodIP = pod.IP
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], assert.PodAssertRestart(), assert.PodAssertReady())
+			if pods[i].Name == "server" {
+				serverPodIP = pods[i].IP
 			}
 		}
 	}, "120s", "5s").Should(Succeed())

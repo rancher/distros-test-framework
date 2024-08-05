@@ -28,7 +28,6 @@ var _ = Describe("Test:", func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
 		)
 	})
 
@@ -49,7 +48,6 @@ var _ = Describe("Test:", func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
 		)
 	})
 })

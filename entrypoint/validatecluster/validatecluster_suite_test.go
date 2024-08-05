@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/factory"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/distros-test-framework/factory"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 var cluster *factory.Cluster

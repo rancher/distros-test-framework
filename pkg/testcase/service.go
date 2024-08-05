@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
+func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
