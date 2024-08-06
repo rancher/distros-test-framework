@@ -14,6 +14,7 @@ variable "availability_zone" {}
 variable "sg_id" {}
 variable "ec2_instance_class" {}
 variable "resource_name" {}
+variable "volume_size" {}
 variable "key_name" {}
 variable "access_key" {}
 variable "username" {

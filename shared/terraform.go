@@ -55,6 +55,10 @@ func loadTFconfig(
 	}
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
+	if (c.Config.Arch == "arm") {
+		c.Config.Arch = "arm64"
+	}
+	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "product_version")
 	c.Config.Product = product
 
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")

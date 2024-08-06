@@ -17,25 +17,40 @@ flags=${7}
 
 create_config() {
   hostname=$(hostname -f)
-  sudo mkdir -p /etc/rancher/$product
-  cat << EOF >> /etc/rancher/$product/config.yaml
+  mkdir -p /etc/rancher/$product
+  cat <<EOF >>/etc/rancher/$product/config.yaml
 node-name: $hostname
 EOF
 }
 
-add_config() {
+add_to_config() {
+  if [[ "$node_type" == "server" ]]; then
+    echo "write-kubeconfig-mode: 644" >>/etc/rancher/$product/config.yaml
+  fi
+
+  if [ -n "$server_ip" ]; then
+    if [[ "$product" == "k3s" ]]; then
+      echo "server: 'https://$server_ip:6443'" >>/etc/rancher/$product/config.yaml
+    elif [[ "$product" == "rke2" ]]; then
+      echo "server: 'https://$server_ip:9345'" >>/etc/rancher/$product/config.yaml
+    else
+      echo "Invalid product $product"
+    fi
+    echo "token: '$token'" >>/etc/rancher/$product/config.yaml
+  fi
+
   if [ -n "$flags" ]; then
-    echo "$flags" >> /etc/rancher/$product/config.yaml
+    echo "$flags" >>/etc/rancher/$product/config.yaml
   fi
 
   if [ "$flags" != *"cloud-provider-name"* ]; then
     if [ -n "$ipv6_ip" ] && [ -n "$private_ip" ]; then
-      echo "node-ip: $private_ip,$ipv6_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/$product/config.yaml
     elif [ -n "$ipv6_ip" ]; then
-      echo "node-ip: $ipv6_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $ipv6_ip" >>/etc/rancher/$product/config.yaml
       server_ip="[$server_ip]"
     else
-      echo "node-ip: $private_ip" >> /etc/rancher/$product/config.yaml
+      echo "node-ip: $private_ip" >>/etc/rancher/$product/config.yaml
     fi
   fi
   cat /etc/rancher/$product/config.yaml
@@ -43,35 +58,33 @@ add_config() {
 
 install() {
   if [ "$product" = "k3s" ]; then
-    if [ "$node_type" = "server" ]; then
-      if [ -z "$server_ip" ] && [ -z "$token" ]; then
-        INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --cluster-init
-      else
-        INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh --write-kubeconfig-mode 644 --server "https://$server_ip:6443" --token "$token"
-      fi
-      sleep 30
-    elif [ "$node_type" = "agent" ]; then
-      INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh
-      sleep 30
-    else
-      echo "Invalid type. Expected type to be server or agent, found $type!"
-    fi
+    INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+    wait
+    # if [ "$node_type" = "server" ]; then
+    #   INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+    #   # if [ -z "$server_ip" ] && [ -z "$token" ]; then
+    #   #   INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+    #   # else
+    #   #   INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+    #   # fi
+    #   sleep 30
+    # elif [ "$node_type" = "agent" ]; then
+    #   # K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" 
+    #   INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+    #   sleep 30
+    # else
+    #   echo "Invalid type. Expected type to be server or agent, found $type!"
+    # fi
   elif [ "$product" = "rke2" ]; then
     if [ "$node_type" = "server" ]; then
-      rke2 server --write-kubeconfig-mode 644 >/dev/null 2>&1 &
-      sleep 60
+      INSTALL_RKE2_ARTIFACT_PATH="`pwd`/artifacts" ./rke2-install.sh
+      systemctl enable rke2-server.service --now
     elif [ "$node_type" = "agent" ]; then
-      rke2 agent --server "https://$server_ip:9345" --token "$token" >/dev/null 2>&1 &
-      sleep 60
+      INSTALL_RKE2_ARTIFACT_PATH="`pwd`/artifacts" INSTALL_RKE2_TYPE="agent" ./rke2-install.sh
+      systemctl enable rke2-agent.service --now
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"
     fi
-    sudo chmod 644 /etc/rancher/$product/$product.yaml
-    cat << EOF >> .bashrc
-export KUBECONFIG=/etc/rancher/$product/$product.yaml PATH=$PATH:/var/lib/rancher/$product/bin:/opt/$product/bin && \
-alias k=kubectl
-EOF
-source .bashrc
   else
     echo "Invalid product. Expected product to be k3s or rke2, found $product!"
   fi
@@ -147,16 +160,16 @@ source .bashrc
 
 main() {
   create_config
-  add_config
+  add_to_config
   install
   if [ "$node_type" = "server" ]; then
     if [ "$product" = "k3s" ]; then
       # config_files
       wait_nodes
       wait_ready_nodes
-    elif [ "$product" = "rke2" ]; then
-      wait_nodes_rke2
-      wait_ready_nodes
+    # elif [ "$product" = "rke2" ]; then
+    #   wait_nodes_rke2
+    #   wait_ready_nodes
     fi
   fi
 }

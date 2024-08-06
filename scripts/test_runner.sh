@@ -115,6 +115,7 @@ if [ -n "${TEST_DIR}" ]; then
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
+            [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
         go test "${OPTS[@]}"
     fi
 fi

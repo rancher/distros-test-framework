@@ -10,9 +10,25 @@ echo "$@"
 arch=$(uname -m)
 
 install_docker() {
+    max_iteration=3
     install_cmd="curl -fsSL https://get.docker.com | sh"
     if ! eval "$install_cmd"; then
-        echo "Failed to install docker on bastion node"
+      echo "Failed to install docker on bastion node, Retrying..."
+      for i in $(seq 1 $max_iteration); do
+        eval "$install_cmd"
+        result=$?
+          if [[ $result -eq 0 ]]; then
+            echo "Retry successful!"
+            break
+          else
+            echo "Retrying..."
+            sleep 2
+          fi
+      done
+    fi
+
+    if [[ $result -ne 0 ]]; then
+      echo "Failed to install docker on bastion node!!! Delete the instance and try again"
     fi
 }
 

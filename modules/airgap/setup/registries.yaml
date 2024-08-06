@@ -1,5 +1,8 @@
 ---
 mirrors:
+  "$PRIVATE_REG":
+    endpoint:
+      - "https://$PRIVATE_REG"
   docker.io:
     endpoint:
       - "https://$PRIVATE_REG"

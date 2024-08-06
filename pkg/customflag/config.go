@@ -22,7 +22,7 @@ type FlagConfig struct {
 	External           externalConfigFlag
 	RancherConfig      rancherConfigFlag
 	HelmCharts         helmChartsFlag
-	RegistryFlag	  registryFlag
+	AirgapFlag	       airgapFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -54,9 +54,10 @@ func (t *templateConfigFlag) Set(value string) error {
 	return nil
 }
 
-type registryFlag struct {
+type airgapFlag struct {
 	RegistryUsername string
 	RegistryPassword string
+	TarballType		 string
 }
 
 type TestCaseFlag func(applyWorkload, deleteWorkload bool)
