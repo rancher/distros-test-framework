@@ -53,6 +53,7 @@ type clusterConfig struct {
 	DataStore        string
 	Product          string
 	Arch             string
+	Version 		 string
 }
 
 type generalConfig struct {

@@ -7,14 +7,17 @@ data "template_file" "is_ipv6only" {
 }
 
 resource "aws_instance" "master" {
+
+  depends_on = [ null_resource.prepare_bastion ]
+
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  ipv6_address_count          = var.enable_ipv6 == true ? 1 : 0
   count                       = var.no_of_server_nodes
   
   root_block_device {
-    volume_size          = "20"
+    volume_size          = var.volume_size
     volume_type          = "standard"
   }
   subnet_id              = var.subnets
@@ -28,14 +31,17 @@ resource "aws_instance" "master" {
 }
 
 resource "aws_instance" "worker" {
+
+  depends_on = [ null_resource.prepare_bastion ]
+
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  ipv6_address_count          = var.enable_ipv6 == true ? 1 : 0
   count                       = var.no_of_worker_nodes
   
   root_block_device {
-    volume_size          = "20"
+    volume_size          = var.volume_size
     volume_type          = "standard"
   }
   subnet_id              = var.subnets
@@ -55,7 +61,7 @@ resource "aws_instance" "worker" {
 #   count                       = ((data.template_file.is_airgap == true || data.template_file.is_ipv6only == true)) ? 1 : 0
   
 #   root_block_device {
-#     volume_size          = "20"
+#     volume_size          = "50"
 #     volume_type          = "standard"
 #   }
 #   subnet_id              = var.subnets
@@ -71,7 +77,7 @@ resource "aws_instance" "bastion" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  ipv6_address_count          = var.enable_ipv6 == true ? 1 : 0
   count                       = var.no_of_bastion_nodes
   
   connection {
@@ -81,7 +87,7 @@ resource "aws_instance" "bastion" {
     private_key   = file(var.access_key)
   }
   root_block_device {
-    volume_size          = "20"
+    volume_size          = var.volume_size
     volume_type          = "standard"
   }
   subnet_id              = var.bastion_subnets
@@ -98,8 +104,8 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = "setup/download_product.sh"
-    destination = "/tmp/download_product.sh"
+    source = "setup/get_artifacts.sh"
+    destination = "/tmp/get_artifacts.sh"
   }
 
   provisioner "file" {
@@ -128,6 +134,8 @@ resource "aws_instance" "bastion" {
 }
 
 resource "null_resource" "prepare_bastion" {
+
+  depends_on = [ aws_instance.bastion[0] ]
   connection {
     type          = "ssh"
     user          = var.aws_user
@@ -138,20 +146,15 @@ resource "null_resource" "prepare_bastion" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip
-      sudo cp /tmp/bastion_prepare.sh /tmp/download_product.sh /tmp/install_product.sh /tmp/private_registry.sh ~/
+      sudo cp /tmp/${var.key_name}.pem /tmp/bastion_prepare.sh /tmp/get_artifacts.sh /tmp/install_product.sh /tmp/private_registry.sh ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh
       sudo ./bastion_prepare.sh
-      sudo chmod +x download_product.sh
-      sudo ./download_product.sh ${var.product} ${var.product_version} ${var.arch}
     EOT
     ]
   }
 }
 
-locals {
-  shell_options = "-o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes"
-}
 
 # resource "null_resource" "uploader" {
 #   depends_on = [ 
