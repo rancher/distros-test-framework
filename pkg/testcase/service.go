@@ -3,7 +3,6 @@ package testcase
 import (
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -18,7 +17,7 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	}
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	err := assert.ValidateOnHost(getClusterIP+factory.KubeConfigFile, statusRunning)
+	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
@@ -51,7 +50,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 		"--field-selector=status.phase=Running --kubeconfig="
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
-			getNodeport+factory.KubeConfigFile,
+			getNodeport+shared.KubeConfigFile,
 			statusRunning,
 		)
 		Expect(err).NotTo(HaveOccurred(), err)
@@ -78,7 +77,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
-	port, err := shared.RunCommandHost(getLoadbalancerSVC + factory.KubeConfigFile)
+	port, err := shared.RunCommandHost(getLoadbalancerSVC + shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
@@ -89,7 +88,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 
 	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
-			getAppLoadBalancer+factory.KubeConfigFile,
+			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
 			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
@@ -103,7 +102,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func testServiceNodePortDualStack(cluster *factory.Cluster, td testData) {
+func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 	nodeExternalIP := shared.FetchNodeExternalIPs()
 	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)

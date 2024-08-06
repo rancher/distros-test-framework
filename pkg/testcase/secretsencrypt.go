@@ -37,7 +37,7 @@ func TestSecretsEncryption() {
 }
 
 func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
-	shared.LogLevel("info", fmt.Sprintf("TEST: Secrets-Encryption: %s", action))
+	shared.LogLevel("info", "TEST: Secrets-Encryption:  "+action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
 
@@ -141,23 +141,23 @@ func verifyStatusStdOut(action, stdout string) {
 func logEncryptionFileContents(nodes []shared.Node, product string) error {
 	configFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-config.json", product)
 	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
-	cmdShowConfig := fmt.Sprintf("sudo cat %s", configFile)
-	cmdShowState := fmt.Sprintf("sudo cat %s", stateFile)
+	cmdShowConfig := "sudo cat  " + configFile
+	cmdShowState := "sudo cat  " + stateFile
 
 	for _, node := range nodes {
 		ip := node.ExternalIP
 		configStdOut, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
 		if errConfig != nil {
-			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", configFile))
+			return shared.ReturnLogError("error cat of " + configFile)
 		}
 		shared.LogLevel("DEBUG", "cat %s:\n %s", configFile, configStdOut)
 		currentTime := time.Now()
-		Expect(configStdOut).To(ContainSubstring(fmt.Sprintf("aescbckey-%s",
-			currentTime.Format("2006-01-02"))))
+		Expect(configStdOut).To(ContainSubstring("aescbckey-" + currentTime.Format("2006-01-02")))
+
 		stateOut, errState := shared.RunCommandOnNode(cmdShowState, ip)
 		shared.LogLevel("DEBUG", "cat %s:\n %s", stateFile, stateOut)
 		if errState != nil {
-			return shared.ReturnLogError(fmt.Sprintf("Error cat of %s", stateFile))
+			return shared.ReturnLogError("error cat of " + stateFile)
 		}
 	}
 

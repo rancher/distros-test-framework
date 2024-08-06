@@ -2,12 +2,10 @@ package versionbump
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
@@ -16,15 +14,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cluster *factory.Cluster
+var (
+	kubeconfig string
+	cluster    *shared.Cluster
+)
 
 func TestMain(m *testing.M) {
-	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
-		Expect(err).To(BeNil(), fmt.Sprintf("error loading env vars: %v\n", err))
-	}
-
-	cluster = factory.ClusterConfig()
-
 	flag.StringVar(&customflag.TestMap.Cmd, "cmd", "", "Comma separated list of commands to execute")
 	flag.StringVar(&customflag.TestMap.ExpectedValue, "expectedValue", "", "Comma separated list of expected values for commands")
 	flag.StringVar(&customflag.TestMap.ExpectedValueUpgrade, "expectedValueUpgrade", "", "Expected value of the command ran after upgrading")
@@ -50,6 +45,21 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("info", "debug mode enabled on template\n\n")
 	}
 
+	_, err := config.AddEnv()
+	if err != nil {
+		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		os.Exit(1)
+	}
+
+	kubeconfig = os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -60,7 +70,7 @@ func TestVersionBumpSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := factory.DestroyCluster()
+		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

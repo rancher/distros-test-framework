@@ -3,7 +3,6 @@ package testcase
 import (
 	"time"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -12,7 +11,7 @@ import (
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(cluster *factory.Cluster, applyWorkload, deleteWorkload bool) {
+func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
@@ -20,7 +19,7 @@ func TestLocalPathProvisionerStorage(cluster *factory.Cluster, applyWorkload, de
 	}
 
 	getPodVolumeTestRunning := "kubectl get pods -n local-path-storage" +
-		" --field-selector=status.phase=Running --kubeconfig=" + factory.KubeConfigFile
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	err := assert.ValidateOnHost(
 		getPodVolumeTestRunning,
 		statusRunning,
@@ -61,9 +60,9 @@ func TestLocalPathProvisionerStorage(cluster *factory.Cluster, applyWorkload, de
 	}
 }
 
-func readData(cluster *factory.Cluster) error {
+func readData(cluster *shared.Cluster) error {
 	deletePod := "kubectl delete -n local-path-storage  pod -l app=volume-test --kubeconfig="
-	err := assert.ValidateOnHost(deletePod+factory.KubeConfigFile, "deleted")
+	err := assert.ValidateOnHost(deletePod+shared.KubeConfigFile, "deleted")
 	if err != nil {
 		return err
 	}

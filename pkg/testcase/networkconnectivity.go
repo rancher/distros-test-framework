@@ -1,11 +1,11 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,7 +13,7 @@ import (
 )
 
 // TestInternodeConnectivityMixedOS validates communication between linux and windows nodes.
-func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, deleteWorkload bool) {
+func TestInternodeConnectivityMixedOS(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply",
@@ -37,7 +37,7 @@ func TestInternodeConnectivityMixedOS(cluster *factory.Cluster, applyWorkload, d
 }
 
 // testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range.
-func testIPsInCIDRRange(cluster *factory.Cluster, label, svc string) {
+func testIPsInCIDRRange(cluster *shared.Cluster, label, svc string) {
 	nodeArgs, err := shared.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
@@ -62,10 +62,10 @@ func testCrossNodeService(services, ports, expected []string) error {
 	delay := time.After(160 * time.Second)
 
 	if len(services) != len(ports) && len(ports) != len(expected) {
-		return fmt.Errorf("slice parameters must have equal length")
+		return errors.New("slice parameters must have equal length")
 	}
 	if len(services) < 2 || len(ports) < 2 || len(expected) < 2 {
-		return fmt.Errorf("slice parameters must not be less than or equal to 2")
+		return errors.New("slice parameters must not be less than or equal to 2")
 	}
 
 	shared.LogLevel("info", "Connecting to services")
@@ -73,12 +73,12 @@ func testCrossNodeService(services, ports, expected []string) error {
 
 	performCheck := func(svc1, svc2, port, expected string) error {
 		cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", svc1,
-			factory.KubeConfigFile, svc2, port)
+			shared.KubeConfigFile, svc2, port)
 
 		for {
 			select {
 			case <-timeout:
-				return fmt.Errorf("timeout reached")
+				return errors.New("timeout reached")
 			case <-ticker.C:
 				result, err := shared.RunCommandHost(cmd)
 				if err != nil {

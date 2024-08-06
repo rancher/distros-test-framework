@@ -35,7 +35,7 @@ func productVersion(product string) (string, error) {
 		return "", ReturnLogError("failed to find path for product: %s, error: %w\n", product, findErr)
 	}
 
-	cmd := fmt.Sprintf("%s -v", path)
+	cmd := path + " -v"
 	v, err := RunCommandOnNode(cmd, ips[0])
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %w\n", product, err)
@@ -107,7 +107,7 @@ func serviceName(product, nodeType string) (string, error) {
 
 // CertRotate certificate rotate for k3s or rke2.
 func CertRotate(product string, ips []string) (string, error) {
-	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" %s", product)
+	product = "-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\"  " + product
 	if len(ips) == 0 {
 		return "", ReturnLogError("ips string array cannot be empty")
 	}
@@ -125,7 +125,7 @@ func CertRotate(product string, ips []string) (string, error) {
 }
 
 func SecretEncryptOps(action, ip, product string) (string, error) {
-	product = fmt.Sprintf("-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" %s", product)
+	product = "-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\" " + product
 	secretEncryptCmd := map[string]string{
 		"status":      fmt.Sprintf("sudo %s secrets-encrypt status", product),
 		"enable":      fmt.Sprintf("sudo %s secrets-encrypt enable", product),

@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -20,14 +18,10 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
+func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 	if version == "" {
 		Expect(version).NotTo(BeEmpty(), "version not sent")
 	}
-
-	envErr := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		cluster.Config.Product))
-	Expect(envErr).NotTo(HaveOccurred(), "error setting env: %s", envErr)
 
 	resourceName := os.Getenv("resource_name")
 	awsDependencies, err := aws.AddNode(cluster)
@@ -79,7 +73,7 @@ func TestUpgradeReplaceNode(cluster *factory.Cluster, version string) {
 }
 
 func nodeReplaceAgents(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	version string,
 	resourceName string,
 	awsDependencies *aws.Client,
@@ -111,7 +105,7 @@ func nodeReplaceAgents(
 	shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 }
 
-func scpToNewNodes(cluster *factory.Cluster, nodeType string, newNodeIps []string) error {
+func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string) error {
 	if newNodeIps == nil {
 		return shared.ReturnLogError("newServerIps should send at least one ip\n")
 	}
@@ -146,7 +140,7 @@ func scpToNewNodes(cluster *factory.Cluster, nodeType string, newNodeIps []strin
 	return nil
 }
 
-func scpRke2Files(cluster *factory.Cluster, nodeType, ip string) error {
+func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/tmp/join_rke2_%s.sh", nodeType)
 
@@ -157,7 +151,7 @@ func scpRke2Files(cluster *factory.Cluster, nodeType, ip string) error {
 	return nil
 }
 
-func scpK3sFiles(cluster *factory.Cluster, nodeType, ip string) error {
+func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 	if nodeType == agent {
 		err := k3sAgentSCP(cluster, ip)
 		if err != nil {
@@ -173,7 +167,7 @@ func scpK3sFiles(cluster *factory.Cluster, nodeType, ip string) error {
 	return nil
 }
 
-func k3sAgentSCP(cluster *factory.Cluster, ip string) error {
+func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 	cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
 	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
 
@@ -188,7 +182,7 @@ func k3sAgentSCP(cluster *factory.Cluster, ip string) error {
 	)
 }
 
-func k3sServerSCP(cluster *factory.Cluster, ip string) error {
+func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
@@ -229,7 +223,7 @@ func k3sServerSCP(cluster *factory.Cluster, ip string) error {
 }
 
 func nodeReplaceServers(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	a *aws.Client,
 	resourceName, serverLeaderIp, token, version string,
 	newExternalServerIps, newPrivateServerIps []string,
@@ -250,7 +244,6 @@ func nodeReplaceServers(
 
 		return err
 	}
-	shared.LogLevel("info", "Proceeding to update config file after first server join %s\n", newFirstServerIP)
 
 	// delete first the server that is not the leader neither the server ip in the kubeconfig.
 	oldServerIPs := cluster.ServerIPs
@@ -260,8 +253,9 @@ func nodeReplaceServers(
 		return delErr
 	}
 
-	// update the kubeconfig file to point to the new added server.
-	if kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product); kbCfgErr != nil {
+	shared.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n", newFirstServerIP)
+	kubeConfigUpdated, kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
+	if kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
 	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
@@ -280,11 +274,13 @@ func nodeReplaceServers(
 		return err
 	}
 
+	shared.LogLevel("info", "Updated kubeconfig base64 string:\n%s\n", kubeConfigUpdated)
+
 	return nil
 }
 
 func joinRemainServers(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	a *aws.Client,
 	newExternalServerIps,
 	newPrivateServerIps,
@@ -337,7 +333,7 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoin(cluster *factory.Cluster, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
+func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
 	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
@@ -371,7 +367,7 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 }
 
 func replaceAgents(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	a *aws.Client,
 	serverLeaderIp, token, version string,
 	newExternalAgentIps, newPrivateAgentIps []string,
@@ -404,7 +400,7 @@ func replaceAgents(
 	return nil
 }
 
-func deleteAgents(a *aws.Client, c *factory.Cluster) error {
+func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 	for _, i := range c.AgentIPs {
 		if deleteNodeErr := shared.DeleteNode(i); deleteNodeErr != nil {
 			shared.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
@@ -423,7 +419,7 @@ func deleteAgents(a *aws.Client, c *factory.Cluster) error {
 	return nil
 }
 
-func joinAgent(cluster *factory.Cluster, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
+func joinAgent(cluster *shared.Cluster, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
 	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
@@ -463,7 +459,7 @@ func joinNode(cmd, ip string) error {
 }
 
 func buildJoinCmd(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP string,
 ) (string, error) {
 	if nodetype != master && nodetype != agent {
@@ -495,7 +491,7 @@ func buildJoinCmd(
 }
 
 func buildK3sCmd(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	nodetype, serverIP, token, version, selfExternalIP, selfPrivateIP, instalMode, flags string,
 ) (string, error) {
 	var cmd string
@@ -544,7 +540,7 @@ func buildK3sCmd(
 }
 
 func buildRke2Cmd(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")

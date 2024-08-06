@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -12,16 +11,16 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDeployCertManager(cluster *factory.Cluster, version string) {
+func TestDeployCertManager(cluster *shared.Cluster, version string) {
 	addRepoCmd := "helm repo add jetstack https://charts.jetstack.io && helm repo update"
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
 			"https://github.com/jetstack/cert-manager/releases/download/%s/cert-manager.crds.yaml",
-		factory.KubeConfigFile, version)
+		shared.KubeConfigFile, version)
 	installCertMgrCmd := fmt.Sprintf("kubectl create namespace cert-manager --kubeconfig=%s && ",
-		factory.KubeConfigFile) + fmt.Sprintf(
+		shared.KubeConfigFile) + fmt.Sprintf(
 		"helm install cert-manager jetstack/cert-manager -n cert-manager --version %s --kubeconfig=%s",
-		version, factory.KubeConfigFile)
+		version, shared.KubeConfigFile)
 
 	res, err := shared.RunCommandHost(addRepoCmd, applyCrdsCmd, installCertMgrCmd)
 	Expect(err).NotTo(HaveOccurred(),
@@ -45,7 +44,7 @@ func TestDeployCertManager(cluster *factory.Cluster, version string) {
 	}, "120s", "5s").Should(Succeed())
 }
 
-func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
+func TestDeployRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	response := installRancher(cluster, flags)
 
 	filters := map[string]string{
@@ -74,7 +73,7 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 			continue
 		}
 
-		bootstrapPassCmd := strings.TrimSpace(line) + " --kubeconfig=" + factory.KubeConfigFile
+		bootstrapPassCmd := strings.TrimSpace(line) + " --kubeconfig=" + shared.KubeConfigFile
 		bootstrapPassword, err := shared.RunCommandHost(bootstrapPassCmd)
 		Expect(err).NotTo(HaveOccurred(),
 			"failed to retrieve rancher bootstrap password: %v\nCommand: %s\n", err, bootstrapPassCmd)
@@ -86,7 +85,7 @@ func TestDeployRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "\nRancher URL: %s", rancherURL)
 }
 
-func installRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) string {
+func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) string {
 	addRepoCmd := fmt.Sprintf(
 		"helm repo add %s %s && "+
 			"helm repo update",
@@ -96,7 +95,7 @@ func installRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) stri
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+
 			"helm install rancher %s/rancher ",
-		factory.KubeConfigFile,
+		shared.KubeConfigFile,
 		flags.HelmCharts.RepoName)
 
 	if flags.HelmCharts.Args != "" {
@@ -110,7 +109,7 @@ func installRancher(cluster *factory.Cluster, flags *customflag.FlagConfig) stri
 		"--kubeconfig=%s",
 		flags.RancherConfig.RancherVersion,
 		cluster.FQDN,
-		factory.KubeConfigFile)
+		shared.KubeConfigFile)
 
 	shared.LogLevel("info", "Helm command: %s", addRepoCmd)
 	response, err := shared.RunCommandHost(addRepoCmd)
