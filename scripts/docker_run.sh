@@ -10,6 +10,7 @@ if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"
 fi
 
+# Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
    Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
@@ -29,6 +30,8 @@ test_run() {
       fi
 }
 
+# Runs a new Docker container with a random suffix and version-specific image name
+# Uses the same base image as the original container, so dont need to rebuild.
 test_run_new() {
     RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
 
@@ -58,6 +61,9 @@ test_run_new() {
       fi
 }
 
+# Commits the state of a previous running container and runs a new container from that state
+# This is useful for running other tests with the same state as a previous test, meaning using the same terraform state
+# using same instances.
 test_run_state() {
      CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
 
@@ -85,38 +91,45 @@ test_run_state() {
      fi
 }
 
+# Copies /tmp files for config and terraform modules from a previous running container,
+# and starts a new container with the same state as the previous container.
+# This is useful for running other tests and also you can change the current code and run the tests again within the same instances.
 test_run_updates() {
     CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
+
+    RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
+    NEW_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"
 
     if [ -z "${CONTAINER_ID}" ]; then
         echo "No matching container found."
         exit 1
     else
-        rm -rf modules/ tmp/
-        docker cp "${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/" modules/
         docker cp "${CONTAINER_ID}:/tmp/" tmp/
+        docker cp "${CONTAINER_ID}:/go/src/github.com/rancher/distros-test-framework/modules/" tmp/modules/
 
         test_env_up "${TAG_NAME}"
-        run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
+        run=$(docker run -dt --name "acceptance-test-${NEW_IMG_NAME}" \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
             --env-file ./config/.env \
             -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
             -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
+            -v "${PWD}/tmp/modules/:/go/src/github.com/rancher/distros-test-framework/modules/" \
             -v "${PWD}/tmp/:/tmp" \
             "acceptance-test-${TAG_NAME}")
 
       if ! [ "$run" ]; then
-        echo "Failed to run updated acceptance-test-${IMG_NAME} container."
+        echo "Failed to run updated acceptance-test-${NEW_IMG_NAME} container."
         exit 1
       else
         printf "\nContainer started successfully."
-        image_stats "${IMG_NAME}"
-        docker logs -f "acceptance-test-${IMG_NAME}"
+        image_stats "${NEW_IMG_NAME}"
+        docker logs -f "acceptance-test-${NEW_IMG_NAME}"
       fi
     fi
 }
 
+# Collects and logs Docker container stats.
 image_stats() {
     local container_name=$1
 
@@ -127,14 +140,17 @@ image_stats() {
       fi
 }
 
+# Displays logs of the running Docker container
 test_logs() {
    docker logs -f "acceptance-test-${IMG_NAME}"
 }
 
+# Builds the Docker image for the test environment
 test_env_up() {
     docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-"${TAG_NAME}"
 }
 
+# Cleans up the test environment by removing containers,images and dangling images.
 clean_env() {
     read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
   if [[ $REPLY =~ ^[Yyes]$ ]]; then
