@@ -114,3 +114,11 @@ go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 ```
 chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
 ```
+
+### Testing with kubeconfig file.
+
+- Required variables in `.env` file
+```
+KUBE_CONFIG=<kubeconfig file base64-encoded>
+BASTION_IP=<bastion public ip> when testing Dual-Stack
+```

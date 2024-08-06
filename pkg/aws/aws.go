@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -10,12 +11,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 type Client struct {
-	infra *factory.Cluster
+	infra *shared.Cluster
 	ec2   *ec2.EC2
 }
 
@@ -25,7 +25,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddNode(c *factory.Cluster) (*Client, error) {
+func AddNode(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
@@ -33,7 +33,7 @@ func AddNode(c *factory.Cluster) (*Client, error) {
 	}
 
 	return &Client{
-		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		infra: &shared.Cluster{AwsEc2: c.AwsEc2},
 		ec2:   ec2.New(sess),
 	}, nil
 }
@@ -159,7 +159,7 @@ func (c Client) WaitForInstanceRunning(instanceId string) error {
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("timed out waiting for instance to be in running state and pass status checks")
+			return errors.New("timed out waiting for instance to be in running state and pass status checks")
 		case <-ticker.C:
 			statusRes, err := c.ec2.DescribeInstanceStatus(input)
 			if err != nil {
@@ -256,7 +256,7 @@ func (c Client) fetchIP(nodeID string) (publicIP, privateIP string, err error) {
 
 func extractID(reservation *ec2.Reservation) (string, error) {
 	if len(reservation.Instances) == 0 || reservation.Instances[0].InstanceId == nil {
-		return "", fmt.Errorf("no instance ID found")
+		return "", errors.New("no instance ID found")
 	}
 
 	return *reservation.Instances[0].InstanceId, nil

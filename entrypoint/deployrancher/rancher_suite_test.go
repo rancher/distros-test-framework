@@ -2,13 +2,11 @@ package deployrancher
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -17,8 +15,9 @@ import (
 )
 
 var (
-	cluster *factory.Cluster
-	flags   *customflag.FlagConfig
+	cluster    *shared.Cluster
+	flags      *customflag.FlagConfig
+	kubeconfig string
 )
 
 func TestMain(m *testing.M) {
@@ -34,7 +33,20 @@ func TestMain(m *testing.M) {
 
 	customflag.ValidateVersionFormat()
 
-	cluster = factory.ClusterConfig()
+	_, err := config.AddEnv()
+	if err != nil {
+		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		os.Exit(1)
+	}
+
+	kubeconfig = os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
 
 	os.Exit(m.Run())
 }
@@ -45,10 +57,6 @@ func TestRancherSuite(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cluster.Config.Product)); err != nil {
-		Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
-	}
-
 	Expect(os.Getenv("create_lb")).To(Equal("true"), "Wrong value passed in tfvars for 'create_lb'")
 
 	if cluster.Config.Product == "rke2" &&
@@ -69,7 +77,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := factory.DestroyCluster()
+		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

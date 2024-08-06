@@ -4,17 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestCertRotate(cluster *factory.Cluster) {
+func TestCertRotate(cluster *shared.Cluster) {
 	certRotate(cluster.Config.Product, cluster.ServerIPs)
 
 	ip, manageError := shared.ManageService(cluster.Config.Product, "restart", "agent", cluster.AgentIPs)
-	Expect(manageError).NotTo(HaveOccurred(), fmt.Sprintf("error restarting agent node ip %s", ip))
+	Expect(manageError).NotTo(HaveOccurred(), "error restarting agent node ip"+ip)
 
 	verifyTLSDirContent(cluster.Config.Product, cluster.ServerIPs)
 }
@@ -51,19 +50,19 @@ func verifyIdenticalFiles(identicalFileList string) {
 
 // verifyTLSDirContent Compare TLS Directories before and after cert rotation to display identical files.
 func verifyTLSDirContent(product string, ips []string) {
-	dataDir := fmt.Sprintf("/var/lib/rancher/%s", product)
-	serverDir := fmt.Sprintf("%s/server", dataDir)
-	origTLSDir := fmt.Sprintf("%s/tls", serverDir)
+	dataDir := "/var/lib/rancher/" + product
+	serverDir := dataDir + "/server"
+	origTLSDir := serverDir + "/tls"
 
-	cmd := fmt.Sprintf("sudo ls -lt %s/ | grep tls | awk {'print $9'} | sed -n '2 p'", serverDir)
+	cmd := "sudo ls -lt " + serverDir + "/ | grep tls | awk {'print $9'} | sed -n '2 p'"
 
 	for _, ip := range ips {
-		shared.LogLevel("info", fmt.Sprintf("Working on node with ip: %s", ip))
+		shared.LogLevel("info", "Working on node with ip: "+ip)
 
 		tlsDir, tlsError := shared.RunCommandOnNode(cmd, ip)
-		Expect(tlsError).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get new TLS Directory name for %s", ip))
+		Expect(tlsError).NotTo(HaveOccurred(), "Unable to get new TLS Directory name for "+ip)
 
-		shared.LogLevel("info", fmt.Sprintf("TLS Directory name: %s", tlsDir))
+		shared.LogLevel("info", "TLS Directory name:  "+tlsDir)
 		newTLSDir := fmt.Sprintf("%s/%s", serverDir, tlsDir)
 
 		shared.LogLevel("info", "Comparing Directories: %s and %s", origTLSDir, newTLSDir)
@@ -72,7 +71,7 @@ func verifyTLSDirContent(product string, ips []string) {
 			"awk 'BEGIN{print \"Identical Files:  \"}; {print $1}'", origTLSDir, newTLSDir)
 
 		identicalFileList, err := shared.RunCommandOnNode(cmd2, ip)
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error getting identical files on %s", ip))
+		Expect(err).NotTo(HaveOccurred(), "error getting identical files on "+ip)
 
 		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, identicalFileList))
 

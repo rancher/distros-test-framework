@@ -52,8 +52,8 @@ var _ = Describe("Test:", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! " + CurrentSpecReport().FullText() + "\n")
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! " + CurrentSpecReport().FullText() + "\n")
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })
