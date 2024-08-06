@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -18,8 +17,8 @@ type configuration struct {
 	cmdCtx
 }
 
-// TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config
-func TestSelinuxEnabled(cluster *factory.Cluster) {
+// TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
+func TestSelinuxEnabled(cluster *shared.Cluster) {
 	ips := shared.FetchNodeExternalIPs()
 	selinuxConfigAssert := "selinux: true"
 	selinuxContainerdAssert := "enable_selinux = true"
@@ -35,8 +34,8 @@ func TestSelinuxEnabled(cluster *factory.Cluster) {
 	}
 }
 
-// TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version
-func TestSelinux(cluster *factory.Cluster) {
+// TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version.
+func TestSelinux(cluster *shared.Cluster) {
 
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
@@ -80,7 +79,6 @@ func getVersion(osRelease, ip string) (string, error) {
 	version := strings.Trim(parts[1], "\"")
 	if dotIndex := strings.Index(version, "."); dotIndex != -1 {
 		version = version[:dotIndex]
-
 	}
 
 	return version, nil
@@ -145,17 +143,17 @@ func selectSelinuxPolicy(product, osType string) cmdCtx {
 	return nil
 }
 
-// TestSelinuxSpcT Validate that containers don't run with spc_t
-func TestSelinuxSpcT(cluster *factory.Cluster) {
+// TestSelinuxSpcT Validate that containers don't run with spc_t.
+func TestSelinuxSpcT(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
-		// removing err here since this is actually returning exit 1
+		// removing err here since this is actually returning exit 1.
 		res, _ := shared.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
 		Expect(res).ShouldNot(ContainSubstring("spc_t"))
 	}
 }
 
-// TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy
-func TestUninstallPolicy(cluster *factory.Cluster) {
+// TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
+func TestUninstallPolicy(cluster *shared.Cluster) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
@@ -196,12 +194,12 @@ func TestUninstallPolicy(cluster *factory.Cluster) {
 	}
 }
 
-// https://github.com/k3s-io/k3s/blob/master/install.sh
-// https://github.com/rancher/rke2/blob/master/install.sh
-// Based on this info, this is the way to validate the correct context
+// https://github.com/k3s-io/k3s/blob/master/install.sh.
+// https://github.com/rancher/rke2/blob/master/install.sh.
+// Based on this info, this is the way to validate the correct context.
 
-// TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created
-func TestSelinuxContext(cluster *factory.Cluster) {
+// TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created.
+func TestSelinuxContext(cluster *shared.Cluster) {
 	var err error
 
 	if cluster.NumServers > 0 {
@@ -254,7 +252,7 @@ const (
 	ctxRke2TLS  = "system_u:object_r:rke2_tls_t:s0"
 )
 
-//nolint:dupl // this is expected
+//nolint:dupl // this is expected.
 var conf = []configuration{
 	{
 		distroName: "rke2_centos7",
@@ -410,7 +408,7 @@ var conf = []configuration{
 		},
 	},
 	{
-		// Works partially, has a bug related and some different outputs
+		// Works partially, has a bug related and some different outputs.
 		distroName: "k3s_centos7",
 		cmdCtx: cmdCtx{
 			// TODO: issue related to UnitFile  https://github.com/k3s-io/k3s/issues/8317

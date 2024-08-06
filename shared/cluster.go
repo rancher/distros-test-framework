@@ -10,47 +10,12 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-
-	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 )
-
-type Node struct {
-	Name       string
-	Status     string
-	Roles      string
-	Version    string
-	InternalIP string
-	ExternalIP string
-}
-
-type Pod struct {
-	NameSpace      string
-	Name           string
-	Ready          string
-	Status         string
-	Restarts       string
-	Age            string
-	IP             string
-	Node           string
-	NominatedNode  string
-	ReadinessGates string
-}
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
 func ManageWorkload(action string, workloads ...string) error {
 	if action != "apply" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
-	}
-
-	prod, _, err := Product()
-	if err != nil {
-		return err
-	}
-
-	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		prod)); envErr != nil {
-		return ReturnLogError("error setting env: %w\n", envErr)
 	}
 
 	arch := os.Getenv("arch")
@@ -91,7 +56,7 @@ func handleWorkload(action, resourceDir, workload string) error {
 func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
 
-	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + factory.KubeConfigFile
+	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	if err != nil || out == "" {
 		if strings.Contains(out, "error when creating") {
@@ -101,7 +66,7 @@ func applyWorkload(workload, filename string) error {
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
-	out, err = RunCommandHost("kubectl get all -A " + " --kubeconfig=" + factory.KubeConfigFile)
+	out, err = RunCommandHost("kubectl get all -A " + " --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return ReturnLogError("failed to run kubectl get all: %w\n", err)
 	}
@@ -117,7 +82,7 @@ func applyWorkload(workload, filename string) error {
 func deleteWorkload(workload, filename string) error {
 	LogLevel("info", "Removing %s", workload)
 
-	cmd := "kubectl delete -f " + filename + " --kubeconfig=" + factory.KubeConfigFile
+	cmd := "kubectl delete -f " + filename + " --kubeconfig=" + KubeConfigFile
 	_, err := RunCommandHost(cmd)
 	if err != nil {
 		return err
@@ -129,7 +94,7 @@ func deleteWorkload(workload, filename string) error {
 	for {
 		select {
 		case <-tick.C:
-			res, err := RunCommandHost("kubectl get all -A " + " --kubeconfig=" + factory.KubeConfigFile)
+			res, err := RunCommandHost("kubectl get all -A " + " --kubeconfig=" + KubeConfigFile)
 			if err != nil {
 				return ReturnLogError("failed to run kubectl get all: %w\n", err)
 			}
@@ -152,8 +117,8 @@ func deleteWorkload(workload, filename string) error {
 //
 // source = pods, node , exec, service ...
 //
-// args   = the rest of your command arguments
-func KubectlCommand(cluster *factory.Cluster, destination, action, source string, args ...string) (string, error) {
+// args   = the rest of your command arguments.
+func KubectlCommand(cluster *Cluster, destination, action, source string, args ...string) (string, error) {
 	shortCmd := map[string]string{
 		"get":      "kubectl get",
 		"describe": "kubectl describe",
@@ -167,17 +132,11 @@ func KubectlCommand(cluster *factory.Cluster, destination, action, source string
 		cmdPrefix = action
 	}
 
-	if envErr := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars",
-		cluster.Config.Product)); envErr != nil {
-		return "", ReturnLogError("error setting env: %w\n", envErr)
-	}
-
 	resourceName := os.Getenv("resource_name")
-
 	var cmd string
 	switch destination {
 	case "host":
-		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + " --kubeconfig=" + factory.KubeConfigFile
+		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + " --kubeconfig=" + KubeConfigFile
 
 		return kubectlCmdOnHost(cmd)
 	case "node":
@@ -216,14 +175,14 @@ func kubectlCmdOnNode(cmd, ip string) (string, error) {
 // FetchClusterIPs returns the cluster IPs and port of the service.
 func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 	cmd := "kubectl get svc " + svc + " -n " + namespace +
-		" -o jsonpath='{.spec.clusterIPs[*]}'  " + " --kubeconfig=" + factory.KubeConfigFile
+		" -o jsonpath='{.spec.clusterIPs[*]}'  " + " --kubeconfig=" + KubeConfigFile
 	ip, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster IPs: %v\n", err)
 	}
 
 	cmd = "kubectl get svc " + svc + " -n " + namespace +
-		" -o jsonpath='{.spec.ports[0].port}' " + " --kubeconfig=" + factory.KubeConfigFile
+		" -o jsonpath='{.spec.ports[0].port}' " + " --kubeconfig=" + KubeConfigFile
 	port, err = RunCommandHost(cmd)
 	if err != nil {
 		return "", "", ReturnLogError("failed to fetch cluster port: %w\n", err)
@@ -232,9 +191,9 @@ func FetchClusterIPs(namespace, svc string) (ip, port string, err error) {
 	return ip, port, err
 }
 
-// FetchServiceNodePort returns the node port of the service
+// FetchServiceNodePort returns the node port of the service.
 func FetchServiceNodePort(namespace, serviceName string) (string, error) {
-	cmd := "kubectl get service -n " + namespace + " " + serviceName + " --kubeconfig=" + factory.KubeConfigFile +
+	cmd := "kubectl get service -n " + namespace + " " + serviceName + " --kubeconfig=" + KubeConfigFile +
 		" --output jsonpath=\"{.spec.ports[0].nodePort}\""
 	nodeport, err := RunCommandHost(cmd)
 	if err != nil {
@@ -248,7 +207,7 @@ func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 func FetchNodeExternalIPs() []string {
 	res, err := RunCommandHost("kubectl get nodes " +
 		"--output=jsonpath='{.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}' " +
-		"--kubeconfig=" + factory.KubeConfigFile)
+		"--kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		LogLevel("error", "%w", err)
 	}
@@ -265,13 +224,13 @@ func RestartCluster(product, ip string) {
 	time.Sleep(20 * time.Second)
 }
 
-// FetchIngressIP returns the ingress IP of the given namespace
+// FetchIngressIP returns the ingress IP of the given namespace.
 func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	res, err := RunCommandHost(
 		"kubectl get ingress -n " +
 			namespace +
 			"  -o jsonpath='{.items[0].status.loadBalancer.ingress[*].ip}' --kubeconfig=" +
-			factory.KubeConfigFile,
+			KubeConfigFile,
 	)
 	if err != nil {
 		return nil, ReturnLogError("failed to fetch ingress IP: %w\n", err)
@@ -286,16 +245,16 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script
-// action	required install or cleanup sonobuoy plugin for mixed OS cluster
-// version	optional sonobouy version to be installed
+// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script.
+// action	required install or cleanup sonobuoy plugin for mixed OS cluster.
+// version	optional sonobouy version to be installed.
 func SonobuoyMixedOS(action, version string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
 	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
-	err := os.Chmod(scriptsDir, 0755)
+	err := os.Chmod(scriptsDir, 0o755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
 	}
@@ -309,9 +268,9 @@ func SonobuoyMixedOS(action, version string) error {
 	return err
 }
 
-// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide
+// PrintClusterState prints the output of kubectl get nodes,pods -A -o wide.
 func PrintClusterState() {
-	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + factory.KubeConfigFile
+	cmd := "kubectl get nodes,pods -A -o wide --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
@@ -320,22 +279,22 @@ func PrintClusterState() {
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
-func GetNodes(print bool) ([]Node, error) {
-	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + factory.KubeConfigFile)
+func GetNodes(display bool) ([]Node, error) {
+	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
 	if err != nil {
 		return nil, err
 	}
 
 	nodes := parseNodes(res)
-	if print {
+	if display {
 		fmt.Println(res)
 	}
 
 	return nodes, nil
 }
 
-// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles
-// Valid values for roles are: etcd, control-plane, worker
+// GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles.
+// Valid values for roles are: etcd, control-plane, worker.
 func GetNodesByRoles(roles ...string) ([]Node, error) {
 	var nodes []Node
 	var matchedNodes []Node
@@ -356,7 +315,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		}
 
 		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
-			" --no-headers --kubeconfig=" + factory.KubeConfigFile +
+			" --no-headers --kubeconfig=" + KubeConfigFile +
 			" -l role-" + role
 		res, err := RunCommandHost(cmd)
 		if err != nil {
@@ -365,8 +324,8 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		matchedNodes = append(matchedNodes, parseNodes(res)...)
 	}
 
-	for _, matchedNode := range matchedNodes {
-		nodes = appendNodeIfMissing(nodes, matchedNode)
+	for i := range matchedNodes {
+		nodes = appendNodeIfMissing(nodes, &matchedNodes[i])
 	}
 
 	return nodes, nil
@@ -382,17 +341,18 @@ func parseNodes(res string) []Node {
 		}
 
 		fields := strings.Fields(rec)
-		if len(fields) < 7 {
+		if len(fields) < 8 {
 			continue
 		}
 
 		n := Node{
-			Name:       fields[0],
-			Status:     fields[1],
-			Roles:      fields[2],
-			Version:    fields[4],
-			InternalIP: fields[5],
-			ExternalIP: fields[6],
+			Name:              fields[0],
+			Status:            fields[1],
+			Roles:             fields[2],
+			Version:           fields[4],
+			InternalIP:        fields[5],
+			ExternalIP:        fields[6],
+			OperationalSystem: fields[7],
 		}
 		nodes = append(nodes, n)
 	}
@@ -401,25 +361,25 @@ func parseNodes(res string) []Node {
 }
 
 // GetPods returns pods parsed from kubectl get pods.
-func GetPods(print bool) ([]Pod, error) {
-	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + factory.KubeConfigFile
+func GetPods(display bool) ([]Pod, error) {
+	cmd := "kubectl get pods -o wide --no-headers -A --kubeconfig=" + KubeConfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
 	pods := parsePods(res)
-	if print {
+	if display {
 		fmt.Println("\nCluster pods:\n", res)
 	}
 
 	return pods, nil
 }
 
-// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters
-// Example filters are: namespace, label, --field-selector
+// GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters.
+// Example filters are: namespace, label, --field-selector.
 func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
-	cmd := fmt.Sprintf("kubectl get pods -o wide --no-headers --kubeconfig=%s", factory.KubeConfigFile)
+	cmd := "kubectl get pods -o wide --no-headers --kubeconfig=" + KubeConfigFile
 	for option, value := range filters {
 		var opt string
 
@@ -476,8 +436,8 @@ func parsePods(res string) []Pod {
 	return pods
 }
 
-// ReadDataPod reads the data from the pod
-func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
+// ReadDataPod reads the data from the pod.
+func ReadDataPod(cluster *Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
 		"host",
@@ -490,7 +450,7 @@ func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 		os.Exit(1)
 	}
 
-	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + factory.KubeConfigFile +
+	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
 		" -- cat /data/test"
 
 	res, err := RunCommandHost(cmd)
@@ -501,8 +461,8 @@ func ReadDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 	return res, nil
 }
 
-// WriteDataPod writes data to the pod
-func WriteDataPod(cluster *factory.Cluster, namespace string) (string, error) {
+// WriteDataPod writes data to the pod.
+func WriteDataPod(cluster *Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
 		"host",
@@ -514,14 +474,14 @@ func WriteDataPod(cluster *factory.Cluster, namespace string) (string, error) {
 		return "", ReturnLogError("failed to fetch pod name: \n%w", err)
 	}
 
-	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + factory.KubeConfigFile +
+	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +
 		" -- sh -c 'echo testing local path > /data/test' "
 
 	return RunCommandHost(cmd)
 }
 
-// GetNodeArgsMap returns list of nodeArgs map
-func GetNodeArgsMap(cluster *factory.Cluster, nodeType string) (map[string]string, error) {
+// GetNodeArgsMap returns list of nodeArgs map.
+func GetNodeArgsMap(cluster *Cluster, nodeType string) (map[string]string, error) {
 	res, err := KubectlCommand(
 		cluster,
 		"host",
@@ -582,13 +542,13 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to get node name by ip: %w\n", err)
 	}
 
-	_, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + factory.KubeConfigFile)
+	_, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
 	if delErr != nil {
 		return ReturnLogError("failed to delete node: %w\n", delErr)
 	}
 
-	// delay not meant to wait if node is deleted
-	// but rather to give time for the node to be removed from the cluster
+	// delay not meant to wait if node is deleted.
+	// but rather to give time for the node to be removed from the cluster.
 	delay := time.After(20 * time.Second)
 	<-delay
 
@@ -602,7 +562,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 	defer ticker.Stop()
 
 	cmd := "kubectl get nodes -o custom-columns=NAME:.metadata.name,INTERNAL-IP:.status.addresses[*].address --kubeconfig=" +
-		factory.KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
+		KubeConfigFile + " | grep " + ip + " | awk '{print $1}'"
 
 	for {
 		select {
@@ -617,6 +577,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 				if i > 5 {
 					return "", ReturnLogError("kubectl get nodes returned error: %w\n", err)
 				}
+
 				continue
 			}
 			if nodeName == "" {
@@ -631,7 +592,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 }
 
 func FetchToken(ip string) (string, error) {
-	token, err := RunCommandOnNode("sudo cat /tmp/nodetoken", ip)
+	token, err := RunCommandOnNode("sudo cat  /var/lib/rancher/rke2/server/node-token", ip)
 	if err != nil {
 		return "", ReturnLogError("failed to fetch token: %w\n", err)
 	}
@@ -639,9 +600,9 @@ func FetchToken(ip string) (string, error) {
 	return token, nil
 }
 
-// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide
+// PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide.
 func PrintGetAll() {
-	kubeconfigFile := " --kubeconfig=" + factory.KubeConfigFile
+	kubeconfigFile := " --kubeconfig=" + KubeConfigFile
 	cmd := "kubectl get all -A -o wide  " + kubeconfigFile + " && kubectl get nodes -o wide " + kubeconfigFile
 	res, err := RunCommandHost(cmd)
 	if err != nil {
@@ -654,7 +615,7 @@ func PrintGetAll() {
 }
 
 func CreateSecret(secret, namespace string) error {
-	kubectl := fmt.Sprintf("kubectl --kubeconfig %s", factory.KubeConfigFile)
+	kubectl := "kubectl --kubeconfig  " + KubeConfigFile
 
 	if namespace == "" {
 		namespace = "default"
@@ -685,12 +646,12 @@ func checkPodStatus() bool {
 
 	podReady := 0
 	podNotReady := 0
-	for _, pod := range pods {
-		if pod.Status == "Running" || pod.Status == "Completed" {
+	for i := range pods {
+		if pods[i].Status == "Running" || pods[i].Status == "Completed" {
 			podReady++
 		} else {
 			podNotReady++
-			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pod.Name, pod.Status)
+			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pods[i].Name, pods[i].Status)
 		}
 	}
 

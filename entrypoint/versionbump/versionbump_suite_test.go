@@ -2,12 +2,10 @@ package versionbump
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
@@ -16,7 +14,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cluster *factory.Cluster
+var (
+	kubeconfig string
+	cluster    *shared.Cluster
+)
 
 func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.TestMap.Cmd, "cmd", "", "Comma separated list of commands to execute")
@@ -35,27 +36,28 @@ func TestMain(m *testing.M) {
 
 	customflag.ValidateTemplateFlags()
 
-	// validating and adding test cases field on template testConfigFlag.
-	customflag.ValidateTemplateTcs()
 	customflag.ServiceFlag.TestTemplateConfig.TestFuncNames = customflag.TestCaseNameFlag
-	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
-	if err != nil {
-		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
-		return
+	if customflag.ServiceFlag.TestTemplateConfig.TestFuncNames != nil {
+		addTcFlag()
 	}
 
-	if len(testFuncs) > 0 {
-		testCaseFlags := make([]customflag.TestCaseFlag, len(testFuncs))
-		for i, j := range testFuncs {
-			testCaseFlags[i] = customflag.TestCaseFlag(j)
-		}
-		customflag.ServiceFlag.TestTemplateConfig.TestFuncs = testCaseFlags
-	}
-
-	cluster = factory.ClusterConfig()
-
-	if customflag.ServiceFlag.TestTemplateConfig.DebugMode == true {
+	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
 		shared.LogLevel("info", "debug mode enabled on template\n\n")
+	}
+
+	_, err := config.AddEnv()
+	if err != nil {
+		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		os.Exit(1)
+	}
+
+	kubeconfig = os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
 	os.Exit(m.Run())
@@ -68,13 +70,9 @@ func TestVersionBumpSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := factory.DestroyCluster()
+		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
-	}
-
-	if err := config.SetEnv(shared.BasePath() + "/config/.env"); err != nil {
-		Expect(err).To(BeNil(), fmt.Sprintf("error loading env vars: %v\n", err))
 	}
 
 	testTag := os.Getenv("TEST_TAG")
@@ -85,3 +83,20 @@ var _ = AfterSuite(func() {
 		shared.PrintGetAll()
 	}
 })
+
+func addTcFlag() {
+	customflag.ValidateTemplateTcs()
+
+	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
+	if err != nil {
+		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
+		return
+	}
+	if len(testFuncs) > 0 {
+		testCaseFlags := make([]customflag.TestCaseFlag, len(testFuncs))
+		for i, j := range testFuncs {
+			testCaseFlags[i] = customflag.TestCaseFlag(j)
+		}
+		customflag.ServiceFlag.TestTemplateConfig.TestFuncs = testCaseFlags
+	}
+}

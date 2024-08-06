@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -12,9 +11,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBuildCluster(cluster *factory.Cluster) {
+func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
-	Expect(factory.KubeConfigFile).ShouldNot(BeEmpty())
+	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
@@ -31,11 +30,11 @@ func TestBuildCluster(cluster *factory.Cluster) {
 	}
 
 	shared.LogLevel("info", "KUBECONFIG: ")
-	err := shared.PrintFileContents(factory.KubeConfigFile)
+	err := shared.PrintFileContents(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	shared.LogLevel("info", "BASE64 ENCODED KUBECONFIG:")
-	err = shared.PrintBase64Encoded(factory.KubeConfigFile)
+	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if cluster.GeneralConfig.BastionIP != "" {
@@ -50,29 +49,29 @@ func TestBuildCluster(cluster *factory.Cluster) {
 	}
 }
 
-// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
+// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
 func TestSonobuoyMixedOS(deleteWorkload bool) {
 	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
-	cmd := "sonobuoy run --kubeconfig=" + factory.KubeConfigFile +
+	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" +
 		" --aggregator-node-selector kubernetes.io/os:linux --wait"
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed output: "+res)
 
-	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", factory.KubeConfigFile)
+	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	testResultTar, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 
-	cmd = fmt.Sprintf("sonobuoy results %s", testResultTar)
+	cmd = "sonobuoy results  " + testResultTar
 	res, err = shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
 	if deleteWorkload {
-		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", factory.KubeConfigFile)
+		cmd = "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
@@ -83,10 +82,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-// checkAndPrintAgentNodeIPs Prints out the Agent node IPs
-// agentNum		int			Number of agent nodes
-// agentIPs		[]string	IP list of agent nodes
-// isWindows 	bool 		Check for Windows enablement
+// checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	info := "Agent Node IPs:"
 

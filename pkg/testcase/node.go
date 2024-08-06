@@ -1,16 +1,15 @@
 package testcase
 
 import (
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions
+// TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions.
 func TestNodeStatus(
-	cluster *factory.Cluster,
+	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {

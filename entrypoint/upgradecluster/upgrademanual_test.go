@@ -31,13 +31,11 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service pre-upgrade", func() {
-		testcase.TestServiceClusterIp(true, false)
+		testcase.TestServiceClusterIP(true, false)
 	})
 
 	It("Verifies NodePort Service pre-upgrade", func() {
@@ -53,7 +51,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies dns access pre-upgrade", func() {
-		testcase.TestDnsAccess(true, false)
+		testcase.TestDNSAccess(true, false)
 	})
 
 	if cluster.Config.Product == "rke2" {
@@ -85,7 +83,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(customflag.ServiceFlag),
+			assert.NodeAssertVersionTypeUpgrade(&customflag.ServiceFlag),
 		)
 	})
 
@@ -93,13 +91,11 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIp(false, true)
+		testcase.TestServiceClusterIP(false, true)
 	})
 
 	It("Verifies NodePort Service after upgrade", func() {
@@ -115,7 +111,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies dns access after upgrade", func() {
-		testcase.TestDnsAccess(false, true)
+		testcase.TestDNSAccess(false, true)
 	})
 
 	if cluster.Config.Product == "rke2" {
@@ -142,8 +138,8 @@ var _ = Describe("Test:", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

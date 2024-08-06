@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterReset(cluster *factory.Cluster) {
+func TestClusterReset(cluster *shared.Cluster) {
 	killall(cluster)
 	shared.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
@@ -49,20 +48,20 @@ func TestClusterReset(cluster *factory.Cluster) {
 	time.Sleep(60 * time.Second)
 }
 
-func killall(cluster *factory.Cluster) {
+func killall(cluster *shared.Cluster) {
 	killallLocationCmd, findErr := shared.FindPath(cluster.Config.Product+"-killall.sh", cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
-		_, err := shared.RunCommandOnNode(fmt.Sprintf("sudo %s", killallLocationCmd), cluster.ServerIPs[i])
+		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + factory.KubeConfigFile)
+	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 }
 
-func stopServer(cluster *factory.Cluster) {
+func stopServer(cluster *shared.Cluster) {
 	_, stopErr := shared.ManageService(cluster.Config.Product, "stop", "server", []string{cluster.ServerIPs[0]})
 	Expect(stopErr).NotTo(HaveOccurred())
 
@@ -72,12 +71,13 @@ func stopServer(cluster *factory.Cluster) {
 	Expect(statusRes).To(SatisfyAny(ContainSubstring("failed"), ContainSubstring("inactive")))
 }
 
-func startServer(cluster *factory.Cluster) {
+func startServer(cluster *shared.Cluster) {
 	var startFirst []string
 	var startLast []string
 	for _, serverIP := range cluster.ServerIPs {
 		if serverIP == cluster.ServerIPs[0] {
 			startFirst = append(startFirst, serverIP)
+
 			continue
 		}
 		startLast = append(startLast, serverIP)
@@ -91,7 +91,7 @@ func startServer(cluster *factory.Cluster) {
 	Expect(startLastErr).NotTo(HaveOccurred())
 }
 
-func deleteDataDirectories(cluster *factory.Cluster) {
+func deleteDataDirectories(cluster *shared.Cluster) {
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, deleteErr := shared.RunCommandOnNode(deleteCmd, cluster.ServerIPs[i])

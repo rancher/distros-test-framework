@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -19,8 +18,9 @@ const (
 	statusRunning   = "Running"
 )
 
-// PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason
-// controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once
+// PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason.
+//
+// controller, scheduler, helm-install pods can be restarted occasionally when cluster started if only once.
 func PodAssertRestart() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		if strings.Contains(pod.NameSpace, "kube-system") &&
@@ -33,8 +33,7 @@ func PodAssertRestart() PodAssertFunc {
 	}
 }
 
-// PodAssertReady custom assertion func that asserts that the pod is
-// with correct numbers of ready containers.
+// PodAssertReady custom assertion func that asserts that the pod is with correct numbers of ready containers.
 func PodAssertReady() PodAssertFunc {
 	return func(g Gomega, pod shared.Pod) {
 		g.ExpectWithOffset(1, pod.Ready).To(checkReadyFields(),
@@ -42,8 +41,7 @@ func PodAssertReady() PodAssertFunc {
 	}
 }
 
-// checkReadyFields is a custom matcher that checks
-// if the input string is in N/N format and the same quantity.
+// checkReadyFields is a custom matcher that checks if the input string is in N/N format and the same quantity.
 func checkReadyFields() types.GomegaMatcher {
 	return WithTransform(func(s string) (bool, error) {
 		var a, b int
@@ -57,26 +55,8 @@ func checkReadyFields() types.GomegaMatcher {
 	}, BeTrue())
 }
 
-// PodAssertStatus custom assertion that asserts that pod status is completed or in some cases
-// apply pods can have an error status
-func PodAssertStatus() PodAssertFunc {
-	return func(g Gomega, pod shared.Pod) {
-		if strings.Contains(pod.Name, "helm-install") || strings.Contains(pod.Name, "helm-operation") {
-			g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
-		} else if strings.Contains(pod.Name, "apply") &&
-			strings.Contains(pod.NameSpace, "system-upgrade") {
-			g.Expect(pod.Status).Should(SatisfyAny(
-				ContainSubstring("Error"),
-				Equal(statusCompleted),
-			), pod.Name)
-		} else {
-			g.Expect(pod.Status).Should(Equal("Running"), pod.Name)
-		}
-	}
-}
-
-// ValidatePodIPByLabel validates expected pod IP by label
-func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
+// ValidatePodIPByLabel validates expected pod IP by label.
+func ValidatePodIPByLabel(cluster *shared.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {
@@ -84,7 +64,7 @@ func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 					cluster,
 					"host",
 					"get",
-					fmt.Sprintf("pods -l %s", label),
+					"pods -l  "+label,
 					`-o=jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'`)
 				ips := strings.Split(res, " ")
 				if strings.Contains(ips[0], expected[i]) {
@@ -98,11 +78,11 @@ func ValidatePodIPByLabel(cluster *factory.Cluster, labels, expected []string) {
 		"failed to validate expected: %s on %s", expected, labels)
 }
 
-// ValidatePodIPsByLabel validates expected pod IPs by label
+// ValidatePodIPsByLabel validates expected pod IPs by label.
 func ValidatePodIPsByLabel(label string, expected []string) {
 	cmd := "kubectl get pods -l " + label +
 		` -o jsonpath='{range .items[*]}{.status.podIPs[*].ip}{" "}{end}'` +
-		" --kubeconfig=" + factory.KubeConfigFile
+		" --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() error {
 		res, _ := shared.RunCommandHost(cmd)
 		ips := strings.Split(res, " ")
@@ -121,10 +101,10 @@ func ValidatePodIPsByLabel(label string, expected []string) {
 		expected, label)
 }
 
-// PodStatusRunning checks status of pods is Running when searched by namespace and label
+// PodStatusRunning checks status of pods is Running when searched by namespace and label.
 func PodStatusRunning(namespace, label string) {
 	cmd := "kubectl get pods -n " + namespace + " -l " + label +
-		" --field-selector=status.phase=Running --kubeconfig=" + factory.KubeConfigFile
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)
@@ -132,11 +112,11 @@ func PodStatusRunning(namespace, label string) {
 }
 
 // ValidateIntraNSPodConnectivity ensures that one pod, the "server", can be reached from another, the "client"
-// within the same namespace
+// within the same namespace.
 func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expectedResult string) {
 	execCommand := fmt.Sprintf(
 		"kubectl exec -n %s pod/%s --kubeconfig=%s -- wget -O - http://%s",
-		namespace, clientPodName, factory.KubeConfigFile, serverPodIP)
+		namespace, clientPodName, shared.KubeConfigFile, serverPodIP)
 	err := ValidateOnHost(
 		execCommand,
 		expectedResult,

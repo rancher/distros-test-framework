@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// upgradeVersion upgrades the product version
+// upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, version string) error {
-	cluster := factory.ClusterConfig()
+	cluster := shared.ClusterConfig()
 	err := testcase.TestUpgradeClusterManually(cluster, version)
 	if err != nil {
 		return err
@@ -23,16 +22,16 @@ func upgradeVersion(template TestTemplate, version string) error {
 	return nil
 }
 
-// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade
+// updateExpectedValue updates the expected values getting the values from flag ExpectedValueUpgrade.
 func updateExpectedValue(template TestTemplate) {
 	for i := range template.TestCombination.Run {
 		template.TestCombination.Run[i].ExpectedValue = template.TestCombination.Run[i].ExpectedValueUpgrade
 	}
 }
 
-// executeTestCombination get a template and pass it to `processTestCombination`
+// executeTestCombination get a template and pass it to `processTestCombination`.
 //
-// to execute test combination on group of IPs
+// to execute test combination on group of IPs.
 func executeTestCombination(template TestTemplate) error {
 	currentVersion, err := currentProductVersion()
 	if err != nil {
@@ -53,14 +52,20 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) {
-	var testCases []testCase
+func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
+	tcs := addTestCaseMap(cluster)
+	return processTestCaseNames(tcs, names)
+}
 
-	tcs := map[string]testCase{
+// addTestCaseMap initializes and returns the map of test cases.
+//
+//nolint:revive // we want to keep the argument for visibility.
+func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
+	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
 		"TestIngress":          testcase.TestIngress,
-		"TestDnsAccess":        testcase.TestDnsAccess,
-		"TestServiceClusterIP": testcase.TestServiceClusterIp,
+		"TestDNSAccess":        testcase.TestDNSAccess,
+		"TestServiceClusterIP": testcase.TestServiceClusterIP,
 		"TestServiceNodePort":  testcase.TestServiceNodePort,
 		"TestLocalPathProvisionerStorage": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestLocalPathProvisionerStorage(cluster, applyWorkload, deleteWorkload)
@@ -71,9 +76,6 @@ func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) 
 		},
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSonobuoyMixedOS(deleteWorkload)
-		},
-		"TestSelinuxEnabled": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSelinux(cluster)
 		},
 		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux(cluster)
@@ -103,6 +105,13 @@ func AddTestCases(cluster *factory.Cluster, names []string) ([]testCase, error) 
 			testcase.TestClusterReset(cluster)
 		},
 	}
+}
+
+// processTestCaseNames processes the test case names and returns the corresponding test cases.
+//
+//nolint:revive // we want to keep the argument for visibility.
+func processTestCaseNames(tcs map[string]testCase, names []string) ([]testCase, error) {
+	var testCases []testCase
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
