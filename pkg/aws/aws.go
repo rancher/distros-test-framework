@@ -146,39 +146,115 @@ func (c Client) DeleteInstance(ip string) error {
 	return nil
 }
 
-func (c Client) WaitForInstanceRunning(instanceId string) error {
-	input := &ec2.DescribeInstanceStatusInput{
-		InstanceIds:         aws.StringSlice([]string{instanceId}),
-		IncludeAllInstances: aws.Bool(true),
+func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("ip-address"),
+				Values: []*string{aws.String(ipAddress)},
+			},
+		},
 	}
 
-	ticker := time.NewTicker(15 * time.Second)
-	timeout := time.After(5 * time.Minute)
-	defer ticker.Stop()
+	result, err := c.ec2.DescribeInstances(input)
+	if err != nil {
+		return "", shared.ReturnLogError("failed to describe instances: %v", err)
+	}
 
-	for {
-		select {
-		case <-timeout:
-			return errors.New("timed out waiting for instance to be in running state and pass status checks")
-		case <-ticker.C:
-			statusRes, err := c.ec2.DescribeInstanceStatus(input)
-			if err != nil {
-				return fmt.Errorf("error describing instance status: %w", err)
-			}
+	// Check if any instances were found.
+	if len(result.Reservations) == 0 {
+		return "", shared.ReturnLogError("no instances found with the public IP address: %s", ipAddress)
+	}
 
-			if len(statusRes.InstanceStatuses) == 0 {
-				continue
-			}
+	// Extract and return the instance ID.
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			return *instance.InstanceId, nil
+		}
+	}
 
-			status := statusRes.InstanceStatuses[0]
-			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				shared.LogLevel("info", fmt.Sprintf("Instance %s is running "+
-					"and passed status checks", instanceId))
+	return "", shared.ReturnLogError("no instances found with the public IP address: ")
+}
 
-				return nil
+func (c Client) StopInstance(instanceID string) error {
+	input := &ec2.StopInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	_, err := c.ec2.StopInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("failed to stop instance %s: %v", instanceID, err)
+	}
+
+	stopErr := c.waitInstanceStop(instanceID)
+	if stopErr != nil {
+		return shared.ReturnLogError("timed out on stop instance %s: %v", instanceID, stopErr)
+	}
+
+	return nil
+}
+
+func (c Client) StartInstance(instanceID string) error {
+	input := &ec2.StartInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	_, err := c.ec2.StartInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("failed to start instance %s: %v", instanceID, err)
+	}
+
+	startErr := c.waitForInstanceRunning(instanceID)
+	if startErr != nil {
+		return shared.ReturnLogError("timed out on start instance %s: %v", instanceID, startErr)
+	}
+
+	return nil
+}
+
+func (c Client) ReleaseElasticIps(instanceID string) error {
+	input := &ec2.DescribeInstancesInput{
+		InstanceIds: aws.StringSlice([]string{instanceID}),
+	}
+
+	result, err := c.ec2.DescribeInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("error describing instances: %w\n", err)
+	}
+
+	for _, r := range result.Reservations {
+		for _, i := range r.Instances {
+			if i.PublicIpAddress != nil {
+				addressesInput := &ec2.DescribeAddressesInput{
+					Filters: []*ec2.Filter{
+						{
+							Name:   aws.String("domain"),
+							Values: []*string{aws.String("vpc")},
+						},
+						{
+							Name:   aws.String("public-ip"),
+							Values: []*string{i.PublicIpAddress},
+						},
+					},
+				}
+
+				addressesOutput, addrErr := c.ec2.DescribeAddresses(addressesInput)
+				if addrErr != nil {
+					return shared.ReturnLogError("error describing elastic ip: %w\n", addrErr)
+				}
+
+				if len(addressesOutput.Addresses) > 0 {
+					allocationID := addressesOutput.Addresses[0].AllocationId
+					_, addrErr = c.ec2.ReleaseAddress(&ec2.ReleaseAddressInput{AllocationId: allocationID})
+					if addrErr != nil {
+						return shared.ReturnLogError("error releasing elastic ip: %w\n", addrErr)
+					}
+				}
 			}
 		}
 	}
+
+	return nil
 }
 
 func (c Client) create(name string) (*ec2.Reservation, error) {
@@ -229,8 +305,73 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 	return c.ec2.RunInstances(input)
 }
 
+func (c Client) waitForInstanceRunning(instanceId string) error {
+	input := &ec2.DescribeInstanceStatusInput{
+		InstanceIds:         aws.StringSlice([]string{instanceId}),
+		IncludeAllInstances: aws.Bool(true),
+	}
+
+	ticker := time.NewTicker(15 * time.Second)
+	timeout := time.After(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timed out waiting for instance to be in running state and pass status checks")
+		case <-ticker.C:
+			statusRes, err := c.ec2.DescribeInstanceStatus(input)
+			if err != nil {
+				return fmt.Errorf("error describing instance status: %w", err)
+			}
+
+			if len(statusRes.InstanceStatuses) == 0 {
+				continue
+			}
+
+			status := statusRes.InstanceStatuses[0]
+			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
+				shared.LogLevel("info", fmt.Sprintf("Instance %s is running "+
+					"and passed status checks", instanceId))
+
+				return nil
+			}
+		}
+	}
+}
+
+func (c Client) waitInstanceStop(instanceID string) error {
+	input := &ec2.DescribeInstanceStatusInput{
+		InstanceIds:         aws.StringSlice([]string{instanceID}),
+		IncludeAllInstances: aws.Bool(true),
+	}
+
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return shared.ReturnLogError("timed out waiting for instance to stop")
+		case <-ticker.C:
+			statusRes, err := c.ec2.DescribeInstanceStatus(input)
+			if err != nil {
+				return shared.ReturnLogError("error describing instance status: %w\n", err)
+			}
+
+			status := statusRes.InstanceStatuses[0]
+			if *status.InstanceState.Name == "stopped" {
+				shared.LogLevel("info", fmt.Sprintf("Instance %s is stopped", instanceID))
+
+				return nil
+			}
+		}
+	}
+}
+
 func (c Client) fetchIP(nodeID string) (publicIP, privateIP string, err error) {
-	waitErr := c.WaitForInstanceRunning(nodeID)
+	waitErr := c.waitForInstanceRunning(nodeID)
 	if waitErr != nil {
 		return "", "", shared.ReturnLogError("error waiting for instance to be running: %w\n", waitErr)
 	}
@@ -260,65 +401,4 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 	}
 
 	return *reservation.Instances[0].InstanceId, nil
-}
-
-func (c Client) StopInstance(instanceID string) (string, error) {
-	input := &ec2.StopInstancesInput{
-		InstanceIds: []*string{aws.String(instanceID)},
-	}
-
-	result, err := c.ec2.StopInstances(input)
-	if err != nil {
-		return "", shared.ReturnLogError("failed to stop instance %s: %v", instanceID, err)
-	}
-
-	fmt.Printf("Successfully stopped instance: %s, current state: %s\n",
-		instanceID, *result.StoppingInstances[0].CurrentState.Name)
-
-	return *result.StoppingInstances[0].CurrentState.Name, nil
-}
-func (c Client) StartInstance(instanceID string) (string, error) {
-	input := &ec2.StartInstancesInput{
-		InstanceIds: []*string{aws.String(instanceID)},
-	}
-
-	result, err := c.ec2.StartInstances(input)
-	if err != nil {
-		return "", shared.ReturnLogError("failed to start instance %s: %v", instanceID, err)
-	}
-
-	fmt.Printf("Successfully started instance: %s, current state: %s\n",
-		instanceID, *result.StartingInstances[0].CurrentState.Name)
-
-	return *result.StartingInstances[0].CurrentState.Name, nil
-}
-
-func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
-	input := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("ip-address"),
-				Values: []*string{aws.String(ipAddress)},
-			},
-		},
-	}
-
-	result, err := c.ec2.DescribeInstances(input)
-	if err != nil {
-		return "", shared.ReturnLogError("failed to describe instances: %v", err)
-	}
-
-	// Check if any instances were found.
-	if len(result.Reservations) == 0 {
-		return "", shared.ReturnLogError("no instances found with the public IP address: %s", ipAddress)
-	}
-
-	// Extract and return the instance ID.
-	for _, reservation := range result.Reservations {
-		for _, instance := range reservation.Instances {
-			return *instance.InstanceId, nil
-		}
-	}
-
-	return "", shared.ReturnLogError("no instances found with the public IP address: ")
 }
