@@ -25,12 +25,12 @@ resource "aws_instance" "worker" {
     Name                 = "${var.resource_name}-worker${count.index + 1}"
   }
   provisioner "file" {
-    source = "../install/join_k3s_agent.sh"
-    destination = "/tmp/join_k3s_agent.sh"
+    source               = "../install/join_k3s_agent.sh"
+    destination          = "/tmp/join_k3s_agent.sh"
   }
   provisioner "file" {
-    source = "${path.module}/cis_worker_config.yaml"
-    destination = "/tmp/cis_worker_config.yaml"
+    source               = "${path.module}/cis_worker_config.yaml"
+    destination          = "/tmp/cis_worker_config.yaml"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
@@ -41,9 +41,23 @@ resource "aws_instance" "worker" {
   }
 }
 
+resource "aws_eip_association" "worker_eip_association" {
+  count              = var.create_eip ? length(aws_instance.worker) : 0
+  instance_id        = aws_instance.worker[count.index].id
+  allocation_id      = aws_eip.worker_with_eip[count.index].id
+}
+
+resource "aws_eip" "worker_with_eip" {
+  count              = var.create_eip ? length(aws_instance.worker) : 0
+  domain             = "vpc"
+  tags = {
+    Name                 = "${var.resource_name}-worker${count.index + 1}"
+  }
+}
+
 data "local_file" "master_ip" {
-  depends_on = [var.dependency]
-  filename = "/tmp/${var.resource_name}_master_ip"
+  depends_on         = [var.dependency]
+  filename           = "/tmp/${var.resource_name}_master_ip"
 }
 
 locals {
@@ -51,10 +65,35 @@ locals {
 }
 
 data "local_file" "token" {
-  depends_on = [var.dependency]
-  filename = "/tmp/${var.resource_name}_nodetoken"
+  depends_on        = [var.dependency]
+  filename          = "/tmp/${var.resource_name}_nodetoken"
 }
 
 locals {
   node_token = trimspace(data.local_file.token.content)
+}
+
+resource "null_resource" "worker_eip" {
+  count                       = var.no_of_worker_nodes
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = aws_eip.worker_with_eip[count.index].public_ip
+    private_key = file(var.access_key)
+    timeout     = "25m"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo sed -i s/${aws_instance.worker[count.index].public_ip}/${aws_eip.worker_with_eip[count.index].public_ip}/g /etc/rancher/k3s/config.yaml",
+      "sudo systemctl restart --no-block k3s-agent"
+    ]
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "echo 'Waiting for eip update to complete'",
+    "cloud-init status --wait > /dev/null"
+    ]
+  }
+  depends_on = [aws_eip.worker_with_eip,
+                 aws_eip_association.worker_eip_association]
 }

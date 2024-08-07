@@ -43,6 +43,7 @@ module "master" {
    cp_worker_nodes      = var.cp_worker_nodes
    split_roles          = var.split_roles
    role_order           = var.role_order
+   create_eip            = var.create_eip
 }
 module "worker" {
    source               = "./worker"
@@ -69,6 +70,7 @@ module "worker" {
    k3s_channel          = var.k3s_channel
    enable_public_ip     = var.enable_public_ip
    enable_ipv6          = var.enable_ipv6
+   create_eip            = var.create_eip
 }
 
 module "bastion" {
