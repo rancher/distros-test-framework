@@ -80,3 +80,6 @@ variable "bastion_id" {
   type    = any
   default = null
 }
+variable "create_eip" {
+  default = false
+}
