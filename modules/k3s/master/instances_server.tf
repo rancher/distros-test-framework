@@ -298,7 +298,7 @@ resource "aws_instance" "master2-ha" {
 }
 
 resource "null_resource" "master2_eip" {
-  count = local.secondary_masters
+  count =   var.create_eip ? local.secondary_masters : 0
   connection {
     type        = "ssh"
     user        = var.aws_user
