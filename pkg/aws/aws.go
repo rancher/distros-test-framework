@@ -97,7 +97,7 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 
 func (c Client) DeleteInstance(ip string) error {
 	if ip == "" {
-		return shared.ReturnLogError("must sent a ip: %s\n", ip)
+		return shared.ReturnLogError("must sent a ip")
 	}
 
 	data := &ec2.DescribeInstancesInput{
@@ -147,6 +147,10 @@ func (c Client) DeleteInstance(ip string) error {
 }
 
 func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
+	if ipAddress == "" {
+		return "", shared.ReturnLogError("must sent a ip address")
+	}
+
 	input := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -177,6 +181,10 @@ func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
 }
 
 func (c Client) StopInstance(instanceID string) error {
+	if instanceID == "" {
+		return shared.ReturnLogError("must sent a instance ID")
+	}
+
 	input := &ec2.StopInstancesInput{
 		InstanceIds: []*string{aws.String(instanceID)},
 	}
@@ -195,6 +203,10 @@ func (c Client) StopInstance(instanceID string) error {
 }
 
 func (c Client) StartInstance(instanceID string) error {
+	if instanceID == "" {
+		return shared.ReturnLogError("must sent a instance ID")
+	}
+
 	input := &ec2.StartInstancesInput{
 		InstanceIds: []*string{aws.String(instanceID)},
 	}
@@ -212,9 +224,18 @@ func (c Client) StartInstance(instanceID string) error {
 	return nil
 }
 
-func (c Client) ReleaseElasticIps(instanceID string) error {
+func (c Client) ReleaseElasticIps(ipAddress string) error {
+	if ipAddress == "" {
+		return shared.ReturnLogError("must sent an ip address")
+	}
+
 	input := &ec2.DescribeInstancesInput{
-		InstanceIds: aws.StringSlice([]string{instanceID}),
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("ip-address"),
+				Values: aws.StringSlice([]string{ipAddress}),
+			},
+		},
 	}
 
 	result, err := c.ec2.DescribeInstances(input)
@@ -249,6 +270,8 @@ func (c Client) ReleaseElasticIps(instanceID string) error {
 					if addrErr != nil {
 						return shared.ReturnLogError("error releasing elastic ip: %w\n", addrErr)
 					}
+
+					shared.LogLevel("info", "released eips from intances: %v", *i.InstanceId)
 				}
 			}
 		}

@@ -87,6 +87,7 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 		res, err := shared.RunCommandOnNode(cmd, ip)
 		Expect(err).ToNot(HaveOccurred())
 
+		res = strings.TrimSpace(res)
 		for _, assert := range asserts {
 			g.Expect(res).Should(ContainSubstring(assert))
 			fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)

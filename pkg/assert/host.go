@@ -25,6 +25,8 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 			if assert == "" {
 				return fmt.Errorf("assert: %s should not be sent empty", assert)
 			}
+
+			res = strings.TrimSpace(res)
 			if !strings.Contains(res, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
