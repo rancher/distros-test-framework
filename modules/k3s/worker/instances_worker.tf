@@ -74,7 +74,7 @@ locals {
 }
 
 resource "null_resource" "worker_eip" {
-  count                       = var.no_of_worker_nodes
+  count         = var.create_eip ? length(aws_instance.worker) : 0
   connection {
     type        = "ssh"
     user        = var.aws_user

@@ -27,6 +27,11 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
+		shared.LogLevel("error", "create_eip not set")
+		os.Exit(1)
+	}
+
 	cluster = shared.ClusterConfig()
 
 	os.Exit(m.Run())
@@ -34,13 +39,8 @@ func TestMain(m *testing.M) {
 
 func TestRebootInstancesSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "RebootInstances Instances Test Suite")
+	RunSpecs(t, "Reboot Instances Test Suite")
 }
-
-var _ = BeforeSuite(func() {
-	Expect(os.Getenv("create_eip")).ToNot(BeEmpty(), "Wrong value passed in tfvars for 'create_eip'")
-	Expect(os.Getenv("create_eip")).To(Equal("true"), "Wrong value passed in tfvars for 'create_eip'")
-})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
