@@ -27,6 +27,9 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 			}
 
 			res = strings.TrimSpace(res)
+			res = strings.ReplaceAll(res, "\n", "")
+			res = strings.ReplaceAll(res, " ", "")
+
 			if !strings.Contains(res, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
