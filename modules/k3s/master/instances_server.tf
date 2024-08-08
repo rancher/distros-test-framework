@@ -212,8 +212,9 @@ locals {
 locals {
   secondary_masters = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
 }
+
 resource "aws_eip" "master2_with_eip" {
-  count = local.secondary_masters
+  count         = var.create_eip ? local.secondary_masters : 0
   domain        = "vpc"
   tags       = {
     Name ="${var.resource_name}-server${count.index + 2}"
@@ -222,13 +223,11 @@ resource "aws_eip" "master2_with_eip" {
 }
 
 resource "aws_eip_association" "master2_eip_association" {
-  count = local.secondary_masters
+  count         = var.create_eip ? local.secondary_masters : 0
   instance_id   = aws_instance.master2-ha[count.index].id
   allocation_id = aws_eip.master2_with_eip[count.index].id
   depends_on    = [aws_eip.master2_with_eip]
 }
-
-
 
 resource "aws_instance" "master2-ha" {
   ami                         = var.aws_ami
