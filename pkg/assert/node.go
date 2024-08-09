@@ -1,7 +1,6 @@
 package assert
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -83,13 +82,14 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 	}
 
 	Eventually(func(g Gomega) error {
-		fmt.Println("\nExecuting cmd: ", cmd)
+		shared.LogLevel("info", "Running command: %s\n", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
+		res = shared.CleanString(res)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, assert := range asserts {
 			g.Expect(res).Should(ContainSubstring(assert))
-			fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
+			shared.LogLevel("info", "Result: %s\nMatched with: %s\n", res, assert)
 		}
 
 		return nil
