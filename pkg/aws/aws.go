@@ -148,7 +148,7 @@ func (c Client) DeleteInstance(ip string) error {
 
 func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
 	if ipAddress == "" {
-		return "", shared.ReturnLogError("must sent a ip address")
+		return "", shared.ReturnLogError("calling GetInstanceIDByIP with empty ip address, must send a valid ip address")
 	}
 
 	input := &ec2.DescribeInstancesInput{
@@ -182,7 +182,7 @@ func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
 
 func (c Client) StopInstance(instanceID string) error {
 	if instanceID == "" {
-		return shared.ReturnLogError("must sent a instance ID")
+		return shared.ReturnLogError("calling StopInstance with empty instance ID, must send a valid instance ID")
 	}
 
 	input := &ec2.StopInstancesInput{
@@ -204,7 +204,7 @@ func (c Client) StopInstance(instanceID string) error {
 
 func (c Client) StartInstance(instanceID string) error {
 	if instanceID == "" {
-		return shared.ReturnLogError("must sent a instance ID")
+		return shared.ReturnLogError("calling StartInstance with empty instance ID, must send a valid instance ID")
 	}
 
 	input := &ec2.StartInstancesInput{
@@ -226,7 +226,7 @@ func (c Client) StartInstance(instanceID string) error {
 
 func (c Client) ReleaseElasticIps(ipAddress string) error {
 	if ipAddress == "" {
-		return shared.ReturnLogError("must sent an ip address")
+		return shared.ReturnLogError("calling ReleaseElasticIps with empty ip address, must send a valid ip address")
 	}
 
 	input := &ec2.DescribeInstancesInput{
