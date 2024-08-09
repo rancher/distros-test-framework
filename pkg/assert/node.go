@@ -84,11 +84,11 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 	Eventually(func(g Gomega) error {
 		shared.LogLevel("info", "Running command: %s\n", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
-		res = shared.CleanString(res)
+		cleanRes := shared.CleanString(res)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, assert := range asserts {
-			g.Expect(res).Should(ContainSubstring(assert))
+			g.Expect(cleanRes).Should(ContainSubstring(assert))
 			shared.LogLevel("info", "Result: %s\nMatched with: %s\n", res, assert)
 		}
 

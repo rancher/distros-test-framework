@@ -20,7 +20,7 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 	}
 	Eventually(func() error {
 		res, err := shared.RunCommandHost(cmd)
-		res = shared.CleanString(res)
+		cleanRes := shared.CleanString(res)
 
 		Expect(err).ToNot(HaveOccurred())
 		for _, assert := range asserts {
@@ -28,7 +28,7 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 				return fmt.Errorf("assert: %s should not be sent empty", assert)
 			}
 
-			if !strings.Contains(res, assert) {
+			if !strings.Contains(cleanRes, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
 
