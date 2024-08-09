@@ -87,7 +87,6 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 		cleanRes := shared.CleanString(res)
 		Expect(err).ToNot(HaveOccurred())
 
-		res = strings.TrimSpace(res)
 		for _, assert := range asserts {
 			g.Expect(cleanRes).Should(ContainSubstring(assert))
 			shared.LogLevel("info", "Result: %s\nMatched with: %s\n", res, assert)
