@@ -77,10 +77,10 @@ func runAssertion(
 			res, err = exec(cmd)
 			if err != nil {
 				i++
-				shared.LogLevel("warn", "error from exec runAssertion: %v\n with res: %v\nRetrying...", err, res)
+				shared.LogLevel("warn", "error from exec runAssertion: %v\n with res: %s\nRetrying...", err, res)
 				if i > 5 {
-					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
-					return shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %v\n", err, res)
+					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %s\n", err, res)
+					return shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %s\n", err, res)
 				}
 
 				continue
