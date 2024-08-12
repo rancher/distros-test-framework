@@ -122,6 +122,7 @@ func validateIngressRoute(publicIP string) {
 
 	var positiveAsserts []string
 	negativeAsserts := "404 page not found"
+	negativeAsserts = shared.CleanString(negativeAsserts)
 
 	// retrying to get the node ip for the pods before running the tests.
 	Eventually(func(g Gomega) {
@@ -132,9 +133,10 @@ func validateIngressRoute(publicIP string) {
 			g.Expect(pods[i].IP).NotTo(BeEmpty())
 			if pods[i].IP != "<none>" && pods[i].IP != "" {
 				positiveAsserts = []string{
-					"Hostname:  " + pods[i].Name,
+					"Hostname: " + pods[i].Name,
 					"IP: " + pods[i].IP,
 				}
+				positiveAsserts = shared.CleanSliceStrings(positiveAsserts)
 			}
 		}
 	}, "40s", "5s").Should(Succeed())

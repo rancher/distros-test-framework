@@ -511,3 +511,15 @@ func appendNodeIfMissing(slice []Node, i *Node) []Node {
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }
+
+func CleanString(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(s), "\n", ""), " ", "")
+}
+
+func CleanSliceStrings(stringsSlice []string) []string {
+	for i, str := range stringsSlice {
+		stringsSlice[i] = CleanString(str)
+	}
+
+	return stringsSlice
+}
