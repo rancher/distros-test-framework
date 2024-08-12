@@ -1,51 +1,52 @@
 package testcase
 
 import (
-	"fmt"
-	"os"
+	"sync"
 
-	. "github.com/onsi/gomega"
-	awsClient "github.com/rancher/distros-test-framework/pkg/aws"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 func TestRebootInstances(cluster *shared.Cluster) {
-	awsDependencies, err := awsClient.AddAWSClient(cluster)
+	awsDependencies, err := aws.AddAWSClient(cluster)
 	Expect(err).NotTo(HaveOccurred())
 
-	var instanceIDs []string
+	// reboot server instances.
 	for _, IP := range cluster.ServerIPs {
-		instanceID, err := awsDependencies.GetInstanceIDByIP(IP)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
-		}
-		instanceIDs = append(instanceIDs, instanceID)
+		serverInstanceID, getErr := awsDependencies.GetInstanceIDByIP(IP)
+		Expect(getErr).NotTo(HaveOccurred())
+		rebootInstance(awsDependencies, serverInstanceID)
 	}
 
-	Eventually(func(g Gomega) bool {
-		for _, instanceID := range instanceIDs {
-			instanceState, err := awsDependencies.StopInstance(instanceID)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(instanceState).To(ContainSubstring("stopped"))
+	// reboot agent instances.
+	for _, IP := range cluster.AgentIPs {
+		agentInstanceID, getErr := awsDependencies.GetInstanceIDByIP(IP)
+		Expect(getErr).NotTo(HaveOccurred())
+		rebootInstance(awsDependencies, agentInstanceID)
+	}
+}
+
+// rebootInstance reboots an instance by stopping and starting it.
+func rebootInstance(awsDependencies *aws.Client, instanceID string) {
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func(instanceID string) {
+		defer wg.Done()
+		defer GinkgoRecover()
+
+		stopErr := awsDependencies.StopInstance(instanceID)
+		if stopErr != nil {
+			Expect(stopErr).NotTo(HaveOccurred())
 		}
 
-		return true
-	}, "2500s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\nError stopping instance\n")
-		return "Instances could not be stopped"
-	})
-	Eventually(func(g Gomega) bool {
-		for _, instanceID := range instanceIDs {
-			instanceState, err := awsDependencies.StartInstance(instanceID)
-			fmt.Println(instanceID, instanceState)
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(instanceState).To(ContainSubstring("running"))
+		startErr := awsDependencies.StartInstance(instanceID)
+		if startErr != nil {
+			Expect(startErr).NotTo(HaveOccurred())
 		}
-
-		return true
-	}, "2500s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\nError starting instance\n")
-		return "Instances could not be started"
-	})
+	}(instanceID)
+	wg.Wait()
 }
