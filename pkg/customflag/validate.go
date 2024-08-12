@@ -12,45 +12,62 @@ var log = logger.AddLogger()
 
 // ValidateTemplateFlags validates version bump template flags that were set on environment variables at .env file.
 func ValidateTemplateFlags() {
-	testTag := os.Getenv("TEST_TAG")
+	var (
+		expected        []string
+		expectedUpgrade []string
+		testTag         string
+	)
+
+	cmd := os.Getenv("CMD")
+	testArgs := os.Getenv("TEST_ARGS")
 	expectedValue := os.Getenv("EXPECTED_VALUE")
 
 	// validate if expected value was sent because it is required for all tests.
-	if expectedValue == "" {
+	if expectedValue == "" && !strings.Contains(testArgs, "expectedValue") {
 		log.Errorf("expected value was not sent")
 		os.Exit(1)
 	}
 
-	// validate if flag for install version or commit was sent we should have the expected value after upgrade.
-	installVersionOrCommit := os.Getenv("INSTALL_VERSION_OR_COMMIT")
-	valuesUpgrade := os.Getenv("VALUE_UPGRADED")
-	if (installVersionOrCommit != "" && valuesUpgrade == "") || (installVersionOrCommit == "" && valuesUpgrade != "") {
-		log.Errorf("using upgrade, please provide the expected value after upgrade and the install version or commit")
-		os.Exit(1)
-	}
+	// checking if the testArgs was sent, if so it means we are getting vars from Jenkins not from .env file.
+	if testArgs != "" {
+		validateUpgrade(testArgs)
+		testTag = validateTestTag(testArgs)
+		expected, expectedUpgrade = validateExpectedValues(testArgs)
+	} else {
+		installVersionOrCommit := os.Getenv("INSTALL_VERSION_OR_COMMIT")
+		valuesUpgrade := os.Getenv("VALUE_UPGRADED")
+		if valuesUpgrade != "" {
+			expectedUpgrade = strings.Split(valuesUpgrade, ",")
+		}
 
-	expected := strings.Split(expectedValue, ",")
-	expectedUpgrade := strings.Split(valuesUpgrade, ",")
+		testTag = os.Getenv("TEST_TAG")
+		expected = strings.Split(expectedValue, ",")
+
+		// validate if flag for install version or commit was sent we should have the expected value after upgrade.
+		if (installVersionOrCommit != "" && valuesUpgrade == "") || (installVersionOrCommit == "" && valuesUpgrade != "") {
+			log.Errorf("using upgrade, please provide the expected value after upgrade and the install version or commit")
+			os.Exit(1)
+		}
+	}
 
 	switch testTag {
 	case "versionbump":
-		validateVersionBumpTest(expected, expectedUpgrade, valuesUpgrade)
+		validateVersionBumpTest(expected, expectedUpgrade, cmd, testArgs)
 	case "cilium":
-		validateCiliumTest(expected, expectedUpgrade, valuesUpgrade)
+		validateCiliumTest(expected, expectedUpgrade, cmd, testArgs)
 	case "multus":
-		validateMultusTest(expected, expectedUpgrade, valuesUpgrade)
+		validateMultusTest(expected, expectedUpgrade, cmd, testArgs)
 	case "components":
-		validateComponentsTest(expected, expectedUpgrade, valuesUpgrade)
+		validateComponentsTest(expected, expectedUpgrade, cmd, testArgs)
 	case "flannel":
-		validateFlannelTest()
+		validateFlannelTest(cmd, testArgs)
 	default:
 		log.Errorf("test tag not found")
 	}
 }
 
-func validateVersionBumpTest(expectedValue, expectedUpgrade []string, valuesUpgrade string) {
-	cmd := os.Getenv("CMD")
-	if cmd == "" {
+func validateVersionBumpTest(expectedValue, expectedUpgrade []string, cmd, testArgs string) {
+	if cmd == "" && !strings.Contains(testArgs, "cmd") {
 		log.Errorf("cmd was not sent")
 		os.Exit(1)
 	}
@@ -61,26 +78,21 @@ func validateVersionBumpTest(expectedValue, expectedUpgrade []string, valuesUpgr
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != "" {
-		if len(expectedUpgrade) != len(expectedValue) {
-			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-				len(expectedUpgrade), len(expectedValue))
-			os.Exit(1)
-		}
+	if expectedUpgrade != nil && len(expectedUpgrade) != len(expectedValue) {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d", len(cmdLenght), len(expectedUpgrade))
+		os.Exit(1)
 	}
 }
 
-func validateFlannelTest() {
-	cmd := os.Getenv("CMD")
-	if cmd != "" {
+func validateFlannelTest(cmd, testArgs string) {
+	if cmd != "" || strings.Contains(testArgs, "cmd") {
 		log.Errorf("cmd can not be sent for flannel tests as it is already defined in the test file")
 		os.Exit(1)
 	}
 }
 
-func validateCiliumTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	cmd := os.Getenv("CMD")
-	if cmd != "" {
+func validateCiliumTest(expectedValue, valuesUpgrade []string, cmd, testArgs string) {
+	if cmd != "" || strings.Contains(testArgs, "cmd") {
 		log.Errorf("cmd can not be sent for cilium tests as it is already defined in the test file")
 		os.Exit(1)
 	}
@@ -91,18 +103,15 @@ func validateCiliumTest(expectedValue, valuesUpgrade []string, upgrade string) {
 		os.Exit(1)
 	}
 
-	if upgrade != "" {
-		if len(valuesUpgrade) != ciliumCmdsLength {
-			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-				ciliumCmdsLength, len(valuesUpgrade))
-			os.Exit(1)
-		}
+	if valuesUpgrade != nil && len(valuesUpgrade) != ciliumCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+			ciliumCmdsLength, len(valuesUpgrade))
+		os.Exit(1)
 	}
 }
 
-func validateMultusTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	cmd := os.Getenv("CMD")
-	if cmd != "" {
+func validateMultusTest(expectedValue, valuesUpgrade []string, cmd, testArgs string) {
+	if cmd != "" || strings.Contains(testArgs, "cmd") {
 		log.Errorf("cmd can not be sent for multus tests as it is already defined in the test file")
 		os.Exit(1)
 	}
@@ -113,18 +122,15 @@ func validateMultusTest(expectedValue, valuesUpgrade []string, upgrade string) {
 		os.Exit(1)
 	}
 
-	if upgrade != "" {
-		if len(valuesUpgrade) != multusCmdsLength {
-			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-				multusCmdsLength, len(valuesUpgrade))
-			os.Exit(1)
-		}
+	if valuesUpgrade != nil && len(valuesUpgrade) != multusCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+			multusCmdsLength, len(valuesUpgrade))
+		os.Exit(1)
 	}
 }
 
-func validateComponentsTest(expectedValue, valuesUpgrade []string, upgrade string) {
-	cmd := os.Getenv("CMD")
-	if cmd != "" {
+func validateComponentsTest(expectedValue, valuesUpgrade []string, cmd, cmdTestArgs string) {
+	if cmd != "" || strings.Contains(cmdTestArgs, "cmd") {
 		log.Errorf("cmd can not be sent for components tests as it is already defined in the test file")
 		os.Exit(1)
 	}
@@ -140,25 +146,22 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string, upgrade strin
 			os.Exit(1)
 		}
 
-		if upgrade != "" {
-			if len(valuesUpgrade) != k3scomponentsCmdsLength {
-				log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-					k3scomponentsCmdsLength, len(valuesUpgrade))
-				os.Exit(1)
-			}
+		if valuesUpgrade != nil && len(valuesUpgrade) != k3scomponentsCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				k3scomponentsCmdsLength, len(valuesUpgrade))
+			os.Exit(1)
 		}
+
 	case "rke2":
 		if len(expectedValue) != rke2componentsCmdsLength {
 			log.Errorf("mismatched length commands: %d x expected values: %d", rke2componentsCmdsLength, len(expectedValue))
 			os.Exit(1)
 		}
 
-		if upgrade != "" {
-			if len(valuesUpgrade) != rke2componentsCmdsLength {
-				log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-					rke2componentsCmdsLength, len(valuesUpgrade))
-				os.Exit(1)
-			}
+		if valuesUpgrade != nil && len(valuesUpgrade) != rke2componentsCmdsLength {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				rke2componentsCmdsLength, len(valuesUpgrade))
+			os.Exit(1)
 		}
 	}
 }
