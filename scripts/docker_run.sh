@@ -94,6 +94,7 @@ test_run_state() {
 # Copies /tmp files for config and terraform modules from a previous running container,
 # and starts a new container with the same state as the previous container.
 # This is useful for running other tests and also you can change the current code and run the tests again within the same instances.
+##TODO: ADD ALSO product and version specific on new container name + fix var NEW_IMG_NAME.
 test_run_updates() {
     CONTAINER_ID=$(docker ps -a -q --filter "ancestor=acceptance-test-${TAG_NAME}" | head -n 1)
 

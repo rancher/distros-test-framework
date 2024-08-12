@@ -10,7 +10,7 @@ node {
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
   def envFile = ".env"
-  def branch = "main"
+  def branch = "fix.vb"
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
   }
@@ -93,11 +93,13 @@ node {
                 sh "./scripts/build.sh"
               }
               stage('Run TestCombination') {
+                  withEnv(["TEST_ARGS=${TEST_ARGS}"]) {
                   sh """
-                  docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env ${imageName} sh -c \\
+                  docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env --env TEST_ARGS="${TEST_ARGS}"  ${imageName} sh -c \\
                   "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS.replace("\"", "\\\"")}"
                   """
               }
+             }
             } finally {
               stage('Cleanup') {
                 // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
