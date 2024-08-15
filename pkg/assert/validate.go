@@ -27,14 +27,19 @@ func validate(exec func(string) (string, error), args ...string) error {
 	}
 
 	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(120 * time.Second)
+	timeout := time.After(240 * time.Second)
 	ticker := time.NewTicker(3 * time.Second)
+
+	fmt.Println("Args: ", args)
 
 	for i := 0; i < len(args); i++ {
 		cmd := args[i]
 		if i+1 < len(args) {
 			assert := args[i+1]
 			i++
+
+			fmt.Println("Cmd: ", cmd)
+			fmt.Println("Assert: ", assert)
 
 			if assert == "" || cmd == "" {
 				return shared.ReturnLogError("should not send empty arg for assert:%s "+

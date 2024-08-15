@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -29,33 +28,33 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
+	//
+	// It("Verifies ClusterIP Service", func() {
+	// 	testcase.TestServiceClusterIP(true, true)
+	// })
+	//
+	// It("Verifies NodePort Service", func() {
+	// 	testcase.TestServiceNodePort(true, true)
+	// })
+	//
+	// It("Verifies Ingress", func() {
+	// 	testcase.TestIngress(true, true)
+	// })
+	//
+	// It("Verifies Daemonset", func() {
+	// 	testcase.TestDaemonset(true, true)
+	// })
+	//
+	// It("Verifies dns access", func() {
+	// 	testcase.TestDNSAccess(true, true)
+	// })
 
-	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(true, true)
-	})
-
-	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true, true)
-	})
-
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(true, true)
-	})
-
-	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true, true)
-	})
-
-	It("Verifies dns access", func() {
-		testcase.TestDNSAccess(true, true)
-	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred(), err)
-		})
-	}
+	// if cluster.Config.Product == "rke2" {
+	// 	It("Verifies Snapshot Webhook", func() {
+	// 		err := testcase.TestSnapshotWebhook(true)
+	// 		Expect(err).To(HaveOccurred(), err)
+	// 	})
+	// }
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {

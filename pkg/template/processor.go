@@ -1,11 +1,9 @@
 package template
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -16,9 +14,16 @@ func processTestCombination(
 	t *TestTemplate,
 ) error {
 	if t.TestCombination.Run != nil {
+
+		shared.LogLevel("debug", "TestCombination: %s\n", t.TestCombination.Run)
 		for _, testMap := range t.TestCombination.Run {
+
+			shared.LogLevel("debug", "TestMap: %s\n", testMap)
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
+
+			shared.LogLevel("debug", "cmd:on PROCESS TEST COMB %s\n", cmds)
+			shared.LogLevel("debug", "expectedValues:  PROCESS TEST COMB    %s\n", expectedValues)
 
 			if strings.Contains(testMap.Cmd, "etcd ") {
 				nodes, err := shared.GetNodesByRoles("etcd")
@@ -59,6 +64,9 @@ func processCmds(
 		cmd := cmds[i]
 		expectedValue := expectedValues[i]
 
+		shared.LogLevel("debug", "cmd: on process cmds  %s\n", cmd)
+		shared.LogLevel("debug", "expectedValue: process cmds   %s\n", expectedValue)
+
 		if strings.Contains(cmd, "kubectl") || strings.HasPrefix(cmd, "helm") {
 			processHostErr := processOnHost(cmd, expectedValue, currentProductVersion)
 			if processHostErr != nil {
@@ -82,15 +90,9 @@ func processOnNode(cmd, expectedValue, ip, currentProductVersion string) error {
 		return shared.ReturnLogError("error getting current version, is empty\n")
 	}
 
-	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
-		fmt.Printf("\n---------------------\n"+
-			"Version Check: %s\n"+
-			"IP Address: %s\n"+
-			"Command to Execute: %s\n"+
-			"Execution Location: Node\n"+
-			"Expected Value: %s\n---------------------\n",
-			currentProductVersion, ip, cmd, expectedValue)
-	}
+	shared.LogLevel("debug", "Version Check: %s\nIP Address: %s\nCommand to Execute: "+
+		"%s\nExecution Location: Node\nExpected Value: %s\n",
+		currentProductVersion, ip, cmd, expectedValue)
 
 	expectedValue = strings.TrimSpace(expectedValue)
 	cmdsRun := strings.Split(cmd, ",")
@@ -112,20 +114,20 @@ func processOnHost(cmd, expectedValue, currentProductVersion string) error {
 		return shared.ReturnLogError("error getting current version, is empty\n")
 	}
 
-	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
-		fmt.Printf("\n---------------------\n"+
-			"Version Check: %s\n"+
-			"Command to Execute: %s\n"+
-			"Execution Location: Host\n"+
-			"Expected Value: %s\n---------------------\n",
-			currentProductVersion, cmd, expectedValue)
-	}
+	shared.LogLevel("debug", "Version Check: %s\nCommand to Execute: %s\nExecution Location: Host\nExpected Value: %s\n",
+		currentProductVersion, cmd, expectedValue)
 
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
 	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
-	fullCmd = strings.ReplaceAll(fullCmd, `"`, "")
 
+	shared.LogLevel("debug", "Full Command: %s\n", fullCmd)
+
+	fullCmd = strings.ReplaceAll(fullCmd, `"`, "")
+	shared.LogLevel("debug", "Full Command:after replaceall %s\n", fullCmd)
+
+	shared.LogLevel("debug", "Expected Value: %s\n", expectedValue)
 	expectedValue = strings.TrimSpace(expectedValue)
+	shared.LogLevel("debug", "Expected Value: after TRIM %s\n", expectedValue)
 	err := assert.ValidateOnHost(fullCmd, expectedValue)
 	if err != nil {
 		return shared.ReturnLogError("error from validate on host: %w\n", err)

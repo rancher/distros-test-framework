@@ -60,7 +60,6 @@ Available flags to create your tests with some data examples:
 - $ -testCase "TestLocalPathProvisionerStorage"
 - $ -workloadName "bandwidth-annotations.yaml"
 - $ -description "Description of your test"
-- $ -debug true
 ```
 
 * All non-boolean arguments are comma separated in case you need to send more than 1.

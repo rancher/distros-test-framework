@@ -29,20 +29,13 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&customflag.ServiceFlag.TestTemplateConfig.WorkloadName, "workloadName", "", "Name of the workload to a standalone deploy")
 	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.ApplyWorkload, "applyWorkload", false, "Deploy workload customflag for tests passed in")
 	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.DeleteWorkload, "deleteWorkload", false, "Delete workload customflag for tests passed in")
-	flag.BoolVar(&customflag.ServiceFlag.TestTemplateConfig.DebugMode, "debug", false, "Enable debug mode")
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.StringVar(&customflag.ServiceFlag.TestTemplateConfig.Description, "description", "", "Description of the test")
 	flag.Parse()
 
-	customflag.ValidateTemplateFlags()
-
 	customflag.ServiceFlag.TestTemplateConfig.TestFuncNames = customflag.TestCaseNameFlag
 	if customflag.ServiceFlag.TestTemplateConfig.TestFuncNames != nil {
 		addTcFlag()
-	}
-
-	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
-		shared.LogLevel("info", "debug mode enabled on template\n\n")
 	}
 
 	_, err := config.AddEnv()
@@ -50,6 +43,12 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	customflag.ValidateTemplateFlags()
+
+	flag.VisitAll(func(f *flag.Flag) {
+		shared.LogLevel("debug", "flag: %s value: %s\n", f.Name, f.Value)
+	})
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
