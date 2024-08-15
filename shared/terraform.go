@@ -18,17 +18,16 @@ func addTerraformOptions(product, module string) (*terraform.Options, string, er
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", product))
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid product: %s\n", product)
+		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
 
 	prodOrMod := product
 	if module != "" {
 		prodOrMod = module
 	}
-	tfDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/modules/%s", prodOrMod))
+	tfDir, err := filepath.Abs(dir + "/modules/" + prodOrMod)
 	if err != nil {
-		return nil, "", fmt.Errorf("no module found for product: %s\n", prodOrMod)
+		return nil, "", fmt.Errorf("no module found for product: %s", prodOrMod)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -55,11 +54,12 @@ func loadTFconfig(
 	}
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
-	if (c.Config.Arch == "arm") {
+	if c.Config.Arch == "arm" {
 		c.Config.Arch = "arm64"
 	}
 	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "product_version")
 	c.Config.Product = product
+	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
 
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {

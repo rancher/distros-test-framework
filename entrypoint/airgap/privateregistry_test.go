@@ -9,12 +9,12 @@ import (
 )
 
 var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
-	It("Sets up private instances", func() {
+	It("Creates bastion and private nodes", func() {
 		testcase.TestBuildPrivateCluster(cluster)
 	})
 
-	It("Deploys a private cluster", func() {
-		testcase.TestAirgapPrivateRegistry(cluster, flags)
+	It("Installs and validates product on private nodes:", func() {
+		testcase.TestPrivateRegistry(cluster, flags)
 	})
 
 	// Validate images available from private registry
