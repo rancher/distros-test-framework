@@ -142,8 +142,8 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
-			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && " + 
-			"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
+			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
+				"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
 			c.AwsEc2.AccessKey,
 			localPath,
@@ -306,7 +306,6 @@ func GetJournalLogs(level, ip string) string {
 
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
-	log := logger.AddLogger()
 	err := formatLogArgs(format, args...)
 
 	if err != nil {
@@ -326,7 +325,6 @@ func ReturnLogError(format string, args ...interface{}) error {
 
 // LogLevel logs the message with the specified level.
 func LogLevel(level, format string, args ...interface{}) {
-	log := logger.AddLogger()
 	msg := formatLogArgs(format, args...)
 
 	envLogLevel := os.Getenv("LOG_LEVEL")
@@ -495,6 +493,7 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	return nil
 }
 
+// ReplaceFileContents reads file from path and replaces them based on key value pair provided.
 func ReplaceFileContents(filePath string, replaceKV map[string]string) {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
@@ -503,17 +502,17 @@ func ReplaceFileContents(filePath string, replaceKV map[string]string) {
 
 	for key, value := range replaceKV {
 		if strings.Contains(string(contents), key) {
-			contents = bytes.Replace(contents, []byte(key), []byte(value), -1)
+			contents = bytes.ReplaceAll(contents, []byte(key), []byte(value))
 		}
 	}
 
-	err = os.WriteFile(filePath, contents, 0666)
+	err = os.WriteFile(filePath, contents, 0o666)
 	if err != nil {
 		log.Errorf("Write to File failed: %v", filePath)
 	}
 }
 
-// stringInSlice verify if a string is found in the list of strings
+// stringInSlice verify if a string is found in the list of strings.
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {

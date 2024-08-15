@@ -53,7 +53,7 @@ func loadEnv() (*Product, error) {
 		Product: os.Getenv("ENV_PRODUCT"),
 		Module:  os.Getenv("ENV_MODULE"),
 	}
-	
+
 	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
 		log.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
 		os.Exit(1)

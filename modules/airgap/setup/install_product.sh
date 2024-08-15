@@ -3,6 +3,7 @@
 ## Uncomment the following lines to enable debug mode
 #set -x
 # PS4='+(${LINENO}): '
+# ./install_product.sh product serverIP token nodeType privateIP ipv6IP flags
 
 set -x
 echo "$@"
@@ -74,11 +75,11 @@ install() {
     if [ "$node_type" = "server" ]; then
       INSTALL_RKE2_ARTIFACT_PATH="`pwd`/artifacts" ./rke2-install.sh
       systemctl enable rke2-server.service --now
-      sleep 90
+      sleep 180
     elif [ "$node_type" = "agent" ]; then
       INSTALL_RKE2_ARTIFACT_PATH="`pwd`/artifacts" INSTALL_RKE2_TYPE="agent" ./rke2-install.sh
       systemctl enable rke2-agent.service --now
-      sleep 60
+      sleep 90
     else
       echo "Invalid type. Expected type to be server or agent, found $type!"
     fi
