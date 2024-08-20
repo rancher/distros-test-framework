@@ -90,7 +90,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 		err = assert.ValidateOnHost(
 			getAppLoadBalancer+shared.KubeConfigFile,
 			loadBalancer,
-			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
+			"curl --max-time 30 -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
 		)
 		Expect(err).NotTo(HaveOccurred(), err)

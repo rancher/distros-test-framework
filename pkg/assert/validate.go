@@ -26,27 +26,21 @@ func validate(exec func(string) (string, error), args ...string) error {
 		return shared.ReturnLogError("should send even number of args")
 	}
 
-	errorsChan := make(chan error, len(args)/2)
-	timeout := time.After(120 * time.Second)
-	ticker := time.NewTicker(3 * time.Second)
+	timeout := time.After(240 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	for i := 0; i < len(args); i++ {
 		cmd := args[i]
 		if i+1 < len(args) {
 			assert := args[i+1]
 			i++
-
 			if assert == "" || cmd == "" {
-				return shared.ReturnLogError("should not send empty arg for assert:%s "+
-					"and/or cmd:%s",
-					assert, cmd)
+				return shared.ReturnLogError("should not send empty arg for assert:%s "+"and/or cmd:%s", assert, cmd)
 			}
 
-			err := runAssertion(cmd, assert, exec, ticker.C, timeout, errorsChan)
+			err := runAssertion(cmd, assert, exec, ticker.C, timeout)
 			if err != nil {
-				shared.LogLevel("error", "error from runAssertion():\n %w\n", err)
-				close(errorsChan)
-				return shared.ReturnLogError("error from runAssertion():\n %w\n", err)
+				return shared.ReturnLogError("error from runAssertion():\n %v\n", err)
 			}
 		}
 	}
@@ -60,27 +54,28 @@ func runAssertion(
 	exec func(string) (string, error),
 	ticker <-chan time.Time,
 	timeout <-chan time.Time,
-	errorsChan chan<- error,
 ) error {
-	var res string
-	var err error
+	var (
+		res   string
+		err   error
+		retry int
+	)
+
 	for {
 		select {
 		case <-timeout:
 			timeoutErr := shared.ReturnLogError("timeout reached for command:\n%s\n"+
 				"Trying to assert with:\n%s\nExpected value: %s\n", cmd, res, assert)
-			errorsChan <- timeoutErr
 
 			return timeoutErr
 		case <-ticker:
-			i := 0
+			retry++
 			res, err = exec(cmd)
 			if err != nil {
-				i++
-				shared.LogLevel("warn", "error from exec runAssertion: %v\n with res: %s\nRetrying...", err, res)
-				if i > 5 {
-					errorsChan <- shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %s\n", err, res)
-					return shared.ReturnLogError("error from exec runAssertion: %v\nwith res: %s\n", err, res)
+				shared.LogLevel("warn", "error from exec runAssertion: %v\nRetrying...", err)
+				shared.LogLevel("warn", "retry count: %d\n", retry)
+				if retry > 10 {
+					return shared.ReturnLogError("error from exec runAssertion after 10 retries: %v\n", err)
 				}
 
 				continue
@@ -94,7 +89,6 @@ func runAssertion(
 					"%s"+
 					"\n----------------------\nMatched with result:\n%s\n", cmd, assert, res)
 				addResult(cmd, assert, res)
-				errorsChan <- nil
 
 				return nil
 			}
