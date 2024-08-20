@@ -81,16 +81,16 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
-		"--field-selector=status.phase=Running --kubeconfig="
+		"--field-selector=status.phase=Running "
 	loadBalancer := "test-loadbalancer"
 	validNodes, err := shared.GetNodesByRoles("control-plane", "worker")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	for _, node := range validNodes {
-		err = assert.ValidateOnHost(
-			getAppLoadBalancer+shared.KubeConfigFile,
+		err = assert.ValidateOnNode(validNodes[0].ExternalIP,
+			getAppLoadBalancer,
 			loadBalancer,
-			"curl --max-time 30 -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
+			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
 		)
 		Expect(err).NotTo(HaveOccurred(), err)

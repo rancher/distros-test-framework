@@ -591,8 +591,8 @@ func GetNodeNameByIP(ip string) (string, error) {
 	}
 }
 
-func FetchToken(ip string) (string, error) {
-	token, err := RunCommandOnNode("sudo cat  /var/lib/rancher/rke2/server/node-token", ip)
+func FetchToken(product, ip string) (string, error) {
+	token, err := RunCommandOnNode(fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/node-token", product), ip)
 	if err != nil {
 		return "", ReturnLogError("failed to fetch token: %w\n", err)
 	}
