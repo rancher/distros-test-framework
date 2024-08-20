@@ -44,7 +44,7 @@ func loadTFconfig(
 
 	loadTFoutput(t, terraformOptions, c)
 	loadAwsEc2(t, varDir, c)
-	if c.Config.Product == "rke2" {
+	if product == "rke2" {
 		loadWinTFCfg(t, varDir, terraformOptions, c)
 	}
 
