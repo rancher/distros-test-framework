@@ -45,7 +45,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new server nodes done\n")
 
-	serverLeaderIP := cluster.ServerIPs[0]
+	serverLeaderIP := newExternalServerIps[0]
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
