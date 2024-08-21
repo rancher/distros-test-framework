@@ -26,8 +26,8 @@ func validate(exec func(string) (string, error), args ...string) error {
 		return shared.ReturnLogError("should send even number of args")
 	}
 
-	timeout := time.After(240 * time.Second)
-	ticker := time.NewTicker(5 * time.Second)
+	timeout := time.After(120 * time.Second)
+	ticker := time.NewTicker(3 * time.Second)
 
 	for i := 0; i < len(args); i++ {
 		cmd := args[i]
@@ -71,8 +71,10 @@ func runAssertion(
 		case <-ticker:
 			retry++
 			res, err = exec(cmd)
+
 			if err != nil {
-				shared.LogLevel("warn", "error from exec runAssertion: %v\nRetrying...", err)
+				shared.LogLevel("warn", "error from exec runAssertion: %v", err)
+				shared.LogLevel("warn", "Retrying...executing command: %s\n on retry count: %d\n", cmd, retry)
 				if retry > 5 {
 					return shared.ReturnLogError("error from exec runAssertion after 5 retries: %v\n", err)
 				}
