@@ -12,11 +12,12 @@ import (
 var _ = Describe("Test: Mixed OS Cluster", func() {
 
 	It("Starts Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validates Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
@@ -24,14 +25,13 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus(),
-		)
+			assert.PodAssertReady())
 	})
 
 	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(true, true)
+		testcase.TestInternodeConnectivityMixedOS(cluster, true, true)
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
@@ -41,8 +41,8 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

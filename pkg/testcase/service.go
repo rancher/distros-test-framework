@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestServiceClusterIp(applyWorkload, deleteWorkload bool) {
+func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "clusterip.yaml")
@@ -81,14 +81,14 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
-		"--field-selector=status.phase=Running --kubeconfig="
+		"--field-selector=status.phase=Running "
 	loadBalancer := "test-loadbalancer"
 	validNodes, err := shared.GetNodesByRoles("control-plane", "worker")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	for _, node := range validNodes {
-		err = assert.ValidateOnHost(
-			getAppLoadBalancer+shared.KubeConfigFile,
+		err = assert.ValidateOnNode(validNodes[0].ExternalIP,
+			getAppLoadBalancer,
 			loadBalancer,
 			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			loadBalancer,
@@ -102,9 +102,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func testServiceNodePortDualStack(td testData) {
-	cluster, err := FetchCluster()
-	Expect(err).NotTo(HaveOccurred())
+func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 	nodeExternalIP := shared.FetchNodeExternalIPs()
 	nodeport, err := shared.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)

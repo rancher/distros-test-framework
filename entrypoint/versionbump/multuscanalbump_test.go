@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
@@ -15,26 +15,27 @@ import (
 
 var _ = Describe("Multus + canal Version bump:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
 						Cmd: "kubectl get node -o yaml : | grep multus-cni -A1, " +
 							"kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
@@ -42,22 +43,22 @@ var _ = Describe("Multus + canal Version bump:", func() {
 							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
 							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}' , " +
 							"kubectl get pods -n kube-system : | grep multus | awk '{print $1} {print $3}'",
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: ServiceFlag.InstallMode.String(),
+			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 
 	It("Verifies dns access", func() {
-		testcase.TestDnsAccess(true, true)
+		testcase.TestDNSAccess(true, true)
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true, true)
+		testcase.TestServiceClusterIP(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {
@@ -71,8 +72,8 @@ var _ = Describe("Multus + canal Version bump:", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

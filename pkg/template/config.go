@@ -4,8 +4,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
-var TestMapTemplate TestMap
-
 // TestTemplate represents a version test scenario with test configurations and commands.
 type TestTemplate struct {
 	TestCombination *RunCmd
@@ -17,17 +15,10 @@ type TestTemplate struct {
 
 // RunCmd represents the command sets to run on host and node.
 type RunCmd struct {
-	Run []TestMap
+	Run []customflag.TestMapConfig
 }
 
-// TestMap represents a single test command with key:value pairs.
-type TestMap struct {
-	Cmd                  string
-	ExpectedValue        string
-	ExpectedValueUpgrade string
-}
-
-// TestConfig represents the testcase function configuration
+// TestConfig represents the testcase function configuration.
 type TestConfig struct {
 	TestFunc       []testCase
 	ApplyWorkload  bool
@@ -45,7 +36,7 @@ func testCaseWrapper(t TestTemplate) {
 	}
 }
 
-// ConvertToTestCase converts the TestCaseFlag to testCase
+// ConvertToTestCase converts the TestCaseFlag to testCase.
 func ConvertToTestCase(testCaseFlags []customflag.TestCaseFlag) []testCase {
 	var testCases []testCase
 	for _, tcf := range testCaseFlags {

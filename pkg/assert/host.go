@@ -9,27 +9,30 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// CheckComponentCmdHost runs a command on the host and asserts that the value
-// received contains the specified substring
-// you can send multiple asserts from a cmd but all of them must be true
+// CheckComponentCmdHost runs a command on the host and asserts that the value received contains the specified substring.
 //
-// need to send KubeconfigFile
+// You can send multiple asserts from a cmd but all of them must be true.
+//
+// Need to send KubeconfigFile.
 func CheckComponentCmdHost(cmd string, asserts ...string) error {
 	if cmd == "" {
 		return fmt.Errorf("cmd: %s should not be sent empty", cmd)
 	}
 	Eventually(func() error {
 		res, err := shared.RunCommandHost(cmd)
+		cleanRes := shared.CleanString(res)
+
 		Expect(err).ToNot(HaveOccurred())
 		for _, assert := range asserts {
 			if assert == "" {
 				return fmt.Errorf("assert: %s should not be sent empty", assert)
 			}
-			if !strings.Contains(res, assert) {
+
+			if !strings.Contains(cleanRes, assert) {
 				return fmt.Errorf("expected substring %q not found in result %q", assert, res)
 			}
 
-			fmt.Println("\nResult:", res+"\nMatched with:\n", assert)
+			shared.LogLevel("info", "Result: %s\nMatched with: %s\n", res, assert)
 		}
 
 		return nil

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
@@ -15,49 +15,50 @@ import (
 
 var _ = Describe("Version Bump Template Upgrade:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pods", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
-						Cmd:                  TestMapTemplate.Cmd,
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						Cmd:                  TestMap.Cmd,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
+			InstallMode: ServiceFlag.InstallMode.String(),
 			TestConfig: &TestConfig{
-				TestFunc:       ConvertToTestCase(customflag.ServiceFlag.TestConfig.TestFuncs),
-				ApplyWorkload:  customflag.ServiceFlag.TestConfig.ApplyWorkload,
-				DeleteWorkload: customflag.ServiceFlag.TestConfig.DeleteWorkload,
-				WorkloadName:   customflag.ServiceFlag.TestConfig.WorkloadName,
+				TestFunc:       ConvertToTestCase(ServiceFlag.TestTemplateConfig.TestFuncs),
+				ApplyWorkload:  ServiceFlag.TestTemplateConfig.ApplyWorkload,
+				DeleteWorkload: ServiceFlag.TestTemplateConfig.DeleteWorkload,
+				WorkloadName:   ServiceFlag.TestTemplateConfig.WorkloadName,
 			},
-			Description: customflag.ServiceFlag.TestConfig.Description,
+			Description: ServiceFlag.TestTemplateConfig.Description,
 		})
 	})
 })
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

@@ -82,7 +82,7 @@ func processOnNode(cmd, expectedValue, ip, currentProductVersion string) error {
 		return shared.ReturnLogError("error getting current version, is empty\n")
 	}
 
-	if customflag.ServiceFlag.TestConfig.DebugMode {
+	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
 		fmt.Printf("\n---------------------\n"+
 			"Version Check: %s\n"+
 			"IP Address: %s\n"+
@@ -112,7 +112,7 @@ func processOnHost(cmd, expectedValue, currentProductVersion string) error {
 		return shared.ReturnLogError("error getting current version, is empty\n")
 	}
 
-	if customflag.ServiceFlag.TestConfig.DebugMode {
+	if customflag.ServiceFlag.TestTemplateConfig.DebugMode {
 		fmt.Printf("\n---------------------\n"+
 			"Version Check: %s\n"+
 			"Command to Execute: %s\n"+

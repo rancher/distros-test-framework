@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -12,8 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBuildCluster(g GinkgoTInterface) {
-	cluster := factory.ClusterConfig(g)
+func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(shared.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -25,30 +23,24 @@ func TestBuildCluster(g GinkgoTInterface) {
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
-		cmd := "grep \"datastore-endpoint\" /etc/systemd/system/k3s.service"
+		cmd := fmt.Sprintf("sudo grep \"datastore-endpoint\" /etc/rancher/%s/config.yaml", cluster.Config.Product)
 		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
-
-		etcd, err := shared.RunCommandHost("cat /var/lib/rancher/k3s/server/db/etcd/config",
-			cluster.ServerIPs[0])
-		// TODO: validate also after fix https://github.com/k3s-io/k3s/issues/8744
-		Expect(etcd).Should(ContainSubstring(" No such file or directory"))
-		Expect(err).To(HaveOccurred())
 	}
 
-	fmt.Println("\nKUBECONFIG:")
+	shared.LogLevel("info", "KUBECONFIG: ")
 	err := shared.PrintFileContents(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	fmt.Println("BASE64 ENCODED KUBECONFIG:")
+	shared.LogLevel("info", "BASE64 ENCODED KUBECONFIG:")
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	if cluster.GeneralConfig.BastionIP != "" {
-		fmt.Println("\nBastion Node IP:", cluster.GeneralConfig.BastionIP)
+		shared.LogLevel("info", "Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
 	}
-	fmt.Println("\nServer Node IPs:", cluster.ServerIPs)
+	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
 	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
@@ -57,9 +49,9 @@ func TestBuildCluster(g GinkgoTInterface) {
 	}
 }
 
-// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node
+// TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
 func TestSonobuoyMixedOS(deleteWorkload bool) {
-	sonobuoyVersion := customflag.ServiceFlag.ExternalFlag.SonobuoyVersion
+	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
 	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -69,17 +61,17 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed output: "+res)
 
-	cmd = fmt.Sprintf("sonobuoy retrieve --kubeconfig=%s", shared.KubeConfigFile)
+	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	testResultTar, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 
-	cmd = fmt.Sprintf("sonobuoy results %s", testResultTar)
+	cmd = "sonobuoy results  " + testResultTar
 	res, err = shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Plugin: mixed-workload-e2e\nStatus: passed\n"))
 
 	if deleteWorkload {
-		cmd = fmt.Sprintf("sonobuoy delete --all --wait --kubeconfig=%s", shared.KubeConfigFile)
+		cmd = "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
@@ -90,16 +82,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-// FetchCluster returns the cluster
-func FetchCluster() (*factory.Cluster, error) {
-	cluster := factory.ClusterConfig(GinkgoT())
-	return cluster, nil
-}
-
-// checkAndPrintAgentNodeIPs Prints out the Agent node IPs
-// agentNum		int			Number of agent nodes
-// agentIPs		[]string	IP list of agent nodes
-// isWindows 	bool 		Check for Windows enablement
+// checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	info := "Agent Node IPs:"
 
@@ -109,7 +92,7 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 
 	if agentNum > 0 {
 		Expect(agentIPs).ShouldNot(BeEmpty())
-		fmt.Println(info, agentIPs)
+		shared.LogLevel("info", info+"  %v", agentIPs)
 	} else {
 		Expect(agentIPs).Should(BeEmpty())
 	}

@@ -8,47 +8,48 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
 var _ = Describe("Cilium Version bump:", func() {
 	It("Start Up with no issues", func() {
-		testcase.TestBuildCluster(GinkgoT())
+		testcase.TestBuildCluster(cluster)
 	})
 
 	It("Validate Node", func() {
 		testcase.TestNodeStatus(
+			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil)
 	})
 
 	It("Validate Pod", func() {
 		testcase.TestPodStatus(
+			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady(),
-			assert.PodAssertStatus())
+			assert.PodAssertReady())
 	})
 
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
-				Run: []TestMap{
+				Run: []TestMapConfig{
 					{
 						Cmd:                  "kubectl get node -o yaml : | grep mirrored-cilium  -A1,kubectl get node -o yaml : | grep hardened-cni-plugins -A1",
-						ExpectedValue:        TestMapTemplate.ExpectedValue,
-						ExpectedValueUpgrade: TestMapTemplate.ExpectedValueUpgrade,
+						ExpectedValue:        TestMap.ExpectedValue,
+						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
 				},
 			},
-			InstallMode: customflag.ServiceFlag.InstallMode.String(),
-			DebugMode:   customflag.ServiceFlag.TestConfig.DebugMode,
+			InstallMode: ServiceFlag.InstallMode.String(),
+			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 
 	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIp(true, true)
+		testcase.TestServiceClusterIP(true, true)
 	})
 
 	It("Verifies NodePort Service", func() {
@@ -62,8 +63,8 @@ var _ = Describe("Cilium Version bump:", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

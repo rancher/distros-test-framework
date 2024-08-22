@@ -12,12 +12,10 @@ import (
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(version string) error {
-	if version == "" {
-		return shared.ReturnLogError("please provide a non-empty version or commit to upgrade to")
-	}
+func TestUpgradeClusterSUC(cluster *shared.Cluster, version string) error {
 	shared.PrintClusterState()
-	fmt.Printf("\nUpgrading cluster to: %s\n", version)
+
+	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
 
 	workloadErr := shared.ManageWorkload("apply", "suc.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(),
@@ -31,11 +29,9 @@ func TestUpgradeClusterSUC(version string) error {
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	product, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred())
-
-	originalFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-upgrade-plan.yaml", shared.Arch, product)
-	newFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/plan.yaml", shared.Arch)
+	originalFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-upgrade-plan.yaml",
+		cluster.Config.Arch, cluster.Config.Product)
+	newFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/plan.yaml", cluster.Config.Arch)
 
 	content, err := os.ReadFile(originalFilePath)
 	if err != nil {
@@ -43,7 +39,7 @@ func TestUpgradeClusterSUC(version string) error {
 	}
 
 	newContent := strings.ReplaceAll(string(content), "$UPGRADEVERSION", version)
-	err = os.WriteFile(newFilePath, []byte(newContent), 0644)
+	err = os.WriteFile(newFilePath, []byte(newContent), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %s", err)
 	}

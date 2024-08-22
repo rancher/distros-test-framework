@@ -51,7 +51,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 	Expect(taints).To(ContainSubstring("<none>"))
 	Expect(validateNodesEqual(strings.TrimSpace(taints), strings.TrimSpace(nodeNames))).To(BeTrue())
 
-	Eventually(func(g Gomega) int {
+	Eventually(func(_ Gomega) int {
 		return shared.CountOfStringInSlice("test-daemonset", pods)
 	}, "10s", "5s").Should(Equal(len(nodes)),
 		"Daemonset pod count does not match node count")
@@ -60,7 +60,6 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		workloadErr = shared.ManageWorkload("delete", "daemonset.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deleted")
 	}
-
 }
 
 // validateNodesEqual checks if the nodes in the two strings are equal (ignoring order through sorting).

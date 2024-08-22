@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -10,14 +11,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 type Client struct {
-	infra *factory.Cluster
+	infra *shared.Cluster
 	ec2   *ec2.EC2
 }
 
@@ -27,9 +25,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddNode() (*Client, error) {
-	c := factory.ClusterConfig(GinkgoT())
-
+func AddAWSClient(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {
@@ -37,7 +33,7 @@ func AddNode() (*Client, error) {
 	}
 
 	return &Client{
-		infra: &factory.Cluster{AwsEc2: c.AwsEc2},
+		infra: &shared.Cluster{AwsEc2: c.AwsEc2},
 		ec2:   ec2.New(sess),
 	}, nil
 }
@@ -101,7 +97,7 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 
 func (c Client) DeleteInstance(ip string) error {
 	if ip == "" {
-		return shared.ReturnLogError("must sent a ip: %s\n", ip)
+		return shared.ReturnLogError("must sent a ip")
 	}
 
 	data := &ec2.DescribeInstancesInput{
@@ -121,25 +117,28 @@ func (c Client) DeleteInstance(ip string) error {
 	found := false
 	for _, r := range res.Reservations {
 		for _, node := range r.Instances {
-			if *node.State.Name == "running" {
-				found = true
-				terminateInput := &ec2.TerminateInstancesInput{
-					InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
-				}
-
-				_, err := c.ec2.TerminateInstances(terminateInput)
-				if err != nil {
-					return fmt.Errorf("error terminating instance: %w", err)
-				}
-				instanceName := "Unknown"
-				if len(node.Tags) > 0 {
-					instanceName = *node.Tags[0].Value
-				}
-				shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
-					instanceName, *node.InstanceId))
+			if *node.State.Name != "running" {
+				continue
 			}
+
+			found = true
+			terminateInput := &ec2.TerminateInstancesInput{
+				InstanceIds: aws.StringSlice([]string{*node.InstanceId}),
+			}
+
+			_, err := c.ec2.TerminateInstances(terminateInput)
+			if err != nil {
+				return fmt.Errorf("error terminating instance: %w", err)
+			}
+			instanceName := "Unknown"
+			if len(node.Tags) > 0 {
+				instanceName = *node.Tags[0].Value
+			}
+			shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
+				instanceName, *node.InstanceId))
 		}
 	}
+
 	if !found {
 		return shared.ReturnLogError("no running instances found for ip: %s\n", ip)
 	}
@@ -147,39 +146,138 @@ func (c Client) DeleteInstance(ip string) error {
 	return nil
 }
 
-func (c Client) WaitForInstanceRunning(instanceId string) error {
-	input := &ec2.DescribeInstanceStatusInput{
-		InstanceIds:         aws.StringSlice([]string{instanceId}),
-		IncludeAllInstances: aws.Bool(true),
+func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
+	if ipAddress == "" {
+		return "", shared.ReturnLogError("calling GetInstanceIDByIP with empty ip address, must send a valid ip address")
 	}
 
-	ticker := time.NewTicker(15 * time.Second)
-	timeout := time.After(5 * time.Minute)
-	defer ticker.Stop()
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("ip-address"),
+				Values: []*string{aws.String(ipAddress)},
+			},
+		},
+	}
 
-	for {
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting for instance to be in running state and pass status checks")
-		case <-ticker.C:
-			statusRes, err := c.ec2.DescribeInstanceStatus(input)
-			if err != nil {
-				return fmt.Errorf("error describing instance status: %w", err)
-			}
+	result, err := c.ec2.DescribeInstances(input)
+	if err != nil {
+		return "", shared.ReturnLogError("failed to describe instances: %v", err)
+	}
 
-			if len(statusRes.InstanceStatuses) == 0 {
-				continue
-			}
+	// Check if any instances were found.
+	if len(result.Reservations) == 0 {
+		return "", shared.ReturnLogError("no instances found with the public IP address: %s", ipAddress)
+	}
 
-			status := statusRes.InstanceStatuses[0]
-			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				shared.LogLevel("info", fmt.Sprintf("\nInstance %s is running "+
-					"and passed status checks", instanceId))
+	// Extract and return the instance ID.
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			return *instance.InstanceId, nil
+		}
+	}
 
-				return nil
+	return "", shared.ReturnLogError("no instances found with the public IP address: ")
+}
+
+func (c Client) StopInstance(instanceID string) error {
+	if instanceID == "" {
+		return shared.ReturnLogError("calling StopInstance with empty instance ID, must send a valid instance ID")
+	}
+
+	input := &ec2.StopInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	_, err := c.ec2.StopInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("failed to stop instance %s: %v", instanceID, err)
+	}
+
+	stopErr := c.waitInstanceStop(instanceID)
+	if stopErr != nil {
+		return shared.ReturnLogError("timed out on stop instance %s: %v", instanceID, stopErr)
+	}
+
+	return nil
+}
+
+func (c Client) StartInstance(instanceID string) error {
+	if instanceID == "" {
+		return shared.ReturnLogError("calling StartInstance with empty instance ID, must send a valid instance ID")
+	}
+
+	input := &ec2.StartInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	_, err := c.ec2.StartInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("failed to start instance %s: %v", instanceID, err)
+	}
+
+	startErr := c.waitForInstanceRunning(instanceID)
+	if startErr != nil {
+		return shared.ReturnLogError("timed out on start instance %s: %v", instanceID, startErr)
+	}
+
+	return nil
+}
+
+func (c Client) ReleaseElasticIps(ipAddress string) error {
+	if ipAddress == "" {
+		return shared.ReturnLogError("calling ReleaseElasticIps with empty ip address, must send a valid ip address")
+	}
+
+	input := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("ip-address"),
+				Values: aws.StringSlice([]string{ipAddress}),
+			},
+		},
+	}
+
+	result, err := c.ec2.DescribeInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("error describing instances: %w\n", err)
+	}
+
+	for _, r := range result.Reservations {
+		for _, i := range r.Instances {
+			if i.PublicIpAddress != nil {
+				addressesInput := &ec2.DescribeAddressesInput{
+					Filters: []*ec2.Filter{
+						{
+							Name:   aws.String("domain"),
+							Values: []*string{aws.String("vpc")},
+						},
+						{
+							Name:   aws.String("public-ip"),
+							Values: []*string{i.PublicIpAddress},
+						},
+					},
+				}
+
+				addressesOutput, addrErr := c.ec2.DescribeAddresses(addressesInput)
+				if addrErr != nil {
+					return shared.ReturnLogError("error describing elastic ip: %w\n", addrErr)
+				}
+
+				if len(addressesOutput.Addresses) > 0 {
+					allocationID := addressesOutput.Addresses[0].AllocationId
+					_, addrErr = c.ec2.ReleaseAddress(&ec2.ReleaseAddressInput{AllocationId: allocationID})
+					if addrErr != nil {
+						return shared.ReturnLogError("error releasing elastic ip: %w\n", addrErr)
+					}
+
+					shared.LogLevel("info", "released eips from intances: %v", *i.InstanceId)
+				}
 			}
 		}
 	}
+
+	return nil
 }
 
 func (c Client) create(name string) (*ec2.Reservation, error) {
@@ -227,13 +325,76 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 		},
 	}
 
-	shared.LogLevel("info", fmt.Sprintf("\nCreating instance: %s\n", name))
-
 	return c.ec2.RunInstances(input)
 }
 
-func (c Client) fetchIP(nodeID string) (publicIP string, privateIP string, err error) {
-	waitErr := c.WaitForInstanceRunning(nodeID)
+func (c Client) waitForInstanceRunning(instanceId string) error {
+	input := &ec2.DescribeInstanceStatusInput{
+		InstanceIds:         aws.StringSlice([]string{instanceId}),
+		IncludeAllInstances: aws.Bool(true),
+	}
+
+	ticker := time.NewTicker(15 * time.Second)
+	timeout := time.After(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timed out waiting for instance to be in running state and pass status checks")
+		case <-ticker.C:
+			statusRes, err := c.ec2.DescribeInstanceStatus(input)
+			if err != nil {
+				return fmt.Errorf("error describing instance status: %w", err)
+			}
+
+			if len(statusRes.InstanceStatuses) == 0 {
+				continue
+			}
+
+			status := statusRes.InstanceStatuses[0]
+			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
+				shared.LogLevel("info", fmt.Sprintf("Instance %s is running "+
+					"and passed status checks", instanceId))
+
+				return nil
+			}
+		}
+	}
+}
+
+func (c Client) waitInstanceStop(instanceID string) error {
+	input := &ec2.DescribeInstanceStatusInput{
+		InstanceIds:         aws.StringSlice([]string{instanceID}),
+		IncludeAllInstances: aws.Bool(true),
+	}
+
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return shared.ReturnLogError("timed out waiting for instance to stop")
+		case <-ticker.C:
+			statusRes, err := c.ec2.DescribeInstanceStatus(input)
+			if err != nil {
+				return shared.ReturnLogError("error describing instance status: %w\n", err)
+			}
+
+			status := statusRes.InstanceStatuses[0]
+			if *status.InstanceState.Name == "stopped" {
+				shared.LogLevel("info", fmt.Sprintf("Instance %s is stopped", instanceID))
+
+				return nil
+			}
+		}
+	}
+}
+
+func (c Client) fetchIP(nodeID string) (publicIP, privateIP string, err error) {
+	waitErr := c.waitForInstanceRunning(nodeID)
 	if waitErr != nil {
 		return "", "", shared.ReturnLogError("error waiting for instance to be running: %w\n", waitErr)
 	}
@@ -259,7 +420,7 @@ func (c Client) fetchIP(nodeID string) (publicIP string, privateIP string, err e
 
 func extractID(reservation *ec2.Reservation) (string, error) {
 	if len(reservation.Instances) == 0 || reservation.Instances[0].InstanceId == nil {
-		return "", fmt.Errorf("no instance ID found")
+		return "", errors.New("no instance ID found")
 	}
 
 	return *reservation.Instances[0].InstanceId, nil

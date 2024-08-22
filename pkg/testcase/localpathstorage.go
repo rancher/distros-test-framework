@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -12,7 +11,7 @@ import (
 
 var lps = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
+func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
@@ -27,14 +26,14 @@ func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	_, err = shared.WriteDataPod(lps)
+	_, err = shared.WriteDataPod(cluster, lps)
 	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)
 
 	Eventually(func(g Gomega) {
 		var res string
-		fmt.Println("Writing and reading data from pod")
+		shared.LogLevel("info", "Reading data from pod")
 
-		res, err = shared.ReadDataPod(lps)
+		res, err = shared.ReadDataPod(cluster, lps)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
@@ -45,12 +44,12 @@ func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
 		shared.RestartCluster("k3s", ip)
 	}
 
-	_, err = shared.ReadDataPod(lps)
+	_, err = shared.ReadDataPod(cluster, lps)
 	if err != nil {
 		return
 	}
 
-	err = readData()
+	err = readData(cluster)
 	if err != nil {
 		return
 	}
@@ -61,18 +60,18 @@ func TestLocalPathProvisionerStorage(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func readData() error {
+func readData(cluster *shared.Cluster) error {
 	deletePod := "kubectl delete -n local-path-storage  pod -l app=volume-test --kubeconfig="
 	err := assert.ValidateOnHost(deletePod+shared.KubeConfigFile, "deleted")
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Reading data from newly created pod")
+	shared.LogLevel("info", "Reading data from newly created pod")
 	delay := time.After(30 * time.Second)
 	<-delay
 
-	_, err = shared.ReadDataPod(lps)
+	_, err = shared.ReadDataPod(cluster, lps)
 	if err != nil {
 		return err
 	}

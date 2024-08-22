@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,9 +12,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestInternodeConnectivityMixedOS Deploys services in the cluster
-// and validates communication between linux and windows nodes
-func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
+// TestInternodeConnectivityMixedOS validates communication between linux and windows nodes.
+func TestInternodeConnectivityMixedOS(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply",
@@ -21,7 +21,7 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
 	}
 
-	assert.ValidatePodIPByLabel([]string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
+	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
 	err := testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
@@ -36,9 +36,9 @@ func TestInternodeConnectivityMixedOS(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range
-func testIPsInCIDRRange(label, svc string) {
-	nodeArgs, err := shared.GetNodeArgsMap("server")
+// testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range.
+func testIPsInCIDRRange(cluster *shared.Cluster, label, svc string) {
+	nodeArgs, err := shared.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
@@ -48,13 +48,13 @@ func testIPsInCIDRRange(label, svc string) {
 	assert.ValidateClusterIPsBySVC(svc, serviceCIDR)
 }
 
-// testCrossNodeService Perform testing cross node communication via service exec call
+// testCrossNodeService Perform testing cross node communication via service exec call.
 //
-// services Slice Takes service names as parameters in the array
+// services Slice Takes service names as parameters in the array.
 //
-// ports	Slice Takes service ports needed to access the services
+// ports	Slice Takes service ports needed to access the services.
 //
-// expected	Slice Takes the expected substring from the curl response
+// expected	Slice Takes the expected substring from the curl response.
 func testCrossNodeService(services, ports, expected []string) error {
 	var cmd string
 	timeout := time.After(220 * time.Second)
@@ -62,13 +62,13 @@ func testCrossNodeService(services, ports, expected []string) error {
 	delay := time.After(160 * time.Second)
 
 	if len(services) != len(ports) && len(ports) != len(expected) {
-		return fmt.Errorf("slice parameters must have equal length")
+		return errors.New("slice parameters must have equal length")
 	}
 	if len(services) < 2 || len(ports) < 2 || len(expected) < 2 {
-		return fmt.Errorf("slice parameters must not be less than or equal to 2")
+		return errors.New("slice parameters must not be less than or equal to 2")
 	}
 
-	fmt.Println("\nConnecting to services")
+	shared.LogLevel("info", "Connecting to services")
 	<-delay
 
 	performCheck := func(svc1, svc2, port, expected string) error {
@@ -78,7 +78,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 		for {
 			select {
 			case <-timeout:
-				return fmt.Errorf("timeout reached")
+				return errors.New("timeout reached")
 			case <-ticker.C:
 				result, err := shared.RunCommandHost(cmd)
 				if err != nil {

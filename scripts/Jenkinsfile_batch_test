@@ -1,0 +1,160 @@
+#!groovy
+
+node {
+  def branch = "main"
+  def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',')
+
+  if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
+    branch = "${env.BRANCH}"
+  }
+
+  def repo = scm.userRemoteConfigs
+  if ("${env.REPO}" != "null" && "${env.REPO}" != "") {
+    repo = [
+      [url: "${env.REPO}"]
+    ]
+  }
+  def timeout = "60m"
+  if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
+    timeout = "${env.TIMEOUT}"
+  }
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
+    withFolderProperties {
+      paramsMap = []
+      params.each {
+        if (it.value && it.value.trim() != "") {
+          paramsMap << "$it.key=$it.value"
+        }
+      }
+      withEnv(paramsMap) {
+        stage('Checkout') {
+          deleteDir()
+          checkout([
+            $class: 'GitSCM',
+            branches: [
+              [name: "*/${branch}"]
+            ],
+            extensions: scm.extensions + [
+              [$class: 'CleanCheckout']
+            ],
+            userRemoteConfigs: repo
+          ])
+        }
+        dir("./") {
+          stage('Run Parallel Jobs') {
+            echo "Running ${test_dir.size()} tests: ${test_dir}"
+            def jobs = [:]
+
+            test_dir.each { test_name ->
+              def actual_testdir_name = test_name
+              def job_test_args = "${TEST_ARGS}"
+              def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
+              def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
+
+              if (test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
+                actual_testdir_name = "upgradecluster"
+                if (test_name == "upgradesuc") {
+                  job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
+                } else {
+                  job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                }
+                job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
+              }
+
+              if (test_name == "deployrancher" ) {
+                if ("${CERT_MANAGER_VERSION}" != "") {
+                  job_test_args = job_test_args + " -certManagerVersion ${CERT_MANAGER_VERSION}"
+                }
+                if ("${CHARTS_VERSION}" != "") {
+                  job_test_args = job_test_args + " -chartsVersion ${CHARTS_VERSION}"
+                }
+                if ("${RANCHER_VERSION}" != "") {
+                  job_test_args = job_test_args + " -rancherVersion ${RANCHER_VERSION}"
+                }  
+                if ("${CHARTS_REPO_NAME}" != "") {
+                  job_test_args = job_test_args + " -chartsRepoName ${CHARTS_REPO_NAME}"
+                }
+                if ("${CHARTS_REPO_URL}" != "") {
+                  job_test_args = job_test_args + " -chartsRepoUrl ${CHARTS_REPO_URL}"
+                }
+                if ("${CHARTS_ARGS}" != "") {
+                  job_test_args = job_test_args + " -chartsArgs ${CHARTS_ARGS}"
+                }
+              }
+
+              if (test_name == "dualstack") {
+                job_aws_ssh_key_name = "jenkins-elliptic-validation"
+                job_aws_ssh_pem_key = ""
+              }
+
+              if (test_name == "docker_cri" || test_name == "external_datastore"){
+                actual_testdir_name = "validatecluster"
+              }
+          
+              def params = [
+                string(name: 'TEST_ARGS', value: job_test_args),
+                string(name: 'REPO', value: "${REPO}"), 
+                string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                string(name: 'PRE_UPGRADE_VERSION', value: "${PRE_UPGRADE_VERSION}"),
+                string(name: 'VERSION_OR_COMMIT', value: "${VERSION_OR_COMMIT}"),
+                string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
+                string(name: 'CHANNEL', value: "${CHANNEL}"),
+                string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
+                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
+                string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
+                string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
+                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
+              ]
+
+              echo "Params for job: \"${test_name}\" are:\n${params}"
+              switch(test_name) {
+                case "validatecluster":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: params }
+                  break
+                case "docker_cri":
+                  jobs[test_name] = { build job: "k3s_docker_cri", parameters: params }
+                  break             
+                case "restartservice":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: params }
+                  break                
+                case "dualstack":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: params }
+                  break
+                case "deployrancher":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: params }
+                  break 
+                case "certrotate": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: params }
+                  break                
+                case "secretsencrypt": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: params }
+                  break
+                case "upgrademanual": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: params }
+                  break
+                case "upgradesuc": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: params }
+                  break
+                case "upgradereplacement": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: params }
+                  break
+                case "clusterreset":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: params }
+                  break
+                case "external_datastore":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_external_datastore", parameters: params }
+                  break
+                case "mixedoscluster":
+                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: params }
+                  break                                                         
+              } // switch case
+            } // for each test_dir loop
+
+            parallel jobs
+          } // stage run parallel jobs
+        } // dir
+      } // withEnv
+    } // withFolderProperties
+  } // wrap
+} // node

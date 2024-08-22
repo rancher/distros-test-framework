@@ -12,11 +12,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
-// RunCommandHost executes a command on the host
+// RunCommandHost executes a command on the host.
 func RunCommandHost(cmds ...string) (string, error) {
 	if cmds == nil {
 		return "", ReturnLogError("should send at least one command")
@@ -41,15 +40,13 @@ func RunCommandHost(cmds ...string) (string, error) {
 	return output.String(), nil
 }
 
-// RunCommandOnNode executes a command on the node SSH
+// RunCommandOnNode executes a command on the node SSH.
 func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
-	LogLevel("debug", "Execute: %s on %s", cmd, ip)
 
 	host := ip + ":22"
-
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %w\n", err)
@@ -88,16 +85,6 @@ func BasePath() string {
 	return filepath.Join(filepath.Dir(callerFilePath), "..")
 }
 
-func EnvConfig() (*config.Product, error) {
-	path := BasePath() + "/config/.env"
-	env, err := config.AddConfigEnv(path)
-	if err != nil {
-		return nil, ReturnLogError("error getting env config: %w\n", err)
-	}
-
-	return env, nil
-}
-
 // PrintFileContents prints the contents of the file as [] string.
 func PrintFileContents(f ...string) error {
 	for _, file := range f {
@@ -127,8 +114,8 @@ func PrintBase64Encoded(path string) error {
 // CountOfStringInSlice Used to count the pods using prefix passed in the list of pods.
 func CountOfStringInSlice(str string, pods []Pod) int {
 	var count int
-	for _, p := range pods {
-		if strings.Contains(p.Name, str) {
+	for i := range pods {
+		if strings.Contains(pods[i].Name, str) {
 			count++
 		}
 	}
@@ -137,21 +124,17 @@ func CountOfStringInSlice(str string, pods []Pod) int {
 }
 
 // RunScp copies files from local to remote host based on a list of local and remote paths.
-func RunScp(ip, product string, localPaths, remotePaths []string) error {
+func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	if ip == "" {
 		return ReturnLogError("ip is needed.\n")
 	}
 
-	if product != "rke2" && product != "k3s" {
-		return ReturnLogError("unsupported product: %s\n", product)
+	if c.Config.Product != "rke2" && c.Config.Product != "k3s" {
+		return ReturnLogError("unsupported product: %s\n", c.Config.Product)
 	}
 
 	if len(localPaths) != len(remotePaths) {
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
-	}
-
-	if err := config.SetEnv(BasePath() + fmt.Sprintf("/config/%s.tfvars", product)); err != nil {
-		return err
 	}
 
 	for i, localPath := range localPaths {
@@ -159,9 +142,9 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 		scp := fmt.Sprintf(
 			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
 			ip,
-			AccessKey,
+			c.AwsEc2.AccessKey,
 			localPath,
-			AwsUser,
+			c.AwsEc2.AwsUser,
 			ip,
 			remotePath,
 		)
@@ -175,14 +158,13 @@ func RunScp(ip, product string, localPaths, remotePaths []string) error {
 			return cmdErr
 		}
 
-		chmod := fmt.Sprintf("sudo chmod +wx %s", remotePath)
+		chmod := "sudo chmod +wx " + remotePath
 		_, cmdErr = RunCommandOnNode(chmod, ip)
 		if cmdErr != nil {
 			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
 			return cmdErr
 		}
 	}
-	LogLevel("info", "Files copied and chmod successfully\n")
 
 	return nil
 }
@@ -194,16 +176,6 @@ func CheckHelmRepo(name, url, version string) (string, error) {
 	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
 
 	return RunCommandHost(addRepo, update, searchRepo)
-}
-
-// AddHelmRepo adds a helm repo to the cluster.
-func AddHelmRepo(name, url string) (string, error) {
-	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
-	update := "helm repo update"
-	installRepo := fmt.Sprintf("helm install %s %s/%s -n kube-system --kubeconfig=%s",
-		name, name, name, KubeConfigFile)
-
-	return RunCommandHost(addRepo, update, installRepo)
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
@@ -220,14 +192,29 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 }
 
 func configureSSH(host string) (*ssh.Client, error) {
-	var cfg *ssh.ClientConfig
+	var (
+		cfg *ssh.ClientConfig
+		err error
+	)
 
-	authMethod, err := publicKey(AccessKey)
+	// get access key and user from cluster config.
+	kubeConfig := os.Getenv("KUBE_CONFIG")
+	if kubeConfig == "" {
+		cluster = ClusterConfig()
+	} else {
+		cluster, err = addClusterFromKubeConfig(nil)
+		if err != nil {
+			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
+		}
+	}
+
+	authMethod, err := publicKey(cluster.AwsEc2.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
+
 	cfg = &ssh.ClientConfig{
-		User: AwsUser,
+		User: cluster.AwsEc2.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -266,7 +253,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	return stdoutStr, stderrStr, nil
 }
 
-// JoinCommands joins the first command with some arg
+// JoinCommands joins the first command with some arg.
 func JoinCommands(cmd, kubeconfigFlag string) string {
 	cmds := strings.Split(cmd, ":")
 	joinedCmd := cmds[0] + kubeconfigFlag
@@ -279,7 +266,7 @@ func JoinCommands(cmd, kubeconfigFlag string) string {
 	return joinedCmd
 }
 
-// GetJournalLogs returns the journal logs for a specific product
+// GetJournalLogs returns the journal logs for a specific product.
 func GetJournalLogs(level, ip string) string {
 	if level == "" {
 		LogLevel("warn", "level should not be empty")
@@ -292,7 +279,7 @@ func GetJournalLogs(level, ip string) string {
 		return ""
 	}
 
-	product, err := Product()
+	product, _, err := Product()
 	if err != nil {
 		return ""
 	}
@@ -332,13 +319,28 @@ func LogLevel(level, format string, args ...interface{}) {
 	log := logger.AddLogger()
 	msg := formatLogArgs(format, args...)
 
+	envLogLevel := os.Getenv("LOG_LEVEL")
+	envLogLevel = strings.ToLower(envLogLevel)
+
 	switch level {
 	case "debug":
-		log.Debug(msg)
+		if envLogLevel == "debug" {
+			log.Debug(msg)
+		} else {
+			return
+		}
 	case "info":
-		log.Info(msg)
+		if envLogLevel == "info" || envLogLevel == "" || envLogLevel == "debug" {
+			log.Info(msg)
+		} else {
+			return
+		}
 	case "warn":
-		log.Warn(msg)
+		if envLogLevel == "warn" || envLogLevel == "" || envLogLevel == "info" || envLogLevel == "debug" {
+			log.Warn(msg)
+		} else {
+			return
+		}
 	case "error":
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
@@ -361,7 +363,7 @@ func LogLevel(level, format string, args ...interface{}) {
 // formatLogArgs formats the logger message.
 func formatLogArgs(format string, args ...interface{}) error {
 	if len(args) == 0 {
-		return fmt.Errorf(format)
+		return fmt.Errorf("%s", format)
 	}
 	if e, ok := args[0].(error); ok {
 		if len(args) > 1 {
@@ -374,7 +376,7 @@ func formatLogArgs(format string, args ...interface{}) error {
 	return fmt.Errorf(format, args...)
 }
 
-// fileExists Checks if a file exists in a directory
+// fileExists Checks if a file exists in a directory.
 func fileExists(files []os.DirEntry, workload string) bool {
 	for _, file := range files {
 		if file.Name() == workload {
@@ -410,51 +412,60 @@ func UninstallProduct(product, nodeType, ip string) error {
 		return fmt.Errorf("unsupported product: %s", product)
 	}
 
-	foundPath, err := findScriptPath(paths, scriptName, ip)
-	if err != nil {
-		return fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+	foundPath, findErr := checkFiles(product, paths, scriptName, ip)
+	if findErr != nil {
+		return findErr
 	}
 
-	pathName := fmt.Sprintf("%s-uninstall.sh", product)
+	pathName := product + "-uninstall.sh"
 	if product == "k3s" && nodeType == "agent" {
 		pathName = "k3s-agent-uninstall.sh"
 	}
 
 	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err = RunCommandOnNode(uninstallCmd, ip)
+	_, err := RunCommandOnNode(uninstallCmd, ip)
 
 	return err
 }
 
-func findScriptPath(paths []string, pathName, ip string) (string, error) {
+func checkFiles(product string, paths []string, scriptName, ip string) (string, error) {
+	var foundPath string
 	for _, path := range paths {
 		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
-			path, pathName)
+			path, scriptName)
 		output, err := RunCommandOnNode(checkCmd, ip)
 		if err != nil {
 			return "", err
 		}
 		output = strings.TrimSpace(output)
 		if output == "found" {
-			return path, nil
+			foundPath = path
+		} else {
+			foundPath, err = FindPath(scriptName, ip)
+			if err != nil {
+				return "", fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
+			}
 		}
 	}
 
-	searchPath := fmt.Sprintf("find / -name %s 2>/dev/null", pathName)
+	return foundPath, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | grep -v data | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
 	}
 
-	fullPath = strings.TrimSpace(fullPath)
 	if fullPath == "" {
-		return "", fmt.Errorf("script %s not found", pathName)
+		return "", fmt.Errorf("path for %s not found", name)
 	}
 
-	return filepath.Dir(fullPath), nil
+	return strings.TrimSpace(fullPath), nil
 }
 
-// MatchWithPath verify expected files found in the actual file list
+// MatchWithPath verify expected files found in the actual file list.
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
@@ -474,7 +485,7 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	return nil
 }
 
-// stringInSlice verify if a string is found in the list of strings
+// stringInSlice verify if a string is found in the list of strings.
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
@@ -486,16 +497,28 @@ func stringInSlice(a string, list []string) bool {
 }
 
 // appendNodeIfMissing appends a value to a slice if that value does not already exist in the slice.
-func appendNodeIfMissing(slice []Node, i Node) []Node {
+func appendNodeIfMissing(slice []Node, i *Node) []Node {
 	for _, ele := range slice {
-		if ele == i {
+		if ele == *i {
 			return slice
 		}
 	}
 
-	return append(slice, i)
+	return append(slice, *i)
 }
 
 func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
+}
+
+func CleanString(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(s), "\n", ""), " ", "")
+}
+
+func CleanSliceStrings(stringsSlice []string) []string {
+	for i, str := range stringsSlice {
+		stringsSlice[i] = CleanString(str)
+	}
+
+	return stringsSlice
 }

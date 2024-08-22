@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,15 +12,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+var cluster *shared.Cluster
+
 func TestMain(m *testing.M) {
-	var err error
-	flag.Var(&customflag.ServiceFlag.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	_, err = shared.EnvConfig()
-	if err != nil {
-		return
-	}
+	cluster = shared.ClusterConfig()
 
 	os.Exit(m.Run())
 }
@@ -32,9 +29,8 @@ func TestCreateClusterSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+	if customflag.ServiceFlag.Destroy {
+		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

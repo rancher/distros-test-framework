@@ -10,11 +10,11 @@ import (
 )
 
 func Template(template TestTemplate) {
-	if customflag.ServiceFlag.TestConfig.WorkloadName != "" &&
-		strings.HasSuffix(customflag.ServiceFlag.TestConfig.WorkloadName, ".yaml") {
+	if customflag.ServiceFlag.TestTemplateConfig.WorkloadName != "" &&
+		strings.HasSuffix(customflag.ServiceFlag.TestTemplateConfig.WorkloadName, ".yaml") {
 		err := shared.ManageWorkload(
 			"apply",
-			customflag.ServiceFlag.TestConfig.WorkloadName,
+			customflag.ServiceFlag.TestTemplateConfig.WorkloadName,
 		)
 		Expect(err).NotTo(HaveOccurred())
 	}

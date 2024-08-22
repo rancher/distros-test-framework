@@ -4,13 +4,18 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
 var (
 	product *Product
 	once    sync.Once
+	log     = logger.AddLogger()
 )
 
 type Product struct {
@@ -18,43 +23,58 @@ type Product struct {
 	Product string
 }
 
-func AddConfigEnv(path string) (*Product, error) {
+// AddEnv sets environment variables from the .env file,tf vars and returns the Product configuration.
+func AddEnv() (*Product, error) {
+	var err error
 	once.Do(func() {
-		var err error
-		product, err = loadEnv(path)
+		product, err = loadEnv()
 		if err != nil {
-			return
+			os.Exit(1)
 		}
 	})
 
 	return product, nil
 }
 
-func loadEnv(fullPath string) (config *Product, err error) {
-	if err = SetEnv(fullPath); err != nil {
+func loadEnv() (*Product, error) {
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
+
+	// set the environment variables from the .env file.
+	dotEnvPath := dir + "/config/.env"
+	if err := setEnv(dotEnvPath); err != nil {
+		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err
 	}
 
-	config = &Product{}
-	config.TFVars = os.Getenv("ENV_TFVARS")
-	config.Product = os.Getenv("ENV_PRODUCT")
-	if config.TFVars == "" || (config.TFVars != "k3s.tfvars" && config.TFVars != "rke2.tfvars") {
-		fmt.Printf("unknown tfvars: %s\n", config.TFVars)
+	productConfig := &Product{
+		TFVars:  os.Getenv("ENV_TFVARS"),
+		Product: os.Getenv("ENV_PRODUCT"),
+	}
+	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
+		log.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
 		os.Exit(1)
 	}
 
-	if config.Product == "" || (config.Product != "k3s" && config.Product != "rke2") {
-		fmt.Printf("unknown product: %s\n", config.Product)
+	if productConfig.Product == "" || (productConfig.Product != "k3s" && productConfig.Product != "rke2") {
+		log.Errorf("unknown product: %s\n", productConfig.Product)
 		os.Exit(1)
 	}
 
-	return config, nil
+	// set the environment variables from the tfvars file.
+	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
+	if err := setEnv(tfPath); err != nil {
+		log.Errorf("failed to set environment variables: %v\n", err)
+		return nil, err
+	}
+
+	return productConfig, nil
 }
 
-func SetEnv(fullPath string) error {
+func setEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
-		fmt.Println("failed to open file:", err)
+		log.Errorf("failed to open file: %v\n", err)
 		return err
 	}
 	defer file.Close()
@@ -71,6 +91,7 @@ func SetEnv(fullPath string) error {
 		value := strings.TrimSpace(parts[1])
 		err = os.Setenv(strings.Trim(key, "\""), strings.Trim(value, "\""))
 		if err != nil {
+			log.Errorf("failed to set environment variables: %v\n", err)
 			return err
 		}
 	}

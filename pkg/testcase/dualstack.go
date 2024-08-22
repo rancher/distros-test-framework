@@ -16,11 +16,8 @@ type testData struct {
 	Expected  string
 }
 
-func TestIngressDualStack(deleteWorkload bool) {
-	cluster, err := FetchCluster()
-	Expect(err).NotTo(HaveOccurred())
-
-	err = shared.ManageWorkload("apply", "dualstack-ingress.yaml")
+func TestIngressDualStack(cluster *shared.Cluster, deleteWorkload bool) {
+	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
 	td := testData{
@@ -51,7 +48,7 @@ func TestIngressDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestNodePort(deleteWorkload bool) {
+func TestNodePort(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -63,7 +60,7 @@ func TestNodePort(deleteWorkload bool) {
 	}
 
 	assert.PodStatusRunning(td.Namespace, td.Label)
-	testServiceNodePortDualStack(td)
+	testServiceNodePortDualStack(cluster, td)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-nodeport.yaml")
@@ -71,7 +68,7 @@ func TestNodePort(deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -82,7 +79,7 @@ func TestClusterIPsInCIDRRange(deleteWorkload bool) {
 	}
 
 	assert.PodStatusRunning(td.Namespace, td.Label)
-	testIPsInCIDRRange(td.Label, td.SVC)
+	testIPsInCIDRRange(cluster, td.Label, td.SVC)
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-clusterip.yaml")
@@ -124,6 +121,64 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 
 	if deleteWorkload {
 		err = shared.ManageWorkload("delete", "dualstack-multi.yaml")
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func TestIngressWithPodRestartAndNetPol(cluster *shared.Cluster, deleteWorkload bool) {
+	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
+		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
+	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
+
+	var serverPodIP string
+	filters := map[string]string{"namespace": "test-k3s-issue-10053"}
+
+	Eventually(func(g Gomega) {
+		pods, poderr := shared.GetPodsFiltered(filters)
+		g.Expect(poderr).NotTo(HaveOccurred())
+		g.Expect(pods).NotTo(BeEmpty())
+
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], assert.PodAssertRestart(), assert.PodAssertReady())
+			if pods[i].Name == "server" {
+				serverPodIP = pods[i].IP
+			}
+		}
+	}, "120s", "5s").Should(Succeed())
+
+	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
+
+	// Deploy network policy that explicitly allows access to the server pod
+	err = shared.ManageWorkload("apply", "k3s_issue_10053_netpol.yaml")
+	Expect(err).NotTo(HaveOccurred(), "whoami pod failed to deploy")
+
+	// Ensure connectivity from client pod to server pod BEFORE restarting the server
+	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
+
+	// Redeploy server pod and ensure it is up and running again. Retrieve its new IP.
+	err = shared.ManageWorkload("delete", "k3s_issue_10053_pod1.yaml")
+	Expect(err).NotTo(HaveOccurred(), "whoami pod failed to delete")
+	err = shared.ManageWorkload("apply", "k3s_issue_10053_pod1.yaml")
+	Expect(err).NotTo(HaveOccurred(), "whoami pod failed to redeploy")
+
+	Eventually(func(g Gomega) {
+		pods, poderr := shared.GetPodsFiltered(filters)
+		g.Expect(poderr).NotTo(HaveOccurred())
+		g.Expect(pods).NotTo(BeEmpty())
+
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], assert.PodAssertRestart(), assert.PodAssertReady())
+			if pods[i].Name == "server" {
+				serverPodIP = pods[i].IP
+			}
+		}
+	}, "120s", "5s").Should(Succeed())
+
+	// Ensure connectivity from client pod to server pod AFTER restarting the server
+	assert.ValidateIntraNSPodConnectivity("test-k3s-issue-10053", "client", serverPodIP, "Hostname: server")
+
+	if deleteWorkload {
+		err = shared.ManageWorkload("delete", "k3s_issue_10053_ns.yaml")
 		Expect(err).NotTo(HaveOccurred())
 	}
 }
