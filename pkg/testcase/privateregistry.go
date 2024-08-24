@@ -19,6 +19,7 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 
 	if cluster.GeneralConfig.BastionIP != "" {
 		log.Infof("Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
+		log.Infof("Bastion Node DNS: %v", cluster.GeneralConfig.BastionDNS)
 	}
 	log.Infof("Server Node IPs: %v", cluster.ServerIPs)
 
@@ -39,7 +40,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 			log.Infof("Installing %v on server node-1...", cluster.Config.Product)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh ; "+
-					"sudo ./install_product.sh %v \"\" \"\" \"server\" \"%v\"",
+				"sudo ./install_product.sh %v \"\" \"\" \"server\" \"%v\"",
 				cluster.Config.Product, serverIP)
 			_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
@@ -54,7 +55,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 			log.Infof("Installing %v on server node-%v...", cluster.Config.Product, idx+1)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh ; "+
-					"sudo ./install_product.sh %v \"%v\" \"%v\" \"server\" \"%v\"",
+				"sudo ./install_product.sh %v \"%v\" \"%v\" \"server\" \"%v\"",
 				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP)
 			res, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			log.Info(res)
@@ -65,7 +66,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 		log.Infof("Installing %v on agent node-%v", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
 			"sudo chmod +x install_product.sh ; "+
-				"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\"",
+			"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\"",
 			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP)
 		_, err := helper.CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil())
@@ -73,7 +74,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 
 	cmd := fmt.Sprintf(
 		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+		"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
 		cluster.Config.Product)
 	cmd += "kubectl get nodes,pods -A -o wide"
 	clusterInfo, err := helper.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])

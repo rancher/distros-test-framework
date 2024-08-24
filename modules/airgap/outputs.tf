@@ -18,6 +18,11 @@ output "bastion_ip" {
   description = "The public IP of the AWS node"
 }
 
+output "bastion_dns" {
+  value       = module.instance.bastion_dns
+  description = "The public DNS of the AWS node"
+}
+
 output "check_airgap" {
   value = module.instance.check_airgap.rendered
 }
