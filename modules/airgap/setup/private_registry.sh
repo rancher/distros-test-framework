@@ -3,9 +3,14 @@ echo "$@"
 
 username=${1}
 password=${2}
-hostname=$(hostname -f)
+hostname=${3}
+
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
+
+if [ -z "$hostname" ]; then
+  hostname=$(hostname -f)
+fi
 
 generate_certs() {
     docker run -v $PWD/certs:/certs -e CA_SUBJECT="My own root CA" -e CA_EXPIRE="1825" -e SSL_EXPIRE="365" -e SSL_SUBJECT="$hostname" -e SSL_DNS="$hostname" -e SILENT="true" superseb/omgwtfssl

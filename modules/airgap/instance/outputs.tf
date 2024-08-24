@@ -3,6 +3,11 @@ output "bastion_ip" {
   description = "The public IP of the AWS bastion node"
 }
 
+output "bastion_dns" {
+  value = aws_instance.bastion[0].public_dns
+  description = "The public DNS of the AWS bastion node"
+}
+
 output "master_ips" {
   value = var.enable_ipv6 ? join("," ,aws_instance.master.*.ipv6_addresses[0]) : join("," ,aws_instance.master.*.private_ip)
   description = "The private IP or IPv6 IP of the AWS private master node"

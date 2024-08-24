@@ -89,6 +89,7 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
 	}
 	c.GeneralConfig.BastionIP = terraform.Output(t, terraformOptions, "bastion_ip")
+	c.GeneralConfig.BastionDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
 	rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {

@@ -58,7 +58,8 @@ type clusterConfig struct {
 }
 
 type generalConfig struct {
-	BastionIP string
+	BastionIP        string
+	BastionDNS       string
 }
 
 type Node struct {

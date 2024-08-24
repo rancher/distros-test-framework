@@ -49,9 +49,9 @@ get_assets() {
   elif [[ "$product" == "rke2" ]]; then
     wget -O sha256sum-$arch.txt https://github.com/rancher/rke2/releases/download/$version/sha256sum-$arch.txt
     wget -O rke2-images.txt https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.txt
-    wget -O rke2-images.linux-$arch.$tarball_type https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.$tarball_type
+    #wget -O rke2-images.linux-$arch.$tarball_type https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.$tarball_type
     wget -O rke2.linux-$arch.tar.gz https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch.tar.gz
-    wget -O rke2 https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch
+    #wget -O rke2 https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch
     wget -O rke2-install.sh https://get.rke2.io/
   else
     echo "Invalid product: $product. Please provide k3s or rke2 as product"
