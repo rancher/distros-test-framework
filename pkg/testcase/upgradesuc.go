@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -13,7 +12,7 @@ import (
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(cluster *factory.Cluster, version string) error {
+func TestUpgradeClusterSUC(cluster *shared.Cluster, version string) error {
 	shared.PrintClusterState()
 
 	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
@@ -24,7 +23,7 @@ func TestUpgradeClusterSUC(cluster *factory.Cluster, version string) error {
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
 	err := assert.CheckComponentCmdHost(
-		getPodsSystemUpgrade+factory.KubeConfigFile,
+		getPodsSystemUpgrade+shared.KubeConfigFile,
 		"system-upgrade-controller",
 		statusRunning,
 	)

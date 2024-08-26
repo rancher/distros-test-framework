@@ -58,3 +58,6 @@ variable "enable_public_ip" {
 variable "enable_ipv6" {
   default = false
 }
+variable "create_eip" {
+  default = false
+}

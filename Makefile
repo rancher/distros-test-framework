@@ -117,6 +117,10 @@ test-validate-selinux:
 test-restart-service:
 	@go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
 
+test-reboot-instances:
+	@go test -timeout=45m -v -count=1 ./entrypoint/rebootinstances/...
+
+
 
 #========================= TestCode Static Quality Check =========================#
 pre-commit:

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -19,7 +18,7 @@ type configuration struct {
 }
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
-func TestSelinuxEnabled(cluster *factory.Cluster) {
+func TestSelinuxEnabled(cluster *shared.Cluster) {
 	ips := shared.FetchNodeExternalIPs()
 	selinuxConfigAssert := "selinux: true"
 	selinuxContainerdAssert := "enable_selinux = true"
@@ -36,7 +35,7 @@ func TestSelinuxEnabled(cluster *factory.Cluster) {
 }
 
 // TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version.
-func TestSelinux(cluster *factory.Cluster) {
+func TestSelinux(cluster *shared.Cluster) {
 
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
@@ -145,7 +144,7 @@ func selectSelinuxPolicy(product, osType string) cmdCtx {
 }
 
 // TestSelinuxSpcT Validate that containers don't run with spc_t.
-func TestSelinuxSpcT(cluster *factory.Cluster) {
+func TestSelinuxSpcT(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		// removing err here since this is actually returning exit 1.
 		res, _ := shared.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
@@ -154,7 +153,7 @@ func TestSelinuxSpcT(cluster *factory.Cluster) {
 }
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
-func TestUninstallPolicy(cluster *factory.Cluster) {
+func TestUninstallPolicy(cluster *shared.Cluster) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
@@ -200,7 +199,7 @@ func TestUninstallPolicy(cluster *factory.Cluster) {
 // Based on this info, this is the way to validate the correct context.
 
 // TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created.
-func TestSelinuxContext(cluster *factory.Cluster) {
+func TestSelinuxContext(cluster *shared.Cluster) {
 	var err error
 
 	if cluster.NumServers > 0 {

@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,7 +23,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		kubectl get pods -n test-daemonset -o wide --kubeconfig="%s" \
 		| grep -A10 NODE | awk 'NR>1 {print $7}'
 		`,
-		factory.KubeConfigFile,
+		shared.KubeConfigFile,
 	)
 	nodeNames, err := shared.RunCommandHost(cmd)
 	if err != nil {
@@ -43,7 +42,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints \
 		--kubeconfig="%s" | grep '<none>'
 		`,
-		factory.KubeConfigFile,
+		shared.KubeConfigFile,
 	)
 	taints, err := shared.RunCommandHost(cmd)
 	if err != nil {

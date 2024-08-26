@@ -1,7 +1,6 @@
 package assert
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -21,7 +20,7 @@ func NodeAssertVersionTypeUpgrade(c *customflag.FlagConfig) NodeAssertFunc {
 		return assertCommit(c)
 	}
 
-	return func(g Gomega, node shared.Node) {
+	return func(_ Gomega, _ shared.Node) {
 		GinkgoT().Errorf("no version or commit specified for upgrade assertion")
 	}
 }
@@ -83,13 +82,14 @@ func CheckComponentCmdNode(cmd, ip string, asserts ...string) error {
 	}
 
 	Eventually(func(g Gomega) error {
-		fmt.Println("\nExecuting cmd: ", cmd)
+		shared.LogLevel("info", "Running command: %s\n", cmd)
 		res, err := shared.RunCommandOnNode(cmd, ip)
+		cleanRes := shared.CleanString(res)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, assert := range asserts {
-			g.Expect(res).Should(ContainSubstring(assert))
-			fmt.Println("\nResult:\n", res+"\nMatched with:\n", assert)
+			g.Expect(cleanRes).Should(ContainSubstring(assert))
+			shared.LogLevel("info", "Result: %s\nMatched with: %s\n", res, assert)
 		}
 
 		return nil

@@ -1,22 +1,41 @@
 package shared
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
 )
 
-func UpdateKubeConfig(newLeaderIP, resourceName, product string) error {
+var KubeConfigFile string
+
+func KubeConfigCluster(kubeconfig string) *Cluster {
+	nodes, clusterErr := getNodesFromKubeConfig(kubeconfig)
+	if clusterErr != nil {
+		LogLevel("error", "error getting nodes from kubeconfig %w\n", clusterErr)
+		os.Exit(1)
+	}
+
+	cluster, clusterErr = addClusterFromKubeConfig(nodes)
+	if clusterErr != nil {
+		LogLevel("error", "error adding cluster from kubeconfig %w\n", clusterErr)
+		os.Exit(1)
+	}
+
+	return cluster
+}
+
+func UpdateKubeConfig(newLeaderIP, resourceName, product string) (string, error) {
 	if resourceName == "" {
-		return ReturnLogError("resourceName not sent\n")
+		return "", ReturnLogError("resourceName not sent\n")
 	}
 
-	err := updateKubeConfigLocal(newLeaderIP, resourceName, product)
+	kubeConfigUpdated, err := updateKubeConfigLocal(newLeaderIP, resourceName, product)
 	if err != nil {
-		return ReturnLogError("error creating new kubeconfig file: %w\n", err)
+		return "", ReturnLogError("error creating new kubeconfig file: %w\n", err)
 	}
 
-	return nil
+	return kubeConfigUpdated, nil
 }
 
 // ExtractServerIP extracts the server IP from the kubeconfig file.
@@ -42,18 +61,18 @@ func ExtractServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 	return serverIP, string(kubeconfigContent), nil
 }
 
-// updateKubeConfigLocal changes the server ip in the local kubeconfig file.
-func updateKubeConfigLocal(newServerIP, resourceName, product string) error {
+// updateKubeConfigLocal changes the server ip in the local kubeconfig file and returns the updated kubeconfig in base64.
+func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, error) {
 	if newServerIP == "" {
-		return ReturnLogError("ip not sent.\n")
+		return "", ReturnLogError("ip not sent.\n")
 	}
 	if product == "" {
-		return ReturnLogError("product not sent.\n")
+		return "", ReturnLogError("product not sent.\n")
 	}
 
 	oldServerIP, kubeconfigContent, err := ExtractServerIP(resourceName)
 	if err != nil {
-		return ReturnLogError("error extracting server ip: %w\n", err)
+		return "", ReturnLogError("error extracting server ip: %w\n", err)
 	}
 
 	path := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
@@ -61,8 +80,48 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) error {
 
 	writeErr := os.WriteFile(path, []byte(updatedKubeConfig), 0o644)
 	if writeErr != nil {
-		return ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
+		return "", ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}
+
+	updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
+
+	return updatedKubeConfig, nil
+}
+
+func getNodesFromKubeConfig(kubeConfig string) ([]Node, error) {
+	decodeErr := decodeKubeConfig(kubeConfig)
+	if decodeErr != nil {
+		LogLevel("error", "error decoding kubeconfig: %w\n", decodeErr)
+		return nil, decodeErr
+	}
+
+	nodes, getErr := GetNodes(false)
+	if getErr != nil {
+		LogLevel("error", "error getting nodes: %w\n", getErr)
+		return nil, getErr
+	}
+	if len(nodes) == 0 {
+		return nil, ReturnLogError("no nodes found\n")
+	}
+
+	return nodes, nil
+}
+
+func decodeKubeConfig(kubeConfig string) error {
+	dec, err := base64.StdEncoding.DecodeString(kubeConfig)
+	if err != nil {
+		LogLevel("error", "error decoding kubeconfig: %w\n", err)
+		return err
+	}
+
+	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", os.Getenv("resource_name"))
+	writeErr := os.WriteFile(localPath, dec, 0o644)
+	if writeErr != nil {
+		LogLevel("error", "failed to write kubeconfig file: %w\n", writeErr)
+		return writeErr
+	}
+
+	KubeConfigFile = localPath
 
 	return nil
 }

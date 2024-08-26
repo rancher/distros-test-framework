@@ -3,7 +3,6 @@ package testcase
 import (
 	"strings"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -17,7 +16,7 @@ type testData struct {
 	Expected  string
 }
 
-func TestIngressDualStack(cluster *factory.Cluster, deleteWorkload bool) {
+func TestIngressDualStack(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -49,7 +48,7 @@ func TestIngressDualStack(cluster *factory.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
+func TestNodePort(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -69,7 +68,7 @@ func TestNodePort(cluster *factory.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(cluster *factory.Cluster, deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -114,7 +113,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 		testServiceClusterIPs(td)
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
-			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + factory.KubeConfigFile
+			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
 		res, err2 := shared.RunCommandHost(cmd)
 		Expect(err2).NotTo(HaveOccurred(), err2)
 		Expect(res).To(ContainSubstring(expectedIPFamily[i]))
@@ -126,13 +125,14 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestIngressWithPodRestartAndNetPol(cluster *factory.Cluster, deleteWorkload bool) {
+func TestIngressWithPodRestartAndNetPol(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")
 
 	var serverPodIP string
 	filters := map[string]string{"namespace": "test-k3s-issue-10053"}
+
 	Eventually(func(g Gomega) {
 		pods, poderr := shared.GetPodsFiltered(filters)
 		g.Expect(poderr).NotTo(HaveOccurred())

@@ -5,13 +5,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 // TestUpgradeClusterManually upgrades the cluster "manually".
-func TestUpgradeClusterManually(cluster *factory.Cluster, version string) error {
+func TestUpgradeClusterManually(cluster *shared.Cluster, version string) error {
 	shared.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {

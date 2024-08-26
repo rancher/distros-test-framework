@@ -1,4 +1,4 @@
-package restartservice
+package rebootinstances
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 
 var _ = Describe("Test:", func() {
 
-	It("Start Up with no issues", func() {
+	It("Start Up with no issues on rebootinstances test", func() {
 		testcase.TestBuildCluster(cluster)
 	})
 
@@ -30,18 +30,6 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Restart server and agent service", func() {
-		testcase.TestRestartService(cluster)
-	})
-
-	It("Validate Nodes after restartservice", func() {
-		testcase.TestNodeStatus(
-			cluster,
-			assert.NodeAssertReadyStatus(),
-			nil,
-		)
-	})
-
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})
@@ -50,15 +38,35 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, true)
 	})
 
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(true, true)
-	})
-
 	It("Verifies Daemonset", func() {
 		testcase.TestDaemonset(true, true)
 	})
 
-	It("Verifies dns access", func() {
+	It("Reboot server and agent nodes", func() {
+		testcase.TestRebootInstances(cluster)
+	})
+
+	It("Validate Nodes after reboot", func() {
+		testcase.TestNodeStatus(
+			cluster,
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Verifies ClusterIP Service after reboot", func() {
+		testcase.TestServiceClusterIP(true, true)
+	})
+
+	It("Verifies NodePort Service after reboot", func() {
+		testcase.TestServiceNodePort(true, true)
+	})
+
+	It("Verifies Daemonset after reboot", func() {
+		testcase.TestDaemonset(true, true)
+	})
+
+	It("Verifies dns access after reboot", func() {
 		testcase.TestDNSAccess(true, true)
 	})
 
@@ -75,8 +83,8 @@ var _ = Describe("Test:", func() {
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
 	}
 })
