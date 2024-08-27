@@ -112,10 +112,12 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "airgap" ]; then
         declare -a OPTS
+        if [ "${TEST_TAG}" = "privateregistry" ]; then
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
-            [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
+        fi
+            #[ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
         go test "${OPTS[@]}"
     fi
 fi

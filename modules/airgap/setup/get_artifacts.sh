@@ -7,23 +7,20 @@
 set -x
 echo "$@"
 
-# Usage: ./download_product.sh k3s v1.27.5+k3s1
-# Usage: ./download_product.sh rke2 v1.27.5+rke2 amd64 tar.gz
+# Usage: ./get_artifacts.sh k3s v1.27.5+k3s1
+# Usage: ./get_artifacts.sh rke2 v1.27.5+rke2 amd64 "flags" tar.gz
 
 product=$1
 version=$2
 arch=$3
-tarball_type=$4
+flags=${4}
+tarball_type=$5
 prodbin=$product
-artifacts=$5
-flags=$6
-os=$7
+
 
 check_arch(){
-  if [[ -n "$arch" ]] && [ "$arch" = *"arm"* ]
-  then
-    if [[ "$product" == "k3s" ]]
-    then
+  if [[ -n "$arch" ]] && [ "$arch" = *"arm"* ]; then
+    if [[ "$product" == "k3s" ]]; then
       prodbin="k3s-arm64"
     else
       arch="arm64"
@@ -33,30 +30,72 @@ check_arch(){
   fi
 }
 
-check_tar(){
-  if [[ -z $tarball_type ]]; then
-    tarball_type="tar.gz"
-  fi
-}
-
-
 get_assets() {
   echo "Downloading $product dependencies..."
   if [[ "$product" == "k3s" ]]; then
-    wget -O k3s-images.txt https://github.com/k3s-io/k3s/releases/download/$version/k3s-images.txt
+    url="https://github.com/k3s-io/k3s/releases/download/$version"
+    wget $url/k3s-images.txt
     wget -O k3s-install.sh https://get.k3s.io/
-    wget -O k3s https://github.com/k3s-io/k3s/releases/download/$version/$prodbin
+    wget -O k3s $url/$prodbin
   elif [[ "$product" == "rke2" ]]; then
-    wget -O sha256sum-$arch.txt https://github.com/rancher/rke2/releases/download/$version/sha256sum-$arch.txt
-    wget -O rke2-images.txt https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.txt
-    #wget -O rke2-images.linux-$arch.$tarball_type https://github.com/rancher/rke2/releases/download/$version/rke2-images.linux-$arch.$tarball_type
-    wget -O rke2.linux-$arch.tar.gz https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch.tar.gz
-    #wget -O rke2 https://github.com/rancher/rke2/releases/download/$version/rke2.linux-$arch
+    url="https://github.com/rancher/rke2/releases/download/$version"
+    wget $url/sha256sum-$arch.txt
+    wget $url/rke2-images.linux-$arch.txt
+    wget $url/rke2.linux-$arch.tar.gz
     wget -O rke2-install.sh https://get.rke2.io/
+    if [ -n "$tarball_type" ]; then
+      wget $url/rke2-images.linux-$arch.$tarball_type
+    fi
   else
     echo "Invalid product: $product. Please provide k3s or rke2 as product"
   fi
-  sleep 2
+}
+
+get_cni_assets() {
+  if [[ -n "$flags" ]] && [[ "$flags" =~ "cni" ]]; then
+    url="https://github.com/rancher/rke2/releases/download/$version"
+    cnis=("calico" "canal" "cilium" "flannel" "multus")
+    for cni in "${cnis[@]}"; do
+      if [[ "$flags" =~ "$cni" ]]; then
+        wget $url/rke2-images-$cni.linux-$arch.txt
+        if [ -n "$tarball_type" ]; then
+          wget $url/rke2-images-$cni.linux-$arch.$tarball_type
+        fi
+        break
+      fi
+    done
+    
+    # if [[ "$flags" =~ "calico" ]]; then
+    #   wget $url/rke2-images-calico.linux-$arch.txt
+    #   if [ -n "$tarball_type" ]; then
+    #     wget $url/rke2-images-calico.linux-$arch.$tarball_type
+    #   fi
+    # fi
+    # if [[ "$flags" =~ "cilium" ]]; then
+    #   wget $url/rke2-images-cilium.linux-$arch.txt
+    #   if [ -n "$tarball_type" ]; then
+    #     wget $url/rke2-images-cilium.linux-$arch.$tarball_type
+    #   fi
+    # fi
+    # if [[ "$flags" =~ "canal" ]]; then
+    #   wget $url/rke2-images-canal.linux-$arch.txt
+    #   if [ -n "$tarball_type" ]; then
+    #    wget $url/rke2-images-canal.linux-$arch.$tarball_type
+    #   fi
+    # fi
+    # if [[ "$flags" =~ "flannel" ]]; then
+    #   wget $url/rke2-images-flannel.linux-$arch.txt
+    #   if [ -n "$tarball_type" ]; then
+    #     wget $url/rke2-images-flannel.linux-$arch.$tarball_type
+    #   fi
+    # fi
+    # if [[ "$flags" =~ "multus" ]]; then
+    #   wget $url/rke2-images-multus.linux-$arch.txt
+    #   if [ -n "$tarball_type" ]; then
+    #     wget $url/rke2-images-multus.linux-$arch.$tarball_type
+    #   fi
+    # fi
+  fi
 }
 
 validate_assets() {
@@ -80,17 +119,16 @@ save_to_directory() {
   folder="`pwd`/artifacts"
   echo "Saving $product dependencies in directory $folder..."
   sudo mkdir $folder
-  sudo cp -r $product* sha256sum-$arch.txt $folder
+  sudo cp -r *linux* sha256sum-$arch.txt $folder
 }
 
 main() {
   check_arch
-  check_tar
   get_assets
-  validate_assets
+  #validate_assets
   if [[ "$product" == "rke2" ]]; then
+    get_cni_assets
     save_to_directory
   fi
-  sleep 5
 }
 main "$@"

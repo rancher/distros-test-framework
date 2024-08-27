@@ -26,7 +26,7 @@ module "instance" {
    no_of_bastion_nodes = var.no_of_bastion_nodes
    product             = var.product
    install_mode        = var.install_mode
-   product_version     = var.product_version
+   install_version     = var.install_version
    channel             = var.channel
    install_method      = var.install_method
    no_of_server_nodes  = var.no_of_server_nodes

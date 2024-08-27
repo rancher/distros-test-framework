@@ -36,7 +36,7 @@ variable "enable_ipv6" {
 }
 variable "product" {}
 variable "install_mode" {}
-variable "product_version" {}
+variable "install_version" {}
 variable "channel" {}
 variable "install_method" {}
 variable "no_of_server_nodes" {}
