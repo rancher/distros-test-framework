@@ -32,15 +32,15 @@ docker_compose() {
     cd basic-registry && \
     curl -L "https://github.com/docker/compose/releases/download/v2.28.0/docker-compose-$os-$arch" -o /usr/local/bin/docker-compose && \
     chmod +x /usr/local/bin/docker-compose && \
-    sudo docker-compose up -d && \
+    /usr/local/bin/docker-compose up -d && \
     cd ..
 }
 
 main() {
+    service docker restart
     generate_certs
     move_certs
     save_creds
     docker_compose
-    sleep 10
 }
 main "$@"

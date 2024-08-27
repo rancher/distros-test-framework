@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/helper"
@@ -31,6 +32,7 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 }
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	serverFlags := os.Getenv("server_flags")
 	helper.SetupBastion(cluster, flags)
 	helper.CopyAssetsOnNodes(cluster)
 
@@ -39,9 +41,9 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 		if idx == 0 {
 			log.Infof("Installing %v on server node-1...", cluster.Config.Product)
 			cmd := fmt.Sprintf(
-				"sudo chmod +x install_product.sh ; "+
-				"sudo ./install_product.sh %v \"\" \"\" \"server\" \"%v\"",
-				cluster.Config.Product, serverIP)
+				"sudo chmod +x install_product.sh; "+
+				"sudo ./install_product.sh \"%v\" \"\" \"\" \"server\" \"%v\" \"\" \"%v\"",
+				cluster.Config.Product, serverIP, serverFlags)
 			_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
 
@@ -54,18 +56,18 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 		if idx > 0 {
 			log.Infof("Installing %v on server node-%v...", cluster.Config.Product, idx+1)
 			cmd := fmt.Sprintf(
-				"sudo chmod +x install_product.sh ; "+
-				"sudo ./install_product.sh %v \"%v\" \"%v\" \"server\" \"%v\"",
+				"sudo chmod +x install_product.sh; "+
+				"sudo ./install_product.sh \"%v\" \"%v\" \"%v\" \"server\" \"%v\"",
 				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP)
-			res, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
-			log.Info(res)
+				_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
 		}
 	}
+
 	for idx, agentIP := range cluster.AgentIPs {
 		log.Infof("Installing %v on agent node-%v", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
-			"sudo chmod +x install_product.sh ; "+
+			"sudo chmod +x install_product.sh; "+
 			"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\"",
 			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP)
 		_, err := helper.CmdForPrivateNode(cluster, cmd, agentIP)

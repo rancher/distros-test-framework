@@ -57,7 +57,7 @@ func loadTFconfig(
 	if c.Config.Arch == "arm" {
 		c.Config.Arch = "arm64"
 	}
-	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "product_version")
+	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
 	c.Config.Product = product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
 
@@ -98,12 +98,13 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 }
 
 func loadWinTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) {
-	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
-	if rawWinAgentIPs != "" {
-		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
-	}
-
 	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
+	if numWinAgents > 0 {
+		rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
+		if rawWinAgentIPs != "" {
+			c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
+		}
+	}
 	c.NumWinAgents = numWinAgents
 }
 
