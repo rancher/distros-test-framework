@@ -31,12 +31,19 @@ check_arch(){
 }
 
 get_assets() {
+  asset_type=("tar" "tar.gz" "tar.zst")
   echo "Downloading $product dependencies..."
   if [[ "$product" == "k3s" ]]; then
     url="https://github.com/k3s-io/k3s/releases/download/$version"
     wget $url/k3s-images.txt
     wget -O k3s-install.sh https://get.k3s.io/
     wget -O k3s $url/$prodbin
+    if [ -n "$tarball_type" ]; then
+      # if [[ ${asset_type[@]} !=~ $tarball_type ]]; then
+      
+      # fi
+      wget $url/k3s-airgap-images-$arch.$tarball_type
+    fi
   elif [[ "$product" == "rke2" ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
     wget $url/sha256sum-$arch.txt

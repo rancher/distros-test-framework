@@ -9,11 +9,11 @@ import (
 )
 
 var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
-	It("Creates bastion and private nodes", func() {
+	FIt("Creates bastion and private nodes", func() {
 		testcase.TestBuildPrivateCluster(cluster)
 	})
 
-	It("Installs and validates product on private nodes:", func() {
+	FIt("Installs and validates product on private nodes:", func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 

@@ -33,6 +33,7 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	serverFlags := os.Getenv("server_flags")
+	agentFlags := os.Getenv("worker_flags")
 	helper.SetupBastion(cluster, flags)
 	helper.CopyAssetsOnNodes(cluster)
 
@@ -42,7 +43,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 			log.Infof("Installing %v on server node-1...", cluster.Config.Product)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
-				"sudo ./install_product.sh \"%v\" \"\" \"\" \"server\" \"%v\" \"\" \"%v\"",
+				"sudo ./install_product.sh \"%v\" \"\" \"\" \"server\" \"%v\" \"%v\"",
 				cluster.Config.Product, serverIP, serverFlags)
 			_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
@@ -57,8 +58,8 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 			log.Infof("Installing %v on server node-%v...", cluster.Config.Product, idx+1)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
-				"sudo ./install_product.sh \"%v\" \"%v\" \"%v\" \"server\" \"%v\"",
-				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP)
+				"sudo ./install_product.sh \"%v\" \"%v\" \"%v\" \"server\" \"%v\" \"%v\"",
+				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP, serverFlags)
 				_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
 		}
@@ -68,8 +69,8 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 		log.Infof("Installing %v on agent node-%v", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
 			"sudo chmod +x install_product.sh; "+
-			"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\"",
-			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP)
+			"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\" \"%v\"",
+			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP, agentFlags)
 		_, err := helper.CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil())
 	}

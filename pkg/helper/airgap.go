@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"net"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/logger"
@@ -75,6 +76,10 @@ func CopyAssetsOnNodes(cluster *shared.Cluster) {
 }
 
 func copyAssets(cluster *shared.Cluster, ip string) {
+	if net.ParseIP(ip).To4() == nil {
+		ip = shared.EncloseSqBraces(ip)
+	}
+	assets := ""
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)
 	if cluster.Config.Product == "rke2" {
@@ -84,17 +89,17 @@ func copyAssets(cluster *shared.Cluster, ip string) {
 			cluster.AwsEc2.AwsUser, ip)
 	}
 	if cluster.Config.Product == "k3s" {
-		cmd += fmt.Sprintf(
-			"sudo %[1]v ./%[2]v %[3]v@%[4]v:~/%[2]v && ",
-			ssPrefix("scp", cluster.AwsEc2.KeyName),
-			cluster.Config.Product,
-			cluster.AwsEc2.AwsUser, ip)
+		// cmd += fmt.Sprintf(
+		// 	"sudo %v %v %v@%v:~/ && ",
+		// 	ssPrefix("scp", cluster.AwsEc2.KeyName),
+		// 	cluster.Config.Product,
+		// 	cluster.AwsEc2.AwsUser, ip)
+		assets = "k3s"
 	}
 	cmd += fmt.Sprintf(
-		"sudo %[1]v certs/* %[3]v@%[4]v:~/ && "+
-		"sudo %[1]v ./install_product.sh %[3]v@%[4]v:~/install_product.sh && "+
-		"sudo %[1]v ./%[2]v-install.sh %[3]v@%[4]v:~/%[2]v-install.sh",
+		"sudo %v %v certs/* install_product.sh %v-install.sh %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
+		assets,
 		cluster.Config.Product,
 		cluster.AwsEc2.AwsUser, ip)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
@@ -104,10 +109,14 @@ func copyAssets(cluster *shared.Cluster, ip string) {
 }
 
 func copyRegistry(cluster *shared.Cluster, ip string) {
+	nodeIP := ip
+	if net.ParseIP(ip).To4() == nil {
+		nodeIP = shared.EncloseSqBraces(ip)
+	}
 	cmd := fmt.Sprintf(
-		"sudo %v ./registries.yaml %v@%v:~/registries.yaml",
+		"sudo %v registries.yaml %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
-		cluster.AwsEc2.AwsUser, ip)
+		cluster.AwsEc2.AwsUser, nodeIP)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
 
@@ -143,15 +152,13 @@ func getArtifacts(cluster *shared.Cluster, flags *customflag.FlagConfig) (res st
 
 func makeExecs(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf(
-		"sudo mv ./%[1]v /usr/local/bin/%[1]v ; "+
-		"sudo chmod +x /usr/local/bin/%[1]v ; "+
-		"sudo chmod +x %[1]v-install.sh",
+		"sudo mv %[1]v /usr/local/bin/%[1]v ; "+
+		"sudo chmod +x /usr/local/bin/%[1]v %[1]v-install.sh",
 		cluster.Config.Product)
 
 	_, err := CmdForPrivateNode(cluster, cmd, ip)
 	Expect(err).To(BeNil())
 }
-
 
 func ssPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {

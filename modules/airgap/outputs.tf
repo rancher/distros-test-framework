@@ -13,6 +13,16 @@ output "worker_ips" {
 #   description = "The public IP of the AWS node"
 # }
 
+output "master_hosts" {
+  value       = module.instance.master_hosts
+  description = "The private DNS of the AWS node"
+}
+
+output "worker_hosts" {
+  value       = module.instance.worker_hosts
+  description = "The private DNS of the AWS node"
+}
+
 output "bastion_ip" {
   value       = module.instance.bastion_ip
   description = "The public IP of the AWS node"
