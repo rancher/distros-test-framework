@@ -33,16 +33,16 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	serverFlags := os.Getenv("server_flags")
+	agentFlags := os.Getenv("worker_flags")
 	helper.SetupBastion(cluster, flags)
 	helper.CopyAssetsOnNodes(cluster)
-
 	var token string
 	for idx, serverIP := range cluster.ServerIPs {
 		if idx == 0 {
 			log.Infof("Installing %v on server node-1...", cluster.Config.Product)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
-				"sudo ./install_product.sh \"%v\" \"\" \"\" \"server\" \"%v\" \"\" \"%v\"",
+					`sudo ./install_product.sh "%v" "" "" "server" "%v" "%v"`,
 				cluster.Config.Product, serverIP, serverFlags)
 			_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
@@ -57,9 +57,9 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 			log.Infof("Installing %v on server node-%v...", cluster.Config.Product, idx+1)
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
-				"sudo ./install_product.sh \"%v\" \"%v\" \"%v\" \"server\" \"%v\"",
-				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP)
-				_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
+					`sudo ./install_product.sh "%v" "%v" "%v" "server" "%v" "%v"`,
+				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP, serverFlags)
+			_, err := helper.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil())
 		}
 	}
@@ -68,18 +68,22 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 		log.Infof("Installing %v on agent node-%v", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
 			"sudo chmod +x install_product.sh; "+
-			"sudo ./install_product.sh %v \"%v\" \"%v\" \"agent\" \"%v\"",
-			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP)
+				`sudo ./install_product.sh "%v" "%v" "%v" "agent" "%v" "%v"`,
+			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP, agentFlags)
 		_, err := helper.CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil())
 	}
 
+	log.Infof("Bastion login: ssh -i %v.pem %v@%v",
+		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser,
+		cluster.GeneralConfig.BastionIP)
 	cmd := fmt.Sprintf(
 		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-		"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
 		cluster.Config.Product)
 	cmd += "kubectl get nodes,pods -A -o wide"
+	log.Info("Running command in private server-1: " + cmd)
 	clusterInfo, err := helper.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	Expect(err).To(BeNil())
-	log.Infoln(clusterInfo)
+	log.Info("\n\n" + clusterInfo)
 }

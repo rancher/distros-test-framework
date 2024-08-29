@@ -13,7 +13,7 @@ var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
 		testcase.TestBuildPrivateCluster(cluster)
 	})
 
-	It("Installs and validates product on private nodes:", func() {
+	It("Installs product on private nodes", func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 

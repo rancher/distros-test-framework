@@ -12,22 +12,22 @@ fi
 
 # Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
-    printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
-    run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
-        -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-        -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-        --env-file ./config/.env \
-        -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
-        "acceptance-test-${TAG_NAME}")
+  echo -e "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
+  run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
+    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
+    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+    --env-file ./config/.env \
+    -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
+    "acceptance-test-${TAG_NAME}")
 
-        if ! [ "$run" ]; then
-        echo "Failed to run acceptance-test-${IMG_NAME} container."
-        exit 1
-        else
-        printf "\nContainer started successfully."
-        #image_stats "${IMG_NAME}"
-        #docker logs -f "acceptance-test-${IMG_NAME}"
-        fi
+    if ! [ "$run" ]; then
+      echo "Failed to run acceptance-test-${IMG_NAME} container."
+      exit 1
+    else
+      echo -e "\nContainer started successfully."
+      image_stats "${IMG_NAME}"
+      docker logs -f "acceptance-test-${IMG_NAME}"
+    fi
 }
 
 # Runs a new Docker container with a random suffix and version-specific image name
@@ -43,7 +43,7 @@ test_run_new() {
     fi
 
     FULL_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"
-    Printf "\nRunning docker run script with:\ncontainer name: ${FULL_IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
+    echo -e "\nRunning docker run script with:\ncontainer name: ${FULL_IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${FULL_IMG_NAME}" \
       -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
       -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
@@ -55,7 +55,7 @@ test_run_new() {
         echo "Failed to run acceptance-test-${IMG_NAME} container."
         exit 1
       else
-        printf "\nContainer started successfully."
+        echo -e "\nContainer started successfully."
         image_stats "${FULL_IMG_NAME}"
         docker logs -f "acceptance-test-${FULL_IMG_NAME}"
       fi
@@ -79,7 +79,7 @@ test_run_state() {
              -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
              -v "$(pwd)/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
              teststate:latest; then
-             Printf "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_STATE}\product: ${ENV_PRODUCT}\n\n"
+             echo "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_STATE}\product: ${ENV_PRODUCT}\n\n"
              docker logs -f "acceptance-test-${TEST_STATE}"
          else
              echo "Failed to start the container from the committed state."
@@ -122,7 +122,7 @@ test_run_updates() {
         echo "Failed to run updated acceptance-test-${NEW_IMG_NAME} container."
         exit 1
       else
-        printf "\nContainer started successfully."
+        echo -e "\nContainer started successfully."
         image_stats "${NEW_IMG_NAME}"
         docker logs -f "acceptance-test-${NEW_IMG_NAME}"
       fi
@@ -133,11 +133,11 @@ test_run_updates() {
 image_stats() {
     local container_name=$1
 
-     if [ -n "${container_name}" ]; then
-            ./scripts/docker_stats.sh "${container_name}" 2>> /tmp/image-"${container_name}"_stats_output.log &
-        else
-            echo "No container name provided."
-      fi
+    if [ -n "${container_name}" ]; then
+      ./scripts/docker_stats.sh "${container_name}" 2>> /tmp/image-"${container_name}"_stats_output.log &
+    else
+      echo "No container name provided."
+    fi
 }
 
 # Displays logs of the running Docker container
@@ -152,9 +152,9 @@ test_env_up() {
 
 # Cleans up the test environment by removing containers,images and dangling images.
 clean_env() {
-  read -p "Are you sure you want to remove all containers and images? [y/n]: " -n 1 -r
+  read -p "Remove local containers and images? [y/n]: " -n 1 -r
   if [[ $REPLY =~ ^[Yyes]$ ]]; then
-    printf "\nRemoving acceptance-test containers"
+    echo -e "\nRemoving acceptance-test containers"
     docker ps -a -q --filter="name=acceptance-test*" | xargs -r docker rm -f 2>/tmp/container_"${IMG_NAME}".log || true
 
     echo "Removing acceptance-test images"
@@ -166,7 +166,7 @@ clean_env() {
     echo "Removing state images"
     docker images -q --filter="reference=teststate:latest" | xargs -r docker rmi -f 2>/tmp/container_"${IMG_NAME}".log || true
     else
-        echo "Exiting without removing containers and images."
+      echo "Exiting without removing containers and images."
   fi
 }
 

@@ -37,6 +37,9 @@ get_assets() {
     wget $url/k3s-images.txt
     wget -O k3s-install.sh https://get.k3s.io/
     wget -O k3s $url/$prodbin
+    if [ -n "$tarball_type" ]; then
+      wget $url/k3s-airgap-images-$arch.$tarball_type
+    fi
   elif [[ "$product" == "rke2" ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
     wget $url/sha256sum-$arch.txt
@@ -64,37 +67,6 @@ get_cni_assets() {
         break
       fi
     done
-    
-    # if [[ "$flags" =~ "calico" ]]; then
-    #   wget $url/rke2-images-calico.linux-$arch.txt
-    #   if [ -n "$tarball_type" ]; then
-    #     wget $url/rke2-images-calico.linux-$arch.$tarball_type
-    #   fi
-    # fi
-    # if [[ "$flags" =~ "cilium" ]]; then
-    #   wget $url/rke2-images-cilium.linux-$arch.txt
-    #   if [ -n "$tarball_type" ]; then
-    #     wget $url/rke2-images-cilium.linux-$arch.$tarball_type
-    #   fi
-    # fi
-    # if [[ "$flags" =~ "canal" ]]; then
-    #   wget $url/rke2-images-canal.linux-$arch.txt
-    #   if [ -n "$tarball_type" ]; then
-    #    wget $url/rke2-images-canal.linux-$arch.$tarball_type
-    #   fi
-    # fi
-    # if [[ "$flags" =~ "flannel" ]]; then
-    #   wget $url/rke2-images-flannel.linux-$arch.txt
-    #   if [ -n "$tarball_type" ]; then
-    #     wget $url/rke2-images-flannel.linux-$arch.$tarball_type
-    #   fi
-    # fi
-    # if [[ "$flags" =~ "multus" ]]; then
-    #   wget $url/rke2-images-multus.linux-$arch.txt
-    #   if [ -n "$tarball_type" ]; then
-    #     wget $url/rke2-images-multus.linux-$arch.$tarball_type
-    #   fi
-    # fi
   fi
 }
 

@@ -19,19 +19,9 @@ func SetupBastion(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	_, err := getArtifacts(cluster, flags)
 	Expect(err).To(BeNil())
 
-	log.Info("Setting up private registry...")
-	cmd := fmt.Sprintf(
-		"sudo chmod +x private_registry.sh && " + 
-		"sudo ./private_registry.sh %v %v %v",
-		flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
-		cluster.GeneralConfig.BastionDNS)
-	_,err = shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
-	Expect(err).To(BeNil())
-	
-	log.Info("Running Docker ops script on bastion...")
+	setupPrivateRegistry(cluster, flags)
 	dockerActions(cluster, flags)
-	log.Info("Docker pull/tag/push completed")
-	
+
 	pwd, err := shared.RunCommandOnNode("pwd", cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
 
@@ -45,14 +35,27 @@ func SetupBastion(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	updateRegistryFile(cluster, regMap)
 }
 
+func setupPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	log.Info("Setting up private registry...")
+	cmd := fmt.Sprintf(
+		"sudo chmod +x private_registry.sh && "+
+			`sudo ./private_registry.sh "%v" "%v" "%v"`,
+		flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
+		cluster.GeneralConfig.BastionDNS)
+	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	Expect(err).To(BeNil())
+}
+
 func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	log.Info("Running Docker ops script on bastion...")
 	cmd := "sudo chmod +x docker_ops.sh && " +
 		fmt.Sprintf(
-			"sudo ./docker_ops.sh %v %v %v %v",
+			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v"`,
 			cluster.Config.Product, cluster.GeneralConfig.BastionDNS,
 			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword)
-	_,err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
+	log.Info("Docker pull/tag/push completed!")
 }
 
 func CopyAssetsOnNodes(cluster *shared.Cluster) {
@@ -72,6 +75,7 @@ func CopyAssetsOnNodes(cluster *shared.Cluster) {
 		}()
 	}
 	wg.Wait()
+	log.Info("Copying files complete!")
 }
 
 func copyAssets(cluster *shared.Cluster, ip string) {
@@ -85,34 +89,31 @@ func copyAssets(cluster *shared.Cluster, ip string) {
 	}
 	if cluster.Config.Product == "k3s" {
 		cmd += fmt.Sprintf(
-			"sudo %[1]v ./%[2]v %[3]v@%[4]v:~/%[2]v && ",
+			"sudo %v %v* %v@%v:~/ && ",
 			ssPrefix("scp", cluster.AwsEc2.KeyName),
 			cluster.Config.Product,
 			cluster.AwsEc2.AwsUser, ip)
 	}
 	cmd += fmt.Sprintf(
-		"sudo %[1]v certs/* %[3]v@%[4]v:~/ && "+
-		"sudo %[1]v ./install_product.sh %[3]v@%[4]v:~/install_product.sh && "+
-		"sudo %[1]v ./%[2]v-install.sh %[3]v@%[4]v:~/%[2]v-install.sh",
+		"sudo %v certs/* install_product.sh %v-install.sh %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.Config.Product,
 		cluster.AwsEc2.AwsUser, ip)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
-
-	log.Info("Copying files complete")
 }
 
 func copyRegistry(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf(
-		"sudo %v ./registries.yaml %v@%v:~/registries.yaml",
+		"sudo %v registries.yaml %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.AwsEc2.AwsUser, ip)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
 
 	cmd = fmt.Sprintf(
-		"sudo cp registries.yaml /etc/rancher/%v",
+		"sudo mkdir -p /etc/rancher/%[1]v && "+
+			"sudo cp registries.yaml /etc/rancher/%[1]v",
 		cluster.Config.Product)
 	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	Expect(err).To(BeNil())
@@ -133,7 +134,7 @@ func getArtifacts(cluster *shared.Cluster, flags *customflag.FlagConfig) (res st
 	serverFlags := os.Getenv("server_flags")
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
-		"sudo ./get_artifacts.sh \"%v\" \"%v\" \"%v\" \"%v\" \"%v\"",
+			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version,
 		cluster.Config.Arch, serverFlags, flags.AirgapFlag.TarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
@@ -142,22 +143,19 @@ func getArtifacts(cluster *shared.Cluster, flags *customflag.FlagConfig) (res st
 }
 
 func makeExecs(cluster *shared.Cluster, ip string) {
-	cmd := fmt.Sprintf(
-		"sudo mv ./%[1]v /usr/local/bin/%[1]v ; "+
-		"sudo chmod +x /usr/local/bin/%[1]v ; "+
-		"sudo chmod +x %[1]v-install.sh",
-		cluster.Config.Product)
-
+	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
+	if cluster.Config.Product == "k3s" {
+		cmd += "; sudo cp k3s /usr/local/bin/k3s; " +
+			"sudo chmod +x /usr/local/bin/k3s"
+	}
 	_, err := CmdForPrivateNode(cluster, cmd, ip)
 	Expect(err).To(BeNil())
 }
-
 
 func ssPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {
 		log.Errorf("Invalid shell command type: %v", cmdType)
 	}
-
 	cmd = cmdType + fmt.Sprintf(
 		" -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes",
 		keyName)

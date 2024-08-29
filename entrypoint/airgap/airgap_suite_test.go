@@ -22,8 +22,8 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.AirgapFlag.RegistryUsername, "registryUsername", "", "private registry username")
-	flag.StringVar(&flags.AirgapFlag.RegistryPassword, "registryPassword", "", "private registry password")
+	flag.StringVar(&flags.AirgapFlag.RegistryUsername, "registryUsername", "testuser", "private registry username")
+	flag.StringVar(&flags.AirgapFlag.RegistryPassword, "registryPassword", "testpass765", "private registry password")
 	flag.StringVar(&flags.AirgapFlag.TarballType, "tarballType", "", "artifact tarball type")
 	flag.Parse()
 

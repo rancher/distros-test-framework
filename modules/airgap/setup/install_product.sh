@@ -12,9 +12,8 @@ product=${1}
 server_ip=${2}
 token=${3}
 node_type=${4}
-private_ip=${5}
-ipv6_ip=${6}
-flags=${7}
+node_ip=${5}
+flags=${6}
 
 create_config() {
   hostname=$(hostname -f)
@@ -44,17 +43,15 @@ add_to_config() {
   fi
 
   if [ -n "$flags" ]; then
-    echo "$flags" >>/etc/rancher/$product/config.yaml
+    echo -e "$flags" >>/etc/rancher/$product/config.yaml
   fi
 
   if [ "$flags" != *"cloud-provider-name"* ]; then
-    if [ -n "$ipv6_ip" ] && [ -n "$private_ip" ]; then
-      echo "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/$product/config.yaml
-    elif [ -n "$ipv6_ip" ]; then
-      echo "node-ip: $ipv6_ip" >>/etc/rancher/$product/config.yaml
+    if [ -n "$node_ip" ]; then
+      echo "node-ip: $node_ip" >>/etc/rancher/$product/config.yaml
+    fi
+    if [[ "$node_ip" =~ ":" ]]; then
       server_ip="[$server_ip]"
-    else
-      echo "node-ip: $private_ip" >>/etc/rancher/$product/config.yaml
     fi
   fi
   cat /etc/rancher/$product/config.yaml
