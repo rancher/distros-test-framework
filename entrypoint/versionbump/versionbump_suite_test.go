@@ -46,10 +46,6 @@ func TestMain(m *testing.M) {
 
 	customflag.ValidateTemplateFlags()
 
-	flag.VisitAll(func(f *flag.Flag) {
-		shared.LogLevel("debug", "flag: %s value: %s\n", f.Name, f.Value)
-	})
-
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.

@@ -27,8 +27,6 @@ func ValidateTemplateFlags() {
 		cmd, testTag, expectedValues, expectedUpgrades = validateFromLocaL()
 	}
 
-	fmt.Println("cmd: ", cmd)
-
 	switch testTag {
 	case "versionbump":
 		validateVersionBumpTest(expectedValues, expectedUpgrades, cmd)
@@ -48,7 +46,6 @@ func ValidateTemplateFlags() {
 func validateFromLocaL() (cmd, testTag string, expectedValues, expectedUpgrades []string) {
 	testTag = validateTestTagFromLocal()
 	cmd = os.Getenv("CMD")
-
 	if cmd == "" && testTag == "versionbump" {
 		log.Error("cmd was not sent for versionbump test tag")
 		os.Exit(1)
@@ -218,7 +215,6 @@ func ValidateTemplateTcs() {
 	tcs := os.Getenv("TEST_CASE")
 	if tcs != "" {
 		testCases := strings.Split(tcs, ",")
-
 		for _, tc := range testCases {
 			tc = strings.TrimSpace(tc)
 			if _, exists := validTestCases[tc]; !exists {
