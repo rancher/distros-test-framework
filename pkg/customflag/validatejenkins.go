@@ -1,17 +1,12 @@
 package customflag
 
 import (
-	"fmt"
 	"os"
 	"strings"
 )
 
 func validateFromJenkins(argsFromJenkins string) (command, testTag string, expectedValues, expectedUpgrades []string) {
 	command = extractCmds(argsFromJenkins)
-
-	fmt.Println("cmd: from validate from jenkins", command)
-	fmt.Println("argsFromJenkins: from validate from jenkins", argsFromJenkins)
-
 	testTag = validateTestTagFromJenkins(argsFromJenkins)
 	if command == "" && testTag == "versionbump" {
 		log.Error("cmd was not sent for versionbump test tag versionbump")
@@ -29,8 +24,6 @@ func validateFromJenkins(argsFromJenkins string) (command, testTag string, expec
 	validateUpgradeFromJenkins(argsFromJenkins)
 
 	expectedValues, expectedUpgrades = extractExpectedValues(argsFromJenkins)
-
-	fmt.Println("expectedValues: from validate from jenkins", expectedValues)
 
 	return command, testTag, expectedValues, expectedUpgrades
 }
@@ -92,12 +85,12 @@ func validateTestTagFromJenkins(testArgs string) string {
 		"flannel":     true,
 	}
 
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "-tags=") {
-			log.Errorf("test tag was not sent: %s", arg)
-			os.Exit(1)
-		}
+	if !strings.HasPrefix(testArgs, "-tags=") {
+		log.Errorf("test tag was not sent: %s", testArgs)
+		os.Exit(1)
+	}
 
+	for _, arg := range args {
 		tags := strings.Split(strings.TrimPrefix(arg, "-tags="), ",")
 		for _, tag := range tags {
 			tag = strings.TrimSpace(tag)

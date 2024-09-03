@@ -14,16 +14,9 @@ func processTestCombination(
 	t *TestTemplate,
 ) error {
 	if t.TestCombination.Run != nil {
-
-		shared.LogLevel("debug", "TestCombination: %s\n", t.TestCombination.Run)
 		for _, testMap := range t.TestCombination.Run {
-
-			shared.LogLevel("debug", "TestMap: %s\n", testMap)
 			cmds := strings.Split(testMap.Cmd, ",")
 			expectedValues := strings.Split(testMap.ExpectedValue, ",")
-
-			shared.LogLevel("debug", "cmd:on PROCESS TEST COMB %s\n", cmds)
-			shared.LogLevel("debug", "expectedValues:  PROCESS TEST COMB    %s\n", expectedValues)
 
 			if strings.Contains(testMap.Cmd, "etcd ") {
 				nodes, err := shared.GetNodesByRoles("etcd")
@@ -60,14 +53,12 @@ func processCmds(
 	expectedValues []string,
 	currentProductVersion string,
 ) error {
-	for i := range cmds {
-		cmd := cmds[i]
-		expectedValue := expectedValues[i]
+	// range over the cmds only cause expectedValues arrives here on the same length.
+	for i, c := range cmds {
+		expectedValue := strings.TrimSpace(strings.Trim(expectedValues[i], "\""))
+		cmd := strings.TrimSpace(strings.Trim(c, "\""))
 
-		shared.LogLevel("debug", "cmd: on process cmds  %s\n", cmd)
-		shared.LogLevel("debug", "expectedValue: process cmds   %s\n", expectedValue)
-
-		if strings.Contains(cmd, "kubectl") || strings.HasPrefix(cmd, "helm") {
+		if strings.Contains(c, "kubectl") || strings.HasPrefix(cmd, "helm") {
 			processHostErr := processOnHost(cmd, expectedValue, currentProductVersion)
 			if processHostErr != nil {
 				return shared.ReturnLogError("error from processOnHost: %w", processHostErr)
@@ -94,15 +85,9 @@ func processOnNode(cmd, expectedValue, ip, currentProductVersion string) error {
 		"%s\nExecution Location: Node\nExpected Value: %s\n",
 		currentProductVersion, ip, cmd, expectedValue)
 
-	expectedValue = strings.TrimSpace(expectedValue)
-	cmdsRun := strings.Split(cmd, ",")
-	for _, cmdRun := range cmdsRun {
-		cmdRun = strings.TrimSpace(cmdRun)
-		cmdRun = strings.ReplaceAll(cmdRun, `"`, "")
-		err := assert.ValidateOnNode(ip, cmdRun, expectedValue)
-		if err != nil {
-			return shared.ReturnLogError("error from validate on node: %w\n", err)
-		}
+	err := assert.ValidateOnNode(ip, cmd, expectedValue)
+	if err != nil {
+		return shared.ReturnLogError("error from validate on node: %w\n", err)
 	}
 
 	return nil
@@ -118,16 +103,14 @@ func processOnHost(cmd, expectedValue, currentProductVersion string) error {
 		currentProductVersion, cmd, expectedValue)
 
 	kubeconfigFlag := " --kubeconfig=" + shared.KubeConfigFile
-	fullCmd := shared.JoinCommands(cmd, kubeconfigFlag)
-
-	shared.LogLevel("debug", "Full Command: %s\n", fullCmd)
+	var fullCmd string
+	if strings.Contains(cmd, ":") {
+		fullCmd = shared.JoinCommands(cmd, kubeconfigFlag)
+	} else {
+		fullCmd = cmd + kubeconfigFlag
+	}
 
 	fullCmd = strings.ReplaceAll(fullCmd, `"`, "")
-	shared.LogLevel("debug", "Full Command:after replaceall %s\n", fullCmd)
-
-	shared.LogLevel("debug", "Expected Value: %s\n", expectedValue)
-	expectedValue = strings.TrimSpace(expectedValue)
-	shared.LogLevel("debug", "Expected Value: after TRIM %s\n", expectedValue)
 	err := assert.ValidateOnHost(fullCmd, expectedValue)
 	if err != nil {
 		return shared.ReturnLogError("error from validate on host: %w\n", err)

@@ -213,6 +213,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
+	LogLevel("info", "cluster.AwsEc2.AwsUser %s\n", cluster.AwsEc2.AwsUser)
 	cfg = &ssh.ClientConfig{
 		User: cluster.AwsEc2.AwsUser,
 		Auth: []ssh.AuthMethod{
@@ -255,6 +256,11 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 }
 
 // JoinCommands joins the first command with some arg.
+//
+// That could separators like ";" , | , "&&" etc.
+//
+// Example:
+// JoinCommands("kubectl get nodes -o wide : | grep IMAGES" => "kubectl get nodes -o wide --kubeconfig /tmp/kubeconfig | grep IMAGES"
 func JoinCommands(cmd, kubeconfigFlag string) string {
 	cmds := strings.Split(cmd, ":")
 	joinedCmd := cmds[0] + kubeconfigFlag

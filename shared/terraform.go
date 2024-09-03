@@ -82,6 +82,8 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster)
 	if rawAgentIPs != "" {
 		c.AgentIPs = strings.Split(rawAgentIPs, ",")
 	}
+
+	c.EIPs = strings.Split(terraform.Output(t, terraformOptions, "eip"), ",")
 }
 
 func loadWinTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) {
