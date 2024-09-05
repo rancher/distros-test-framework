@@ -15,7 +15,8 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|\
+       clusterresetrestore)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -86,13 +87,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-<<<<<<< HEAD
-        go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
-    elif [ "${TEST_DIR}" = "clusterreset" ]; then
-        go test -timeout=90m -v -count=1 ./entrypoint/clusterreset/...
-=======
         go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
->>>>>>> upstream/main
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
@@ -105,6 +100,14 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
+    elif [ "${TEST_DIR}" = "clusterresetrestore" ]; then
+        go test -timeout=120m -v -count=1 ./entrypoint/clusterresetrestore/...
+    #     declare -a OPTS
+    #       OPTS=(-timeout=120m -v -count=1 ./entrypoint/clusterresetrestore/... -tags=clusterresetrestore)
+    #         [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
+    #         [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
+    #         [ -n "${S3_REGION}" ] && OPTS+=(-s3Region "${S3_REGION}")
+    #   go test "${OPTS[@]}"
     fi
 fi
 }

@@ -1,4 +1,4 @@
-package clusterreset
+package clusterresetrestore
 
 import (
 	"flag"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/factory"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -15,22 +14,25 @@ import (
 )
 
 var (
-	cfg   *config.Product
-	flags *customflag.FlagConfig
+	cfg        *config.Product
+	flags      *customflag.FlagConfig
+	kubeconfig string
+	cluster    *shared.Cluster
 )
 
 func TestMain(m *testing.M) {
 	var err error
 	flags = &customflag.ServiceFlag
-	flag.Var(&flags.ClusterConfig.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.ExternalFlag.S3Bucket, "s3Bucket", "", "s3 Bucket name")
-	flag.StringVar(&flags.ExternalFlag.S3Folder, "s3Folder", "", "s3 Folder name")
-	flag.StringVar(&flags.ExternalFlag.S3Region, "s3Region", "", "s3 Region")
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.S3.Bucket, "s3Bucket", "", "s3 Bucket name")
+	flag.StringVar(&flags.S3.Folder, "s3Folder", "", "s3 Folder name")
+	flag.StringVar(&flags.S3.Region, "s3Region", "", "s3 Region")
 	flag.Parse()
 
-	cfg, err = shared.EnvConfig()
+	_, err = config.AddEnv()
 	if err != nil {
-		return
+		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		os.Exit(1)
 	}
 
 	os.Exit(m.Run())
@@ -42,9 +44,8 @@ func TestClusterResetRestoreSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
-	g := GinkgoT()
-	if customflag.ServiceFlag.ClusterConfig.Destroy {
-		status, err := factory.DestroyCluster(g)
+	if customflag.ServiceFlag.Destroy {
+		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
