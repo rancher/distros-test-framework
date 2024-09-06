@@ -51,15 +51,15 @@ func takeS3Snapshot(cluster *shared.Cluster, s3Bucket, s3Folder, s3Region, acces
 }
 
 // this is to be performed after the creation of the fresh VM -- create VM in this function
-func restoreS3Snapshot(cluster *shared.Cluster) {
-	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
-	Expect(findErr).NotTo(HaveOccurred())
-	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s --etcd-s3-bucket=%s --etcd-s3-folder=%s --etcd-s3-region=us-east-2 --etcd-s3-access-key=%s --etcd-s3-secret-key=%s --token=%s", productLocationCmd)
-	resetRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
-	Expect(resetCmdErr).NotTo(HaveOccurred())
-	Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
-	Expect(resetRes).To(ContainSubstring("has been reset"))
-}
+// func restoreS3Snapshot(cluster *shared.Cluster) {
+// 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
+// 	Expect(findErr).NotTo(HaveOccurred())
+// 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s --etcd-s3-bucket=%s --etcd-s3-folder=%s --etcd-s3-region=us-east-2 --etcd-s3-access-key=%s --etcd-s3-secret-key=%s --token=%s", productLocationCmd)
+// 	resetRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
+// 	Expect(resetCmdErr).NotTo(HaveOccurred())
+// 	Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
+// 	Expect(resetRes).To(ContainSubstring("has been reset"))
+// }
 
 // make sure the workload you deployed after the snapshot isn't present after the restore snapshot
 
