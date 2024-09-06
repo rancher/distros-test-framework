@@ -25,8 +25,6 @@ func TestClusterResetRestoreS3Snapshot(cluster *shared.Cluster, applyWorkload, d
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 	s3Region := cluster.AwsEc2.Region
 
-	fmt.Printf("S3 Bucket: "+s3Bucket, "\nS3 Folder: "+s3Folder, "Access Key ID: "+accesKeyID, "Secret Access Key: "+secretAccessKey, "S3 Region: "+s3Region)
-
 	takeS3Snapshot(cluster, s3Bucket, s3Folder, s3Region, accesKeyID, secretAccessKey)
 
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
