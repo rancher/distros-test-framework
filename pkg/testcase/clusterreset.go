@@ -34,9 +34,9 @@ func TestClusterReset(cluster *shared.Cluster) {
 		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
 	}
-	shared.LogLevel("info", "cluster reset successful. Waiting 60 seconds for cluster "+
+	shared.LogLevel("info", "cluster reset successful. Waiting 120 seconds for cluster "+
 		"to complete background processes after reset.")
-	time.Sleep(60 * time.Second)
+	time.Sleep(120 * time.Second)
 
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")

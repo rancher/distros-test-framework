@@ -21,6 +21,6 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 [ -n "$AWS_USER" ] && sed -i "s/aws_user\s*=\s*.*/aws_user = \"$AWS_USER\"/" "$CONFIG_PATH"
 [ -n "$DATASTORE_TYPE" ] && sed -i "s/datastore_type\s*=\s*.*/datastore_type = \"$DATASTORE_TYPE\"/" "$CONFIG_PATH"
 
-awk '!/^#|^$|access_key|key_name|username|password|region|qa_space/' "$CONFIG_PATH"
+awk '!/^#|^$|access_key|key_name|username|password|region|qa_space|access_key_id|secret_access_key/' "$CONFIG_PATH"
 
 exec bash ./scripts/test_runner.sh "$@"

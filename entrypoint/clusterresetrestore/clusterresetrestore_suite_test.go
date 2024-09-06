@@ -24,9 +24,6 @@ func TestMain(m *testing.M) {
 	var err error
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.S3.Bucket, "s3Bucket", "", "s3 Bucket name")
-	flag.StringVar(&flags.S3.Folder, "s3Folder", "", "s3 Folder name")
-	flag.StringVar(&flags.S3.Region, "s3Region", "", "s3 Region")
 	flag.Parse()
 
 	_, err = config.AddEnv()

@@ -425,3 +425,7 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 
 	return *reservation.Instances[0].InstanceId, nil
 }
+
+// func(c Client) deleteS3Folder(s3FolderName string) {
+// 	c.
+// }
