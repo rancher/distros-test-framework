@@ -15,7 +15,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cluster *shared.Cluster
+var (
+	cluster *shared.Cluster
+)
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
@@ -27,12 +29,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
-		shared.LogLevel("error", "create_eip not set")
-		os.Exit(1)
-	}
+	validateEIP()
 
-	cluster = shared.ClusterConfig()
+	addCluster(os.Getenv("KUBE_CONFIG"))
 
 	os.Exit(m.Run())
 }
@@ -49,11 +48,28 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 
-	awsDependencies, err := aws.AddAWSClient(cluster)
-	Expect(err).NotTo(HaveOccurred())
+	// awsDependencies, err := aws.Add(cluster)
+	// Expect(err).NotTo(HaveOccurred())
 
-	cleanEIPs(awsDependencies)
+	// cleanEIPs(awsDependencies)
 })
+
+func addCluster(kubeconfig string) {
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
+}
+
+func validateEIP() {
+	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
+		shared.LogLevel("error", "create_eip not set")
+		os.Exit(1)
+	}
+}
 
 // cleanEIPs release elastic ips from instances used on test.
 func cleanEIPs(awsDependencies *aws.Client) {
