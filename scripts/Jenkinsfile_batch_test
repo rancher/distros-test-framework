@@ -54,9 +54,9 @@ node {
               if (test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
                 actual_testdir_name = "upgradecluster"
                 if (test_name == "upgradesuc") {
-                  job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${VERSION_OR_COMMIT}"
+                  job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${UPGRADE_VERSION}"
                 } else {
-                  job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${VERSION_OR_COMMIT}"
+                  job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${UPGRADE_VERSION}"
                 }
                 job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
               }
@@ -96,10 +96,10 @@ node {
                 string(name: 'REPO', value: "${REPO}"), 
                 string(name: 'BRANCH', value: "${BRANCH}"),                                         
                 string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
-                string(name: 'PRE_UPGRADE_VERSION', value: "${PRE_UPGRADE_VERSION}"),
-                string(name: 'VERSION_OR_COMMIT', value: "${VERSION_OR_COMMIT}"),
+                string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
+                string(name: 'UPGRADE_VERSION', value: "${UPGRADE_VERSION}"),
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-                string(name: 'CHANNEL', value: "${CHANNEL}"),
+                string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
                 string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
                 string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
