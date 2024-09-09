@@ -30,8 +30,17 @@ add_to_config() {
       echo "cluster-init: true" >>/etc/rancher/$product/config.yaml
     fi
   fi
+  
+  if [ "$flags" != *"cloud-provider-name"* ]; then
+    if [ -n "$node_ip" ]; then
+      echo "node-ip: $node_ip" >>/etc/rancher/$product/config.yaml
+    fi
+  fi
 
   if [ -n "$server_ip" ]; then
+    if [[ "$node_ip" =~ ":" ]]; then
+      server_ip="[$server_ip]"
+    fi
     if [[ "$product" == "k3s" ]]; then
       echo "server: 'https://$server_ip:6443'" >>/etc/rancher/$product/config.yaml
     elif [[ "$product" == "rke2" ]]; then
@@ -44,15 +53,6 @@ add_to_config() {
 
   if [ -n "$flags" ]; then
     echo -e "$flags" >>/etc/rancher/$product/config.yaml
-  fi
-
-  if [ "$flags" != *"cloud-provider-name"* ]; then
-    if [ -n "$node_ip" ]; then
-      echo "node-ip: $node_ip" >>/etc/rancher/$product/config.yaml
-    fi
-    if [[ "$node_ip" =~ ":" ]]; then
-      server_ip="[$server_ip]"
-    fi
   fi
   cat /etc/rancher/$product/config.yaml
 }

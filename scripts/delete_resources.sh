@@ -28,6 +28,7 @@ if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
   echo "Terminating resources for $NAME_PREFIX if still up and running"
   # shellcheck disable=SC2046
   aws ec2 terminate-instances --instance-ids $(aws ec2 describe-instances \
+    --region "us-west-1" \
     --filters "Name=tag:Name,Values=${NAME_PREFIX}*" \
     "Name=instance-state-name,Values=running" --query \
     'Reservations[].Instances[].InstanceId' --output text) > /dev/null 2>&1
