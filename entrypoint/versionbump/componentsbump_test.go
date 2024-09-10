@@ -76,7 +76,6 @@ var _ = Describe("Components Version Upgrade:", func() {
 			},
 			InstallMode: ServiceFlag.InstallMode.String(),
 			Description: ServiceFlag.TestTemplateConfig.Description,
-			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 
