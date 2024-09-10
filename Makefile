@@ -16,7 +16,7 @@ test-run-new:
 test-build-run:
 	@./scripts/docker_run.sh test-build-run
 
-## Use this to run on the same environement + cluster from the previous last container -${TAGNAME} created
+## Use this to run on the same environment + cluster from the previous last container -${TAGNAME} created
 test-run-state:
 	@./scripts/docker_run.sh test-run-state
 
