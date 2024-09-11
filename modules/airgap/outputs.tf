@@ -8,11 +8,6 @@ output "worker_ips" {
   description = "The private IP of the AWS node"
 }
 
-# output "windows_worker_ips" {
-#   value       = module.bastion.agent_ips
-#   description = "The public IP of the AWS node"
-# }
-
 output "bastion_ip" {
   value       = module.instance.bastion_ip
   description = "The public IP of the AWS node"

@@ -1,5 +1,10 @@
-set -x
-echo "$@"
+#!/bin/bash
+
+# Usage: ./private_registry.sh username password hostdns
+
+## Uncomment the following lines to enable debug mode
+# set -x
+# echo "$@"
 
 username=${1}
 password=${2}
@@ -13,7 +18,7 @@ if [ -z "$hostname" ]; then
 fi
 
 generate_certs() {
-    docker run -v $PWD/certs:/certs -e CA_SUBJECT="My own root CA" -e CA_EXPIRE="1825" -e SSL_EXPIRE="365" -e SSL_SUBJECT="$hostname" -e SSL_DNS="$hostname" -e SILENT="true" superseb/omgwtfssl
+    docker run -v "$PWD"/certs:/certs -e CA_SUBJECT="My own root CA" -e CA_EXPIRE="1825" -e SSL_EXPIRE="365" -e SSL_SUBJECT="$hostname" -e SSL_DNS="$hostname" -e SILENT="true" superseb/omgwtfssl
 }
 
 move_certs() {
@@ -22,9 +27,9 @@ move_certs() {
 }
 
 save_creds() {
-    docker run --rm melsayed/htpasswd $username $password >> basic-registry/nginx_config/registry.password
-    mkdir -p /etc/docker/certs.d/$hostname
-    cp certs/ca.pem /etc/docker/certs.d/$hostname/ca.crt
+    docker run --rm melsayed/htpasswd "$username" "$password" >> basic-registry/nginx_config/registry.password
+    mkdir -p /etc/docker/certs.d/"$hostname"
+    cp certs/ca.pem /etc/docker/certs.d/"$hostname"/ca.crt
     service docker restart
 }
 

@@ -1,4 +1,4 @@
-package helper
+package support
 
 import (
 	"fmt"
@@ -6,20 +6,17 @@ import (
 	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/logger"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-var log = logger.AddLogger()
-
-func SetupBastion(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	log.Infof("Downloading %v artifacts...", cluster.Config.Product)
+func SetupPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	shared.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
 	_, err := getArtifacts(cluster, flags)
 	Expect(err).To(BeNil())
 
-	setupPrivateRegistry(cluster, flags)
+	bastionAsPrivateRegistry(cluster, flags)
 	dockerActions(cluster, flags)
 
 	pwd, err := shared.RunCommandOnNode("pwd", cluster.GeneralConfig.BastionIP)
@@ -35,8 +32,8 @@ func SetupBastion(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	updateRegistryFile(cluster, regMap)
 }
 
-func setupPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	log.Info("Setting up private registry...")
+func bastionAsPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	shared.LogLevel("info", "Setting up bastion node as private registry...")
 	cmd := fmt.Sprintf(
 		"sudo chmod +x private_registry.sh && "+
 			`sudo ./private_registry.sh "%v" "%v" "%v"`,
@@ -47,7 +44,7 @@ func setupPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig)
 }
 
 func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	log.Info("Running Docker ops script on bastion...")
+	shared.LogLevel("info", "Running Docker ops script on bastion...")
 	cmd := "sudo chmod +x docker_ops.sh && " +
 		fmt.Sprintf(
 			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v"`,
@@ -55,11 +52,11 @@ func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
-	log.Info("Docker pull/tag/push completed!")
+	shared.LogLevel("info", "Docker pull/tag/push completed!")
 }
 
 func CopyAssetsOnNodes(cluster *shared.Cluster) {
-	log.Info("Copying assets on all the nodes...")
+	shared.LogLevel("info", "Copying assets on all the nodes...")
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 
@@ -75,19 +72,19 @@ func CopyAssetsOnNodes(cluster *shared.Cluster) {
 		}()
 	}
 	wg.Wait()
-	log.Info("Copying files complete!")
+	shared.LogLevel("info", "Copying assets complete!")
 }
 
 func copyAssets(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)
-	if cluster.Config.Product == "rke2" {
+	switch cluster.Config.Product {
+	case "rke2":
 		cmd += fmt.Sprintf(
 			"sudo %v -r artifacts %v@%v:~/ && ",
 			ssPrefix("scp", cluster.AwsEc2.KeyName),
 			cluster.AwsEc2.AwsUser, ip)
-	}
-	if cluster.Config.Product == "k3s" {
+	case "k3s":
 		cmd += fmt.Sprintf(
 			"sudo %v %v* %v@%v:~/ && ",
 			ssPrefix("scp", cluster.AwsEc2.KeyName),
@@ -99,6 +96,7 @@ func copyAssets(cluster *shared.Cluster, ip string) {
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.Config.Product,
 		cluster.AwsEc2.AwsUser, ip)
+	shared.LogLevel("info", "cmd: %v", cmd)
 	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
 	Expect(err).To(BeNil())
 }
@@ -124,7 +122,7 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 		"%v %v@%v '%v'",
 		ssPrefix("ssh", cluster.AwsEc2.KeyName),
 		cluster.AwsEc2.AwsUser, ip, cmd)
-	log.Info(serverCmd)
+	shared.LogLevel("info", serverCmd)
 	res, err = shared.RunCommandOnNode(serverCmd, cluster.GeneralConfig.BastionIP)
 
 	return res, err
@@ -154,7 +152,7 @@ func makeExecs(cluster *shared.Cluster, ip string) {
 
 func ssPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {
-		log.Errorf("Invalid shell command type: %v", cmdType)
+		shared.LogLevel("error", "Invalid shell command type: %v", cmdType)
 	}
 	cmd = cmdType + fmt.Sprintf(
 		" -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes",
@@ -165,10 +163,11 @@ func ssPrefix(cmdType, keyName string) (cmd string) {
 
 func updateRegistryFile(cluster *shared.Cluster, regMap map[string]string) {
 	regPath := shared.BasePath() + "/modules/airgap/setup/registries.yaml"
-	shared.ReplaceFileContents(regPath, regMap)
+	err := shared.ReplaceFileContents(regPath, regMap)
+	Expect(err).To(BeNil(), err)
 
-	err := shared.RunScp(
+	err = shared.RunScp(
 		cluster, cluster.GeneralConfig.BastionIP,
 		[]string{regPath}, []string{"~/registries.yaml"})
-	Expect(err).To(BeNil())
+	Expect(err).To(BeNil(), err)
 }

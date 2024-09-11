@@ -18,11 +18,6 @@ output "worker_ips" {
   description = "The private IP or IPv6 IP of the AWS private worker node"
 }
 
-# output "windows_agent_ips" {
-#   value = join("," , aws_instance.windows_agent.private_ip, aws_instance.windows_agent.ipv6_addresses[0])
-#   description = "The private IP and/or IPV6 IP of the AWS node"
-# }
-
 output "check_airgap" {
   value = data.template_file.is_airgap
 }

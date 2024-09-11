@@ -26,7 +26,7 @@ read -r REPLY
 if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
   NAME_PREFIX="$RESOURCE_NAME"
 
-  echo -e "\nTerminating resources for $NAME_PREFIX if running"
+  echo "Terminating resources for $NAME_PREFIX if running"
   # shellcheck disable=SC2046
   aws ec2 terminate-instances --instance-ids $(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=${NAME_PREFIX}*" \

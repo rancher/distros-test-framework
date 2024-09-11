@@ -494,10 +494,10 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 }
 
 // ReplaceFileContents reads file from path and replaces them based on key value pair provided.
-func ReplaceFileContents(filePath string, replaceKV map[string]string) {
+func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Errorf("File does not exist: %v", filePath)
+		return ReturnLogError("File does not exist: %v", filePath)
 	}
 
 	for key, value := range replaceKV {
@@ -508,8 +508,10 @@ func ReplaceFileContents(filePath string, replaceKV map[string]string) {
 
 	err = os.WriteFile(filePath, contents, 0o666)
 	if err != nil {
-		log.Errorf("Write to File failed: %v", filePath)
+		return ReturnLogError("Write to File failed: %v", filePath)
 	}
+
+	return nil
 }
 
 // stringInSlice verify if a string is found in the list of strings.

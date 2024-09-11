@@ -1,11 +1,8 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-#set -x
-# PS4='+(${LINENO}): '
-
-set -x
-echo "$@"
+# set -x
+# echo "$@"
 
 arch=$(uname -m)
 
@@ -30,6 +27,7 @@ install_docker() {
         else
           echo "Retrying..."
           sleep 2
+          ((i++))
         fi
     done
   fi
@@ -40,7 +38,7 @@ install_docker() {
 }
 
 install_kubectl() {
-  if [ $arch = "aarch64" ]; then
+  if [ "$arch" = "aarch64" ]; then
       KUBE_ARCH="arm64"
   else
       KUBE_ARCH="amd64"
@@ -55,6 +53,5 @@ main() {
   if [[ "$(command)" =~ "error" ]] || [ -z "$(command)" ]; then
     install_docker
   fi
-  #install_kubectl
 }
 main "$@"

@@ -7,7 +7,6 @@ data "template_file" "is_ipv6only" {
 }
 
 resource "aws_instance" "master" {
-
   depends_on = [ null_resource.prepare_bastion ]
 
   ami                         = var.aws_ami
@@ -26,17 +25,11 @@ resource "aws_instance" "master" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-server${count.index + 1}"
-  }
-  user_data              = <<-EOF
-                             #!/bin/bash
-                             sudo mkdir -p /etc/rancher/${var.product}
-                           EOF  
-
+  } 
 }
 
 resource "aws_instance" "worker" {
-
-  depends_on = [ null_resource.prepare_bastion ]
+  depends_on = [ null_resource.prepare_bastion, aws_instance.master ]
 
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
@@ -55,10 +48,6 @@ resource "aws_instance" "worker" {
   tags = {
     Name                 = "${var.resource_name}-worker${count.index + 1}"
   }
-  user_data              = <<-EOF
-                             #!/bin/bash
-                             sudo mkdir -p /etc/rancher/${var.product}
-                           EOF
 }
 
 resource "aws_instance" "bastion" {
@@ -85,7 +74,7 @@ resource "aws_instance" "bastion" {
   tags = {
     Name                 = "${var.resource_name}-bastion"
   }
-
+  
   provisioner "file" {
     source = "../../config/.ssh/aws_key.pem"
     destination = "/tmp/${var.key_name}.pem"
@@ -121,8 +110,8 @@ resource "aws_instance" "bastion" {
     destination = "/tmp"
   }
 }
-resource "null_resource" "prepare_bastion" {
 
+resource "null_resource" "prepare_bastion" {
   depends_on = [ aws_instance.bastion[0] ]
   connection {
     type          = "ssh"
