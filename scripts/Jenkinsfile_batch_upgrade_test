@@ -61,36 +61,6 @@ node {
                 job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
               }
 
-              if (test_name == "deployrancher" ) {
-                if ("${CERT_MANAGER_VERSION}" != "") {
-                  job_test_args = job_test_args + " -certManagerVersion ${CERT_MANAGER_VERSION}"
-                }
-                if ("${CHARTS_VERSION}" != "") {
-                  job_test_args = job_test_args + " -chartsVersion ${CHARTS_VERSION}"
-                }
-                if ("${RANCHER_VERSION}" != "") {
-                  job_test_args = job_test_args + " -rancherVersion ${RANCHER_VERSION}"
-                }  
-                if ("${CHARTS_REPO_NAME}" != "") {
-                  job_test_args = job_test_args + " -chartsRepoName ${CHARTS_REPO_NAME}"
-                }
-                if ("${CHARTS_REPO_URL}" != "") {
-                  job_test_args = job_test_args + " -chartsRepoUrl ${CHARTS_REPO_URL}"
-                }
-                if ("${CHARTS_ARGS}" != "") {
-                  job_test_args = job_test_args + " -chartsArgs ${CHARTS_ARGS}"
-                }
-              }
-
-              if (test_name == "dualstack") {
-                job_aws_ssh_key_name = "jenkins-elliptic-validation"
-                job_aws_ssh_pem_key = ""
-              }
-
-              if (test_name == "docker_cri" || test_name == "external_datastore"){
-                actual_testdir_name = "validatecluster"
-              }
-
               def upgrade_params = [
                 string(name: 'TEST_ARGS', value: job_test_args),
                 string(name: 'REPO', value: "${REPO}"), 
