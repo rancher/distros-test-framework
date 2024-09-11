@@ -92,11 +92,13 @@ node {
                 sh "./scripts/configure.sh"
                 sh "./scripts/build.sh"
               }
-              stage('Run TestCombination') {
-                  sh """
-                  docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env ${imageName} sh -c \\
-                  "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS.replace("\"", "\\\"")}"
-                  """
+            stage('Run TestCombination') {
+              withEnv(["TEST_ARGS=${TEST_ARGS}"]) {
+                sh """
+                docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env --env TEST_ARGS='${TEST_ARGS}' ${imageName} sh -c \\
+                "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS.replace("\"", "\\\"")}"
+                 """
+                }
               }
             } finally {
               stage('Cleanup') {

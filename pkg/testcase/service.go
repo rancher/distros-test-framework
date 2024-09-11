@@ -48,17 +48,17 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 
 	getNodeport := "kubectl get pods -n test-nodeport -l k8s-app=nginx-app-nodeport " +
 		"--field-selector=status.phase=Running --kubeconfig="
+	err = assert.ValidateOnHost(
+		getNodeport+shared.KubeConfigFile,
+		statusRunning,
+	)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	expectedPodName := "test-nodeport"
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
-			getNodeport+shared.KubeConfigFile,
-			statusRunning,
-		)
-		Expect(err).NotTo(HaveOccurred(), err)
-
-		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
-			ip,
-			"test-nodeport")
+			expectedPodName)
 	}
 	Expect(err).NotTo(HaveOccurred(), err)
 
@@ -82,17 +82,19 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
 		"--field-selector=status.phase=Running --kubeconfig="
-	loadBalancer := "test-loadbalancer"
+	expectedPodName := "test-loadbalancer"
 	validNodes, err := shared.GetNodesByRoles("control-plane", "worker")
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	err = assert.ValidateOnHost(
+		getAppLoadBalancer+shared.KubeConfigFile,
+		expectedPodName)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
-			getAppLoadBalancer+shared.KubeConfigFile,
-			loadBalancer,
 			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
-			loadBalancer,
-		)
+			expectedPodName)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 

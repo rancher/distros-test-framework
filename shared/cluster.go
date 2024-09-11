@@ -287,6 +287,7 @@ func GetNodes(display bool) ([]Node, error) {
 
 	nodes := parseNodes(res)
 	if display {
+		LogLevel("info", "\n\nCluster nodes:\n")
 		fmt.Println(res)
 	}
 
@@ -370,7 +371,8 @@ func GetPods(display bool) ([]Pod, error) {
 
 	pods := parsePods(res)
 	if display {
-		fmt.Println("\nCluster pods:\n", res)
+		LogLevel("info", "\n\nCluster pods:\n")
+		fmt.Println(res)
 	}
 
 	return pods, nil
@@ -591,8 +593,8 @@ func GetNodeNameByIP(ip string) (string, error) {
 	}
 }
 
-func FetchToken(ip string) (string, error) {
-	token, err := RunCommandOnNode("sudo cat  /var/lib/rancher/rke2/server/node-token", ip)
+func FetchToken(product, ip string) (string, error) {
+	token, err := RunCommandOnNode(fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/node-token", product), ip)
 	if err != nil {
 		return "", ReturnLogError("failed to fetch token: %w\n", err)
 	}

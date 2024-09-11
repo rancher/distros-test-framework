@@ -46,7 +46,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 	shared.LogLevel("info", "Scp files to new server nodes done\n")
 
 	serverLeaderIP := cluster.ServerIPs[0]
-	token, err := shared.FetchToken(serverLeaderIP)
+	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	serverErr := nodeReplaceServers(
