@@ -1,41 +1,5 @@
 #!groovy
 
-def get_install_params(job_test_args, actual_testdir_name, job_aws_ssh_key_name, job_aws_ssh_pem_key){
-  def install_params = [
-    string(name: 'TEST_ARGS', value: job_test_args),
-    string(name: 'REPO', value: "${REPO}"), 
-    string(name: 'BRANCH', value: "${BRANCH}"),                                         
-    string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
-    string(name: 'INSTALL_VERSION', value: "${UPGRADE_VERSION}"),
-    string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-    string(name: 'INSTALL_CHANNEL', value: "${UPGRADE_CHANNEL}"),              
-    string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
-    string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-    string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
-    string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
-  ]
-  return install_params
-}
-
-def get_upgrade_params(job_test_args, actual_testdir_name, job_aws_ssh_key_name, job_aws_ssh_pem_key){
-  def upgrade_params = [
-    string(name: 'TEST_ARGS', value: job_test_args),
-    string(name: 'REPO', value: "${REPO}"), 
-    string(name: 'BRANCH', value: "${BRANCH}"),                                         
-    string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
-    string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
-    string(name: 'UPGRADE_VERSION', value: "${UPGRADE_VERSION}"),
-    string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-    string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
-    string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
-    string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
-    string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-    string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
-    string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
-  ]
-  return upgrade_params
-}
-
 node {
   def branch = "main"
   def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',')
@@ -127,31 +91,23 @@ node {
                 actual_testdir_name = "validatecluster"
               }
 
-              def install_params = get_install_params(job_test_args, actual_testdir_name, job_aws_ssh_key_name, job_aws_ssh_pem_key)
-              def upgrade_params = get_upgrade_params(job_test_args, actual_testdir_name, job_aws_ssh_key_name, job_aws_ssh_pem_key)
+              def upgrade_params = [
+                string(name: 'TEST_ARGS', value: job_test_args),
+                string(name: 'REPO', value: "${REPO}"), 
+                string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
+                string(name: 'UPGRADE_VERSION', value: "${UPGRADE_VERSION}"),
+                string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
+                string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
+                string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),                
+                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
+                string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
+                string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
+                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
+              ]
 
               switch(test_name) {
-                case "validatecluster":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
-                  break
-                case "docker_cri":
-                  jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
-                  break             
-                case "restartservice":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
-                  break                
-                case "dualstack":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: install_params }
-                  break
-                case "deployrancher":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_deploy_rancher_manager", parameters: install_params }
-                  break 
-                case "certrotate": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params }
-                  break                
-                case "secretsencrypt": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params }
-                  break
                 case "upgrademanual": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
                   break
@@ -160,16 +116,7 @@ node {
                   break
                 case "upgradereplacement": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
-                  break
-                case "clusterreset":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params }
-                  break
-                case "external_datastore":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_external_datastore", parameters: install_params }
-                  break
-                case "mixedoscluster":
-                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: install_params }
-                  break                                                         
+                  break                                                       
               } // switch case
             } // for each test_dir loop
 
