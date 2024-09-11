@@ -51,8 +51,6 @@ data "template_file" "test_status" {
   template = (var.datastore_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
 }
 
-
-
 resource "aws_eip" "master_with_eip" {
   count                   = var.create_eip ? 1 : 0
   domain                  = "vpc"
@@ -76,11 +74,6 @@ locals {
 locals {
   fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
 }
-
-
-
-
-
 
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
@@ -137,6 +130,7 @@ resource "aws_instance" "master" {
     EOT
     ]
   }
+
   //update master_ip file with either eip or public ip
   provisioner "local-exec" {
     command = "echo ${var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip} >/tmp/${var.resource_name}_master_ip"
@@ -510,7 +504,6 @@ locals {
 
 resource "null_resource" "update_kubeconfig" {
   count =  var.create_eip ? 0: local.total_server_count
- // count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
   depends_on = [aws_instance.master, aws_instance.master2-ha]
 
   provisioner "local-exec" {
