@@ -14,6 +14,8 @@ install_mode   = "INSTALL_K3S_VERSION"
 # INSTALL_K3S_VERSION or INSTALL_K3S_COMMIT
 
 create_lb      = false
+# Used to set Elastic ip to the instances
+create_eip     = false
 arch           = "amd64"
 
 ## Custom Vars

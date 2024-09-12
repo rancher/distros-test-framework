@@ -44,7 +44,6 @@ var _ = Describe("Components Version Upgrade:", func() {
 			assert.PodAssertReady())
 	})
 
-	k8s := fmt.Sprintf("sudo /var/lib/rancher/%s/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'hardened-kubernetes' , ", cluster.Config.Product)
 	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;) , ", cluster.Config.Product)
 	crictl := "sudo /var/lib/rancher/rke2/bin/crictl -v, "
 
@@ -52,10 +51,10 @@ var _ = Describe("Components Version Upgrade:", func() {
 	coredns := kgn + " : | grep 'hardened-coredns' -A1, "
 	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
 	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
-	description := "Verifies bump versions for several components on rke2:\n1-kubernetes\n2-coredns" +
-		"\n3-metrics Server\n4-etcd\n5-containerd\n6-runc\n7-crictl\n8-canal(flannel)\n9-calico\n10-ingress Controller"
+	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
+		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-canal(flannel)\n8-calico\n9-ingress Controller"
 
-	cmd := k8s + coredns + metricsServer + etcd + containerd + runc + crictl + canalFlannel + calico + ingressController
+	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + canalFlannel + calico + ingressController
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
@@ -63,10 +62,10 @@ var _ = Describe("Components Version Upgrade:", func() {
 		cniPlugins = "/var/lib/rancher/k3s/data/current/bin/cni, "
 		coredns = kgn + " : | grep 'mirrored-coredns' -A1, "
 		etcd = "sudo journalctl -u k3s | grep etcd-version, "
-		description = "Verifies bump versions for several components on k3s:\n1-kubernetes\n2-coredns" +
-			"\n3-metrics Server\n4-etcd\n5-cni Plugins\n6-containerd\n7-runc\n8-crictl\n9-traefik\n10-local path provisioner\n11-klipper LB"
+		description = "Verifies bump versions for several components on k3s:\n1-coredns" +
+			"\n2-metrics Server\n3-etcd\n4-cni Plugins\n5-containerd\n6-runc\n7-crictl\n8-traefik\n9-local path provisioner\n10-klipper LB"
 
-		cmd = k8s + coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
+		cmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
 	It(description, func() {
