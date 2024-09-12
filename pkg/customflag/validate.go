@@ -140,8 +140,8 @@ func validateMultusTest(expectedValue, valuesUpgrade []string) {
 }
 
 func validateComponentsTest(expectedValue, valuesUpgrade []string) {
-	k3scomponentsCmdsLength := 9
-	rke2componentsCmdsLength := 8
+	k3scomponentsCmdsLength := 11
+	rke2componentsCmdsLength := 10
 
 	product := os.Getenv("ENV_PRODUCT")
 	switch product {

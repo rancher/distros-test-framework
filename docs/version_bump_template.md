@@ -20,26 +20,31 @@ General components:
 
 - Rke2        
 ```
-1- flannel
-2- calico
-3- ingressController
-4- coredns
-5- metricsServer
-6- etcd
-7- containerd
-8- runc
+1- kubernetes
+2- coredns
+3- metrics server
+4- etcd
+5- containerd
+6- runc
+7- crictl
+8- canalFlannel
+9- calico
+10- ingressController
+
 ```
 - k3s
 ```
-1- coredns
-2- metrics server
-3- etcd
-4- cni plugins
-5- traefik
-6- local-path-provisioner
-7- containerd
-8- klipper
-9- runc
+1- kubernetes
+2- coredns
+3- metrics server
+4- etcd
+5- cni plugins
+6- containerd
+7- runc
+8- crictl
+9- traefik
+10- local path provisioner
+11- klipper LB
 ```
 
 Version bump: 
