@@ -51,6 +51,30 @@ data "template_file" "test_status" {
   template = (var.datastore_type == "etcd" ? "NULL": ((var.external_db == "postgres" ? aws_db_instance.db[0].endpoint : (var.external_db == "aurora-mysql" ? aws_rds_cluster_instance.db[0].endpoint : aws_db_instance.db[0].endpoint))))
 }
 
+resource "aws_eip" "master_with_eip" {
+  count                   = var.create_eip ? 1 : 0
+  domain                  = "vpc"
+  tags                    = {
+    Name ="${var.resource_name}-server1"
+  }
+}
+
+resource "aws_eip_association" "master_eip_association" {
+  count                   = var.create_eip ? 1 : 0
+  instance_id             = aws_instance.master.id
+  allocation_id           = aws_eip.master_with_eip[count.index].id
+  depends_on              = [aws_eip.master_with_eip]
+}
+
+locals {
+  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  master_node_ip          = var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip
+  }
+
+locals {
+  fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
+}
+
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
@@ -102,12 +126,14 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/rke2_master.sh
-      sudo /tmp/rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : "fake.fqdn.value"} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
+
+  //update master_ip file with either eip or public ip
   provisioner "local-exec" {
-    command = "echo ${aws_instance.master.public_ip} >/tmp/${var.resource_name}_master_ip"
+    command = "echo ${var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip} >/tmp/${var.resource_name}_master_ip"
   }
   provisioner "local-exec" {
     command = "ssh-keyscan ${aws_instance.master.public_ip} > /root/.ssh/known_hosts"
@@ -121,6 +147,57 @@ resource "aws_instance" "master" {
   provisioner "local-exec" {
     command = "scp -i ${var.access_key} ${var.aws_user}@${aws_instance.master.public_ip}:/tmp/joinflags /tmp/${var.resource_name}_joinflags"
   }
+}
+
+resource "null_resource" "master_eip" {
+  count = var.create_eip ? 1 : 0
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = aws_eip.master_with_eip[count.index].public_ip
+    private_key = file(var.access_key)
+    timeout     = "10m"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo sed -i s/${aws_instance.master.public_ip}/${aws_eip.master_with_eip[count.index].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo systemctl restart --no-block rke2-server"
+    ]
+  }
+  provisioner "local-exec" {
+    command = "sed s/127.0.0.1/${aws_eip.master_with_eip[0].public_ip}/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+  }
+   provisioner "local-exec" {
+    command = "echo ${aws_eip.master_with_eip[0].public_ip} > /tmp/${var.resource_name}_master_ip"
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "echo 'Waiting for eip update to complete'",
+    "cloud-init status --wait > /dev/null"
+    ]
+  }
+  depends_on = [aws_instance.master,
+                 aws_eip_association.master_eip_association]
+}
+
+locals {
+  secondary_masters = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
+}
+
+resource "aws_eip" "master2_with_eip" {
+  count         = var.create_eip ? local.secondary_masters : 0
+  domain        = "vpc"
+  tags       = {
+    Name ="${var.resource_name}-server${count.index + 2}"
+  }
+  depends_on = [aws_eip.master_with_eip ]
+}
+
+resource "aws_eip_association" "master2_eip_association" {
+  count         = var.create_eip ? local.secondary_masters : 0
+  instance_id   = aws_instance.master2-ha[count.index].id
+  allocation_id = aws_eip.master2_with_eip[count.index].id
+  depends_on    = [aws_eip.master2_with_eip]
 }
 
 resource "aws_instance" "master2-ha" {
@@ -176,10 +253,43 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_master.sh
-      sudo /tmp/join_rke2_master.sh ${var.node_os} ${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip} ${aws_instance.master.public_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
+}
+
+resource "null_resource" "master2_eip" {
+  count =   var.create_eip ? local.secondary_masters : 0
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = aws_eip.master2_with_eip[count.index].public_ip
+    private_key = file(var.access_key)
+    timeout     = "10m"
+  }
+  // Replace nodes public ip with elastic ip in the config
+  provisioner "remote-exec" {
+    inline = [
+      "sudo sed -i s/${aws_instance.master2-ha[count.index].public_ip}/${aws_eip.master2_with_eip[count.index].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo systemctl restart --no-block rke2-server"
+    ]
+  }
+  provisioner "local-exec" {
+    command = "sed s/127.0.0.1/${aws_eip.master_with_eip[0].public_ip}/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+  }
+  // Update tmp master ip file with eip
+  provisioner "local-exec" {
+    command = "echo ${aws_eip.master_with_eip[0].public_ip} > /tmp/${var.resource_name}_master_ip"
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "echo 'Waiting for eip update to complete'",
+    "cloud-init status --wait > /dev/null"
+    ]
+  }
+  depends_on = [aws_eip.master_with_eip,
+                 aws_eip_association.master_eip_association]
 }
 
 data "local_file" "token" {
@@ -393,7 +503,7 @@ locals {
 }
 
 resource "null_resource" "update_kubeconfig" {
-  count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  count =  var.create_eip ? 0: local.total_server_count
   depends_on = [aws_instance.master, aws_instance.master2-ha]
 
   provisioner "local-exec" {
