@@ -73,3 +73,6 @@ variable "db_username" {}
 variable "db_password" {}
 variable "environment" {}
 variable "engine_mode" {}
+variable "create_eip" {
+  default = false
+}
