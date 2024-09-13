@@ -36,7 +36,7 @@ General components:
 3- etcd
 4- cni plugins
 5- traefik
-6- local-path-storage
+6- local-path-provisioner
 7- containerd
 8- klipper
 9- runc
@@ -63,8 +63,8 @@ Available flags to create your tests with some data examples:
 
 * All non-boolean arguments are comma separated in case you need to send more than 1.
 
-* If you need to separate another command to run as a single here, separate those with " : " as this example:
-That could separators like ";" , "|" , "&&" etc.
+* If you need to provide multiple commands as a single command, use the colon separator ":" to separate those commands as shown in the example below:
+The shell command separators can also be used within the commands like ";" , "|" , "&&" etc.
 -cmd "kubectl describe pod -n kube-system local-path-provisioner- :  | grep -i Image"
 
 

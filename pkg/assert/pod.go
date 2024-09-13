@@ -14,8 +14,7 @@ import (
 type PodAssertFunc func(g Gomega, pod shared.Pod)
 
 const (
-	statusCompleted = "Completed"
-	statusRunning   = "Running"
+	statusRunning = "Running"
 )
 
 // PodAssertRestart custom assertion func that asserts that pods are not restarting with no reason.

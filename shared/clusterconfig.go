@@ -21,10 +21,9 @@ var (
 )
 
 type Cluster struct {
-	Status    string
-	ServerIPs []string
-	AgentIPs  []string
-	// EIPs          []string
+	Status        string
+	ServerIPs     []string
+	AgentIPs      []string
 	WinAgentIPs   []string
 	NumWinAgents  int
 	NumServers    int
@@ -140,7 +139,6 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
-		// EIPs:       awsDependencies.GetElasticIps(cluster.ServerIPs),
 		AwsEc2: awsEc2Config{
 			AccessKey:        os.Getenv("access_key"),
 			AwsUser:          os.Getenv("aws_user"),

@@ -24,7 +24,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 	}
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.Add(cluster)
+	awsDependencies, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.

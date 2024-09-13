@@ -1,7 +1,6 @@
 package customflag
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -24,7 +23,7 @@ func ValidateTemplateFlags() {
 	if argsFromJenkins != "" {
 		cmd, testTag, expectedValues, expectedUpgrades = validateFromJenkins(argsFromJenkins)
 	} else {
-		cmd, testTag, expectedValues, expectedUpgrades = validateFromLocaL()
+		cmd, testTag, expectedValues, expectedUpgrades = validateFromLocal()
 	}
 
 	switch testTag {
@@ -43,7 +42,7 @@ func ValidateTemplateFlags() {
 	}
 }
 
-func validateFromLocaL() (cmd, testTag string, expectedValues, expectedUpgrades []string) {
+func validateFromLocal() (cmd, testTag string, expectedValues, expectedUpgrades []string) {
 	testTag = validateTestTagFromLocal()
 	cmd = os.Getenv("CMD")
 	if cmd == "" && testTag == "versionbump" {
@@ -101,7 +100,6 @@ func validateTestTagFromLocal() string {
 func validateVersionBumpTest(expectedValue, expectedUpgrade []string, cmd string) {
 	cmds := strings.Split(cmd, ",")
 
-	fmt.Println("cmds: from validate vb ", cmds)
 	if len(cmds) != len(expectedValue) {
 		log.Errorf("mismatched length commands: %d x expected values: %d", len(cmds), len(expectedValue))
 		os.Exit(1)

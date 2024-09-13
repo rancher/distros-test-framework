@@ -15,9 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var (
-	cluster *shared.Cluster
-)
+var cluster *shared.Cluster
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
@@ -31,7 +29,14 @@ func TestMain(m *testing.M) {
 
 	validateEIP()
 
-	addCluster(os.Getenv("KUBE_CONFIG"))
+	kubeconfig := os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
 
 	os.Exit(m.Run())
 }
@@ -48,21 +53,8 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 
-	// awsDependencies, err := aws.Add(cluster)
-	// Expect(err).NotTo(HaveOccurred())
-
-	// cleanEIPs(awsDependencies)
+	cleanEIPs()
 })
-
-func addCluster(kubeconfig string) {
-	if kubeconfig == "" {
-		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
-	} else {
-		// gets a cluster from kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
-}
 
 func validateEIP() {
 	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
@@ -72,21 +64,29 @@ func validateEIP() {
 }
 
 // cleanEIPs release elastic ips from instances used on test.
-func cleanEIPs(awsDependencies *aws.Client) {
-	eips := append(cluster.ServerIPs, cluster.AgentIPs...)
+func cleanEIPs() {
+	release := os.Getenv("RELEASE_EIP")
+	if release != "" && release == "false" {
+		shared.LogLevel("info", "EIPs not released, being used to run test with kubeconfig")
+	} else {
+		awsDependencies, err := aws.AddClient(cluster)
+		Expect(err).NotTo(HaveOccurred())
 
-	var wg sync.WaitGroup
-	for _, ip := range eips {
-		ip := ip
-		wg.Add(1)
-		go func(ip string) {
-			defer wg.Done()
-			releaseEIPsErr := awsDependencies.ReleaseElasticIps(ip)
-			if releaseEIPsErr != nil {
-				shared.LogLevel("error", "on %w", releaseEIPsErr)
-				return
-			}
-		}(ip)
-		wg.Wait()
+		eips := append(cluster.ServerIPs, cluster.AgentIPs...)
+
+		var wg sync.WaitGroup
+		for _, ip := range eips {
+			ip := ip
+			wg.Add(1)
+			go func(ip string) {
+				defer wg.Done()
+				releaseEIPsErr := awsDependencies.ReleaseElasticIps(ip)
+				if releaseEIPsErr != nil {
+					shared.LogLevel("error", "on %w", releaseEIPsErr)
+					return
+				}
+			}(ip)
+			wg.Wait()
+		}
 	}
 }

@@ -117,8 +117,22 @@ chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extra
 
 ### Testing with kubeconfig file.
 
+- Please note that you also need to update on the `*.tfvars` the var `aws_user` with the correct one that was used to create the cluster.
 - Required variables in `.env` file
 ```
 KUBE_CONFIG=<kubeconfig file base64-encoded>
 BASTION_IP=<bastion public ip> when testing Dual-Stack
 ```
+
+
+ ### Testing Reboot instances with EIP ###
+
+- Required vars for in `*.tfvars` file:
+```
+ create_eip =   true
+ ```
+- Optional vars for in `.env` file: Will be to not release EIPs after the test, so you can reuse the kubeconfig file.
+Please note that using this option you will need to manually release the EIPs.
+ ```
+ RELEASE_EIP=false
+ ```

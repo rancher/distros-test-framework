@@ -9,14 +9,30 @@ import (
 
 var KubeConfigFile string
 
+// KubeConfigCluster gets the kubeconfig file decoded.
+//
+// updates the global kubeconfig and returns the nodes and his data from that kubeconfig.
 func KubeConfigCluster(kubeconfig string) *Cluster {
-	nodes, clusterErr := getNodesFromKubeConfig(kubeconfig)
-	if clusterErr != nil {
-		LogLevel("error", "error getting nodes from kubeconfig %w\n", clusterErr)
-		fmt.Printf("error getting nodes from kubeconfig: %v\n", clusterErr)
+	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeconfig)
+	if decodeErr != nil {
+		LogLevel("error", "error decoding kubeconfig %w\n", decodeErr)
 		os.Exit(1)
 	}
 
+	// Set the global kubeconfig file path.
+	KubeConfigFile = localKubeConfigPath
+
+	nodes, getErr := GetNodes(false)
+	if getErr != nil {
+		LogLevel("error", "error getting nodes: %w\n", getErr)
+		return nil
+	}
+	if len(nodes) == 0 {
+		LogLevel("error", "no nodes found\n")
+		return nil
+	}
+
+	var clusterErr error
 	cluster, clusterErr = addClusterFromKubeConfig(nodes)
 	if clusterErr != nil {
 		LogLevel("error", "error adding cluster from kubeconfig %w\n", clusterErr)
@@ -89,28 +105,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 	return updatedKubeConfig, nil
 }
 
-// getNodesFromKubeConfig gets the kubeconfig file decoded, updates the global kubeconfig and returns the nodes from the kubeconfig.
-func getNodesFromKubeConfig(kubeConfig string) ([]Node, error) {
-	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeConfig)
-	if decodeErr != nil {
-		return nil, ReturnLogError("error decoding kubeconfig: %w\n", decodeErr)
-	}
-
-	// Set the global kubeconfig file path.
-	KubeConfigFile = localKubeConfigPath
-
-	nodes, getErr := GetNodes(false)
-	if getErr != nil {
-		return nil, ReturnLogError("error getting nodes: %w\n", getErr)
-	}
-	if len(nodes) == 0 {
-		return nil, ReturnLogError("no nodes found\n")
-	}
-
-	return nodes, nil
-}
-
-// decodeKubeConfig decodes the kubeconfig and writes it to a local file.
+// decodeKubeConfig decodes the kubeconfig and writes it to a local /tmp file.
 func decodeKubeConfig(kubeConfig string) (string, error) {
 	dec, err := base64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {

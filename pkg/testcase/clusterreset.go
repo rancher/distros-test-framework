@@ -36,7 +36,7 @@ func TestClusterReset(cluster *shared.Cluster) {
 	}
 	shared.LogLevel("info", "cluster reset successful. Waiting 60 seconds for cluster "+
 		"to complete background processes after reset.")
-	time.Sleep(120 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
@@ -45,7 +45,7 @@ func TestClusterReset(cluster *shared.Cluster) {
 	shared.LogLevel("info", "%s-service started. Waiting 60 seconds for nodes "+
 		"and pods to sync after reset.", cluster.Config.Product)
 
-	time.Sleep(120 * time.Second)
+	time.Sleep(60 * time.Second)
 }
 
 func killall(cluster *shared.Cluster) {
