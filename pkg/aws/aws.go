@@ -134,8 +134,8 @@ func (c Client) DeleteInstance(ip string) error {
 			if len(node.Tags) > 0 {
 				instanceName = *node.Tags[0].Value
 			}
-			shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
-				instanceName, *node.InstanceId))
+			shared.LogLevel("info", fmt.Sprintf("Terminated instance-> {id: %s, name: %s, ip: %s}",
+				*node.InstanceId, instanceName, *node.PublicIpAddress))
 		}
 	}
 
