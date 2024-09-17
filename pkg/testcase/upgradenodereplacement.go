@@ -138,7 +138,6 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 			}
 		}(ip)
 	}
-
 	wg.Wait()
 	close(chanErr)
 
@@ -597,26 +596,4 @@ func buildRke2Cmd(
 	}
 
 	return cmd, nil
-}
-
-// DeleteReplacedNodes deletes the new nodes created as replacements.
-func DeleteReplacedNodes(cluster *shared.Cluster) {
-	externalIPs := shared.FetchNodeExternalIPs()
-	awsClient, err := aws.AddAWSClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error creating aws client: %s", err)
-
-	var wg sync.WaitGroup
-	for _, ip := range externalIPs {
-		ip := ip
-		wg.Add(1)
-		go func(ip string) {
-			defer wg.Done()
-			nodeDelErr := awsClient.DeleteInstance(ip)
-			if nodeDelErr != nil {
-				shared.LogLevel("error", "on deleting node with ip: %v, got error %w", ip, nodeDelErr)
-				return
-			}
-		}(ip)
-		wg.Wait()
-	}
 }
