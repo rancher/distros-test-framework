@@ -17,12 +17,12 @@ const (
 	kgn               = "kubectl get node -o yaml"
 	canalFlannel      = kgn + " : | grep 'hardened-flannel' -A1, "
 	calico            = kgn + " : | grep 'hardened-calico' -A1, "
-	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1"
 	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
 	containerd        = kgn + " : | grep containerd -A1, "
-	traefik           = kgn + " : | grep traefik  -A1, "
 	localPath         = kgn + " : | grep local-path -A1, "
+	traefik           = kgn + " : | grep traefik  -A1, "
 	klipperLB         = kgn + " : | grep klipper -A5"
+	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1"
 )
 
 var _ = Describe("Components Version Upgrade:", func() {
