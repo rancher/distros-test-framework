@@ -18,6 +18,9 @@ Right now we have 4 tests/jobs that you can run:
 General components: 
 `components` (which runs all those at once )
 
+- In case of adding new components, you should be updating the values lenght at:
+https://github.com/rancher/distros-test-framework/blob/bfe96fc37b42eff755b2f800f912bc4f78f91972/pkg/customflag/validate.go#L143
+
 - Rke2        
 ```
 1- coredns
