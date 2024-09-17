@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -53,7 +52,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(&customflag.ServiceFlag))
+			assert.NodeAssertVersionTypeUpgrade(flags))
 	})
 
 	It("Checks Pod Status after upgrade", func() {
@@ -78,6 +77,12 @@ var _ = Describe("Test:", func() {
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
+		})
+	}
+
+	if flags.Destroy {
+		It("Deletes replaced nodes", func() {
+			testcase.DeleteReplacedNodes(cluster)
 		})
 	}
 })
