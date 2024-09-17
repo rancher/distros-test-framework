@@ -79,12 +79,6 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
-
-	if flags.Destroy {
-		It("Deletes replaced nodes", func() {
-			testcase.DeleteReplacedNodes(cluster)
-		})
-	}
 })
 
 var _ = AfterEach(func() {
