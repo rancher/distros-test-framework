@@ -9,7 +9,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
@@ -76,7 +75,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		_ = testcase.TestUpgradeClusterSUC(cluster, customflag.ServiceFlag.SUCUpgradeVersion.String())
+		_ = testcase.TestUpgradeClusterSUC(cluster, flags.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {
