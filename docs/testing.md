@@ -132,7 +132,7 @@ BASTION_IP=<bastion public ip> when testing Dual-Stack
  create_eip =   true
  ```
 - Optional vars for in `.env` file: Will be to not release EIPs after the test, so you can reuse the kubeconfig file.
-Please note that using this option you will need to manually release the EIPs.
+Please note that using this option set to `false` you will need to manually release the EIPs.
  ```
  RELEASE_EIP=false
  ```
