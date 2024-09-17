@@ -18,16 +18,21 @@ Right now we have 4 tests/jobs that you can run:
 General components: 
 `components` (which runs all those at once )
 
+- In case of adding new components, you should be updating the values lenght at:
+https://github.com/rancher/distros-test-framework/blob/bfe96fc37b42eff755b2f800f912bc4f78f91972/pkg/customflag/validate.go#L143
+
 - Rke2        
 ```
-1- flannel
-2- calico
-3- ingressController
-4- coredns
-5- metricsServer
-6- etcd
-7- containerd
-8- runc
+1- coredns
+2- metrics server
+3- etcd
+4- containerd
+5- runc
+6- crictl
+7- canalFlannel
+8- calico
+9- ingressController
+
 ```
 - k3s
 ```
@@ -35,11 +40,12 @@ General components:
 2- metrics server
 3- etcd
 4- cni plugins
-5- traefik
-6- local-path-provisioner
-7- containerd
-8- klipper
-9- runc
+5- containerd
+6- runc
+7- crictl
+8- traefik
+9- local path provisioner
+10- klipper LB
 ```
 
 Version bump: 
