@@ -13,6 +13,8 @@ key_name       = "jenkins-rke-validation"
 access_key     = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 
 create_lb      = false
+# Used to set Elastic ip to the instances
+create_eip     = false
 arch           = "amd64"
 # "/etc/rancher/rke2/custom-psa.yaml,https://gist.githubusercontent.com/rancher-max/e1c728805b1e5aae8b547b075261bb56/raw/99feb324959d7de9f640d934f098319813202d4a/pod_security_config.yaml"
 optional_files = ""

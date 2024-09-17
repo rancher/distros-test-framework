@@ -44,7 +44,6 @@ type templateConfigFlag struct {
 	DeleteWorkload bool
 	WorkloadName   string
 	Description    string
-	DebugMode      bool
 }
 
 func (t *templateConfigFlag) String() string {

@@ -254,6 +254,13 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 }
 
 // JoinCommands joins the first command with some arg.
+//
+// That could separators like ";" , | , "&&" etc.
+//
+// Example:
+// "kubectl get nodes -o wide : | grep IMAGES" =>
+//
+// "kubectl get nodes -o wide --kubeconfig /tmp/kubeconfig | grep IMAGES".
 func JoinCommands(cmd, kubeconfigFlag string) string {
 	cmds := strings.Split(cmd, ":")
 	joinedCmd := cmds[0] + kubeconfigFlag
@@ -511,10 +518,12 @@ func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }
 
+// CleanString removes spaces and new lines from a string.
 func CleanString(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(s), "\n", ""), " ", "")
 }
 
+// CleanSliceStrings removes spaces and new lines from a slice of strings.
 func CleanSliceStrings(stringsSlice []string) []string {
 	for i, str := range stringsSlice {
 		stringsSlice[i] = CleanString(str)

@@ -17,13 +17,12 @@ const (
 	kgn               = "kubectl get node -o yaml"
 	canalFlannel      = kgn + " : | grep 'hardened-flannel' -A1, "
 	calico            = kgn + " : | grep 'hardened-calico' -A1, "
-	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1, "
 	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
-	containerd        = kgn + " : | grep containerd, "
-	traefik           = kgn + " : | grep traefik  -A1, "
+	containerd        = kgn + " : | grep containerd -A1, "
 	localPath         = kgn + " : | grep local-path -A1, "
-	klipperLB         = kgn + " : | grep klipper -A5, "
-	cniPlugins        = "/var/lib/rancher/k3s/data/current/bin/cni, "
+	traefik           = kgn + " : | grep traefik  -A1, "
+	klipperLB         = kgn + " : | grep klipper -A5"
+	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1"
 )
 
 var _ = Describe("Components Version Upgrade:", func() {
@@ -45,22 +44,28 @@ var _ = Describe("Components Version Upgrade:", func() {
 			assert.PodAssertReady())
 	})
 
-	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;)", cluster.Config.Product)
+	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;) , ", cluster.Config.Product)
+	crictl := "sudo /var/lib/rancher/rke2/bin/crictl -v, "
 
 	// test decription and cmds generated based on product rke2
 	coredns := kgn + " : | grep 'hardened-coredns' -A1, "
 	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
-	description := "Verifies bump versions for several components on rke2:\n1-canal(flannel)\n2-calico" +
-		"\n3-ingressController\n4-coredns\n5-metricsServer\n6-etcd\n7-containerd\n8-runc"
-	cmd := canalFlannel + calico + ingressController + coredns + metricsServer + etcd + containerd + runc
+	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
+	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
+		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-canal(flannel)\n8-calico\n9-ingress Controller"
+
+	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + canalFlannel + calico + ingressController
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
+		crictl = "sudo /usr/local/bin/crictl -v, "
+		cniPlugins = "/var/lib/rancher/k3s/data/current/bin/cni, "
 		coredns = kgn + " : | grep 'mirrored-coredns' -A1, "
 		etcd = "sudo journalctl -u k3s | grep etcd-version, "
-		description = "Verifies bump versions for several components on k3s:\n1-coredns\n2-metricsServer" +
-			"\n3-etcd\n4-cni plugins\n5-traefik\n6-local path storage\n7-containerd\n8-Klipper\n9-runc"
-		cmd = coredns + metricsServer + etcd + cniPlugins + traefik + localPath + containerd + klipperLB + runc
+		description = "Verifies bump versions for several components on k3s:\n1-coredns" +
+			"\n2-metrics Server\n3-etcd\n4-cni Plugins\n5-containerd\n6-runc\n7-crictl\n8-traefik\n9-local path provisioner\n10-klipper LB"
+
+		cmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
 	It(description, func() {
@@ -76,7 +81,6 @@ var _ = Describe("Components Version Upgrade:", func() {
 			},
 			InstallMode: ServiceFlag.InstallMode.String(),
 			Description: ServiceFlag.TestTemplateConfig.Description,
-			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 

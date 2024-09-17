@@ -10,7 +10,6 @@ type TestTemplate struct {
 	InstallMode     string
 	TestConfig      *TestConfig
 	Description     string
-	DebugMode       bool
 }
 
 // RunCmd represents the command sets to run on host and node.

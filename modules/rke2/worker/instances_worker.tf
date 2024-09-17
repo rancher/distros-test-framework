@@ -1,3 +1,17 @@
+resource "aws_eip_association" "worker_eip_association" {
+  count              = var.create_eip ? var.no_of_worker_nodes : 0
+  instance_id        = aws_instance.worker[count.index].id
+  allocation_id      = aws_eip.worker_with_eip[count.index].id
+}
+
+resource "aws_eip" "worker_with_eip" {
+  count              = var.create_eip ? var.no_of_worker_nodes : 0
+  domain             = "vpc"
+  tags = {
+    Name                 = "${var.resource_name}-worker${count.index + 1}"
+  }
+}
+
 resource "aws_instance" "worker" {
   depends_on = [
     var.dependency
@@ -41,6 +55,8 @@ resource "aws_instance" "worker" {
   }
 }
 
+
+
 data "local_file" "master_ip" {
   depends_on = [var.dependency]
   filename = "/tmp/${var.resource_name}_master_ip"
@@ -57,4 +73,29 @@ data "local_file" "token" {
 
 locals {
   node_token = trimspace("${data.local_file.token.content}")
+}
+
+resource "null_resource" "worker_eip" {
+  count         = var.create_eip ? var.no_of_worker_nodes : 0
+  connection {
+    type        = "ssh"
+    user        = var.aws_user
+    host        = aws_eip.worker_with_eip[count.index].public_ip
+    private_key = file(var.access_key)
+    timeout     = "25m"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo sed -i s/${aws_instance.worker[count.index].public_ip}/${aws_eip.worker_with_eip[count.index].public_ip}/g /etc/rancher/rke2/config.yaml",
+      "sudo systemctl restart --no-block rke2-agent"
+    ]
+  }
+  provisioner "remote-exec" {
+    inline = [
+    "echo 'Waiting for eip update to complete'",
+    "cloud-init status --wait > /dev/null"
+    ]
+  }
+  depends_on = [aws_eip.worker_with_eip,
+                 aws_eip_association.worker_eip_association]
 }
