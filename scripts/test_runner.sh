@@ -102,12 +102,6 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "clusterresetrestore" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterresetrestore/...
-    #     declare -a OPTS
-    #       OPTS=(-timeout=120m -v -count=1 ./entrypoint/clusterresetrestore/... -tags=clusterresetrestore)
-    #         [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
-    #         [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
-    #         [ -n "${S3_REGION}" ] && OPTS+=(-s3Region "${S3_REGION}")
-    #   go test "${OPTS[@]}"
     fi
 fi
 }

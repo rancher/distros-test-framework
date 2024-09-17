@@ -26,10 +26,22 @@ func TestClusterResetRestoreS3Snapshot(cluster *shared.Cluster, applyWorkload, d
 	s3Region := cluster.AwsEc2.Region
 
 	takeS3Snapshot(cluster, s3Bucket, s3Folder, s3Region, accessKeyID, secretAccessKey, true, false)
+
+	onDemandPathCmd := fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots", cluster.Config.Product)
+	onDemandPath, _ := shared.RunCommandOnNode(onDemandPathCmd, cluster.ServerIPs[0])
+
+	fmt.Println("\non-demand-path: ", onDemandPath)
+
+	clusterTokenCmd := fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/token", cluster.Config.Product)
+	clusterToken, _ := shared.RunCommandOnNode(clusterTokenCmd, cluster.ServerIPs[0])
+
+	fmt.Println("\ntoken: ", clusterToken)
+
 	// stopInstances()
-	// create
+	// create fresh new VM and install K3s/RKE2 using RunCommandOnNode
+	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
-	// restoreS3Snapshot(cluster, s3Bucket, s3Folder, accessKeyID, secretAccessKey, s3Region)
+	restoreS3Snapshot(cluster, s3Bucket, s3Folder, s3Region, onDemandPath, accessKeyID, secretAccessKey, clusterToken)
 
 }
 
@@ -47,16 +59,6 @@ func takeS3Snapshot(cluster *shared.Cluster, s3Bucket, s3Folder, s3Region, acces
 	Expect(takeSnapshotRes).To(ContainSubstring("Snapshot on-demand"))
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
 
-	onDemandPathCmd := fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots", cluster.Config.Product)
-	onDemandPath, _ := shared.RunCommandOnNode(onDemandPathCmd, cluster.ServerIPs[0])
-
-	fmt.Println("\non-demand-path: ", onDemandPath)
-
-	tokenCmd := fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/token", cluster.Config.Product)
-	token, _ := shared.RunCommandOnNode(tokenCmd, cluster.ServerIPs[0])
-
-	fmt.Println("\ntoken: ", token)
-
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
@@ -67,7 +69,7 @@ func takeS3Snapshot(cluster *shared.Cluster, s3Bucket, s3Folder, s3Region, acces
 
 }
 
-func restoreS3Snapshot(cluster *shared.Cluster, s3Bucket, s3Folder, s3Region, accessKeyID, secretAccessKey string) {
+func restoreS3Snapshot(cluster *shared.Cluster, s3Bucket, s3Folder, s3Region, onDemandPath, accessKeyID, secretAccessKey, token string) {
 	// var path string
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
