@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -55,5 +56,6 @@ var _ = AfterSuite(func() {
 		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
+		testcase.DeleteAWSInstance(cluster)
 	}
 })

@@ -3,7 +3,9 @@ package testcase
 import (
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -82,8 +84,8 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-// TestDisplayClusterDetails used to display cluster details.
-func TestDisplayClusterDetails() {
+// DisplayClusterDetails used to display cluster details.
+func DisplayClusterDetails() {
 	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -105,4 +107,28 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 	} else {
 		Expect(agentIPs).Should(BeEmpty())
 	}
+}
+
+// DeleteAWSInstance deletes ec2 instance via aws client.
+func DeleteAWSInstance(cluster *shared.Cluster) {
+	ips := shared.FetchNodeExternalIPs()
+	awsClient, err := aws.AddClient(cluster)
+	if err != nil {
+		shared.LogLevel("error", "error creating aws client: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for _, ip := range ips {
+		ip := ip
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			nodeDelErr := awsClient.DeleteInstance(ip)
+			if nodeDelErr != nil {
+				shared.LogLevel("error", "on deleting node with ip: %v, got error %w", ip, nodeDelErr)
+				return
+			}
+		}(ip)
+	}
+	wg.Wait()
 }

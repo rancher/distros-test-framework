@@ -101,8 +101,8 @@ var _ = Describe("Test:", func() {
 		})
 	}
 
-	It("Displays Cluster details", func() {
-		testcase.TestDisplayClusterDetails()
+	It("Displays Cluster details after tests", func() {
+		testcase.DisplayClusterDetails()
 	})
 
 })
