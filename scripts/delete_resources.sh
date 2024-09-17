@@ -15,10 +15,11 @@ fi
 
 #Get resource name from tfvars file and validate
 RESOURCE_NAME=$(grep resource_name <./config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
-if [[ -z "$RESOURCE_NAME" ]]; then
-  echo "No resource name found for: $PRODUCT_NAME.tfvars file"
+if [[ -z "$RESOURCE_NAME" || ! "$RESOURCE_NAME" =~ $PRODUCT_NAME ]]; then
+  echo "Wrong or empty resource name found in $PRODUCT_NAME.tfvars file for: $RESOURCE_NAME"
   exit 1
 fi
+
 
 printf "This is going to delete all AWS resources with the prefix %s. Continue (yes/no)? " "$RESOURCE_NAME"
 read -r REPLY
@@ -42,7 +43,7 @@ if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
   #Search for eips and release them
   EIPS=$(aws ec2 describe-addresses \
       --query "Addresses[?starts_with(Tags[?Key=='Name'].Value | [0], '${NAME_PREFIX}')].AllocationId" \
-      --output text 2>/dev/null || true)
+      --output text 2>/dev/null)
 
     if [[ -z "$EIPS" ]]; then
         printf "No Elastic IPs found with Name prefix %s" "$NAME_PREFIX"

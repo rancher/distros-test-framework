@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -18,9 +19,11 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
+func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	version := flags.InstallMode.String()
+	channel := flags.Channel.String()
 	if version == "" {
-		Expect(version).NotTo(BeEmpty(), "version not sent")
+		Expect(version).NotTo(BeEmpty(), "version/commit is empty")
 	}
 
 	resourceName := os.Getenv("resource_name")
@@ -56,6 +59,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 		serverLeaderIP,
 		token,
 		version,
+		channel,
 		newExternalServerIps,
 		newPrivateServerIps,
 	)
@@ -64,7 +68,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, version, resourceName, awsDependencies, serverLeaderIP, token)
+		nodeReplaceAgents(cluster, awsDependencies, version, channel, resourceName, serverLeaderIP, token)
 	}
 	// delete the last remaining server = leader.
 	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
@@ -74,10 +78,11 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, version string) {
 
 func nodeReplaceAgents(
 	cluster *shared.Cluster,
-	version string,
-	resourceName string,
 	awsDependencies *aws.Client,
-	serverLeaderIp string,
+	version,
+	channel,
+	resourceName,
+	serverLeaderIp,
 	token string,
 ) {
 	// create agent names.
@@ -97,7 +102,7 @@ func nodeReplaceAgents(
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
-	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, newExternalAgentIps,
+	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, channel, newExternalAgentIps,
 		newPrivateAgentIps,
 	)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
@@ -225,7 +230,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 func nodeReplaceServers(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	resourceName, serverLeaderIp, token, version string,
+	resourceName, serverLeaderIp, token, version, channel string,
 	newExternalServerIps, newPrivateServerIps []string,
 ) error {
 	if token == "" {
@@ -238,7 +243,7 @@ func nodeReplaceServers(
 
 	// join the first new server.
 	newFirstServerIP := newExternalServerIps[0]
-	err := serverJoin(cluster, serverLeaderIp, token, version, newFirstServerIP, newPrivateServerIps[0])
+	err := serverJoin(cluster, serverLeaderIp, token, version, channel, newFirstServerIP, newPrivateServerIps[0])
 	if err != nil {
 		shared.LogLevel("error", "error joining first server: %w\n", err)
 
@@ -269,7 +274,7 @@ func nodeReplaceServers(
 
 	// join the rest of the servers and delete all except the leader.
 	err = joinRemainServers(cluster, a, newExternalServerIps, newPrivateServerIps,
-		oldServerIPs, serverLeaderIp, token, version)
+		oldServerIPs, serverLeaderIp, token, version, channel)
 	if err != nil {
 		return err
 	}
@@ -287,7 +292,8 @@ func joinRemainServers(
 	oldServerIPs []string,
 	serverLeaderIp,
 	token,
-	version string,
+	version,
+	channel string,
 ) error {
 	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
 		privateIp := newPrivateServerIps[i]
@@ -301,7 +307,7 @@ func joinRemainServers(
 			}
 		}
 
-		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, externalIp, privateIp); joinErr != nil {
+		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp); joinErr != nil {
 			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
 
 			return joinErr
@@ -333,8 +339,8 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, newExternalIP, newPrivateIP)
+func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -369,7 +375,7 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 func replaceAgents(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	serverLeaderIp, token, version string,
+	serverLeaderIp, token, version, channel string,
 	newExternalAgentIps, newPrivateAgentIps []string,
 ) error {
 	if token == "" {
@@ -389,7 +395,7 @@ func replaceAgents(
 	for i, externalIp := range newExternalAgentIps {
 		privateIp := newPrivateAgentIps[i]
 
-		joinErr := joinAgent(cluster, serverLeaderIp, token, version, externalIp, privateIp)
+		joinErr := joinAgent(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
 
@@ -419,8 +425,8 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 	return nil
 }
 
-func joinAgent(cluster *shared.Cluster, serverIp, token, version, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, selfExternalIp, selfPrivateIp)
+func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -460,7 +466,7 @@ func joinNode(cmd, ip string) error {
 
 func buildJoinCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP string,
+	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP string,
 ) (string, error) {
 	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
@@ -482,9 +488,11 @@ func buildJoinCmd(
 
 	switch cluster.Config.Product {
 	case "k3s":
-		return buildK3sCmd(cluster, nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP, installMode, flags)
+		return buildK3sCmd(
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags)
 	case "rke2":
-		return buildRke2Cmd(cluster, nodetype, serverIp, token, version, selfExternalIP, selfPrivateIP, installMode, flags)
+		return buildRke2Cmd(
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags)
 	default:
 		return "", shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
@@ -492,7 +500,7 @@ func buildJoinCmd(
 
 func buildK3sCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIP, token, version, selfExternalIP, selfPrivateIP, instalMode, flags string,
+	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
@@ -506,9 +514,9 @@ func buildK3sCmd(
 			selfExternalIP,
 			selfPrivateIP,
 			ipv6,
-			instalMode,
+			installMode,
 			version,
-			os.Getenv("k3s_channel"),
+			channel,
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
@@ -525,9 +533,9 @@ func buildK3sCmd(
 			selfExternalIP,
 			selfPrivateIP,
 			ipv6,
-			instalMode,
+			installMode,
 			version,
-			os.Getenv("k3s_channel"),
+			channel,
 			os.Getenv("datastore_type"),
 			datastoreEndpoint,
 			flags,
@@ -541,7 +549,7 @@ func buildK3sCmd(
 
 func buildRke2Cmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, selfExternalIp, selfPrivateIp, instalMode, flags string,
+	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
@@ -556,9 +564,9 @@ func buildRke2Cmd(
 			selfExternalIp,
 			selfPrivateIp,
 			ipv6,
-			instalMode,
+			installMode,
 			version,
-			os.Getenv("rke2_channel"),
+			channel,
 			installMethod,
 			flags,
 			os.Getenv("username"),
@@ -576,9 +584,9 @@ func buildRke2Cmd(
 			selfExternalIp,
 			selfPrivateIp,
 			ipv6,
-			instalMode,
+			installMode,
 			version,
-			os.Getenv("rke2_channel"),
+			channel,
 			installMethod,
 			os.Getenv("datastore_type"),
 			datastoreEndpoint,

@@ -68,7 +68,7 @@ test-validate:
 
 
 test-upgrade-suc:
-	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUC_UPGRADE_VERSION}
+	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUC_UPGRADE_VERSION} -channel "${CHANNEL}"
 
 
 test-upgrade-manual:
@@ -76,7 +76,7 @@ test-upgrade-manual:
 
 
 test-upgrade-node-replacement:
-	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}
+	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
 
 test-create-mixedos:
