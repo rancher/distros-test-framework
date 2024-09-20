@@ -7,18 +7,19 @@ if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
   exit 1
 fi
 
-#Get resource name from tfvars file and validate
-RESOURCE_NAME=$(grep resource_name <./config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
-if [[ -z "$RESOURCE_NAME" ]]; then
-  echo "No resource name found for: $PRODUCT_NAME.tfvars file"
-  exit 1
-fi
-
 #Validate path to the tfvars file
 if [[ ! -f ./config/"$PRODUCT_NAME".tfvars ]]; then
   echo "No $PRODUCT_NAME.tfvars file found in config directory"
   exit 1
 fi
+
+#Get resource name from tfvars file and validate
+RESOURCE_NAME=$(grep resource_name <./config/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
+if [[ -z "$RESOURCE_NAME" || ! "$RESOURCE_NAME" =~ $PRODUCT_NAME ]]; then
+  echo "Wrong or empty resource name found in $PRODUCT_NAME.tfvars file for: $RESOURCE_NAME"
+  exit 1
+fi
+
 
 printf "This is going to delete all AWS resources with the prefix %s. Continue (yes/no)? " "$RESOURCE_NAME"
 read -r REPLY
@@ -39,6 +40,22 @@ if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
     aws rds delete-db-instance --db-instance-identifier "$instance" --skip-final-snapshot > /dev/null 2>&1
   done
 
+  #Search for eips and release them
+  EIPS=$(aws ec2 describe-addresses \
+      --query "Addresses[?starts_with(Tags[?Key=='Name'].Value | [0], '${NAME_PREFIX}')].AllocationId" \
+      --output text 2>/dev/null)
+
+    if [[ -z "$EIPS" ]]; then
+        printf "No Elastic IPs found with Name prefix %s" "$NAME_PREFIX"
+    fi
+
+  for eip in $EIPS; do
+      if aws ec2 release-address --allocation-id "$eip" > /dev/null 2>&1; then
+          printf "Successfully released Elastic IP with Allocation ID: %s\n" "$eip"
+      else
+          printf "Failed to release Elastic IP with Allocation ID: %s\n" "$eip"
+      fi
+  done
 
   #Search for DB clusters and delete them
   CLUSTERS=$(aws rds describe-db-clusters --query "DBClusters[?starts_with(DBClusterIdentifier,
