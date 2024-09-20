@@ -9,13 +9,30 @@ import (
 
 var KubeConfigFile string
 
+// KubeConfigCluster gets the kubeconfig file decoded.
+//
+// updates the global kubeconfig and returns the nodes and his data from that kubeconfig.
 func KubeConfigCluster(kubeconfig string) *Cluster {
-	nodes, clusterErr := getNodesFromKubeConfig(kubeconfig)
-	if clusterErr != nil {
-		LogLevel("error", "error getting nodes from kubeconfig %w\n", clusterErr)
+	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeconfig)
+	if decodeErr != nil {
+		LogLevel("error", "error decoding kubeconfig %w\n", decodeErr)
 		os.Exit(1)
 	}
 
+	// Set the global kubeconfig file path.
+	KubeConfigFile = localKubeConfigPath
+
+	nodes, getErr := GetNodes(false)
+	if getErr != nil {
+		LogLevel("error", "error getting nodes: %w\n", getErr)
+		return nil
+	}
+	if len(nodes) == 0 {
+		LogLevel("error", "no nodes found\n")
+		return nil
+	}
+
+	var clusterErr error
 	cluster, clusterErr = addClusterFromKubeConfig(nodes)
 	if clusterErr != nil {
 		LogLevel("error", "error adding cluster from kubeconfig %w\n", clusterErr)
@@ -88,40 +105,18 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 	return updatedKubeConfig, nil
 }
 
-func getNodesFromKubeConfig(kubeConfig string) ([]Node, error) {
-	decodeErr := decodeKubeConfig(kubeConfig)
-	if decodeErr != nil {
-		LogLevel("error", "error decoding kubeconfig: %w\n", decodeErr)
-		return nil, decodeErr
-	}
-
-	nodes, getErr := GetNodes(false)
-	if getErr != nil {
-		LogLevel("error", "error getting nodes: %w\n", getErr)
-		return nil, getErr
-	}
-	if len(nodes) == 0 {
-		return nil, ReturnLogError("no nodes found\n")
-	}
-
-	return nodes, nil
-}
-
-func decodeKubeConfig(kubeConfig string) error {
+// decodeKubeConfig decodes the kubeconfig and writes it to a local /tmp file.
+func decodeKubeConfig(kubeConfig string) (string, error) {
 	dec, err := base64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {
-		LogLevel("error", "error decoding kubeconfig: %w\n", err)
-		return err
+		return "", ReturnLogError("failed to decode kubeconfig: %w\n", err)
 	}
 
-	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", os.Getenv("resource_name"))
-	writeErr := os.WriteFile(localPath, dec, 0o644)
+	localKubeConfigPath := fmt.Sprintf("/tmp/%s_kubeconfig", os.Getenv("resource_name"))
+	writeErr := os.WriteFile(localKubeConfigPath, dec, 0o644)
 	if writeErr != nil {
-		LogLevel("error", "failed to write kubeconfig file: %w\n", writeErr)
-		return writeErr
+		return "", ReturnLogError("failed to write kubeconfig file: %w\n", writeErr)
 	}
 
-	KubeConfigFile = localPath
-
-	return nil
+	return localKubeConfigPath, nil
 }
