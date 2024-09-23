@@ -82,6 +82,15 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
+// TestDisplayClusterDetails used to display cluster details.
+func TestDisplayClusterDetails() {
+	_, err := shared.GetNodes(true)
+	Expect(err).NotTo(HaveOccurred())
+
+	_, err = shared.GetPods(true)
+	Expect(err).NotTo(HaveOccurred())
+}
+
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	info := "Agent Node IPs:"

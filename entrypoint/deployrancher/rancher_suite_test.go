@@ -18,6 +18,8 @@ var (
 	cluster    *shared.Cluster
 	flags      *customflag.FlagConfig
 	kubeconfig string
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
@@ -33,11 +35,14 @@ func TestMain(m *testing.M) {
 
 	customflag.ValidateVersionFormat()
 
-	_, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	// Validate rancher deployment vars before running the tests.
+	validateRancher()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
@@ -56,14 +61,21 @@ func TestRancherSuite(t *testing.T) {
 	RunSpecs(t, "Deploy Rancher Manager Test Suite")
 }
 
-var _ = BeforeSuite(func() {
-	Expect(os.Getenv("create_lb")).To(Equal("true"), "Wrong value passed in tfvars for 'create_lb'")
+func validateRancher() {
+	if os.Getenv("create_lb") == "" || os.Getenv("create_lb") != "true" {
+		shared.LogLevel("error", "create_lb is not set in tfvars\n")
+		os.Exit(1)
+	}
 
-	if cluster.Config.Product == "rke2" &&
-		strings.Contains(os.Getenv("server_flags"), "profile") {
-		Expect(os.Getenv("optional_files")).NotTo(BeEmpty(), "Need to pass a value in tfvars for 'optional_files'")
-		Expect(os.Getenv("server_flags")).To(ContainSubstring("pod-security-admission-config-file:"),
-			"Wrong value passed in tfvars for 'server_flags'")
+	if cfg.Product == "rke2" && strings.Contains(os.Getenv("server_flags"), "profile") {
+		if os.Getenv("optional_files") == "" {
+			shared.LogLevel("error", "optional_files is not set in tfvars\n")
+			os.Exit(1)
+		}
+		if !strings.Contains(os.Getenv("server_flags"), "pod-security-admission-config-file") {
+			shared.LogLevel("error", "pod-security-admission-config-file is not set in server_flags\n")
+			os.Exit(1)
+		}
 	}
 
 	// Check helm chart repo
@@ -71,9 +83,15 @@ var _ = BeforeSuite(func() {
 		flags.HelmCharts.RepoName,
 		flags.HelmCharts.RepoUrl,
 		flags.HelmCharts.Version)
-	Expect(err).To(BeNil(), "Error while checking helm repo ", err)
-	Expect(res).ToNot(BeEmpty(), "No version found in helm repo ", flags.HelmCharts.RepoName)
-})
+	if err != nil {
+		shared.LogLevel("error", "Error while checking helm repo %v\n", err)
+		os.Exit(1)
+	}
+	if res == "" {
+		shared.LogLevel("error", "No version found in helm repo %v\n", flags.HelmCharts.RepoName)
+		os.Exit(1)
+	}
+}
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {

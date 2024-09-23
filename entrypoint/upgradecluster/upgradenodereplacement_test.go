@@ -46,7 +46,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Upgrade by Node replacement", func() {
-		testcase.TestUpgradeReplaceNode(cluster, customflag.ServiceFlag.InstallMode.String())
+		testcase.TestUpgradeReplaceNode(cluster, flags)
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {

@@ -42,6 +42,7 @@ module "master" {
   external_db_version  = var.external_db_version
   engine_mode          = var.engine_mode
   environment          = var.environment
+  create_eip           = var.create_eip
 
   # RKE2 variables
   rke2_version   = var.rke2_version
@@ -80,6 +81,8 @@ module "worker" {
   vpc_id             = var.vpc_id
   enable_public_ip   = var.enable_public_ip
   enable_ipv6        = var.enable_ipv6
+  create_eip         = var.create_eip
+
 
   # RKE2 variables
   rke2_version   = var.rke2_version

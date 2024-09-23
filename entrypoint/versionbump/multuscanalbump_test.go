@@ -49,7 +49,6 @@ var _ = Describe("Multus + canal Version bump:", func() {
 				},
 			},
 			InstallMode: ServiceFlag.InstallMode.String(),
-			DebugMode:   ServiceFlag.TestTemplateConfig.DebugMode,
 		})
 	})
 

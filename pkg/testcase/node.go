@@ -45,7 +45,6 @@ func TestNodeStatus(
 		return logs
 	})
 
-	shared.LogLevel("info", "\n\nCluster nodes:\n")
 	_, err := shared.GetNodes(true)
 	Expect(err).NotTo(HaveOccurred())
 }

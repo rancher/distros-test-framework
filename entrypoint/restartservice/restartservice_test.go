@@ -15,7 +15,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestBuildCluster(cluster)
 	})
 
-	It("Validate Nodes", func() {
+	It("Validate Nodes before service restarts", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
@@ -23,18 +23,40 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Validate Pods", func() {
+	It("Validate Pods before service restarts", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
-	It("Restart server and agent service", func() {
+	It("Verifies ClusterIP Service before service restarts", func() {
+		testcase.TestServiceClusterIP(true, false)
+	})
+
+	It("Verifies NodePort Service before service restarts", func() {
+		testcase.TestServiceNodePort(true, false)
+	})
+
+	It("Verifies Ingress before service restarts", func() {
+		testcase.TestIngress(true, false)
+	})
+
+	if cluster.Config.Product == "k3s" {
+		It("Verifies Local Path Provisioner storage before service restarts", func() {
+			testcase.TestLocalPathProvisionerStorage(cluster, true, false)
+		})
+
+		It("Verifies LoadBalancer Service before service restarts", func() {
+			testcase.TestServiceLoadBalancer(true, false)
+		})
+	}
+
+	It("Restart service on server and agent nodes", func() {
 		testcase.TestRestartService(cluster)
 	})
 
-	It("Validate Nodes after restartservice", func() {
+	It("Validate Nodes after service restarts", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
@@ -42,16 +64,23 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(true, true)
+	It("Validate Pods after service restarts", func() {
+		testcase.TestPodStatus(
+			cluster,
+			assert.PodAssertRestart(),
+			assert.PodAssertReady())
 	})
 
-	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true, true)
+	It("Verifies ClusterIP Service after service restarts", func() {
+		testcase.TestServiceClusterIP(false, true)
 	})
 
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(true, true)
+	It("Verifies NodePort Service after service restarts", func() {
+		testcase.TestServiceNodePort(false, true)
+	})
+
+	It("Verifies Ingress after service restarts", func() {
+		testcase.TestIngress(false, true)
 	})
 
 	It("Verifies Daemonset", func() {
@@ -63,14 +92,19 @@ var _ = Describe("Test:", func() {
 	})
 
 	if cluster.Config.Product == "k3s" {
-		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
+		It("Verifies Local Path Provisioner storage after service restarts", func() {
+			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
 		})
 
-		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true, true)
+		It("Verifies LoadBalancer Service after service restarts", func() {
+			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
+
+	It("Displays Cluster details", func() {
+		testcase.TestDisplayClusterDetails()
+	})
+
 })
 
 var _ = AfterEach(func() {

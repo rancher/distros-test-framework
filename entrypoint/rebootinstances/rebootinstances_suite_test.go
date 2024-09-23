@@ -27,12 +27,16 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
-		shared.LogLevel("error", "create_eip not set")
-		os.Exit(1)
-	}
+	validateEIP()
 
-	cluster = shared.ClusterConfig()
+	kubeconfig := os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
 
 	os.Exit(m.Run())
 }
@@ -49,28 +53,40 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 
-	awsDependencies, err := aws.AddAWSClient(cluster)
-	Expect(err).NotTo(HaveOccurred())
-
-	cleanEIPs(awsDependencies)
+	cleanEIPs()
 })
 
-// cleanEIPs release elastic ips from instances used on test.
-func cleanEIPs(awsDependencies *aws.Client) {
-	eips := append(cluster.ServerIPs, cluster.AgentIPs...)
+func validateEIP() {
+	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
+		shared.LogLevel("error", "create_eip not set")
+		os.Exit(1)
+	}
+}
 
-	var wg sync.WaitGroup
-	for _, ip := range eips {
-		ip := ip
-		wg.Add(1)
-		go func(ip string) {
-			defer wg.Done()
-			releaseEIPsErr := awsDependencies.ReleaseElasticIps(ip)
-			if releaseEIPsErr != nil {
-				shared.LogLevel("error", "on %w", releaseEIPsErr)
-				return
-			}
-		}(ip)
-		wg.Wait()
+// cleanEIPs release elastic ips from instances used on test.
+func cleanEIPs() {
+	release := os.Getenv("RELEASE_EIP")
+	if release != "" && release == "false" {
+		shared.LogLevel("info", "EIPs not released, being used to run test with kubeconfig")
+	} else {
+		awsDependencies, err := aws.AddClient(cluster)
+		Expect(err).NotTo(HaveOccurred())
+
+		eips := append(cluster.ServerIPs, cluster.AgentIPs...)
+
+		var wg sync.WaitGroup
+		for _, ip := range eips {
+			ip := ip
+			wg.Add(1)
+			go func(ip string) {
+				defer wg.Done()
+				releaseEIPsErr := awsDependencies.ReleaseElasticIps(ip)
+				if releaseEIPsErr != nil {
+					shared.LogLevel("error", "on %w", releaseEIPsErr)
+					return
+				}
+			}(ip)
+			wg.Wait()
+		}
 	}
 }

@@ -19,12 +19,10 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 	}
 	pods, _ := shared.GetPods(false)
 
-	cmd := fmt.Sprintf(`
-		kubectl get pods -n test-daemonset -o wide --kubeconfig="%s" \
-		| grep -A10 NODE | awk 'NR>1 {print $7}'
-		`,
-		shared.KubeConfigFile,
-	)
+	cmd := "kubectl get pods -n test-daemonset" +
+		` -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}'` +
+		" --kubeconfig=" + shared.KubeConfigFile
+
 	nodeNames, err := shared.RunCommandHost(cmd)
 	if err != nil {
 		GinkgoT().Errorf(err.Error())

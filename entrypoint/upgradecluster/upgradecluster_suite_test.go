@@ -15,14 +15,16 @@ import (
 
 var (
 	kubeconfig string
+	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
-	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
 	flag.Parse()
 
 	_, err := config.AddEnv()
@@ -45,7 +47,6 @@ func TestMain(m *testing.M) {
 
 func TestClusterUpgradeSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-
 	RunSpecs(t, "Upgrade Cluster Test Suite")
 }
 
