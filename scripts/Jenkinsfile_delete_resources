@@ -1,0 +1,116 @@
+#!groovy
+
+node {
+//   def job_name = "${JOB_NAME}"
+//   if (job_name.contains('/')) {
+//     job_names = job_name.split('/')
+//     job_name = job_names[job_names.size() - 1]
+//   }
+
+//   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
+//   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+//   def envFile = ".env"
+  def branch = "main"
+  if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
+    branch = "${env.BRANCH}"
+  }
+
+  def repo = scm.userRemoteConfigs
+  if ("${env.REPO}" != "null" && "${env.REPO}" != "") {
+    repo = [
+      [url: "${env.REPO}"]
+    ]
+  }
+  def timeout = "60m"
+  if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
+    timeout = "${env.TIMEOUT}"
+  }
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
+    withFolderProperties {
+      paramsMap = []
+      params.each {
+        if (it.value && it.value.trim() != "") {
+          paramsMap << "$it.key=$it.value"
+        }
+      }
+      withCredentials([
+
+        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        // string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
+        // string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
+        // string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD')
+      ]) {
+        withEnv(paramsMap) {
+          stage('Checkout') {
+            deleteDir()
+            checkout([
+              $class: 'GitSCM',
+              branches: [
+                [name: "*/${branch}"]
+              ],
+              extensions: scm.extensions + [
+                [$class: 'CleanCheckout']
+              ],
+              userRemoteConfigs: repo
+            ])
+          }
+          dir("./") {
+            // try {
+                stage('Delete Resources'){
+                    sh "./scripts/delete_jenkins_resources.sh -r ${RESOURCE_PREFIX_LIST}"
+                }
+            //   stage('Configure') {
+            //     if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
+            //       dir("./config/.ssh") {
+            //         def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
+            //         writeFile file: "aws_key.pem", text: decoded
+            //       }
+            //     }
+            //     // dir("./config") {
+            //     //   //update product info
+            //     //   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nKUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\n"
+            //     //   writeFile(file: '.env', text: data)
+            //     //   //update tfvars file
+            //     //   def filename = "${env.PRODUCT_NAME}.tfvars"
+            //     //   def version_param_name = "${env.PRODUCT_NAME}_version"
+            //     //   def channel_param_name = "${env.PRODUCT_NAME}_channel"                  
+            //     //   def configContents = env.TFVARS
+            //     //   writeFile file: filename, text: configContents +
+            //     //     "\n${version_param_name} = \"${INSTALL_VERSION}\"" + 
+            //     //     "\n${channel_param_name} = \"${INSTALL_CHANNEL}\"" +
+            //     //     "\ninstall_mode = \"${INSTALL_MODE}\"" +            
+            //     //     "\npassword = \"" + RKE2_RHEL_PASSWORD + "\"" +
+            //     //     "\nkey_name = \"" + AWS_SSH_KEY_NAME + "\"" +
+            //     //     "\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"" +
+            //     //     "\nresource_name = \"" + HOSTNAME_PREFIX + "\""
+            //     //   def testdata = readFile(file: filename)
+            //     //   println("\n\nTFVARS TEST DATA")
+            //     //   println(testdata)
+            //     // }
+            //     // sh "./scripts/configure.sh"
+            //     // sh "./scripts/build.sh"
+            //   }
+
+            // stage('Run TestCombination') {
+            //   withEnv(["TEST_ARGS=${TEST_ARGS}"]) {
+            //     sh """
+            //     docker run --name ${testContainer} -t --env-file ${envFile} --env-file ./config/.env --env TEST_ARGS='${TEST_ARGS}' ${imageName} sh -c \\
+            //     "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=${timeout} -v ./${TEST_DIRECTORY}/... ${TEST_ARGS.replace("\"", "\\\"")}"
+            //      """
+            //     }
+            //   }
+            // } finally {
+            // //   stage('Cleanup') {
+            // //     // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+            // //     sh "docker stop ${testContainer} || true"
+            // //     sh "docker rm -v ${testContainer} || true"
+            // //     sh "docker rmi -f ${imageName} || true"
+            // //   }
+            // } // finally
+          } // dir
+        } // withEnv
+      } // withCredentials
+    } // withFolderProperties
+  } // wrap
+} // node
