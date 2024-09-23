@@ -22,7 +22,7 @@ echo "$image_files"
 for image_file in $image_files; do
   while read -r line; do
     if [[ "$line" =~ "docker" ]]; then
-      line=$("${line/docker.io\/}")
+      line="${line/docker.io\/}"
     fi
     docker pull "$line"
     docker image tag "$line" "$hostdns"/"$line"

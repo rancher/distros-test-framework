@@ -11,70 +11,73 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// SetupPrivateRegistry sets bastion node as private registry.
 func SetupPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
 	_, err := getArtifacts(cluster, flags)
 	Expect(err).To(BeNil())
 
+	shared.LogLevel("info", "Setting up bastion node as private registry...")
 	bastionAsPrivateRegistry(cluster, flags)
+	shared.LogLevel("info", "Running Docker ops script on bastion...")
 	dockerActions(cluster, flags)
 
-	pwd, err := shared.RunCommandOnNode("pwd", cluster.GeneralConfig.BastionIP)
+	pwd, err := shared.RunCommandOnNode("pwd", cluster.BastionConfig.PublicIPv4Addr)
 	Expect(err).To(BeNil())
 
 	regMap := map[string]string{
-		"$PRIVATE_REG": cluster.GeneralConfig.BastionDNS,
+		"$PRIVATE_REG": cluster.BastionConfig.PublicDNS,
 		"$USERNAME":    flags.AirgapFlag.RegistryUsername,
 		"$PASSWORD":    flags.AirgapFlag.RegistryPassword,
 		"$HOMEDIR":     pwd,
 	}
 
+	shared.LogLevel("info", "Updating registries.yaml and copying on bastion...")
 	updateRegistryFile(cluster, regMap)
 }
 
+// bastionAsPrivateRegistry executes private_registry.sh script.
 func bastionAsPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	shared.LogLevel("info", "Setting up bastion node as private registry...")
 	cmd := fmt.Sprintf(
 		"sudo chmod +x private_registry.sh && "+
 			`sudo ./private_registry.sh "%v" "%v" "%v"`,
 		flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
-		cluster.GeneralConfig.BastionDNS)
-	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+		cluster.BastionConfig.PublicDNS)
+	_, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	Expect(err).To(BeNil())
 }
 
+// dockerActions executes docker_ops.sh script.
 func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	shared.LogLevel("info", "Running Docker ops script on bastion...")
 	cmd := "sudo chmod +x docker_ops.sh && " +
 		fmt.Sprintf(
 			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v"`,
-			cluster.Config.Product, cluster.GeneralConfig.BastionDNS,
+			cluster.Config.Product, cluster.BastionConfig.PublicDNS,
 			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword)
-	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	_, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	Expect(err).To(BeNil())
 	shared.LogLevel("info", "Docker pull/tag/push completed!")
 }
 
+// CopyAssetsOnNodes copies all the assets from bastion to private nodes.
 func CopyAssetsOnNodes(cluster *shared.Cluster) {
-	shared.LogLevel("info", "Copying assets on all the nodes...")
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 
 	var wg sync.WaitGroup
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		nodeIP := nodeIP
-		go func() {
+		go func(nodeIP string) {
 			defer wg.Done()
 			copyAssets(cluster, nodeIP)
 			copyRegistry(cluster, nodeIP)
 			makeExecs(cluster, nodeIP)
-		}()
+		}(nodeIP)
 	}
 	wg.Wait()
-	shared.LogLevel("info", "Copying assets complete!")
 }
 
+// copyAssets copies assets from bastion to private node.
 func copyAssets(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)
@@ -96,17 +99,17 @@ func copyAssets(cluster *shared.Cluster, ip string) {
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.Config.Product,
 		cluster.AwsEc2.AwsUser, ip)
-	shared.LogLevel("info", "cmd: %v", cmd)
-	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	_, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	Expect(err).To(BeNil())
 }
 
+// copyRegistry copies registries.yaml from bastion on private node.
 func copyRegistry(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.AwsEc2.AwsUser, ip)
-	_, err := shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	_, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	Expect(err).To(BeNil())
 
 	cmd = fmt.Sprintf(
@@ -117,17 +120,19 @@ func copyRegistry(cluster *shared.Cluster, ip string) {
 	Expect(err).To(BeNil())
 }
 
+// CmdForPrivateNode command to run on private node via bastion.
 func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err error) {
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
 		ssPrefix("ssh", cluster.AwsEc2.KeyName),
 		cluster.AwsEc2.AwsUser, ip, cmd)
 	shared.LogLevel("info", serverCmd)
-	res, err = shared.RunCommandOnNode(serverCmd, cluster.GeneralConfig.BastionIP)
+	res, err = shared.RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
 }
 
+// getArtifacts executes get_artifacts.sh scripts.
 func getArtifacts(cluster *shared.Cluster, flags *customflag.FlagConfig) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
 	cmd := fmt.Sprintf(
@@ -135,11 +140,12 @@ func getArtifacts(cluster *shared.Cluster, flags *customflag.FlagConfig) (res st
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version,
 		cluster.Config.Arch, serverFlags, flags.AirgapFlag.TarballType)
-	res, err = shared.RunCommandOnNode(cmd, cluster.GeneralConfig.BastionIP)
+	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
 }
 
+// makeExecs gives permission to files that makes them executables.
 func makeExecs(cluster *shared.Cluster, ip string) {
 	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
 	if cluster.Config.Product == "k3s" {
@@ -150,6 +156,7 @@ func makeExecs(cluster *shared.Cluster, ip string) {
 	Expect(err).To(BeNil())
 }
 
+// ssPrefix adds prefix to shell commands.
 func ssPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {
 		shared.LogLevel("error", "Invalid shell command type: %v", cmdType)
@@ -161,13 +168,14 @@ func ssPrefix(cmdType, keyName string) (cmd string) {
 	return cmd
 }
 
+// updateRegistryFile updates registries.yaml file and copies to bastion node.
 func updateRegistryFile(cluster *shared.Cluster, regMap map[string]string) {
 	regPath := shared.BasePath() + "/modules/airgap/setup/registries.yaml"
 	err := shared.ReplaceFileContents(regPath, regMap)
 	Expect(err).To(BeNil(), err)
 
 	err = shared.RunScp(
-		cluster, cluster.GeneralConfig.BastionIP,
+		cluster, cluster.BastionConfig.PublicIPv4Addr,
 		[]string{regPath}, []string{"~/registries.yaml"})
 	Expect(err).To(BeNil(), err)
 }

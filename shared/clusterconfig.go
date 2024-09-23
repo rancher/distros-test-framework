@@ -31,7 +31,7 @@ type Cluster struct {
 	FQDN          string
 	Config        clusterConfig
 	AwsEc2        awsEc2Config
-	GeneralConfig generalConfig
+	BastionConfig bastionConfig
 }
 
 type awsEc2Config struct {
@@ -57,9 +57,9 @@ type clusterConfig struct {
 	ServerFlags      string
 }
 
-type generalConfig struct {
-	BastionIP  string
-	BastionDNS string
+type bastionConfig struct {
+	PublicIPv4Addr string
+	PublicDNS      string
 }
 
 type Node struct {
@@ -161,8 +161,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			ExternalDb:       os.Getenv("external_db"),
 			Arch:             os.Getenv("arch"),
 		},
-		GeneralConfig: generalConfig{
-			BastionIP: os.Getenv("BASTION_IP"),
+		BastionConfig: bastionConfig{
+			PublicIPv4Addr: os.Getenv("BASTION_IP"),
 		},
 	}, nil
 }

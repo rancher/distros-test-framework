@@ -17,9 +17,9 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
-	if cluster.GeneralConfig.BastionIP != "" {
-		shared.LogLevel("info", "Bastion Node IP: "+cluster.GeneralConfig.BastionIP)
-		shared.LogLevel("info", "Bastion Node DNS: "+cluster.GeneralConfig.BastionDNS)
+	if cluster.BastionConfig.PublicIPv4Addr != "" {
+		shared.LogLevel("info", "Bastion Public IP: "+cluster.BastionConfig.PublicIPv4Addr)
+		shared.LogLevel("info", "Bastion Public DNS: "+cluster.BastionConfig.PublicDNS)
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
@@ -32,10 +32,10 @@ func TestBuildPrivateCluster(cluster *shared.Cluster) {
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	support.SetupPrivateRegistry(cluster, flags)
+	shared.LogLevel("info", "Copying assets on all the nodes...")
 	support.CopyAssetsOnNodes(cluster)
 	installOnServers(cluster)
 	installOnAgents(cluster)
-	displayClusterInfo(cluster)
 }
 
 func installOnServers(cluster *shared.Cluster) {
@@ -81,10 +81,10 @@ func installOnAgents(cluster *shared.Cluster) {
 	}
 }
 
-func displayClusterInfo(cluster *shared.Cluster) {
+func DisplayClusterInfo(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
 		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser,
-		cluster.GeneralConfig.BastionIP)
+		cluster.BastionConfig.PublicIPv4Addr)
 	cmd := fmt.Sprintf(
 		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
 			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
@@ -93,5 +93,5 @@ func displayClusterInfo(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Running command in private server-1: "+cmd)
 	clusterInfo, err := support.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	Expect(err).To(BeNil())
-	shared.LogLevel("info", "\n\n"+clusterInfo)
+	shared.LogLevel("info", "\n"+clusterInfo)
 }

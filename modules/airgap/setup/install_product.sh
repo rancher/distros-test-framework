@@ -29,6 +29,15 @@ add_to_config() {
     fi
   fi
 
+  if [[ "$flags" != *"cloud-provider-name"* ]]; then
+    if [ -n "$node_ip" ]; then
+      echo "node-ip: $node_ip" >>/etc/rancher/"$product"/config.yaml
+    fi
+    if [[ "$node_ip" =~ ":" ]]; then
+      server_ip="[$server_ip]"
+    fi
+  fi
+
   if [ -n "$server_ip" ]; then
     if [[ "$product" == "k3s" ]]; then
       echo "server: 'https://$server_ip:6443'" >>/etc/rancher/"$product"/config.yaml
@@ -44,14 +53,6 @@ add_to_config() {
     echo -e "$flags" >>/etc/rancher/"$product"/config.yaml
   fi
 
-  if [[ "$flags" != *"cloud-provider-name"* ]]; then
-    if [ -n "$node_ip" ]; then
-      echo "node-ip: $node_ip" >>/etc/rancher/"$product"/config.yaml
-    fi
-    if [[ "$node_ip" =~ ":" ]]; then
-      server_ip="[$server_ip]"
-    fi
-  fi
   cat /etc/rancher/"$product"/config.yaml
 }
 
