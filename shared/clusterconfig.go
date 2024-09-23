@@ -53,10 +53,13 @@ type clusterConfig struct {
 	DataStore        string
 	Product          string
 	Arch             string
+	Version          string
+	ServerFlags      string
 }
 
 type generalConfig struct {
-	BastionIP string
+	BastionIP        string
+	BastionDNS       string
 }
 
 type Node struct {
@@ -167,7 +170,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster() (*Cluster, error) {
 	product := os.Getenv("ENV_PRODUCT")
-	terraformOptions, varDir, err := addTerraformOptions(product)
+	module := os.Getenv("ENV_MODULE")
+	terraformOptions, varDir, err := addTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +208,7 @@ func newCluster() (*Cluster, error) {
 		return nil, err
 	}
 
-	c, err := loadTFconfig(t, varDir, terraformOptions, product)
+	c, err := loadTFconfig(t, varDir, terraformOptions, product, module)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,7 @@ resource "aws_instance" "bastion" {
     private_key   = file(var.access_key)
   }
   root_block_device {
-    volume_size          = "20"
+    volume_size          = var.volume_size
     volume_type          = "standard"
   }
   subnet_id              = var.bastion_subnets

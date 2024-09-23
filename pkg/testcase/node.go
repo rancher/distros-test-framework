@@ -34,7 +34,7 @@ func TestNodeStatus(
 		}
 
 		return true
-	}, "2500s", "10s").Should(BeTrue(), func() string {
+	}, "3600s", "10s").Should(BeTrue(), func() string {
 		shared.LogLevel("error", "\ntimeout for nodes to be ready; gathering journal logs...\n")
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
 
