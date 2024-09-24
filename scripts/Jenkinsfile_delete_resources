@@ -60,12 +60,12 @@ node {
                   def data = "ENV_PRODUCT=k3s\nENV_TFVARS=k3s.tfvars\n"
                   writeFile(file: '.env', text: data)       
                 }
-                dir("~/.aws") {
+                dir("./.aws") {
                   writeFile file: 'credentials', text: '[default]' +
-                    "\naws_access_key_id = \"${AWS_ACCESS_KEY_ID}\"" + 
-                    "\naws_secret_access_key = \"${AWS_SECRET_ACCESS_KEY}\""
+                    "\naws_access_key_id = ${AWS_ACCESS_KEY_ID}" + 
+                    "\naws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}"
                   writeFile file: 'config', text: '[default]' +
-                    "\nregion = \"${REGION}\"" + 
+                    "\nregion = ${REGION}" + 
                     "\noutput = yaml" 
                 }
                 sh "./scripts/configure.sh"
@@ -74,7 +74,7 @@ node {
             stage('Delete Resources') {
                 sh """
                 docker run --name ${testContainer} -t ${imageName} sh -c \\
-                "cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST}"
+                "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST}"
                  """
               } // stage Delete resources
             } finally {
