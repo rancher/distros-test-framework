@@ -194,7 +194,7 @@ func newCluster() (*Cluster, error) {
 	))
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error getting no_of_worker_nodes from var file: %w\n", err)
+			"error getting no_of_worker_nodes from var file: %w", err)
 	}
 
 	LogLevel("info", "Applying Terraform config and Creating cluster\n")
@@ -232,12 +232,17 @@ func DestroyCluster() (string, error) {
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
-		return "", fmt.Errorf("invalid product: %s\n", cfg.Product)
+		return "", fmt.Errorf("invalid product: %s", cfg.Product)
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + cfg.Product)
+	prodOrMod := cfg.Product
+	if cfg.Module != "" {
+		prodOrMod = cfg.Module
+	}
+
+	tfDir, err := filepath.Abs(dir + "/modules/" + prodOrMod)
 	if err != nil {
-		return "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
+		return "", fmt.Errorf("no module found for product: %s", cfg.Product)
 	}
 
 	terraformOptions := terraform.Options{
