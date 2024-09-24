@@ -1,6 +1,15 @@
 #!groovy
 
 node {
+  def job_name = "${JOB_NAME}"
+  if (job_name.contains('/')) {
+    job_names = job_name.split('/')
+    job_name = job_names[job_names.size() - 1]
+  }
+
+  def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
+  def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+  def envFile = ".env"
   def branch = "main"
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
@@ -27,31 +36,49 @@ node {
       withCredentials([
 
         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
       ]) {
-        withAWS(region:"${env.REGION}") {
-          withEnv(paramsMap) {
-            stage('Checkout') {
-              deleteDir()
-              checkout([
-                $class: 'GitSCM',
-                branches: [
-                  [name: "*/${branch}"]
-                ],
-                extensions: scm.extensions + [
-                  [$class: 'CleanCheckout']
-                ],
-                userRemoteConfigs: repo
-              ])
-            }
-            dir("./") {
-              // try {
-              stage('Delete Resources'){
-                  sh "./scripts/delete_jenkins_resources.sh -r ${RESOURCE_PREFIX_LIST}"
+        withEnv(paramsMap) {
+          stage('Checkout') {
+            deleteDir()
+            checkout([
+              $class: 'GitSCM',
+              branches: [
+                [name: "*/${branch}"]
+              ],
+              extensions: scm.extensions + [
+                [$class: 'CleanCheckout']
+              ],
+              userRemoteConfigs: repo
+            ])
+          }
+          dir("./") {
+            try {
+              stage('Configure and Build') {
+                dir("./config") {
+                  //update product info
+                  def data = "ENV_PRODUCT=k3s\nENV_TFVARS=k3s.tfvars\n"
+                  writeFile(file: '.env', text: data)
+                }
+                sh "./scripts/configure.sh"
+                sh "./scripts/build.sh"
               }
-            } // dir
-          } // withEnv
-        } // withAWS
+            stage('Delete Resources') {
+                sh """
+                docker run --name ${testContainer} -t ${imageName} sh -c \\
+                "cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST}"
+                 """
+              } // stage Delete resources
+            } finally {
+              stage('Cleanup') {
+                // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+                sh "docker stop ${testContainer} || true"
+                sh "docker rm -v ${testContainer} || true"
+                sh "docker rmi -f ${imageName} || true"
+              }
+            } // finally
+          } // dir
+        } // withEnv
       } // withCredentials
     } // withFolderProperties
   } // wrap
