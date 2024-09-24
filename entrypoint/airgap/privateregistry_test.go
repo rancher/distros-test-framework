@@ -9,32 +9,32 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
-	It("Creates bastion and private nodes", func() {
-		testcase.TestBuildPrivateCluster(cluster)
+var _ = Describe("Test Airgap cluster with Private Registry:", func() {
+	It("Creates bastion and airgapped nodes", func() {
+		testcase.TestBuildAirgapCluster(cluster)
 	})
 
-	It("Installs product on private nodes", func() {
+	It("Installs product on airgapped nodes", func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 
-	It("Validates Private Nodes", func() {
-		testcase.TestPrivateNodeStatus(
+	It("Validates Nodes", func() {
+		testcase.TestAirgapClusterNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validates Private Pods", func() {
-		testcase.TestPrivatePodStatus(
+	It("Validates Pods", func() {
+		testcase.TestAirgapClusterPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
 	It("Displays cluster details", func() {
-		testcase.DisplayClusterInfo(cluster)
+		testcase.DisplayAirgapClusterDetails(cluster)
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip

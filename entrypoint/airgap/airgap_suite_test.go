@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	flags      *customflag.FlagConfig
-	kubeconfig string
-	cluster    *shared.Cluster
+	flags   *customflag.FlagConfig
+	cluster *shared.Cluster
 )
 
 func TestMain(m *testing.M) {
@@ -33,14 +32,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	kubeconfig = os.Getenv("KUBE_CONFIG")
-	if kubeconfig == "" {
-		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
-	} else {
-		// gets a cluster from kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
+	// TODO: Implement using kubeconfig for airgap setup
+	cluster = shared.ClusterConfig()
 
 	os.Exit(m.Run())
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -52,8 +51,8 @@ func TestNodeStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestPrivateNodeStatus test the status of the nodes in the private cluster using 2 custom assert functions.
-func TestPrivateNodeStatus(
+// TestAirgapClusterNodeStatus test the status of the nodes in the private cluster using 2 custom assert functions.
+func TestAirgapClusterNodeStatus(
 	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
@@ -91,7 +90,7 @@ func getPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {
 			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
 		cluster.Config.Product)
 	cmd += "kubectl get nodes -o wide --no-headers"
-	nodeDetails, err = support.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	nodeDetails, err = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 
 	return nodeDetails, err
 }

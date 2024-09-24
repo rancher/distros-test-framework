@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -38,8 +37,8 @@ func TestPodStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestPrivatePodStatus test the status of the pods in the private cluster using custom assert functions.
-func TestPrivatePodStatus(
+// TestAirgapClusterPodStatus test the status of the pods in the private cluster using custom assert functions.
+func TestAirgapClusterPodStatus(
 	cluster *shared.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
@@ -62,7 +61,7 @@ func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
 			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
 		cluster.Config.Product)
 	cmd += "kubectl get pods -A -o wide --no-headers"
-	podDetails, _ = support.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	podDetails, _ = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 
 	return podDetails
 }
