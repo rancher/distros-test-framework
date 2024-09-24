@@ -113,7 +113,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "airgap" ]; then
         declare -a OPTS
         if [ "${TEST_TAG}" = "privateregistry" ]; then
-          OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}")
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy ${DESTROY})
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
             # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")

@@ -18,7 +18,6 @@ var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 
-	// TODO: Validate nodes, pods
 	It("Validates Private Nodes", func() {
 		testcase.TestPrivateNodeStatus(
 			cluster,
@@ -38,10 +37,7 @@ var _ = Describe("Test Airgap Cluster with Private Registry:", func() {
 		testcase.DisplayClusterInfo(cluster)
 	})
 
-	// TODO: Validate images available from private registry
-
 	// TODO: Validate deployment, eg: cluster-ip
-
 })
 
 var _ = AfterEach(func() {

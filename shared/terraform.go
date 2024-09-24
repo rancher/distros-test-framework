@@ -9,22 +9,29 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
+	"github.com/rancher/distros-test-framework/config"
 )
 
-func addTerraformOptions(product, module string) (*terraform.Options, string, error) {
+func setTerraformOptions() (*terraform.Options, string, error) {
+	cfg, err := config.AddEnv()
+	if err != nil {
+		return nil, "", err
+	}
+
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", product))
+		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid product: %s", product)
+		return nil, "", fmt.Errorf("invalid product: %s", cfg.Product)
 	}
 
-	prodOrMod := product
-	if module != "" {
-		prodOrMod = module
+	prodOrMod := cfg.Product
+	if cfg.Module != "" {
+		prodOrMod = cfg.Module
 	}
+
 	tfDir, err := filepath.Abs(dir + "/modules/" + prodOrMod)
 	if err != nil {
 		return nil, "", fmt.Errorf("no module found for product: %s", prodOrMod)
@@ -42,14 +49,16 @@ func loadTFconfig(
 	t *testing.T,
 	varDir string,
 	terraformOptions *terraform.Options,
-	product string,
-	module string,
 ) (*Cluster, error) {
 	c := &Cluster{}
+	cfg, err := config.AddEnv()
+	if err != nil {
+		return nil, err
+	}
 
-	loadTFoutput(t, terraformOptions, c, module)
+	loadTFoutput(t, terraformOptions, c, cfg.Module)
 	loadAwsEc2(t, varDir, c)
-	if product == "rke2" {
+	if cfg.Product == "rke2" {
 		loadWinTFCfg(t, varDir, terraformOptions, c)
 	}
 
@@ -58,7 +67,7 @@ func loadTFconfig(
 		c.Config.Arch = "arm64"
 	}
 	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
-	c.Config.Product = product
+	c.Config.Product = cfg.Product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
 
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")

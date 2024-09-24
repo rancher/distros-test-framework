@@ -3,15 +3,12 @@ package shared
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
@@ -169,9 +166,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster() (*Cluster, error) {
-	product := os.Getenv("ENV_PRODUCT")
-	module := os.Getenv("ENV_MODULE")
-	terraformOptions, varDir, err := addTerraformOptions(product, module)
+	terraformOptions, varDir, err := setTerraformOptions()
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +203,7 @@ func newCluster() (*Cluster, error) {
 		return nil, err
 	}
 
-	c, err := loadTFconfig(t, varDir, terraformOptions, product, module)
+	c, err := loadTFconfig(t, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -222,34 +217,11 @@ func newCluster() (*Cluster, error) {
 
 // DestroyCluster destroys the cluster and returns it.
 func DestroyCluster() (string, error) {
-	cfg, err := config.AddEnv()
+	terraformOptions, _, err := setTerraformOptions()
 	if err != nil {
 		return "", err
 	}
-
-	_, callerFilePath, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
-	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
-	if err != nil {
-		return "", fmt.Errorf("invalid product: %s", cfg.Product)
-	}
-
-	prodOrMod := cfg.Product
-	if cfg.Module != "" {
-		prodOrMod = cfg.Module
-	}
-
-	tfDir, err := filepath.Abs(dir + "/modules/" + prodOrMod)
-	if err != nil {
-		return "", fmt.Errorf("no module found for product: %s", cfg.Product)
-	}
-
-	terraformOptions := terraform.Options{
-		TerraformDir: tfDir,
-		VarFiles:     []string{varDir},
-	}
-	terraform.Destroy(&testing.T{}, &terraformOptions)
+	terraform.Destroy(&testing.T{}, terraformOptions)
 
 	return "cluster destroyed", nil
 }
