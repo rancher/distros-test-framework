@@ -50,7 +50,7 @@ func TestClusterResetRestoreS3Snapshot(
 
 	fmt.Println("\ntoken: ", clusterToken)
 
-	// stopInstances()
+	// stopInstances(cluster)
 	// create fresh new VM and install K3s/RKE2 using RunCommandOnNode
 	// createNewServer(cluster)
 
@@ -91,6 +91,8 @@ func takeS3Snapshot(
 	Expect(takeSnapshotRes).To(ContainSubstring("Snapshot on-demand"))
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
 
+	// add validation that the s3 folder has been created
+
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
@@ -103,18 +105,14 @@ func takeS3Snapshot(
 
 func stopInstances(
 	cluster *shared.Cluster,
-	a *aws.Client,
 ) {
-	for i := 0; i < len(cluster.ServerIPs); i++ {
-		a.StopInstance(cluster.ServerIPs[i])
-	}
 
 }
 
 func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddAWSClient(cluster)
+	awsDependencies, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.
