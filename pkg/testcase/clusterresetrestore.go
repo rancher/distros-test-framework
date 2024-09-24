@@ -3,7 +3,6 @@ package testcase
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
@@ -51,9 +50,10 @@ func TestClusterResetRestoreS3Snapshot(
 
 	fmt.Println("\ntoken: ", clusterToken)
 
-	stopInstances()
+	// stopInstances()
 	// create fresh new VM and install K3s/RKE2 using RunCommandOnNode
 	createNewServer(cluster)
+
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 	restoreS3Snapshot(
@@ -101,6 +101,45 @@ func takeS3Snapshot(
 
 }
 
+func stopInstances(
+	cluster *shared.Cluster,
+	a *aws.Client,
+) {
+	for i := 0; i < len(cluster.ServerIPs); i++ {
+		a.StopInstance(cluster.ServerIPs[i])
+	}
+
+}
+
+func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
+
+	resourceName := os.Getenv("resource_name")
+	awsDependencies, err := aws.AddAWSClient(cluster)
+	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+
+	// create server names.
+	var serverName []string
+
+	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
+
+	externalServerIp, _, _, createErr :=
+		awsDependencies.CreateInstances(serverName...)
+	Expect(createErr).NotTo(HaveOccurred(), createErr)
+
+	return externalServerIp
+}
+
+// func installProduct(cluster *share.cluster) {
+// 	version := cluster.Config.Version
+// 	if cluster.Config.Product == "k3s" {
+// 		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -", version)
+// 	} else {
+// 		installCmd := fmt.Sprintf("curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION=%s sh -", version)
+// 	}
+
+// 	installRes, installCmdErr := shared.RunCommandOnNode(installCmd, cluster.ServerIPs[0])
+// }
+
 func restoreS3Snapshot(
 	cluster *shared.Cluster,
 	s3Bucket,
@@ -122,40 +161,6 @@ func restoreS3Snapshot(
 	Expect(resetCmdErr).NotTo(HaveOccurred())
 	Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
 	Expect(resetRes).To(ContainSubstring("has been reset"))
-}
-
-func stopInstances()
-
-func createNewServer(cluster *shared.Cluster) {
-	
-	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddAWSClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
-
-	// create server names.
-	var (
-		serverName,
-		instanceServerId,
-		newExternalServerIp,
-		newPrivateServerIp,
-	)
-		
-	
-	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))	
-
-	var createErr error
-	newExternalServerIp, newPrivateServerIp, instanceServerId, createErr =
-		awsDependencies.CreateInstances(serverName...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
-}
-
-// make sure the workload you deployed after the snapshot isn't present after the restore snapshot
-
-func installProduct(cluster *share.cluster) {
-	version := cluster.Config.Version
-	if cluster.Config.Product == "k3s" {
-		installCmd := fmt.Sprint("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -")
-	}
 }
 
 // func deleteOldNodes() {
