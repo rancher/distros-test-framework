@@ -58,15 +58,15 @@ node {
                 dir("./config") {
                   //update product info
                   def data = "ENV_PRODUCT=k3s\nENV_TFVARS=k3s.tfvars\n"
-                  writeFile(file: '.env', text: data)
-                  awsCredentialsFile = "~/.aws/credentials"
-                  awsConfigFile = "~/.aws/config"
-                  writeFile file: awsCredentialsFile, text: '[default]' +
+                  writeFile(file: '.env', text: data)       
+                }
+                dir("~/.aws") {
+                  writeFile file: 'credentials', text: '[default]' +
                     "\naws_access_key_id = \"${AWS_ACCESS_KEY_ID}\"" + 
                     "\naws_secret_access_key = \"${AWS_SECRET_ACCESS_KEY}\""
-                  writeFile file: awsConfigFile, text: '[default]' +
+                  writeFile file: 'config', text: '[default]' +
                     "\nregion = \"${REGION}\"" + 
-                    "\noutput = yaml"        
+                    "\noutput = yaml" 
                 }
                 sh "./scripts/configure.sh"
                 sh "./scripts/build.sh"

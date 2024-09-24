@@ -24,7 +24,8 @@ RUN apk update && \
     export VERIFY_CHECKSUM=false && \
     curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
     rm -rf tmp && \
-    mkdir -p /root/.ssh
+    mkdir -p /root/.ssh && \
+    mkdir -p /root/.aws
 
 RUN aws --version   # Just to make sure its installed alright
 
