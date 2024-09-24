@@ -25,7 +25,7 @@ type response struct {
 	privateIp  string
 }
 
-func AddClient(c *shared.Cluster) (*Client, error) {
+func AddAWSClient(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.AwsEc2.Region)})
 	if err != nil {

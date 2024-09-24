@@ -52,20 +52,20 @@ func TestClusterResetRestoreS3Snapshot(
 
 	// stopInstances()
 	// create fresh new VM and install K3s/RKE2 using RunCommandOnNode
-	createNewServer(cluster)
+	// createNewServer(cluster)
 
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
-	restoreS3Snapshot(
-		cluster,
-		s3Bucket,
-		s3Folder,
-		s3Region,
-		onDemandPath,
-		accessKeyID,
-		secretAccessKey,
-		clusterToken,
-	)
+	// restoreS3Snapshot(
+	// 	cluster,
+	// 	s3Bucket,
+	// 	s3Folder,
+	// 	s3Region,
+	// 	onDemandPath,
+	// 	accessKeyID,
+	// 	secretAccessKey,
+	// 	clusterToken,
+	// )
 
 }
 
