@@ -5,7 +5,7 @@ ENV TERRAFORM_VERSION $TF_VERSION
 
 RUN apk update && \
     apk upgrade --update-cache --available && \
-    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates && \
+    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli && \
     rm -rf /var/cache/apk/* && \
     if [ "$(uname -m)" = "aarch64" ]; then \
         KUBE_ARCH="linux/arm64" && \
@@ -25,6 +25,8 @@ RUN apk update && \
     curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
     rm -rf tmp && \
     mkdir -p /root/.ssh
+
+RUN aws --version   # Just to make sure its installed alright
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.55.2
 
