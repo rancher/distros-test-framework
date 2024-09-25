@@ -31,7 +31,7 @@ func TestPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2500s", "10s").Should(Succeed(), "failed to process pods status")
+	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
@@ -52,7 +52,7 @@ func TestAirgapClusterPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2500s", "10s").Should(Succeed(), "failed to process pods status")
+	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
 }
 
 func getPrivatePods(cluster *shared.Cluster) (podDetails string) {

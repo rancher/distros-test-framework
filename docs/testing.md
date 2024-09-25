@@ -127,12 +127,48 @@ BASTION_IP=<bastion public ip> when testing Dual-Stack
 
  ### Testing Reboot instances with EIP ###
 
-- Required vars for in `*.tfvars` file:
+- Required vars in `*.tfvars` file:
 ```
  create_eip =   true
- ```
+```
 - Optional vars for in `.env` file: Will be to not release EIPs after the test, so you can reuse the kubeconfig file.
 Please note that using this option set to `false` you will need to manually release the EIPs.
  ```
  RELEASE_EIP=false
  ```
+
+### Testing airgap cluster with private registry
+
+- Required vars in `*.tfvars` file:
+```
+enable_public_ip     = false
+enable_ipv6          = false
+no_of_bastion_nodes  = 1
+bastion_subnets      = "<ipv4-subnet>"
+```
+#### For local/docker
+
+- Required vars in `.env` file:
+- `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
+- `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
+```
+ENV_MODULE=airgap
+TEST_DIR=airgap
+TEST_TAG=privateregistry
+```
+- Optional vars in `.env` file:
+```
+REGISTRY_USERNAME=testuser
+REGISTRY_PASSWORD=testpass432
+```
+
+#### For Jenkins
+
+- `MODULE` should be `airgap`
+- `TEST_DIR` should be `airgap`
+- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432`
+
+#### Not supported ATM:
+- RPM installs for rke2
+- ExternalDB setup
+- Split roles

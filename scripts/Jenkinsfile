@@ -66,15 +66,9 @@ node {
                 }
                 dir("./config") {
                   //update product info
-                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nLOG_LEVEL=${env.LOG_LEVEL}\n"
+                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nKUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\n"
                   def version_param_name = ""
                   def channel_param_name = ""
-                  if (env.KUBECONFIG && env.KUBE_CONFIG != "") {
-                    data += "\nKUBE_CONFIG=${env.KUBE_CONFIG}"
-                  }
-                  if (env.BASTION_IP && env.BASTION_IP != "") {
-                    data += "\nBASTION_IP=${env.BASTION_IP}"
-                  }
                   if (env.MODULE && env.MODULE != "") {
                     data += "ENV_MODULE=${env.MODULE}\n"
                     version_param_name = "install_version"

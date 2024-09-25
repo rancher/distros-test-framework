@@ -104,10 +104,10 @@ func CopyAssetsOnNodes(cluster *Cluster) error {
 	close(errChan)
 
 	for err := range errChan {
-        if err != nil {
-            return err 
-        }
-    }
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
