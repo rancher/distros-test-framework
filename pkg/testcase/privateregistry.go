@@ -31,10 +31,12 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "Setting bastion as private registry...")
-	shared.SetupPrivateRegistry(cluster, flags)
+	err := shared.SetupPrivateRegistry(cluster, flags)
+	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	shared.CopyAssetsOnNodes(cluster)
+	err = shared.CopyAssetsOnNodes(cluster)
+	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
 	installOnServers(cluster)
@@ -77,7 +79,7 @@ func installOnServers(cluster *shared.Cluster) {
 func installOnAgents(cluster *shared.Cluster) {
 	agentFlags := os.Getenv("worker_flags")
 	for idx, agentIP := range cluster.AgentIPs {
-		shared.LogLevel("info", "Install %v on agent-%v...", cluster.Config.Product, idx+1)
+		shared.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
 			"sudo chmod +x install_product.sh; "+
 				`sudo ./install_product.sh "%v" "%v" "%v" "agent" "%v" "%v"`,

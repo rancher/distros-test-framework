@@ -6,26 +6,32 @@ import (
 	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-
-	. "github.com/onsi/gomega"
 )
 
 // SetupPrivateRegistry sets bastion node as private registry.
-func SetupPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) {
+func SetupPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) error {
 	LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
 	_, err := getArtifacts(cluster, flags)
-	Expect(err).To(BeNil(), err)
+	if err != nil {
+		return fmt.Errorf("error downloading artifacts: %w", err)
+	}
 
 	LogLevel("info", "Adding private registry...")
 	err = bastionAsPrivateRegistry(cluster, flags)
-	Expect(err).To(BeNil(), err)
+	if err != nil {
+		return fmt.Errorf("error adding private registry: %w", err)
+	}
 
 	LogLevel("info", "Executing Docker pull/tag/push...")
 	err = dockerActions(cluster, flags)
-	Expect(err).To(BeNil(), err)
+	if err != nil {
+		return fmt.Errorf("error performing docker actions: %w", err)
+	}
 
 	pwd, err := RunCommandOnNode("pwd", cluster.BastionConfig.PublicIPv4Addr)
-	Expect(err).To(BeNil())
+	if err != nil {
+		return fmt.Errorf("error running pwd command: %w", err)
+	}
 	regMap := map[string]string{
 		"$PRIVATE_REG": cluster.BastionConfig.PublicDNS,
 		"$USERNAME":    flags.AirgapFlag.RegistryUsername,
@@ -35,7 +41,11 @@ func SetupPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) {
 
 	LogLevel("info", "Updating and copying registries.yaml on bastion...")
 	err = updateRegistryFile(cluster, regMap)
-	Expect(err).To(BeNil())
+	if err != nil {
+		return fmt.Errorf("error updating/copying registries.yaml: %w", err)
+	}
+
+	return err
 }
 
 // bastionAsPrivateRegistry executes private_registry.sh script.
@@ -63,7 +73,7 @@ func dockerActions(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
 }
 
 // CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *Cluster) {
+func CopyAssetsOnNodes(cluster *Cluster) error {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 
@@ -92,6 +102,14 @@ func CopyAssetsOnNodes(cluster *Cluster) {
 
 	wg.Wait()
 	close(errChan)
+
+	for err := range errChan {
+        if err != nil {
+            return err 
+        }
+    }
+
+	return nil
 }
 
 // copyAssets copies assets from bastion to private node.
@@ -128,7 +146,9 @@ func copyRegistry(cluster *Cluster, ip string) (err error) {
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.AwsEc2.AwsUser, ip)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
-	Expect(err).To(BeNil())
+	if err != nil {
+		return fmt.Errorf("error scp-ing registries.yaml on airgapped node: %v, \nerr: %w", ip, err)
+	}
 
 	cmd = fmt.Sprintf(
 		"sudo mkdir -p /etc/rancher/%[1]v && "+
@@ -176,6 +196,24 @@ func makeExecs(cluster *Cluster, ip string) (err error) {
 	return err
 }
 
+// updateRegistryFile updates registries.yaml file and copies to bastion node.
+func updateRegistryFile(cluster *Cluster, regMap map[string]string) (err error) {
+	regPath := BasePath() + "/modules/airgap/setup/registries.yaml"
+	err = ReplaceFileContents(regPath, regMap)
+	if err != nil {
+		return fmt.Errorf("error replacing registries.yaml contents: %w", err)
+	}
+
+	err = RunScp(
+		cluster, cluster.BastionConfig.PublicIPv4Addr,
+		[]string{regPath}, []string{"~/registries.yaml"})
+	if err != nil {
+		return fmt.Errorf("error scp-ing registries.yaml on bastion: %w", err)
+	}
+
+	return nil
+}
+
 // ssPrefix adds prefix to shell commands.
 func ssPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {
@@ -186,17 +224,4 @@ func ssPrefix(cmdType, keyName string) (cmd string) {
 		keyName)
 
 	return cmd
-}
-
-// updateRegistryFile updates registries.yaml file and copies to bastion node.
-func updateRegistryFile(cluster *Cluster, regMap map[string]string) (err error) {
-	regPath := BasePath() + "/modules/airgap/setup/registries.yaml"
-	err = ReplaceFileContents(regPath, regMap)
-	Expect(err).To(BeNil(), err)
-
-	err = RunScp(
-		cluster, cluster.BastionConfig.PublicIPv4Addr,
-		[]string{regPath}, []string{"~/registries.yaml"})
-
-	return err
 }
