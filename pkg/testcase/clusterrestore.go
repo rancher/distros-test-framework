@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -27,7 +28,7 @@ func TestClusterRestoreS3(
 	s3Folder := os.Getenv("S3_FOLDER")
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	s3Region := cluster.AwsEc2.Region
+	s3Region := ""
 
 	takeS3Snapshot(
 		cluster,
@@ -60,7 +61,7 @@ func TestClusterRestoreS3(
 	stopAgentInstance(cluster)
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddEc2Client(cluster)
+	awsDependencies, err := aws.AddEC2Client(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.
@@ -89,6 +90,19 @@ func TestClusterRestoreS3(
 	// 	secretAccessKey,
 	// 	clusterToken,
 	// )
+}
+
+func TestS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	s3Config := shared.AwsS3Config{
+		AccessKey: os.Getenv("access_key"),
+		Region: os.Getenv("region"),
+		Bucket: flags.S3Flags.Bucket,
+		Folder: flags.S3Flags.Folder,
+	}
+	s3Client, err := aws.AddS3Client(s3Config)
+	Expect(err).NotTo(HaveOccurred(), "error creating s3 client: %s", err)
+
+	s3Client.GetObjects(s3Config)
 }
 
 // perform snapshot and list snapshot commands -- deploy workloads after snapshot [apply workload]
@@ -127,7 +141,7 @@ func takeS3Snapshot(
 
 func stopServerInstances(cluster *shared.Cluster) {
 
-	awsDependencies, err := aws.AddEc2Client(cluster)
+	awsDependencies, err := aws.AddEC2Client(cluster)
 	Expect(err).NotTo(HaveOccurred())
 	// stop server Instances
 	for i := 0; i < len(cluster.ServerIPs); i++ {
@@ -141,7 +155,7 @@ func stopServerInstances(cluster *shared.Cluster) {
 
 func stopAgentInstance(cluster *shared.Cluster) {
 	// stop agent Instances
-	awsDependencies, err := aws.AddEc2Client(cluster)
+	awsDependencies, err := aws.AddEC2Client(cluster)
 	Expect(err).NotTo(HaveOccurred())
 
 	agentInstanceIDs, agentInstanceIDsErr := awsDependencies.GetInstanceIDByIP(cluster.AgentIPs[0])
@@ -153,13 +167,12 @@ func stopAgentInstance(cluster *shared.Cluster) {
 func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddEc2Client(cluster)
+	awsDependencies, err := aws.AddEC2Client(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.
 	var serverName []string
-
-	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
+	serverName = append(serverName, resourceName+"-server1-new")
 
 	externalServerIP, _, _, createErr :=
 		awsDependencies.CreateInstances(serverName...)

@@ -16,7 +16,7 @@ function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
        certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|\
-       clusterresetrestore)
+       clusterrestore)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -100,8 +100,10 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
-    elif [ "${TEST_DIR}" = "clusterresetrestore" ]; then
-        go test -timeout=120m -v -count=1 ./entrypoint/clusterresetrestore/...
+    elif [ "${TEST_DIR}" = "clusterrestore" ]; then
+        if [ "${TEST_TAG}" = "clusterrestores3" ]; then
+            go test -timeout=120m -v -count=1 ./entrypoint/clusterrestore/... -destroy "${DESTROY}"
+        fi
     fi
 fi
 }

@@ -30,12 +30,11 @@ type Cluster struct {
 	NumAgents     int
 	FQDN          string
 	Config        clusterConfig
-	AwsEc2        awsEc2Config
+	AwsEC2        AwsEC2Config
 	GeneralConfig generalConfig
-	AwsS3         awsS3Config
 }
 
-type awsEc2Config struct {
+type AwsEC2Config struct {
 	AccessKey        string
 	AwsUser          string
 	Ami              string
@@ -48,10 +47,11 @@ type awsEc2Config struct {
 	KeyName          string
 }
 
-type awsS3Config struct {
-	Bucket string
-	Region string
-	Folder string
+type AwsS3Config struct {
+	AccessKey string
+	Region    string
+	Bucket    string
+	Folder    string
 }
 
 type clusterConfig struct {
@@ -119,7 +119,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 	// if it is configureSSH() call then return the cluster with only aws key/user.
 	if nodes == nil {
 		return &Cluster{
-			AwsEc2: awsEc2Config{
+			AwsEC2: AwsEC2Config{
 				AccessKey: os.Getenv("access_key"),
 				AwsUser:   os.Getenv("aws_user"),
 			},
@@ -146,7 +146,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
-		AwsEc2: awsEc2Config{
+		AwsEC2: AwsEC2Config{
 			AccessKey:        os.Getenv("access_key"),
 			AwsUser:          os.Getenv("aws_user"),
 			Ami:              os.Getenv("aws_ami"),
@@ -235,12 +235,12 @@ func DestroyCluster() (string, error) {
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
 	if err != nil {
-		return "", fmt.Errorf("invalid product: %s\n", cfg.Product)
+		return "", fmt.Errorf("invalid product: %s", cfg.Product)
 	}
 
 	tfDir, err := filepath.Abs(dir + "/modules/" + cfg.Product)
 	if err != nil {
-		return "", fmt.Errorf("no module found for product: %s\n", cfg.Product)
+		return "", fmt.Errorf("no module found for product: %s", cfg.Product)
 	}
 
 	terraformOptions := terraform.Options{

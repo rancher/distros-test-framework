@@ -18,7 +18,7 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 	}
 
 	errChan := make(chan error, len(names))
-	resChan := make(chan ec2response, len(names))
+	resChan := make(chan ec2Response, len(names))
 	var wg sync.WaitGroup
 
 	for _, n := range names {
@@ -38,13 +38,13 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 				return
 			}
 
-			externalIp, privateIp, err := c.fetchIP(nodeID)
+			externalIP, privateIP, err := c.fetchIP(nodeID)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error fetching ip: %w\n", err)
 				return
 			}
 
-			resChan <- ec2response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
+			resChan <- ec2Response{nodeId: nodeID, externalIP: externalIP, privateIP: privateIP}
 		}(n)
 	}
 	go func() {
@@ -59,14 +59,14 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 		}
 	}
 
-	var externalIps, privateIps, nodeIds []string
+	var nodeIds []string
 	for i := range resChan {
 		nodeIds = append(nodeIds, i.nodeId)
-		externalIps = append(externalIps, i.externalIp)
-		privateIps = append(privateIps, i.privateIp)
+		externalIPs = append(externalIPs, i.externalIP)
+		privateIPs = append(privateIPs, i.privateIP)
 	}
 
-	return externalIps, privateIps, nodeIds, nil
+	return externalIPs, privateIPs, nodeIds, nil
 }
 
 func (c Client) DeleteInstance(ip string) error {
@@ -255,23 +255,23 @@ func (c Client) ReleaseElasticIps(ipAddress string) error {
 }
 
 func (c Client) create(name string) (*ec2.Reservation, error) {
-	volume, err := strconv.ParseInt(c.infra.AwsEc2.VolumeSize, 10, 64)
+	volume, err := strconv.ParseInt(c.infra.AwsEC2.VolumeSize, 10, 64)
 	if err != nil {
 		return nil, shared.ReturnLogError("error converting volume size to int64: %w\n", err)
 	}
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(c.infra.AwsEc2.Ami),
-		InstanceType: aws.String(c.infra.AwsEc2.InstanceClass),
+		ImageId:      aws.String(c.infra.AwsEC2.Ami),
+		InstanceType: aws.String(c.infra.AwsEC2.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(c.infra.AwsEc2.KeyName),
+		KeyName:      aws.String(c.infra.AwsEC2.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(c.infra.AwsEc2.Subnets),
-				Groups:                   aws.StringSlice([]string{c.infra.AwsEc2.SgId}),
+				SubnetId:                 aws.String(c.infra.AwsEC2.Subnets),
+				Groups:                   aws.StringSlice([]string{c.infra.AwsEC2.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -284,7 +284,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(c.infra.AwsEc2.AvailabilityZone),
+			AvailabilityZone: aws.String(c.infra.AwsEC2.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{

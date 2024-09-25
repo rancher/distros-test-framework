@@ -14,7 +14,6 @@ import (
 )
 
 var (
-	cfg        *config.Product
 	flags      *customflag.FlagConfig
 	kubeconfig string
 	cluster    *shared.Cluster
@@ -24,6 +23,8 @@ func TestMain(m *testing.M) {
 	var err error
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.S3Flags.Bucket, "s3Bucket", "distros_qa", "s3 bucket to store snapshots")
+	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
 	_, err = config.AddEnv()
@@ -32,14 +33,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	kubeconfig = os.Getenv("KUBE_CONFIG")
-	if kubeconfig == "" {
-		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
-	} else {
-		// gets a cluster from kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
+	// kubeconfig = os.Getenv("KUBE_CONFIG")
+	// if kubeconfig == "" {
+	// 	// gets a cluster from terraform.
+	// 	cluster = shared.ClusterConfig()
+	// } else {
+	// 	// gets a cluster from kubeconfig.
+	// 	cluster = shared.KubeConfigCluster(kubeconfig)
+	// }
 
 	os.Exit(m.Run())
 }

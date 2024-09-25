@@ -15,27 +15,33 @@ type Client struct {
 	s3    *s3.S3
 }
 
-type ec2response struct {
+type ec2Response struct {
 	nodeId     string
-	externalIp string
-	privateIp  string
+	externalIP string
+	privateIP  string
 }
 
-type s3response struct {
-	s3Bucket string
-	s3Folder string
-	s3Region string
-}
-
-func AddEc2Client(c *shared.Cluster) (*Client, error) {
+func AddEC2Client(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(c.AwsEc2.Region)})
+		Region: aws.String(c.AwsEC2.Region)})
 	if err != nil {
-		return nil, shared.ReturnLogError("error creating AWS session: %v", err)
+		return nil, shared.ReturnLogError("error creating AWS EC2 client session: %v", err)
 	}
 
 	return &Client{
-		infra: &shared.Cluster{AwsEc2: c.AwsEc2},
+		infra: &shared.Cluster{AwsEC2: c.AwsEC2},
 		ec2:   ec2.New(sess),
+	}, nil
+}
+
+func AddS3Client(s3Config shared.AwsS3Config) (*Client, error) {
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(s3Config.Region)})
+	if err != nil {
+		return nil, shared.ReturnLogError("error creating AWS S3 client session: %v", err)
+	}
+
+	return &Client{
+		s3: s3.New(sess),
 	}, nil
 }

@@ -22,7 +22,7 @@ type FlagConfig struct {
 	External           externalConfigFlag
 	RancherConfig      rancherConfigFlag
 	HelmCharts         helmChartsFlag
-	S3                 s3ConfigFlag
+	S3Flags            s3ConfigFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.

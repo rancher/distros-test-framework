@@ -69,7 +69,7 @@ func cleanEIPs() {
 	if release != "" && release == "false" {
 		shared.LogLevel("info", "EIPs not released, being used to run test with kubeconfig")
 	} else {
-		awsDependencies, err := aws.AddEc2Client(cluster)
+		ec2Client, err := aws.AddEC2Client(cluster)
 		Expect(err).NotTo(HaveOccurred())
 
 		eips := append(cluster.ServerIPs, cluster.AgentIPs...)
@@ -80,7 +80,7 @@ func cleanEIPs() {
 			wg.Add(1)
 			go func(ip string) {
 				defer wg.Done()
-				releaseEIPsErr := awsDependencies.ReleaseElasticIps(ip)
+				releaseEIPsErr := ec2Client.ReleaseElasticIps(ip)
 				if releaseEIPsErr != nil {
 					shared.LogLevel("error", "on %w", releaseEIPsErr)
 					return
