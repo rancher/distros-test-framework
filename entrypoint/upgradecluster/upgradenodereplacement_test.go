@@ -71,15 +71,16 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, true)
 	})
 
-	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(false, true)
-	})
-
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
+
+	// TestIngress needs to run at the end to ensure it has the ip back in after the upgrade.
+	It("Verifies Ingress after upgrade", func() {
+		testcase.TestIngress(false, true)
+	})
 })
 
 var _ = AfterEach(func() {

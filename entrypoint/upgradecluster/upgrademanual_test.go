@@ -102,10 +102,6 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(false, true)
 	})
 
-	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(false, true)
-	})
-
 	It("Verifies Daemonset after upgrade", func() {
 		testcase.TestDaemonset(false, true)
 	})
@@ -134,6 +130,11 @@ var _ = Describe("Test:", func() {
 			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
 		})
 	}
+
+	// TestIngress needs to run at the end to ensure it has the ip back in after the upgrade.
+	It("Verifies Ingress after upgrade", func() {
+		testcase.TestIngress(false, true)
+	})
 })
 
 var _ = AfterEach(func() {
