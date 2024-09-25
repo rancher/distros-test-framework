@@ -8,7 +8,6 @@ delete_ec2_instances () {
     echo "No ec2 instances found with prefix: $1. Nothing to delete."
   else
     echo "Terminating ec2 instances for $1 if still up and running:"
-    # shellcheck disable=SC2046
     aws ec2 terminate-instances --instance-ids "${EC2_INSTANCE_IDS}" > /dev/null 2>&1
   fi
 }
