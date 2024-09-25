@@ -1,6 +1,7 @@
 #!groovy
 
 node {
+  def autoAbort = false
   def job_name = "${JOB_NAME}"
   if (job_name.contains('/')) {
     job_names = job_name.split('/')
@@ -40,6 +41,12 @@ node {
       ]) {
         withEnv(paramsMap) {
           stage('Checkout') {
+            if ( "${env.RESOURCE_PREFIX_LIST}" == "" ) {
+                  currentBuild.result = 'ABORTED'
+                  autoAbort = true
+                  error("RESOURCE_PREFIX_LIST param cannot be empty. Aborting the build.")
+                  return
+            }
             deleteDir()
             checkout([
               $class: 'GitSCM',
@@ -53,12 +60,10 @@ node {
             ])
           }
           dir("./") {
-            try {
-              stage('Configure and Build') {
-                dir("./config") {
-                  //update product info
-                  def data = "ENV_PRODUCT=k3s\nENV_TFVARS=k3s.tfvars\n"
-                  writeFile(file: '.env', text: data)       
+            try {              
+              stage('Build Container') {
+                if (autoAbort) {
+                  return
                 }
                 dir("./.aws") {
                   writeFile file: 'credentials', text: '[default]' +
@@ -67,11 +72,13 @@ node {
                   writeFile file: 'config', text: '[default]' +
                     "\nregion = ${REGION}" + 
                     "\noutput = yaml" 
-                }
-                sh "./scripts/configure.sh"
+                } // dir .aws
                 sh "./scripts/build.sh"
-              }
+              } // stage Build Container
             stage('Delete Resources') {
+                if (autoAbort) {
+                  return
+                }
                 sh """
                 docker run --name ${testContainer} -t ${imageName} sh -c \\
                 "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST}"
@@ -79,11 +86,15 @@ node {
               } // stage Delete resources
             } finally {
               stage('Cleanup') {
-                // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
-                sh "docker stop ${testContainer} || true"
-                sh "docker rm -v ${testContainer} || true"
-                sh "docker rmi -f ${imageName} || true"
-              }
+                if (autoAbort) {
+                  throw e
+                } else {
+                  // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+                  sh "docker stop ${testContainer} || true"
+                  sh "docker rm -v ${testContainer} || true"
+                  sh "docker rmi -f ${imageName} || true"
+                } // else
+              } // stage Cleanup
             } // finally
           } // dir
         } // withEnv
