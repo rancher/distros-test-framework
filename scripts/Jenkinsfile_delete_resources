@@ -10,7 +10,6 @@ node {
 
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
-  def envFile = ".env"
   def branch = "main"
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
@@ -26,6 +25,7 @@ node {
   if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
     timeout = "${env.TIMEOUT}"
   }
+
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
       paramsMap = []
@@ -35,7 +35,6 @@ node {
         }
       }
       withCredentials([
-
         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
       ]) {
