@@ -2,9 +2,8 @@
 
 delete_ec2_instances () {
   EC2_INSTANCE_IDS=$(aws ec2 describe-instances \
-    --filters "Name=tag:Name,Values=$1*" \
-    "Name=instance-state-name,Values=running" --query \
-    'Reservations[].Instances[].InstanceId' --output text)
+    --filters "Name=tag:Name,Values=$1*" "Name=instance-state-name,Values=running" \
+    --query 'Reservations[].Instances[].InstanceId' --output text)
   if [ "${EC2_INSTANCE_IDS}" = "" ];then
     echo "No ec2 instances found with prefix: $1. Nothing to delete."
   else
