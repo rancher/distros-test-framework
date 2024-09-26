@@ -28,6 +28,11 @@ output "bastion_ip" {
   description = "The public IP of the bastion node"
 }
 
+output "bastion_dns" {
+  value       = module.bastion.public_dns
+  description = "The public DNS of the bastion node"
+}
+
 output "rendered_template" {
   value = module.master.rendered_template
 }

@@ -172,3 +172,4 @@ REGISTRY_PASSWORD=testpass432
 - RPM installs for rke2
 - ExternalDB setup
 - Split roles
+- ARM Architecture
