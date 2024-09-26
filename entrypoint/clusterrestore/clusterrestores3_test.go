@@ -37,13 +37,9 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	It("Verifies ETCD snapshot stored in S3", func() {
-		testcase.TestS3SnapshotSave(cluster, flags)
-	})
-
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestoreS3(cluster, true, false)
+		testcase.TestClusterRestoreS3(cluster, true, false, flags)
 	})
 
 	// It("Verifies Ingress After Snapshot", func() {

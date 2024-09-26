@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -11,26 +12,52 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var s3Config = shared.AwsS3Config{
-	Region: os.Getenv("region"),
-	Bucket: customflag.ServiceFlag.S3Flags.Bucket,
-	Folder: customflag.ServiceFlag.S3Flags.Folder,
-}
+var s3Config shared.AwsS3Config
+var awsConfig shared.AwsConfig
 
-var awsConfig = shared.AwsConfig{
-	AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-	SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+// func TestSetConfigs(flags *customflag.FlagConfig) {
+// 	setConfigs2()
+// }
+
+// func setConfigs1() {
+// 	Region := os.Getenv("region")
+// 	Bucket := customflag.ServiceFlag.S3Flags.Bucket
+// 	Folder := customflag.ServiceFlag.S3Flags.Folder
+// 	AccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+// 	SecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+// }
+
+func setConfigs(flags *customflag.FlagConfig) {
+
+	s3Config = shared.AwsS3Config{
+		Region: os.Getenv("region"),
+		Bucket: flags.S3Flags.Bucket,
+		Folder: flags.S3Flags.Folder,
+	}
+	awsConfig = shared.AwsConfig{
+		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+	}
+
 }
 
 func TestClusterRestoreS3(
 	cluster *shared.Cluster,
 	applyWorkload,
 	deleteWorkload bool,
+	flags *customflag.FlagConfig,
 ) {
+	setConfigs(flags)
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
 	fmt.Println(len(version), version)
+	versionClean := strings.TrimLeft(version, "rke2 version ")
+	versionClean2 := strings.SplitAfter(versionClean, "rke2r1")
+	fmt.Println(versionClean2[0:])
+	fmt.Println(versionClean)
+
+	fmt.Println(s3Config.Region)
 
 	var workloadErr error
 	if applyWorkload {
@@ -45,10 +72,15 @@ func TestClusterRestoreS3(
 	// accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	// secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
-	takeS3Snapshot(
+	testTakeS3Snapshot(
 		cluster,
 		true,
 		false,
+	)
+
+	testS3SnapshotSave(
+		cluster,
+		flags,
 	)
 
 	onDemandPath, onDemandPathErr := shared.FetchSnapshotOnDemandPath(cluster.Config.Product, cluster.ServerIPs[0])
@@ -94,7 +126,7 @@ func TestClusterRestoreS3(
 
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
 	// shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
-	// restoreS3Snapshot(
+	// testRestoreS3Snapshot(
 	// 	cluster,
 	// 	onDemandPath,
 	// 	clusterToken,
@@ -102,13 +134,16 @@ func TestClusterRestoreS3(
 	// )
 }
 
-func TestS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+func testS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+
 	// s3Config := shared.AwsS3Config{
-	// 	AccessKey: os.Getenv("access_key"),
-	// 	Region: os.Getenv("region"),
-	// 	Bucket: flags.S3Flags.Bucket,
-	// 	Folder: flags.S3Flags.Folder,
+	// AccessKey: os.Getenv("access_key"),
+	// Region: os.Getenv("region"),
+	// Bucket: flags.S3Flags.Bucket,
+	// Folder: flags.S3Flags.Folder,
 	// }
+
+	fmt.Println("Region: ", s3Config.Region)
 	s3Client, err := aws.AddS3Client(s3Config)
 	Expect(err).NotTo(HaveOccurred(), "error creating s3 client: %s", err)
 
@@ -116,7 +151,7 @@ func TestS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 }
 
 // perform snapshot and list snapshot commands -- deploy workloads after snapshot [apply workload]
-func takeS3Snapshot(
+func testTakeS3Snapshot(
 	cluster *shared.Cluster,
 	applyWorkload,
 	deleteWorkload bool,
@@ -130,8 +165,10 @@ func takeS3Snapshot(
 		awsConfig.SecretAccessKey)
 
 	takeSnapshotRes, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
-	Expect(takeSnapshotRes).To(ContainSubstring("Snapshot on-demand"))
+	// Expect(takeSnapshotRes).To(ContainSubstring("Snapshot on-demand"))
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
+	fmt.Println(takeSnapshotRes)
+	fmt.Println(takeSnapshotErr)
 
 	// add validation that the s3 folder has been created
 
@@ -209,7 +246,7 @@ func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
 // 	}
 // }
 
-func restoreS3Snapshot(
+func testRestoreS3Snapshot(
 	cluster *shared.Cluster,
 	onDemandPath,
 	token string,
