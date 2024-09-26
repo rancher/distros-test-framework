@@ -147,7 +147,7 @@ delete_route_s3 () {
       #Get status from the change
       aws route53 wait resource-record-sets-changed --id "$STATUS_ID"
       echo "Successfully deleted Route53 record ${NAME}: status: ${STATUS_ID}"
-      exit 1
+      exit
     done
     rm -rf "${PWD}"/payload.json
   fi
