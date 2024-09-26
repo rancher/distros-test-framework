@@ -67,23 +67,6 @@ get_cni_assets() {
   fi
 }
 
-validate_assets() {
-  echo "Checking $product dependencies downloads locally... "
-  if [[ ! -f "$product-images.txt" ]]
-  then
-    echo "$product-images.txt file not found!"
-  fi
-  if [[ ! -f "$product" ]]
-  then
-    echo "$product directory not found!"
-  fi
-  if [[ ! -f "$product-install.sh" ]]
-  then
-    echo "$product-install.sh file not found!"
-  fi
-  
-}
-
 save_to_directory() {
   folder="$(pwd)/artifacts"
   echo "Saving $product dependencies in directory $folder..."
