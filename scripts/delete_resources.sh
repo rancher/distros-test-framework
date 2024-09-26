@@ -92,7 +92,7 @@ delete_target_groups () {
   fi
 }
 
-delete_route_s3 () {
+delete_route53 () {
   #Get the ID and recordName with lower case of the hosted zone that contains the Route 53 record sets
   NAME_PREFIX_LOWER=$(echo "$1" | tr '[:upper:]' '[:lower:]')
   R53_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$1." \
@@ -144,7 +144,7 @@ delete_all_resources () {
   delete_db_resources "$1"
   delete_lb_resources "$1"
   delete_target_groups "$1"
-  delete_route_s3 "$1"
+  delete_route53 "$1"
 }
 
 
@@ -186,7 +186,8 @@ if [ "${RESOURCES}" = "" ]; then
     # Split string based on delimiter =
     PRODUCT_NAME=$(cat "${CONFIG_DIR}"/.env | grep ENV_PRODUCT | grep -v '#' | cut -d= -f2 | tr -d ' "')
     if echo "${PRODUCT_NAME}" | grep -q "ENV_PRODUCT"; then
-      PRODUCT_NAME=$(echo "${PRODUCT_NAME}" | cut -d ":" -f 2)  # Split string based on delimiter :
+      # Split string based on delimiter :
+      PRODUCT_NAME=$(echo "${PRODUCT_NAME}" | cut -d ":" -f 2)  
     fi
     if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
       echo "Wrong or empty product name found in .env file for: $PRODUCT_NAME"
