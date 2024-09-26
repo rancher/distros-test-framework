@@ -39,7 +39,3 @@ func AddEc2Client(c *shared.Cluster) (*Client, error) {
 		ec2:   ec2.New(sess),
 	}, nil
 }
-
-func AddS3Client(c *shared.Cluster) (*Client, error) {
-
-}

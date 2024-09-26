@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterResetRestoreS3Snapshot(
+func TestClusterRestoreS3(
 	cluster *shared.Cluster,
 	applyWorkload,
 	deleteWorkload bool,
@@ -40,22 +40,45 @@ func TestClusterResetRestoreS3Snapshot(
 		false,
 	)
 
-	onDemandPathCmd := fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots", cluster.Config.Product)
-	onDemandPath, _ := shared.RunCommandOnNode(onDemandPathCmd, cluster.ServerIPs[0])
+	onDemandPath, onDemandPathErr := shared.FetchSnapshotOnDemandPath(cluster.Config.Product, cluster.ServerIPs[0])
+	Expect(onDemandPathErr).NotTo(HaveOccurred())
 
 	fmt.Println("\non-demand-path: ", onDemandPath)
 
-	clusterTokenCmd := fmt.Sprintf("sudo cat /var/lib/rancher/%s/server/token", cluster.Config.Product)
-	clusterToken, _ := shared.RunCommandOnNode(clusterTokenCmd, cluster.ServerIPs[0])
+	clusterToken, clusterTokenErr := shared.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
+	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
 	fmt.Println("\ntoken: ", clusterToken)
 
-	// stopInstances(cluster)
-	// create fresh new VM and install K3s/RKE2 using RunCommandOnNode
-	// createNewServer(cluster)
+	// for i := 0; i < len(cluster.ServerIPs); i++ {
+	// 	shared.LogLevel("info", "stopping server instances: %s", cluster.ServerIPs[i])
+	// }
+	stopServerInstances(cluster)
+
+	// shared.LogLevel("info", "stopping agent instance: %s", cluster.AgentIPs[0])
+
+	stopAgentInstance(cluster)
+
+	resourceName := os.Getenv("resource_name")
+	awsDependencies, err := aws.AddEc2Client(cluster)
+	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+
+	// create server names.
+	var serverName []string
+
+	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
+
+	externalServerIP, _, _, createErr :=
+		awsDependencies.CreateInstances(serverName...)
+	Expect(createErr).NotTo(HaveOccurred(), createErr)
+
+	shared.LogLevel("info", "Created server public ip: %s",
+		externalServerIP)
+
+	// createNewServer(externalServerIP)
 
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
-	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
+	// shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 	// restoreS3Snapshot(
 	// 	cluster,
 	// 	s3Bucket,
@@ -66,7 +89,6 @@ func TestClusterResetRestoreS3Snapshot(
 	// 	secretAccessKey,
 	// 	clusterToken,
 	// )
-
 }
 
 // perform snapshot and list snapshot commands -- deploy workloads after snapshot [apply workload]
@@ -103,16 +125,35 @@ func takeS3Snapshot(
 
 }
 
-func stopInstances(
-	cluster *shared.Cluster,
-) {
+func stopServerInstances(cluster *shared.Cluster) {
 
+	awsDependencies, err := aws.AddEc2Client(cluster)
+	Expect(err).NotTo(HaveOccurred())
+	// stop server Instances
+	for i := 0; i < len(cluster.ServerIPs); i++ {
+		serverInstanceIDs, serverInstanceIDsErr := awsDependencies.GetInstanceIDByIP(cluster.ServerIPs[i])
+		Expect(serverInstanceIDsErr).NotTo(HaveOccurred())
+		fmt.Println(serverInstanceIDs)
+		awsDependencies.StopInstance(serverInstanceIDs)
+	}
+
+}
+
+func stopAgentInstance(cluster *shared.Cluster) {
+	// stop agent Instances
+	awsDependencies, err := aws.AddEc2Client(cluster)
+	Expect(err).NotTo(HaveOccurred())
+
+	agentInstanceIDs, agentInstanceIDsErr := awsDependencies.GetInstanceIDByIP(cluster.AgentIPs[0])
+	Expect(agentInstanceIDsErr).NotTo(HaveOccurred())
+	fmt.Println(agentInstanceIDs)
+	awsDependencies.StopInstance(agentInstanceIDs)
 }
 
 func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddClient(cluster)
+	awsDependencies, err := aws.AddEc2Client(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.
@@ -120,23 +161,35 @@ func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
 
 	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
 
-	externalServerIp, _, _, createErr :=
+	externalServerIP, _, _, createErr :=
 		awsDependencies.CreateInstances(serverName...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
-	return externalServerIp
+	shared.LogLevel("info", "Created server public ip: %s",
+		externalServerIP)
+
+	return externalServerIP
 }
 
-// func installProduct(cluster *share.cluster) {
+// func installProduct(
+// 	cluster *share.cluster,
+// 	token string,
+// 	externalServerIP string,
+// ) {
 // 	version := cluster.Config.Version
+
 // 	if cluster.Config.Product == "k3s" {
 // 		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -", version)
+// 		_, installCmdErr := shared.RunCommandOnNode(installCmd, externalServerIP)
+// 		Expect(installCmdErr).NotTo(HaveOccurred())
 // 	} else {
 // 		installCmd := fmt.Sprintf("curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION=%s sh -", version)
 // 	}
-
-// 	installRes, installCmdErr := shared.RunCommandOnNode(installCmd, cluster.ServerIPs[0])
 // }
+
+func installProduct(cluster *shared.Cluster, token string, externalServerIP string) {
+
+}
 
 func restoreS3Snapshot(
 	cluster *shared.Cluster,

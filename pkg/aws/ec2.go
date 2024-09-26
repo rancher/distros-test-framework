@@ -18,7 +18,7 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 	}
 
 	errChan := make(chan error, len(names))
-	resChan := make(chan response, len(names))
+	resChan := make(chan ec2response, len(names))
 	var wg sync.WaitGroup
 
 	for _, n := range names {
@@ -44,7 +44,7 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 				return
 			}
 
-			resChan <- response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
+			resChan <- ec2response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
 		}(n)
 	}
 	go func() {

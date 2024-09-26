@@ -32,6 +32,7 @@ type Cluster struct {
 	Config        clusterConfig
 	AwsEc2        awsEc2Config
 	GeneralConfig generalConfig
+	AwsS3         awsS3Config
 }
 
 type awsEc2Config struct {
@@ -45,6 +46,12 @@ type awsEc2Config struct {
 	AvailabilityZone string
 	SgId             string
 	KeyName          string
+}
+
+type awsS3Config struct {
+	Bucket string
+	Region string
+	Folder string
 }
 
 type clusterConfig struct {
