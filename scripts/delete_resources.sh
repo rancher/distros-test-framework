@@ -95,45 +95,61 @@ delete_route_s3 () {
   NAME_PREFIX_LOWER=$(echo "$1" | tr '[:upper:]' '[:lower:]')
   R53_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$1." \
     --query "HostedZones[0].Id" --output text)
+  echo "R53_ZONE_ID $R53_ZONE_ID"
   R53_RECORD=$(aws route53 list-resource-record-sets \
     --hosted-zone-id "${R53_ZONE_ID}" \
-    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}.') && Type == 'CNAME'].Name" \
+    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}')].Name" \
     --output text)
-
+  echo "R53_RECORD:
+   $R53_RECORD"
 
   #Get ResourceRecord Value
   RECORD_VALUE=$(aws route53 list-resource-record-sets \
     --hosted-zone-id "${R53_ZONE_ID}" \
-    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}.') \
-    && Type == 'CNAME'].ResourceRecords[0].Value" --output text)
-
-
-  #Delete Route53 record
-  if [[ "$R53_RECORD" == "${NAME_PREFIX_LOWER}."* ]]; then
-    echo "Deleting Route53 record ${R53_RECORD} for prefix $1"
-    CHANGE_STATUS=$(aws route53 change-resource-record-sets --hosted-zone-id "${R53_ZONE_ID}" \
-    --change-batch '{"Changes": [
-            {
-                "Action": "DELETE",
-                "ResourceRecordSet": {
-                    "Name": "'"${R53_RECORD}"'",
-                    "Type": "CNAME",
-                    "TTL": 300,
-                    "ResourceRecords": [
-                        {
-                            "Value": "'"${RECORD_VALUE}"'"
-                        }
-                    ]
-                }
-            }
-        ]
-    }')
-    STATUS_ID=$(echo "$CHANGE_STATUS" | jq -r '.ChangeInfo.Id')
-    #Get status from the change
-    aws route53 wait resource-record-sets-changed --id "$STATUS_ID"
-    echo "Successfully deleted Route53 record ${R53_RECORD}: status: ${STATUS_ID}"
+    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}')].ResourceRecords[0].Value" --output text)
+  echo "RECORD_VALUE:
+  $RECORD_VALUE"
+  RECORD_COUNT=$(echo $RECORD_VALUE | xargs -n1 echo | wc -l)
+  echo "Total Record COUNT is: $RECORD_COUNT"
+  if [ "${RECORD_COUNT}" == 0 ]; then
+    echo "No Route53 records found for prefix $1. Nothing to delete."
   else
-    echo "No Route53 record found for prefix $1. Nothing to delete."
+    for i in $(echo $RECORD_VALUE | xargs -n1 echo)
+    do 
+        NAME="$(echo "$i" | cut -d "-" -f1)-r53.qa.rancher.space."
+        VALUE=$i
+        echo " NAME: $NAME"
+        echo " VALUE: $VALUE"
+        echo "
+{\"Changes\": [
+        {
+            \"Action\": \"DELETE\",
+            \"ResourceRecordSet\": {
+                \"Name\": \"${NAME}\",
+                \"Type\": \"CNAME\",
+                \"TTL\": 300,
+                \"ResourceRecords\": [
+                    {
+                        \"Value\": \"${VALUE}\"
+                    }
+                ]
+            }
+        }
+    ]
+}" > payload.json
+      cat payload.json
+      echo "Deleting Route53 record ${NAME} for prefix $1"
+      CHANGE_STATUS=$(aws route53 change-resource-record-sets --hosted-zone-id "${R53_ZONE_ID}" --change-batch file://"${PWD}"/payload.json)
+      echo "CHANGE STATUS: 
+      $CHANGE_STATUS"
+      STATUS_ID=$(echo "$CHANGE_STATUS" | grep Id: | cut -d " " -f 4)
+      echo "Status ID: $STATUS_ID"
+      #Get status from the change
+      aws route53 wait resource-record-sets-changed --id "$STATUS_ID"
+      echo "Successfully deleted Route53 record ${NAME}: status: ${STATUS_ID}"
+      exit 1
+    done
+  exit 1
   fi
 }
 
