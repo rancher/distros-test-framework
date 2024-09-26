@@ -149,7 +149,7 @@ delete_route_s3 () {
       echo "Successfully deleted Route53 record ${NAME}: status: ${STATUS_ID}"
       exit 1
     done
-  exit 1
+    rm -rf "${PWD}"/payload.json
   fi
 }
 
