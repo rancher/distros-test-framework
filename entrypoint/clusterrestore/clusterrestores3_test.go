@@ -1,4 +1,4 @@
-package clusterresetrestore
+package clusterrestore
 
 import (
 	"fmt"
@@ -37,7 +37,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	FIt("Verifies ETCD snapshot stored in S3", func() {
+	It("Verifies ETCD snapshot stored in S3", func() {
 		testcase.TestS3SnapshotSave(cluster, flags)
 	})
 

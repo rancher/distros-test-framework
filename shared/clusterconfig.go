@@ -48,10 +48,14 @@ type AwsEC2Config struct {
 }
 
 type AwsS3Config struct {
-	AccessKey string
-	Region    string
-	Bucket    string
-	Folder    string
+	Region string
+	Bucket string
+	Folder string
+}
+
+type AwsConfig struct {
+	AccessKeyID     string
+	SecretAccessKey string
 }
 
 type clusterConfig struct {

@@ -1,4 +1,4 @@
-package clusterresetrestore
+package clusterrestore
 
 import (
 	"flag"
@@ -33,14 +33,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// kubeconfig = os.Getenv("KUBE_CONFIG")
-	// if kubeconfig == "" {
-	// 	// gets a cluster from terraform.
-	// 	cluster = shared.ClusterConfig()
-	// } else {
-	// 	// gets a cluster from kubeconfig.
-	// 	cluster = shared.KubeConfigCluster(kubeconfig)
-	// }
+	kubeconfig = os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig()
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
 
 	os.Exit(m.Run())
 }

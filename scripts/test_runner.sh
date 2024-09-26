@@ -102,7 +102,7 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "clusterrestore" ]; then
         if [ "${TEST_TAG}" = "clusterrestores3" ]; then
-            go test -timeout=120m -v -count=1 ./entrypoint/clusterrestore/... -destroy "${DESTROY}"
+            go test -timeout=120m -v -count=1 ./entrypoint/clusterrestore/...
         fi
     fi
 fi

@@ -163,7 +163,7 @@ func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 			return err
 		}
 	} else {
-		err := k3sServerSCP(cluster, ip)
+		err := K3sServerSCP(cluster, ip)
 		if err != nil {
 			return err
 		}
@@ -187,7 +187,7 @@ func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 	)
 }
 
-func k3sServerSCP(cluster *shared.Cluster, ip string) error {
+func K3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
