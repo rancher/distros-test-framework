@@ -98,18 +98,12 @@ delete_target_groups () {
   fi
 }
 
-delete_route_s3 () {
+delete_route53 () {
   #Get the ID and recordName with lower case of the hosted zone that contains the Route 53 record sets
   NAME_PREFIX_LOWER=$(echo "$1" | tr '[:upper:]' '[:lower:]')
   R53_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$1." \
     --query "HostedZones[0].Id" --output text)
   echo "R53_ZONE_ID $R53_ZONE_ID"
-  R53_RECORD=$(aws route53 list-resource-record-sets \
-    --hosted-zone-id "${R53_ZONE_ID}" \
-    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}')].Name" \
-    --output text)
-  echo "R53_RECORD:
-   $R53_RECORD"
 
   #Get ResourceRecord Value
   RECORD_VALUE=$(aws route53 list-resource-record-sets \
@@ -126,8 +120,6 @@ delete_route_s3 () {
     do 
         NAME="$(echo "$i" | cut -d "-" -f1)-r53.qa.rancher.space."
         VALUE=$i
-        echo " NAME: $NAME"
-        echo " VALUE: $VALUE"
         echo "
 {\"Changes\": [
         {
@@ -155,7 +147,6 @@ delete_route_s3 () {
       #Get status from the change
       aws route53 wait resource-record-sets-changed --id "$STATUS_ID"
       echo "Successfully deleted Route53 record ${NAME}: status: ${STATUS_ID}"
-      exit
     done
     rm -rf "${PWD}"/payload.json
   fi
@@ -166,7 +157,7 @@ delete_all_resources () {
   delete_db_resources "$1"
   delete_lb_resources "$1"
   delete_target_groups "$1"
-  delete_route_s3 "$1"
+  delete_route53 "$1"
 }
 
 
@@ -201,9 +192,12 @@ done
 if [ "${RESOURCES}" = "" ]; then
     echo "Working with local .env and .tfvars file to get resource name for deletion"
     #Get resource name from tfvarslocal && change name to make more sense in this context
-    PRODUCT_NAME=$(grep ENV_PRODUCT <./config/.env | cut -d= -f2 | tr -d ' "')  # Split string based on delimiter =
+    # Split string based on delimiter =
+    PRODUCT_NAME=$(grep ENV_PRODUCT <./config/.env | cut -d= -f2 | tr -d ' "')
+    echo "PRODUCT NAME is: $PRODUCT_NAME"
     if echo "${PRODUCT_NAME}" | grep -q "ENV_PRODUCT"; then
-      PRODUCT_NAME=$(echo "${PRODUCT_NAME}" | cut -d ":" -f 2)  # Split string based on delimiter :
+      # Split string based on delimiter :
+      PRODUCT_NAME=$(echo "${PRODUCT_NAME}" | cut -d ":" -f 2)  
     fi
     if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
       echo "Wrong or empty product name found in .env file for: $PRODUCT_NAME"
