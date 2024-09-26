@@ -7,8 +7,13 @@ delete_ec2_instances () {
   if [ "${EC2_INSTANCE_IDS}" = "" ];then
     echo "No ec2 instances found with prefix: $1. Nothing to delete."
   else
-    echo "Terminating ec2 instances for $1 if still up and running:"
-    aws ec2 terminate-instances --instance-ids "${EC2_INSTANCE_IDS}" > /dev/null 2>&1
+    echo "Terminating ec2 instances for $1 if still up and running:
+    INSTANCE IDs: ${EC2_INSTANCE_IDS}"
+    for INSTANCE_ID in ${EC2_INSTANCE_IDS}
+    do
+      echo "Deleting instance id: ${INSTANCE_ID}"
+      aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}" > /dev/null 2>&1
+    done
   fi
 }
 
@@ -20,8 +25,9 @@ delete_db_resources () {
   if [ "${DB_INSTANCES}" = "" ];then
     echo "No db instances found with prefix $1. Nothing to delete."
   else
-    echo "Deleting db instances for $1:"
+    echo "Deleting db instances for $1: $DB_INSTANCES"
     for INSTANCE in $DB_INSTANCES; do
+      echo "Deleting db instance: $INSTANCE"
       aws rds delete-db-instance --db-instance-identifier "${INSTANCE}" --skip-final-snapshot > /dev/null 2>&1
     done
   fi
@@ -33,8 +39,9 @@ delete_db_resources () {
   if [ "${CLUSTERS}" = "" ];then
     echo "No db clusters found with prefix $1. Nothing to delete."
   else
-    echo "Deleting db clusters for $1:"
+    echo "Deleting db clusters for $1: ${CLUSTERS}"
     for CLUSTER in $CLUSTERS; do
+      echo "Deleting cluster: $CLUSTER"
       aws rds delete-db-cluster --db-cluster-identifier "$CLUSTER" --skip-final-snapshot > /dev/null 2>&1
       aws rds wait db-cluster-deleted --db-cluster-identifier "$CLUSTER"
     done
@@ -47,8 +54,9 @@ delete_db_resources () {
   if [ "${SNAPSHOTS}" = "" ];then
     echo "No db snapshots found with prefix $1. Nothing to delete."
   else
-    echo "Deleting db snapshots for $1:"
+    echo "Deleting db snapshots for $1: ${SNAPSHOTS}"
     for SNAPSHOT in $SNAPSHOTS; do
+      echo "Deleting db snapshot: $SNAPSHOT"
       aws rds delete-db-snapshot --db-snapshot-identifier "$SNAPSHOT" > /dev/null 2>&1
     done
   fi
@@ -63,7 +71,7 @@ delete_lb_resources () {
   if [ "${LB_ARN_LIST}" = "" ];then
     echo "No load balancers found with prefix $1. Nothing to delete."
   else
-    echo "Deleting load balancers for $1:"
+    echo "Deleting load balancers for $1: ${LB_ARN_LIST}"
     #Loop through the load balancer ARNs and delete the load balancers
     for LB_ARN in $LB_ARN_LIST; do
       echo "Deleting load balancer $LB_ARN"
@@ -81,7 +89,7 @@ delete_target_groups () {
   if [ "${TG_ARN_LIST}" = "" ];then
     echo "No target groups found with prefix $1. Nothing to delete."
   else
-    echo "Deleting target groups for $1:"
+    echo "Deleting target groups for $1: ${TG_ARN_LIST}"
     #Loop through the target group ARNs and delete the target groups
     for TG_ARN in $TG_ARN_LIST; do
       echo "Deleting target group $TG_ARN"
