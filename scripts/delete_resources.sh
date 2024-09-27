@@ -24,9 +24,9 @@ delete_ec2_instances () {
     echo "${EC2_TAG_NAMES}"
     echo "Instance ID List: ${EC2_INSTANCE_IDS}"
     TAG_COUNT=$(echo $EC2_TAG_NAMES |xargs -n1 echo | wc -l)
-    echo "Tag Name count: $((TAG_COUNT/2))"
+    echo "EC2 Tag Name count: $((TAG_COUNT/2))"
     INSTANCE_COUNT=$(echo $EC2_INSTANCE_IDS | xargs -n1 echo | wc -l)
-    echo "Instance count:$INSTANCE_COUNT"
+    echo "EC2 Instance Id count:$INSTANCE_COUNT"
   fi
 }
 
@@ -147,10 +147,10 @@ delete_route53 () {
   RECORD_VALUE=$(aws route53 list-resource-record-sets \
     --hosted-zone-id "${R53_ZONE_ID}" \
     --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}')].ResourceRecords[0].Value" --output text)
-  echo "RECORD_VALUE:
+  echo "Route53 RECORD_VALUE:
   $RECORD_VALUE"
   RECORD_COUNT=$(echo $RECORD_VALUE | xargs -n1 echo | wc -l)
-  echo "Total Record COUNT is: $RECORD_COUNT"
+  echo "Total Route53 Record COUNT is: $RECORD_COUNT"
   if [ "${RECORD_COUNT}" == 0 ]; then
     echo "No Route53 records found for prefix $1. Nothing to delete."
   else
