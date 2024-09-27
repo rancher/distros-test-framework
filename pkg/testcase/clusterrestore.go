@@ -51,7 +51,7 @@ func TestClusterRestoreS3(
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
-	fmt.Println("Lenght of String: ", len(version), "\nVersion: ", version)
+	fmt.Println("Length of String: ", len(version), "\nVersion: ", version)
 	versionCleanUp := strings.TrimPrefix(version, "rke2 version ")
 	endChar := strings.Index(versionCleanUp, "(")
 	versionClean := versionCleanUp[:endChar]
@@ -251,7 +251,10 @@ func testRestoreS3Snapshot(
 	externalServerIP string,
 	flags *customflag.FlagConfig,
 ) {
-	fmt.Println("s3Bucket: ", s3Config.Bucket)
+	setConfigs(flags)
+	fmt.Println("s3Bucket set to ", s3Config.Bucket)
+	fmt.Println("s3Folder set to ", s3Config.Folder)
+	fmt.Println("s3Region set to ", s3Config.Region)
 	// var path string
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, externalServerIP)
 	Expect(findErr).NotTo(HaveOccurred())
