@@ -228,7 +228,12 @@ if [ "${RESOURCES}" = "" ]; then
 else
     for i in $(echo "${RESOURCES}" | tr "," "\n")
     do
-      echo "## For prefix name: $i:"
-      delete_all_resources "$i"
+      PREFIX_LENGTH=${#i}
+      if [ "$PREFIX_LENGTH" -gt 5 ]; then
+        echo "## For prefix name: $i:"
+        delete_all_resources "$i"
+      else
+        echo "Length of prefix name $i lesser than 5. Please provide a tangible prefix length for deletion."
+      fi
     done
 fi
