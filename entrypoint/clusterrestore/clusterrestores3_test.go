@@ -42,46 +42,46 @@ var _ = Describe("Test:", func() {
 		testcase.TestClusterRestoreS3(cluster, true, false, flags)
 	})
 
-	// It("Verifies Ingress After Snapshot", func() {
-	// 	testcase.TestIngress(true, true)
-	// })
+	It("Verifies Ingress After Snapshot", func() {
+		testcase.TestIngress(true, true)
+	})
 
-	// It("Validate Nodes", func() {
-	// 	testcase.TestNodeStatus(
-	// 		cluster,
-	// 		assert.NodeAssertReadyStatus(),
-	// 		nil,
-	// 	)
-	// })
+	It("Validate Nodes", func() {
+		testcase.TestNodeStatus(
+			cluster,
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
 
-	// It("Validate Pods", func() {
-	// 	testcase.TestPodStatus(
-	// 		cluster,
-	// 		assert.PodAssertRestart(),
-	// 		assert.PodAssertReady())
-	// })
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
+			cluster,
+			assert.PodAssertRestart(),
+			assert.PodAssertReady())
+	})
 
-	// It("Verifies Daemonset", func() {
-	// 	testcase.TestDaemonset(true, true)
-	// })
+	It("Verifies Daemonset", func() {
+		testcase.TestDaemonset(true, true)
+	})
 
-	// It("Verifies NodePort Service After Reset", func() {
-	// 	testcase.TestServiceNodePort(false, true)
-	// })
+	It("Verifies NodePort Service After Reset", func() {
+		testcase.TestServiceNodePort(false, true)
+	})
 
-	// It("Verifies dns access", func() {
-	// 	testcase.TestDNSAccess(true, true)
-	// })
+	It("Verifies dns access", func() {
+		testcase.TestDNSAccess(true, true)
+	})
 
-	// if cluster.Config.Product == "k3s" {
-	// 	It("Verifies Local Path Provisioner storage", func() {
-	// 		testcase.TestLocalPathProvisionerStorage(cluster, true, true)
-	// 	})
+	if cluster.Config.Product == "k3s" {
+		It("Verifies Local Path Provisioner storage", func() {
+			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
+		})
 
-	// 	It("Verifies LoadBalancer Service", func() {
-	// 		testcase.TestServiceLoadBalancer(true, true)
-	// 	})
-	// }
+		It("Verifies LoadBalancer Service", func() {
+			testcase.TestServiceLoadBalancer(true, true)
+		})
+	}
 })
 
 var _ = AfterEach(func() {

@@ -76,6 +76,7 @@ func TestClusterRestoreS3(
 		cluster,
 		true,
 		false,
+		flags,
 	)
 
 	testS3SnapshotSave(
@@ -127,13 +128,18 @@ func TestClusterRestoreS3(
 
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
 	// shared.LogLevel("info", "running cluster reset on server %s\n", externalServerIP)
-	// testRestoreS3Snapshot(
-	// 	cluster,
-	// 	onDemandPath,
-	// 	clusterToken,
-	// 	externalServerIP[0],
-	// )
+	testRestoreS3Snapshot(
+		cluster,
+		onDemandPath,
+		clusterToken,
+		externalServerIP[0],
+		flags,
+	)
 
+	enableAndStartService(
+		cluster,
+		externalServerIP[0],
+	)
 	// freshNodeErr := ValidateNodeJoin(externalServerIP[0])
 	//
 	//	if freshNodeErr != nil {
@@ -163,6 +169,7 @@ func testTakeS3Snapshot(
 	cluster *shared.Cluster,
 	applyWorkload,
 	deleteWorkload bool,
+	flags *customflag.FlagConfig,
 ) {
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
@@ -242,7 +249,9 @@ func testRestoreS3Snapshot(
 	onDemandPath,
 	token string,
 	externalServerIP string,
+	flags *customflag.FlagConfig,
 ) {
+	fmt.Println("s3Bucket: ", s3Config.Bucket)
 	// var path string
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, externalServerIP)
 	Expect(findErr).NotTo(HaveOccurred())
@@ -254,6 +263,23 @@ func testRestoreS3Snapshot(
 	Expect(resetCmdErr).NotTo(HaveOccurred())
 	Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
 	Expect(resetRes).To(ContainSubstring("has been reset"))
+}
+
+func enableAndStartService(
+	cluster *shared.Cluster,
+	externalServerIP string,
+) {
+	_, enableServiceCmdErr := shared.ManageService(cluster.Config.Product, "enable", "server",
+		[]string{externalServerIP})
+	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
+	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
+		[]string{externalServerIP})
+	Expect(startServiceCmdErr).NotTo(HaveOccurred())
+	statusServiceRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product,
+		"status", "server",
+		[]string{externalServerIP})
+	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
+	Expect(statusServiceRes).To(ContainSubstring("active"))
 }
 
 // func testValidateNodesAfterSnapshot() {

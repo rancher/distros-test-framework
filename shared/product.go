@@ -73,6 +73,7 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 		"start":   "sudo systemctl --no-block start",
 		"restart": "sudo systemctl --no-block restart",
 		"status":  "sudo systemctl --no-block status",
+		"enable":  "sudo systemctl --no-block enable",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
