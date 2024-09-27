@@ -23,6 +23,10 @@ delete_ec2_instances () {
     --query 'Reservations[].Instances[].Tags' --output text)
     echo "${EC2_TAG_NAMES}"
     echo "Instance ID List: ${EC2_INSTANCE_IDS}"
+    TAG_COUNT=$(echo $EC2_TAG_NAMES |xargs -n1 echo | wc -l)
+    echo "Tag Name count: $((TAG_COUNT/2))"
+    INSTANCE_COUNT=$(echo $EC2_INSTANCE_IDS | xargs -n1 echo | wc -l)
+    echo "Instance count:$INSTANCE_COUNT"
   fi
 }
 
@@ -42,6 +46,7 @@ delete_db_resources () {
       done
     else
       echo "DB Instances that will be deleted: $DB_INSTANCES"
+      echo "DB Instance Count:$(echo $DB_INSTANCES |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -61,6 +66,7 @@ delete_db_resources () {
       done
     else
       echo "DB Clusters that will be deleted: $CLUSTERS"
+      echo "DB Clusters Count:$(echo $CLUSTERS |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -79,6 +85,7 @@ delete_db_resources () {
       done
     else
       echo "DB Snapshots that will be deleted: $SNAPSHOTS"
+      echo "DB Snapshots Count:$(echo $SNAPSHOTS |xargs -n1 echo | wc -l)"
     fi
   fi
 }
@@ -101,6 +108,7 @@ delete_lb_resources () {
       done
     else
       echo "Load Balancers that will be deleted: $LB_ARN_LIST"
+      echo "Load Balancers Count:$(echo $LB_ARN_LIST |xargs -n1 echo | wc -l)"
     fi
   fi
 }
@@ -121,8 +129,9 @@ delete_target_groups () {
         echo "Deleting target group $TG_ARN"
         aws elbv2 delete-target-group --target-group-arn "$TG_ARN"
       done
-      else
+    else
       echo "Target Groups that will be deleted: $TG_ARN_LIST"
+      echo "Target Groups Count:$(echo $TG_ARN_LIST |xargs -n1 echo | wc -l)"
     fi
   fi
 }

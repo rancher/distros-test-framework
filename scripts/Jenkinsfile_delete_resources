@@ -78,10 +78,14 @@ node {
                 if (autoAbort) {
                   return
                 }
+                def ARG_TEXT=""
+                if ("$DRY_RUN" == true) {
+                  ARG_TEXT="-d"
+                }
                 sh """
                 docker run --name ${testContainer} -t ${imageName} sh -c \\
-                "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST}"
-                 """
+                "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST} ${ARG_TEXT}"
+                 """                
               } // stage Delete resources
             } finally {
               stage('Cleanup') {
