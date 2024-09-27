@@ -51,10 +51,10 @@ func TestClusterRestoreS3(
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
-	fmt.Println(len(version), version)
-	versionClean := strings.TrimLeft(version, "rke2 version ")
-	versionClean2 := strings.SplitAfter(versionClean, "rke2r1")
-	fmt.Println(versionClean2[0:])
+	fmt.Println("Lenght of String: ", len(version), "\nVersion: ", version)
+	versionCleanUp := strings.TrimPrefix(version, "rke2 version ")
+	endChar := strings.Index(versionCleanUp, "(")
+	versionClean := versionCleanUp[:endChar]
 	fmt.Println(versionClean)
 
 	fmt.Println(s3Config.Region)
@@ -132,6 +132,13 @@ func TestClusterRestoreS3(
 	// 	clusterToken,
 	// 	externalServerIP[0],
 	// )
+
+	// freshNodeErr := ValidateNodeJoin(externalServerIP[0])
+	//
+	//	if freshNodeErr != nil {
+	//		shared.LogLevel("error", "error validating node join: %w with ip: %s",
+	//		freshNodeErr, externalServerIP)
+	//	}
 }
 
 func testS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
@@ -265,6 +272,10 @@ func testRestoreS3Snapshot(
 	Expect(resetRes).To(ContainSubstring("has been reset"))
 }
 
-// func deleteOldNodes() {
+// func testValidateNodesAfterSnapshot() {
+
+// }
+
+// func testValidatePodsAfterSnapshot() {
 
 // }

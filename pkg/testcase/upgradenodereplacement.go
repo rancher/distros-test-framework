@@ -265,7 +265,7 @@ func nodeReplaceServers(
 	}
 	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
 
-	nodeErr := validateNodeJoin(newFirstServerIP)
+	nodeErr := ValidateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {
 		shared.LogLevel("error", "error validating node join: %w with ip: %s", nodeErr, newFirstServerIP)
 
@@ -313,7 +313,7 @@ func joinRemainServers(
 			return joinErr
 		}
 
-		joinErr := validateNodeJoin(externalIp)
+		joinErr := ValidateNodeJoin(externalIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
 
@@ -324,7 +324,7 @@ func joinRemainServers(
 	return nil
 }
 
-func validateNodeJoin(ip string) error {
+func ValidateNodeJoin(ip string) error {
 	node, err := shared.GetNodeNameByIP(ip)
 	if err != nil {
 		return shared.ReturnLogError("error getting node name by ip:%s %w\n", ip, err)
