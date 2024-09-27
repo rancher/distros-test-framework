@@ -79,7 +79,7 @@ node {
                   return
                 }
                 def ARG_TEXT=""
-                if ("$DRY_RUN" == true) {
+                if ("$DRY_RUN" == "True") {
                   ARG_TEXT="-d"
                 }
                 sh """
