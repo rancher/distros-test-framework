@@ -197,12 +197,15 @@ func newCluster() (*Cluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)
 	}
+	LogLevel("info", "Applying Terraform config completed!\n")
 
+	LogLevel("info", "Checking and adding split roles...")
 	numServers, err = addSplitRole(t, varDir, numServers)
 	if err != nil {
 		return nil, err
 	}
 
+	LogLevel("info", "Loading TF Configs...")
 	c, err := loadTFconfig(t, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
@@ -211,6 +214,7 @@ func newCluster() (*Cluster, error) {
 	c.NumServers = numServers
 	c.NumAgents = numAgents
 	c.Status = "cluster created"
+	LogLevel("info", "Cluster has been created successfully...")
 
 	return c, nil
 }
