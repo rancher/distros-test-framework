@@ -265,7 +265,7 @@ if [ "${RESOURCES}" = "" ]; then
     fi
 
     #Get resource name from tfvars file and validate
-    RESOURCE_NAME=$(grep resource_name < "${$CONFIG_DIR}"/"$PRODUCT_NAME".tfvars | cut -d= -f2 | tr -d ' "')
+    RESOURCE_NAME=$(cat "${$CONFIG_DIR}"/"$PRODUCT_NAME".tfvars | grep resource_name | grep -v "#" | cut -d= -f2 | tr -d ' "')
     if [[ -z "$RESOURCE_NAME" ]]; then
       echo "No resource name found for: $PRODUCT_NAME.tfvars file"
       exit 1
