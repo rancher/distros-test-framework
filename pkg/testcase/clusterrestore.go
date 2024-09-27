@@ -119,13 +119,14 @@ func TestClusterRestoreS3(
 		externalServerIP[0])
 
 	// createNewServer(externalServerIP)
-	// installProduct(
-	// 	cluster,
-	// 	externalServerIP[0],
-	// )
+	installProduct(
+		cluster,
+		externalServerIP[0],
+		versionClean,
+	)
 
 	// how do I delete the instances, bring up a new instance and install K3s/RKE2 using what we currently have?
-	// shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
+	// shared.LogLevel("info", "running cluster reset on server %s\n", externalServerIP)
 	// testRestoreS3Snapshot(
 	// 	cluster,
 	// 	onDemandPath,
@@ -217,41 +218,24 @@ func stopAgentInstance(cluster *shared.Cluster) {
 
 }
 
-func createNewServer(cluster *shared.Cluster) (externalServerIP []string) {
+func installProduct(
+	cluster *shared.Cluster,
+	externalServerIP string,
+	version string,
+) {
 
-	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddEC2Client(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
-
-	// create server names.
-	var serverName []string
-	serverName = append(serverName, resourceName+"-server1-new")
-
-	externalServerIP, _, _, createErr :=
-		awsDependencies.CreateInstances(serverName...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
-
-	shared.LogLevel("info", "Created server public ip: %s",
-		externalServerIP)
-
-	return externalServerIP
+	if cluster.Config.Product == "k3s" {
+		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -", version)
+		_, installCmdErr := shared.RunCommandOnNode(installCmd, externalServerIP)
+		Expect(installCmdErr).NotTo(HaveOccurred())
+	} else if cluster.Config.Product == "rke2" {
+		installCmd := fmt.Sprintf("curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION=%s sh -", version)
+		_, installCmdErr := shared.RunCommandOnNode(installCmd, externalServerIP)
+		Expect(installCmdErr).NotTo(HaveOccurred())
+	} else {
+		shared.LogLevel("error", "unsupported product")
+	}
 }
-
-// func installProduct(
-// 	cluster *shared.Cluster,
-// 	externalServerIP string,
-// ) {
-
-// 	if cluster.Config.Product == "k3s" {
-// 		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -", version)
-// 		_, installCmdErr := shared.RunCommandOnNode(installCmd, externalServerIP)
-// 		Expect(installCmdErr).NotTo(HaveOccurred())
-// 	} else {
-// 		installCmd := fmt.Sprintf("curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION=%s sh -", version)
-// 		_, installCmdErr := shared.RunCommandOnNode(installCmd, externalServerIP)
-// 		Expect(installCmdErr).NotTo(HaveOccurred())
-// 	}
-// }
 
 func testRestoreS3Snapshot(
 	cluster *shared.Cluster,
