@@ -12,28 +12,23 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// var s3Config shared.S3Config
-// var awsConfig shared.AwsConfig
+var awsConfig shared.AwsConfig
 
-// func setConfigs(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+func setConfigs(cluster *shared.Cluster) {
+	awsConfig = shared.AwsConfig{
+		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+	}
 
-// 	s3Config = shared.S3Config{
-// 		Region: os.Getenv("region"),
-// 		Bucket: flags.S3Flags.Bucket,
-// 		Folder: flags.S3Flags.Folder,
-// 	}
-// 	awsConfig = shared.AwsConfig{
-// 		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-// 		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-// 	}
-
-// }
+}
 
 func TestClusterRestoreS3(
 	cluster *shared.Cluster,
 	applyWorkload bool,
 	flags *customflag.FlagConfig,
 ) {
+	setConfigs(cluster)
+
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
@@ -140,7 +135,7 @@ func testTakeS3Snapshot(
 	takeSnapshotCmd := fmt.Sprintf("sudo %s etcd-snapshot save --s3 --s3-bucket=%s "+
 		"--s3-folder=%s --s3-region=%s --s3-access-key=%s --s3-secret-key=%s",
 		productLocationCmd, flags.S3Flags.Bucket, flags.S3Flags.Folder, cluster.Aws.Region,
-		cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey)
+		awsConfig.AccessKeyID, awsConfig.SecretAccessKey)
 
 	takeSnapshotRes, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
@@ -212,7 +207,7 @@ func testRestoreS3Snapshot(
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s"+
 		" --etcd-s3-bucket=%s --etcd-s3-folder=%s --etcd-s3-region=%s --etcd-s3-access-key=%s"+
 		" --etcd-s3-secret-key=%s --token=%s", productLocationCmd, onDemandPath, flags.S3Flags.Bucket,
-		flags.S3Flags.Folder, cluster.Aws.Region, cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey, token)
+		flags.S3Flags.Folder, cluster.Aws.Region, awsConfig.AccessKeyID, awsConfig.SecretAccessKey, token)
 	resetCmdRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, newClusterIP)
 	Expect(resetCmdErr).To(HaveOccurred())
 	Expect(resetCmdErr.Error).To(ContainSubstring("Managed etcd cluster"))
@@ -223,17 +218,17 @@ func testRestoreS3Snapshot(
 
 func enableAndStartService(
 	cluster *shared.Cluster,
-	externalServerIP string,
+	newClusterIP string,
 ) {
 	_, enableServiceCmdErr := shared.ManageService(cluster.Config.Product, "enable", "server",
-		[]string{externalServerIP})
+		[]string{newClusterIP})
 	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
 	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
-		[]string{externalServerIP})
+		[]string{newClusterIP})
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
 	statusServiceRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product,
 		"status", "server",
-		[]string{externalServerIP})
+		[]string{newClusterIP})
 	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
 	Expect(statusServiceRes).To(ContainSubstring("active"))
 }
