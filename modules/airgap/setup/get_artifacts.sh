@@ -14,9 +14,8 @@ flags=${4}
 tarball_type=$5
 prodbin=$product
 
-
 check_arch(){
-  if [[ -n "$arch" ]] && [[ "$arch" = *"arm"* ]]; then
+  if [[ -n "$arch" ]] && [[ "$arch" =~ "arm" ]]; then
     if [[ "$product" == "k3s" ]]; then
       prodbin="k3s-arm64"
     else

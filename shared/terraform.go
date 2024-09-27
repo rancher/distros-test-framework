@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -9,32 +10,28 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-	"github.com/rancher/distros-test-framework/config"
 )
 
 func setTerraformOptions() (*terraform.Options, string, error) {
-	cfg, err := config.AddEnv()
-	if err != nil {
-		return nil, "", err
-	}
+	product := os.Getenv("ENV_PRODUCT")
+	module := os.Getenv("ENV_MODULE")
 
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
+		fmt.Sprintf("/config/%s.tfvars", product))
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid product: %s", cfg.Product)
+		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
 
-	prodOrMod := cfg.Product
-	if cfg.Module != "" {
-		prodOrMod = cfg.Module
+	if module == "" {
+		module = product
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + prodOrMod)
+	tfDir, err := filepath.Abs(dir + "/modules/" + module)
 	if err != nil {
-		return nil, "", fmt.Errorf("no module found for product: %s", prodOrMod)
+		return nil, "", fmt.Errorf("no module found: %s", module)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -51,16 +48,14 @@ func loadTFconfig(
 	terraformOptions *terraform.Options,
 ) (*Cluster, error) {
 	c := &Cluster{}
-	cfg, err := config.AddEnv()
-	if err != nil {
-		return nil, err
-	}
+	product := os.Getenv("ENV_PRODUCT")
+	module := os.Getenv("ENV_MODULE")
 
 	LogLevel("info", "Loading TF outputs...")
-	loadTFoutput(t, terraformOptions, c, cfg.Module)
+	loadTFoutput(t, terraformOptions, c, module)
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAwsEc2(t, varDir, c)
-	if cfg.Product == "rke2" {
+	if product == "rke2" {
 		numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
 		if numWinAgents > 0 {
 			LogLevel("info", "Loading windows TF Config...")
@@ -74,16 +69,12 @@ func loadTFconfig(
 		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
 		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 	}
-
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
-	if c.Config.Arch == "arm" {
-		c.Config.Arch = "arm64"
-	}
 
-	if cfg.Module != "" && cfg.Module == "airgap" {
+	if module != "" && module == "airgap" {
 		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
 	}
-	c.Config.Product = cfg.Product
+	c.Config.Product = product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
 
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")

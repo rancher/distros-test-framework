@@ -69,7 +69,7 @@ node {
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nKUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\n"
                   def version_param_name = ""
                   def channel_param_name = ""
-                  if (env.MODULE && env.MODULE != "") {
+                  if ("${env.MODULE}" && "${env.MODULE}" != "") {
                     data += "ENV_MODULE=${env.MODULE}\n"
                     version_param_name = "install_version"
                     channel_param_name = "channel"
