@@ -44,6 +44,7 @@ func loadTFconfig(
 
 	loadTFoutput(t, terraformOptions, c)
 	loadAwsEC2(t, varDir, c)
+	loadAws(t, varDir, c)
 	if product == "rke2" {
 		loadWinTFCfg(t, varDir, terraformOptions, c)
 	}
@@ -60,17 +61,20 @@ func loadTFconfig(
 	return c, nil
 }
 
+func loadAws(t *testing.T, varDir string, c *Cluster) {
+	c.Aws.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
+}
+
 func loadAwsEC2(t *testing.T, varDir string, c *Cluster) {
-	c.AwsEC2.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
-	c.AwsEC2.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
-	c.AwsEC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
-	c.AwsEC2.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
-	c.AwsEC2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
-	c.AwsEC2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
-	c.AwsEC2.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
-	c.AwsEC2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
-	c.AwsEC2.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
-	c.AwsEC2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
+	c.Aws.EC2Config.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
+	c.Aws.EC2Config.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
+	c.Aws.EC2Config.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
+	c.Aws.EC2Config.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
+	c.Aws.EC2Config.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
+	c.Aws.EC2Config.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
+	c.Aws.EC2Config.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
+	c.Aws.EC2Config.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
+	c.Aws.EC2Config.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
 func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster) {

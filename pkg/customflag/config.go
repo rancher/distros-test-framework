@@ -178,5 +178,4 @@ type rancherConfigFlag struct {
 type s3ConfigFlag struct {
 	Bucket string
 	Folder string
-	Region string
 }

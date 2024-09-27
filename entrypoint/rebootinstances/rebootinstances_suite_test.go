@@ -69,7 +69,7 @@ func cleanEIPs() {
 	if release != "" && release == "false" {
 		shared.LogLevel("info", "EIPs not released, being used to run test with kubeconfig")
 	} else {
-		ec2Client, err := aws.AddEC2Client(cluster)
+		ec2Client, err := aws.AddClient(cluster)
 		Expect(err).NotTo(HaveOccurred())
 
 		eips := append(cluster.ServerIPs, cluster.AgentIPs...)

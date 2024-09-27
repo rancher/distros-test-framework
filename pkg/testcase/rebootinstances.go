@@ -11,7 +11,7 @@ import (
 )
 
 func TestRebootInstances(cluster *shared.Cluster) {
-	ec2Client, err := aws.AddEC2Client(cluster)
+	ec2Client, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred())
 
 	// reboot server instances.

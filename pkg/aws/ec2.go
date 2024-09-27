@@ -12,6 +12,12 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
+type ec2Response struct {
+	nodeId     string
+	externalIP string
+	privateIP  string
+}
+
 func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids []string, err error) {
 	if len(names) == 0 {
 		return nil, nil, nil, shared.ReturnLogError("must sent name for the instance")
@@ -255,23 +261,23 @@ func (c Client) ReleaseElasticIps(ipAddress string) error {
 }
 
 func (c Client) create(name string) (*ec2.Reservation, error) {
-	volume, err := strconv.ParseInt(c.infra.AwsEC2.VolumeSize, 10, 64)
+	volume, err := strconv.ParseInt(c.infra.Aws.EC2Config.VolumeSize, 10, 64)
 	if err != nil {
 		return nil, shared.ReturnLogError("error converting volume size to int64: %w\n", err)
 	}
 
 	input := &ec2.RunInstancesInput{
-		ImageId:      aws.String(c.infra.AwsEC2.Ami),
-		InstanceType: aws.String(c.infra.AwsEC2.InstanceClass),
+		ImageId:      aws.String(c.infra.Aws.EC2Config.Ami),
+		InstanceType: aws.String(c.infra.Aws.EC2Config.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(c.infra.AwsEC2.KeyName),
+		KeyName:      aws.String(c.infra.Aws.EC2Config.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(c.infra.AwsEC2.Subnets),
-				Groups:                   aws.StringSlice([]string{c.infra.AwsEC2.SgId}),
+				SubnetId:                 aws.String(c.infra.Aws.EC2Config.Subnets),
+				Groups:                   aws.StringSlice([]string{c.infra.Aws.EC2Config.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -284,7 +290,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(c.infra.AwsEC2.AvailabilityZone),
+			AvailabilityZone: aws.String(c.infra.Aws.EC2Config.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{

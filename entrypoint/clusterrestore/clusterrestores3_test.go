@@ -39,7 +39,7 @@ var _ = Describe("Test:", func() {
 
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestoreS3(cluster, true, false, flags)
+		testcase.TestClusterRestoreS3(cluster, true, flags)
 	})
 
 	It("Verifies Ingress After Snapshot", func() {

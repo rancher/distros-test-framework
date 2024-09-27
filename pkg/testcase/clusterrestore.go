@@ -12,30 +12,28 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var s3Config shared.AwsS3Config
-var awsConfig shared.AwsConfig
+// var s3Config shared.S3Config
+// var awsConfig shared.AwsConfig
 
-func setConfigs(flags *customflag.FlagConfig) {
+// func setConfigs(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 
-	s3Config = shared.AwsS3Config{
-		Region: os.Getenv("region"),
-		Bucket: flags.S3Flags.Bucket,
-		Folder: flags.S3Flags.Folder,
-	}
-	awsConfig = shared.AwsConfig{
-		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-	}
+// 	s3Config = shared.S3Config{
+// 		Region: os.Getenv("region"),
+// 		Bucket: flags.S3Flags.Bucket,
+// 		Folder: flags.S3Flags.Folder,
+// 	}
+// 	awsConfig = shared.AwsConfig{
+// 		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+// 		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+// 	}
 
-}
+// }
 
 func TestClusterRestoreS3(
 	cluster *shared.Cluster,
-	applyWorkload,
-	deleteWorkload bool,
+	applyWorkload bool,
 	flags *customflag.FlagConfig,
 ) {
-	setConfigs(flags)
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
@@ -53,9 +51,8 @@ func TestClusterRestoreS3(
 
 	testTakeS3Snapshot(
 		cluster,
-		true,
-		false,
 		flags,
+		true,
 	)
 
 	testS3SnapshotSave(
@@ -69,13 +66,13 @@ func TestClusterRestoreS3(
 	clusterToken, clusterTokenErr := shared.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
-	stopServerInstances(cluster)
-
-	stopAgentInstance(cluster)
-
 	resourceName := os.Getenv("resource_name")
-	ec2Client, err := aws.AddEC2Client(cluster)
+	ec2, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+
+	stopServerInstances(cluster, ec2)
+
+	stopAgentInstance(cluster, ec2)
 
 	// oldLeadServerIP := cluster.ServerIPs[0]
 
@@ -85,7 +82,7 @@ func TestClusterRestoreS3(
 	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
 
 	externalServerIP, _, _, createErr :=
-		ec2Client.CreateInstances(serverName...)
+		ec2.CreateInstances(serverName...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("info", "Created server public ip: %s",
@@ -94,16 +91,6 @@ func TestClusterRestoreS3(
 	newServerIP := externalServerIP
 
 	shared.LogLevel("info", "overriding previous cluster data with new cluster")
-
-	// nodeReplaceServers(
-	// 	cluster,
-	// 	a,
-	// 	resourceName,
-	// 	oldLeadServerIP,
-	// 	clusterToken,
-	// 	versionClean,
-	// 	channel,
-	// )
 
 	shared.LogLevel("info", "installing %s on server: %s", product, newServerIP)
 
@@ -127,42 +114,33 @@ func TestClusterRestoreS3(
 		newServerIP[0],
 	)
 
-	testValidateClusterPostRestore(
-		cluster,
-		newServerIP[0],
-		resourceName,
-	)
-
-}
-
-func testValidateClusterPostRestore(cluster *shared.Cluster, newServerIP string, resourceName string) {
-	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP,
-		resourceName, cluster.Config.Product)
+	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP[0],
+		resourceName, product)
 	Expect(newKubeConfigErr).NotTo(HaveOccurred())
 	shared.LogLevel("info", "kubeconfig updated to %s\n", newKubeConfig)
+
 }
 
 func testS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 
-	s3Client, err := aws.AddS3Client(s3Config)
+	s3, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error creating s3 client: %s", err)
 
-	s3Client.GetObjects(s3Config)
+	s3.GetObjects(flags)
 }
 
 func testTakeS3Snapshot(
 	cluster *shared.Cluster,
-	applyWorkload,
-	deleteWorkload bool,
 	flags *customflag.FlagConfig,
+	applyWorkload bool,
 ) {
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 
 	takeSnapshotCmd := fmt.Sprintf("sudo %s etcd-snapshot save --s3 --s3-bucket=%s "+
 		"--s3-folder=%s --s3-region=%s --s3-access-key=%s --s3-secret-key=%s",
-		productLocationCmd, s3Config.Bucket, s3Config.Folder, s3Config.Region, awsConfig.AccessKeyID,
-		awsConfig.SecretAccessKey)
+		productLocationCmd, flags.S3Flags.Bucket, flags.S3Flags.Folder, cluster.Aws.Region,
+		cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey)
 
 	takeSnapshotRes, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
@@ -175,29 +153,25 @@ func testTakeS3Snapshot(
 	}
 }
 
-func stopServerInstances(cluster *shared.Cluster) {
+func stopServerInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 
-	ec2Client, err := aws.AddEC2Client(cluster)
-	Expect(err).NotTo(HaveOccurred())
 	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverInstanceIDs, serverInstanceIDsErr := ec2Client.GetInstanceIDByIP(cluster.ServerIPs[i])
+		serverInstanceIDs, serverInstanceIDsErr := ec2.GetInstanceIDByIP(cluster.ServerIPs[i])
 		Expect(serverInstanceIDsErr).NotTo(HaveOccurred())
 		fmt.Println(serverInstanceIDs)
-		ec2Client.StopInstance(serverInstanceIDs)
+		ec2.StopInstance(serverInstanceIDs)
 		Expect(serverInstanceIDsErr).NotTo(HaveOccurred())
 	}
 
 }
 
-func stopAgentInstance(cluster *shared.Cluster) {
-	ec2Client, err := aws.AddEC2Client(cluster)
-	Expect(err).NotTo(HaveOccurred())
+func stopAgentInstance(cluster *shared.Cluster, ec2 *aws.Client) {
 
 	for i := 0; i < len(cluster.AgentIPs); i++ {
-		agentInstanceIDs, agentInstanceIDsErr := ec2Client.GetInstanceIDByIP(cluster.AgentIPs[i])
+		agentInstanceIDs, agentInstanceIDsErr := ec2.GetInstanceIDByIP(cluster.AgentIPs[i])
 		Expect(agentInstanceIDsErr).NotTo(HaveOccurred())
 		fmt.Println(agentInstanceIDs)
-		ec2Client.StopInstance(agentInstanceIDs)
+		ec2.StopInstance(agentInstanceIDs)
 		Expect(agentInstanceIDsErr).NotTo(HaveOccurred())
 	}
 
@@ -229,17 +203,16 @@ func testRestoreS3Snapshot(
 	newClusterIP string,
 	flags *customflag.FlagConfig,
 ) {
-	setConfigs(flags)
-	fmt.Println("s3Bucket set to ", s3Config.Bucket)
-	fmt.Println("s3Folder set to ", s3Config.Folder)
-	fmt.Println("s3Region set to ", s3Config.Region)
+	fmt.Println("s3Bucket set to ", flags.S3Flags.Bucket)
+	fmt.Println("s3Folder set to ", flags.S3Flags.Folder)
+	fmt.Println("s3Region set to ", cluster.Aws.Region)
 	// var path string
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, newClusterIP)
 	Expect(findErr).NotTo(HaveOccurred())
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s"+
 		" --etcd-s3-bucket=%s --etcd-s3-folder=%s --etcd-s3-region=%s --etcd-s3-access-key=%s"+
-		" --etcd-s3-secret-key=%s --token=%s", productLocationCmd, onDemandPath, s3Config.Bucket, s3Config.Folder,
-		s3Config.Region, awsConfig.AccessKeyID, awsConfig.SecretAccessKey, token)
+		" --etcd-s3-secret-key=%s --token=%s", productLocationCmd, onDemandPath, flags.S3Flags.Bucket,
+		flags.S3Flags.Folder, cluster.Aws.Region, cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey, token)
 	resetCmdRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, newClusterIP)
 	Expect(resetCmdErr).To(HaveOccurred())
 	Expect(resetCmdErr.Error).To(ContainSubstring("Managed etcd cluster"))

@@ -27,7 +27,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	resourceName := os.Getenv("resource_name")
-	ec2Client, err := aws.AddEC2Client(cluster)
+	ec2Client, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error creating aws client: %s", err)
 
 	// create server names.

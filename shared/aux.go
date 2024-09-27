@@ -142,9 +142,9 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 		scp := fmt.Sprintf(
 			"ssh-keyscan %s >> /root/.ssh/known_hosts && scp -i %s %s %s@%s:%s",
 			ip,
-			c.AwsEC2.AccessKey,
+			c.Aws.AccessKey,
 			localPath,
-			c.AwsEC2.AwsUser,
+			c.Aws.AwsUser,
 			ip,
 			remotePath,
 		)
@@ -208,13 +208,13 @@ func configureSSH(host string) (*ssh.Client, error) {
 		}
 	}
 
-	authMethod, err := publicKey(cluster.AwsEC2.AccessKey)
+	authMethod, err := publicKey(cluster.Aws.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
-		User: cluster.AwsEC2.AwsUser,
+		User: cluster.Aws.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
