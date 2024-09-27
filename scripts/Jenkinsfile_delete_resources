@@ -81,6 +81,7 @@ node {
                 def ARG_TEXT=""
                 if ("$DRY_RUN" == "True" || "$DRY_RUN" == "true") {
                   ARG_TEXT="-d"
+                  sh "echo 'This will be only a DRY RUN. No resources will be deleted during this job run.'"
                 }
                 sh """
                 docker run --name ${testContainer} -t ${imageName} sh -c \\
