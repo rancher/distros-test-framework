@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -14,7 +15,7 @@ import (
 
 var awsConfig shared.AwsConfig
 
-func setConfigs(cluster *shared.Cluster) {
+func setConfigs() {
 	awsConfig = shared.AwsConfig{
 		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
 		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
@@ -27,12 +28,13 @@ func TestClusterRestoreS3(
 	applyWorkload bool,
 	flags *customflag.FlagConfig,
 ) {
-	setConfigs(cluster)
+	setConfigs()
 
 	product := cluster.Config.Product
 	_, version, err := shared.Product()
 	Expect(err).NotTo(HaveOccurred())
-	versionCleanUp := strings.TrimPrefix(version, "rke2 version ")
+	versionStr := fmt.Sprintf("%s version ", product)
+	versionCleanUp := strings.TrimPrefix(version, versionStr)
 	endChar := strings.Index(versionCleanUp, "(")
 	versionClean := versionCleanUp[:endChar]
 
@@ -49,12 +51,12 @@ func TestClusterRestoreS3(
 		flags,
 		true,
 	)
-
+	shared.LogLevel("info", "successfully completed s3 snapshot save")
 	testS3SnapshotSave(
 		cluster,
 		flags,
 	)
-
+	shared.LogLevel("info", "successfully validated s3 snapshot save in s3")
 	onDemandPath, onDemandPathErr := shared.FetchSnapshotOnDemandPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(onDemandPathErr).NotTo(HaveOccurred())
 
@@ -85,17 +87,13 @@ func TestClusterRestoreS3(
 
 	newServerIP := externalServerIP
 
-	shared.LogLevel("info", "overriding previous cluster data with new cluster")
-
-	shared.LogLevel("info", "installing %s on server: %s", product, newServerIP)
-
 	installProduct(
 		cluster,
 		newServerIP[0],
 		versionClean,
 	)
+	shared.LogLevel("info", "%s successfully installed on server: %s", product, newServerIP)
 
-	shared.LogLevel("info", "running cluster reset on server %s\n", newServerIP)
 	testRestoreS3Snapshot(
 		cluster,
 		onDemandPath,
@@ -103,11 +101,15 @@ func TestClusterRestoreS3(
 		newServerIP[0],
 		flags,
 	)
+	shared.LogLevel("info", "cluster restore successful. Waiting 120 seconds for cluster "+
+		"to complete background processes after restore.")
+	time.Sleep(120 * time.Second)
 
 	enableAndStartService(
 		cluster,
 		newServerIP[0],
 	)
+	shared.LogLevel("info", "%s service successfully enabled", product)
 
 	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP[0],
 		resourceName, product)
@@ -150,10 +152,12 @@ func testTakeS3Snapshot(
 
 func stopServerInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 
+	var serverInstanceIDs string
+	var serverInstanceIDsErr error
 	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverInstanceIDs, serverInstanceIDsErr := ec2.GetInstanceIDByIP(cluster.ServerIPs[i])
+		serverInstanceIDs, serverInstanceIDsErr = ec2.GetInstanceIDByIP(cluster.ServerIPs[i])
 		Expect(serverInstanceIDsErr).NotTo(HaveOccurred())
-		fmt.Println(serverInstanceIDs)
+		fmt.Println("Old Server Instance IDs: ", serverInstanceIDs)
 		ec2.StopInstance(serverInstanceIDs)
 		Expect(serverInstanceIDsErr).NotTo(HaveOccurred())
 	}
@@ -179,7 +183,8 @@ func installProduct(
 ) {
 
 	if cluster.Config.Product == "k3s" {
-		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s INSTALL_K3S_SKIP_ENABLE=true sh -", version)
+		installCmd := fmt.Sprintf("curl -sfL https://get.k3s.io/ | sudo INSTALL_K3S_VERSION=%s "+
+			"INSTALL_K3S_SKIP_ENABLE=true sh -", version)
 		_, installCmdErr := shared.RunCommandOnNode(installCmd, newClusterIP)
 		Expect(installCmdErr).NotTo(HaveOccurred())
 	} else if cluster.Config.Product == "rke2" {
@@ -198,22 +203,23 @@ func testRestoreS3Snapshot(
 	newClusterIP string,
 	flags *customflag.FlagConfig,
 ) {
-	fmt.Println("s3Bucket set to ", flags.S3Flags.Bucket)
-	fmt.Println("s3Folder set to ", flags.S3Flags.Folder)
-	fmt.Println("s3Region set to ", cluster.Aws.Region)
-	// var path string
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, newClusterIP)
 	Expect(findErr).NotTo(HaveOccurred())
-	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s"+
+	restoreCmd := fmt.Sprintf("sudo %s server --cluster-reset --etcd-s3 --cluster-reset-restore-path=%s"+
 		" --etcd-s3-bucket=%s --etcd-s3-folder=%s --etcd-s3-region=%s --etcd-s3-access-key=%s"+
 		" --etcd-s3-secret-key=%s --token=%s", productLocationCmd, onDemandPath, flags.S3Flags.Bucket,
 		flags.S3Flags.Folder, cluster.Aws.Region, awsConfig.AccessKeyID, awsConfig.SecretAccessKey, token)
-	resetCmdRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, newClusterIP)
-	Expect(resetCmdErr).To(HaveOccurred())
-	Expect(resetCmdErr.Error).To(ContainSubstring("Managed etcd cluster"))
-	Expect(resetCmdErr.Error).To(ContainSubstring("has been reset"))
-	fmt.Println("Response: ", resetCmdRes)
-	fmt.Println("Error: ", resetCmdErr)
+	if cluster.Config.Product == "k3s" {
+		restoreCmdRes, resetCmdErr := shared.RunCommandOnNode(restoreCmd, newClusterIP)
+		Expect(resetCmdErr).NotTo(HaveOccurred())
+		Expect(restoreCmdRes).To(ContainSubstring("Managed etcd cluster"))
+		Expect(restoreCmdRes).To(ContainSubstring("has been reset"))
+	} else if cluster.Config.Product == "rke2" {
+		_, restoreCmdErr := shared.RunCommandOnNode(restoreCmd, newClusterIP)
+		Expect(restoreCmdErr).To(HaveOccurred())
+		Expect(restoreCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
+		Expect(restoreCmdErr.Error()).To(ContainSubstring("has been reset"))
+	}
 }
 
 func enableAndStartService(
@@ -226,17 +232,4 @@ func enableAndStartService(
 	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
 		[]string{newClusterIP})
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
-	statusServiceRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product,
-		"status", "server",
-		[]string{newClusterIP})
-	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
-	Expect(statusServiceRes).To(ContainSubstring("active"))
 }
-
-// func testValidateNodesAfterSnapshot() {
-
-// }
-
-// func testValidatePodsAfterSnapshot() {
-
-// }

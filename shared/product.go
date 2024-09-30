@@ -78,7 +78,7 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status")
+		return "", ReturnLogError("action value should be: start | stop | restart | status | enable")
 	}
 
 	name, err := serviceName(product, nodeType)
