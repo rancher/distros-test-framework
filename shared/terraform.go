@@ -2,7 +2,6 @@ package shared
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -12,10 +11,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-func setTerraformOptions() (*terraform.Options, string, error) {
-	product := os.Getenv("ENV_PRODUCT")
-	module := os.Getenv("ENV_MODULE")
-
+func setTerraformOptions(product, module string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
@@ -25,6 +21,7 @@ func setTerraformOptions() (*terraform.Options, string, error) {
 		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
 
+	// checking if module is empty, use the product as module
 	if module == "" {
 		module = product
 	}
@@ -44,12 +41,11 @@ func setTerraformOptions() (*terraform.Options, string, error) {
 
 func loadTFconfig(
 	t *testing.T,
+	product, module,
 	varDir string,
 	terraformOptions *terraform.Options,
 ) (*Cluster, error) {
 	c := &Cluster{}
-	product := os.Getenv("ENV_PRODUCT")
-	module := os.Getenv("ENV_MODULE")
 
 	LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)

@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 var (
 	once    sync.Once
 	cluster *Cluster
+	product string
+	module  string
 )
 
 type Cluster struct {
@@ -82,11 +83,18 @@ type Pod struct {
 	ReadinessGates string
 }
 
+// setConfig gets env configs and sets on local vars.
+func setConfig() {
+	product = os.Getenv("ENV_PRODUCT")
+	module = os.Getenv("ENV_MODULE")
+}
+
 // ClusterConfig returns a singleton cluster with all terraform config and vars.
 func ClusterConfig() *Cluster {
+	setConfig()
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster()
+		cluster, err = newCluster(product, module)
 		if err != nil {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
@@ -165,8 +173,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 }
 
 // newCluster creates a new cluster and returns his values from terraform config and vars.
-func newCluster() (*Cluster, error) {
-	terraformOptions, varDir, err := setTerraformOptions()
+func newCluster(product, module string) (*Cluster, error) {
+	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +214,7 @@ func newCluster() (*Cluster, error) {
 	}
 
 	LogLevel("info", "Loading TF Configs...")
-	c, err := loadTFconfig(t, varDir, terraformOptions)
+	c, err := loadTFconfig(t, product, module, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +229,7 @@ func newCluster() (*Cluster, error) {
 
 // DestroyCluster destroys the cluster and returns it.
 func DestroyCluster() (string, error) {
-	terraformOptions, _, err := setTerraformOptions()
+	terraformOptions, _, err := setTerraformOptions(product, module)
 	if err != nil {
 		return "", err
 	}

@@ -50,6 +50,11 @@ func validateAirgap() {
 		os.Exit(1)
 	}
 
+	if os.Getenv("no_of_bastion_nodes") == "0" {
+		shared.LogLevel("error", "no_of_bastion_nodes is not set, should be 1\n")
+		os.Exit(1)
+	}
+
 	if os.Getenv("arch") == "arm" {
 		shared.LogLevel("error", "airgap with arm architecture is not supported\n")
 		os.Exit(1)
