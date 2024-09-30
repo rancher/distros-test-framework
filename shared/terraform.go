@@ -51,6 +51,7 @@ func loadTFconfig(
 	loadTFoutput(t, terraformOptions, c, module)
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAwsEc2(t, varDir, c)
+
 	if product == "rke2" {
 		numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
 		if numWinAgents > 0 {
@@ -59,25 +60,24 @@ func loadTFconfig(
 		}
 	}
 
-	numOfBastion, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_bastion_nodes"))
-	if numOfBastion == 1 {
-		LogLevel("info", "Loading bastion configs....")
-		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
-		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
-	}
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
-
-	if module != "" && module == "airgap" {
-		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
-	}
 	c.Config.Product = product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
-
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
+
+	// check for airgap
+	if module != "" && module == "airgap" {
+		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+	}
+
+	// TODO: Figure out logic to suppress for non-bastion clusters
+	LogLevel("info", "Loading bastion configs....")
+	c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
+	c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 
 	return c, nil
 }

@@ -38,3 +38,4 @@ output "bastion_dns" {
 output "rendered_template" {
   value = module.master.rendered_template
 }
+
