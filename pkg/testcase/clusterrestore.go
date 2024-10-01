@@ -87,6 +87,9 @@ func TestClusterRestoreS3(
 
 	newServerIP := externalServerIP
 
+	setConfigFile(product, newServerIP[0])
+	shared.LogLevel("info", "config.yaml successfully created and copied to: /etc/rancher/%s/", product)
+
 	installProduct(
 		cluster,
 		newServerIP[0],
@@ -111,10 +114,19 @@ func TestClusterRestoreS3(
 	)
 	shared.LogLevel("info", "%s service successfully enabled", product)
 
+	path := fmt.Sprintf("/tmp/%s_kubeconfig", serverName[0])
+	shared.KubeConfigFile = path
+	shared.LogLevel("info", "kubeconfig path updated to %s", shared.KubeConfigFile)
+
 	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP[0],
 		resourceName, product)
 	Expect(newKubeConfigErr).NotTo(HaveOccurred())
 	shared.LogLevel("info", "kubeconfig updated to %s\n", newKubeConfig)
+
+	if product == "rke2" {
+		exportKubectl(newServerIP[0])
+		shared.LogLevel("info", "kubectl commands successfully exported")
+	}
 
 }
 
@@ -232,4 +244,42 @@ func enableAndStartService(
 	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
 		[]string{newClusterIP})
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
+}
+
+func exportKubectl(newClusterIP string) {
+	//update data directory for rpm installs (rhel systems)
+	importCmd := fmt.Sprintf("sudo cat <<EOF >>.bashrc\n" +
+		"export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin " +
+		"CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \n" +
+		"alias k=kubectl\n" +
+		"EOF")
+
+	sourceCmd := `source .bashrc`
+
+	_, importCmdErr := shared.RunCommandOnNode(importCmd, newClusterIP)
+	Expect(importCmdErr).NotTo(HaveOccurred())
+
+	_, sourceCmdErr := shared.RunCommandOnNode(sourceCmd, newClusterIP)
+	Expect(sourceCmdErr).NotTo(HaveOccurred())
+
+}
+
+func setConfigFile(product string, newClusterIP string) {
+	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n" +
+		"write-kubeconfig-mode: 0644\n" +
+		"EOF")
+
+	path := fmt.Sprintf("/etc/rancher/%s/", product)
+	mkdirCmd := fmt.Sprintf("sudo mkdir -p %s", path)
+	copyConfigFileCmd := fmt.Sprintf("sudo cp config.yaml %s", path)
+
+	_, createConfigFileCmdErr := shared.RunCommandOnNode(createConfigFileCmd, newClusterIP)
+	Expect(createConfigFileCmdErr).NotTo(HaveOccurred())
+
+	_, mkdirCmdErr := shared.RunCommandOnNode(mkdirCmd, newClusterIP)
+	Expect(mkdirCmdErr).NotTo(HaveOccurred())
+
+	_, copycopyConfigFileCmdErr := shared.RunCommandOnNode(copyConfigFileCmd, newClusterIP)
+	Expect(copycopyConfigFileCmdErr).NotTo(HaveOccurred())
+
 }

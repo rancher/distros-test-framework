@@ -99,6 +99,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 	if writeErr != nil {
 		return "", ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}
+
 	KubeConfigFile = updatedKubeConfig
 	// updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
 
