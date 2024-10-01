@@ -13,14 +13,7 @@ var KubeConfigFile string
 //
 // updates the global kubeconfig and returns the nodes and his data from that kubeconfig.
 func KubeConfigCluster(kubeconfig string) *Cluster {
-	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeconfig)
-	if decodeErr != nil {
-		LogLevel("error", "error decoding kubeconfig %w\n", decodeErr)
-		os.Exit(1)
-	}
-
-	// Set the global kubeconfig file path.
-	KubeConfigFile = localKubeConfigPath
+	Update(kubeconfig)
 
 	nodes, getErr := GetNodes(false)
 	if getErr != nil {
@@ -40,6 +33,17 @@ func KubeConfigCluster(kubeconfig string) *Cluster {
 	}
 
 	return cluster
+}
+
+func Update(kubeconfig string) {
+	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeconfig)
+	if decodeErr != nil {
+		LogLevel("error", "error decoding kubeconfig %w\n", decodeErr)
+		os.Exit(1)
+	}
+
+	// Set the global kubeconfig file path.
+	KubeConfigFile = localKubeConfigPath
 }
 
 func UpdateKubeConfig(newLeaderIP, resourceName, product string) (string, error) {
@@ -100,8 +104,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 		return "", ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
 	}
 
-	KubeConfigFile = updatedKubeConfig
-	// updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
+	updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
 
 	return updatedKubeConfig, nil
 }

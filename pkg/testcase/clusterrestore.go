@@ -114,14 +114,11 @@ func TestClusterRestoreS3(
 	)
 	shared.LogLevel("info", "%s service successfully enabled", product)
 
-	path := fmt.Sprintf("/tmp/%s_kubeconfig", serverName[0])
-	shared.KubeConfigFile = path
-	shared.LogLevel("info", "kubeconfig path updated to %s", shared.KubeConfigFile)
-
 	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP[0],
 		resourceName, product)
 	Expect(newKubeConfigErr).NotTo(HaveOccurred())
-	shared.LogLevel("info", "kubeconfig updated to %s\n", newKubeConfig)
+
+	shared.Update(newKubeConfig)
 
 	if product == "rke2" {
 		exportKubectl(newServerIP[0])
@@ -266,7 +263,7 @@ func exportKubectl(newClusterIP string) {
 
 func setConfigFile(product string, newClusterIP string) {
 	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n" +
-		"write-kubeconfig-mode: 0644\n" +
+		"write-kubeconfig-mode: 644\n" +
 		"EOF")
 
 	path := fmt.Sprintf("/etc/rancher/%s/", product)
