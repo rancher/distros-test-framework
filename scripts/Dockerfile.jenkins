@@ -27,7 +27,8 @@ RUN apk update && \
     mkdir -p /root/.ssh && \
     mkdir -p /root/.aws
 
-RUN aws --version   # Just to make sure its installed alright
+# Just to make sure its installed alright
+RUN aws --version
 
 WORKDIR $GOPATH/src/github.com/rancher/distros-test-framework
 

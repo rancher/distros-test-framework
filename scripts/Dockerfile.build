@@ -27,7 +27,8 @@ RUN apk update && \
     mkdir -p /root/.ssh && \
     mkdir -p /root/.aws
 
-RUN aws --version   # Just to make sure its installed alright
+# Just to make sure its installed alright
+RUN aws --version   
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.55.2
 
