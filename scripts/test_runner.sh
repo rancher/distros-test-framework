@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -27,11 +27,22 @@ function validate_dir(){
                 ;;
             esac
        fi
+       if [[ "$TEST_DIR" == "airgap" ]];
+        then
+            case "$TEST_TAG"  in
+                privateregistry)
+                ;;
+                *)
+                printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
+                exit 1
+                ;;
+            esac
+       fi
        if [[ "$TEST_TAG" != "" ]];
         then
-          printf "\n\nRunning tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG} on ${ENV_PRODUCT}"
+          printf "\n\nRunning ${ENV_PRODUCT} tests for %s with %s\n\n" "${TEST_DIR}" "${TEST_TAG}"
         else
-          printf "\n\nRunning tests for %s\n\n" "${TEST_DIR} on ${ENV_PRODUCT}"
+          printf "\n\nRunning ${ENV_PRODUCT} tests for %s\n\n" "${TEST_DIR}"
         fi
           ;;
       *)
@@ -52,7 +63,7 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
         fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
-       declare -a OPTS
+        declare -a OPTS
           OPTS=(-timeout=65m -v -count=1 ./entrypoint/versionbump/... -tags="${TEST_TAG}")
             OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
              [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
@@ -64,7 +75,7 @@ if [ -n "${TEST_DIR}" ]; then
              [ -n "${DELETE_WORKLOAD}" ] && OPTS+=(-deleteWorkload "${DELETE_WORKLOAD}")
              [ -n "${DESCRIPTION}" ] && OPTS+=(-description "${DESCRIPTION}")
              [ -n "${DEBUG_MODE}" ] && OPTS+=(-debug "${DEBUG_MODE}")
-      go test "${OPTS[@]}"
+        go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "mixedoscluster" ]; then
          if [ -n "${SONOBUOY_VERSION}" ]; then
             go test -timeout=55m -v -count=1 ./entrypoint/mixedoscluster/... -sonobuoyVersion "${SONOBUOY_VERSION}"
@@ -99,6 +110,15 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
+    elif [ "${TEST_DIR}" = "airgap" ]; then
+        declare -a OPTS
+        if [ "${TEST_TAG}" = "privateregistry" ]; then
+          OPTS=(-timeout=60m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy "${DESTROY}")
+            [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
+            [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
+            # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
+        fi
+        go test "${OPTS[@]}"
     fi
 fi
 }

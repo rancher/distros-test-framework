@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -30,10 +31,39 @@ func TestPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2500s", "10s").Should(Succeed(), "failed to process pods status")
+	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
+}
+
+// TestAirgapClusterPodStatus test the status of the pods in the private cluster using custom assert functions.
+func TestAirgapClusterPodStatus(
+	cluster *shared.Cluster,
+	podAssertRestarts,
+	podAssertReady assert.PodAssertFunc,
+) {
+	var podDetails string
+	Eventually(func(g Gomega) {
+		podDetails = getPrivatePods(cluster)
+		pods := shared.ParsePods(podDetails)
+		g.Expect(pods).NotTo(BeEmpty())
+
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
+		}
+	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
+}
+
+func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
+	cmd := fmt.Sprintf(
+		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
+			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+		cluster.Config.Product)
+	cmd += "kubectl get pods -A -o wide --no-headers"
+	podDetails, _ = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+
+	return podDetails
 }
 
 func processPodStatus(

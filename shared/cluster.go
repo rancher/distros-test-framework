@@ -285,7 +285,7 @@ func GetNodes(display bool) ([]Node, error) {
 		return nil, err
 	}
 
-	nodes := parseNodes(res)
+	nodes := ParseNodes(res)
 	if display {
 		LogLevel("info", "\n\nCluster nodes:\n")
 		fmt.Println(res)
@@ -322,7 +322,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		matchedNodes = append(matchedNodes, parseNodes(res)...)
+		matchedNodes = append(matchedNodes, ParseNodes(res)...)
 	}
 
 	for i := range matchedNodes {
@@ -332,8 +332,8 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	return nodes, nil
 }
 
-// parseNodes parses the nodes from the kubeclt get nodes command.
-func parseNodes(res string) []Node {
+// ParseNodes parses the nodes from the kubeclt get nodes command.
+func ParseNodes(res string) []Node {
 	nodes := make([]Node, 0, 10)
 	nodeList := strings.Split(strings.TrimSpace(res), "\n")
 	for _, rec := range nodeList {
@@ -369,7 +369,7 @@ func GetPods(display bool) ([]Pod, error) {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
-	pods := parsePods(res)
+	pods := ParsePods(res)
 	if display {
 		LogLevel("info", "\n\nCluster pods:\n")
 		fmt.Println(res)
@@ -401,13 +401,13 @@ func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
-	pods := parsePods(res)
+	pods := ParsePods(res)
 
 	return pods, nil
 }
 
 // parsePods parses the pods from the kubeclt get pods command.
-func parsePods(res string) []Pod {
+func ParsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")
 
