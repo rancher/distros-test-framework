@@ -59,6 +59,10 @@ node {
                 actual_testdir_name = "validatecluster"
               }
 
+              if (test_name == "validatecluster_arm"){
+                actual_testdir_name = "validatecluster"
+              }
+
               def install_params = [
                 string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
                 string(name: 'REPO', value: "${REPO}"), 
@@ -76,6 +80,9 @@ node {
               switch(test_name) {
                 case "validatecluster":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
+                  break
+                case "validatecluster_arm":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
                   break
                 case "docker_cri":
                   jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
