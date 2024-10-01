@@ -25,6 +25,7 @@ node {
   if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
     timeout = "${env.TIMEOUT}"
   }
+
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
       paramsMap = []
@@ -85,7 +86,7 @@ node {
                 sh """
                 docker run --name ${testContainer} -t ${imageName} sh -c \\
                 "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST} ${ARG_TEXT}"
-                 """
+                 """                
               } // stage Delete resources
             } finally {
               stage('Cleanup') {

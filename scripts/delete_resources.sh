@@ -141,11 +141,7 @@ delete_route53 () {
   NAME_PREFIX_LOWER=$(echo "$1" | tr '[:upper:]' '[:lower:]')
   R53_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$1." \
     --query "HostedZones[0].Id" --output text)
-  R53_RECORD=$(aws route53 list-resource-record-sets \
-    --hosted-zone-id "${R53_ZONE_ID}" \
-    --query "ResourceRecordSets[?starts_with(Name, '${NAME_PREFIX_LOWER}.') && Type == 'CNAME'].Name" \
-    --output text)
-
+  echo "R53_ZONE_ID $R53_ZONE_ID"
 
   #Get ResourceRecord Value
   RECORD_VALUE=$(aws route53 list-resource-record-sets \
