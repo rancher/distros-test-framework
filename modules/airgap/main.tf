@@ -24,7 +24,6 @@ module "instance" {
 
    resource_name       = var.resource_name
    no_of_bastion_nodes = var.no_of_bastion_nodes
-   product             = var.product
    install_mode        = var.install_mode
    install_version     = var.install_version
    channel             = var.channel

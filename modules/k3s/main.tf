@@ -91,4 +91,3 @@ module "bastion" {
    resource_name        = var.resource_name
    no_of_bastion_nodes  = var.no_of_bastion_nodes
 }
-
