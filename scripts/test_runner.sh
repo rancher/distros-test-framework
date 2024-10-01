@@ -15,7 +15,8 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|\
+       clusterrestore)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG"  in
@@ -99,6 +100,14 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/clusterreset/...
     elif [ "${TEST_DIR}" = "rebootinstances" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
+    elif [ "${TEST_DIR}" = "clusterrestore" ]; then
+        if [ "${TEST_TAG}" = "clusterrestores3" ]; then
+            declare -a OPTS
+                OPTS=(-timeout=45m -v -count=1 ./entrypoint/clusterrestore/... -tags=clusterrestores3)
+                    [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
+                    [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
+            go test "${OPTS[@]}"
+        fi
     fi
 fi
 }

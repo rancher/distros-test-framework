@@ -602,6 +602,15 @@ func FetchToken(product, ip string) (string, error) {
 	return token, nil
 }
 
+func FetchSnapshotOnDemandPath(product, ip string) (string, error) {
+	token, err := RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots", product), ip)
+	if err != nil {
+		return "", ReturnLogError("failed to fetch snapshot on-demand path: %w\n", err)
+	}
+
+	return token, nil
+}
+
 // PrintGetAll prints the output of kubectl get all -A -o wide and kubectl get nodes -o wide.
 func PrintGetAll() {
 	kubeconfigFile := " --kubeconfig=" + KubeConfigFile

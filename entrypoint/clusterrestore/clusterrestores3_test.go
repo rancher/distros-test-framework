@@ -1,4 +1,4 @@
-package clusterreset
+package clusterrestore
 
 import (
 	"fmt"
@@ -10,12 +10,11 @@ import (
 )
 
 var _ = Describe("Test:", func() {
-
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
 
-	It("Validate Nodes Before Reset", func() {
+	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
@@ -23,26 +22,31 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Validate Pods Before Reset", func() {
+	It("Validate Pods", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
-	It("Verifies ClusterIP Service Before Reset", func() {
-		testcase.TestServiceClusterIP(true, true)
+	It("Verifies ClusterIP Service Before Snapshot", func() {
+		testcase.TestServiceClusterIP(true, false)
 	})
 
-	It("Verifies NodePort Service Before Reset", func() {
+	It("Verifies NodePort Service Before Snapshot", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	It("Verifies Cluster Reset", func() {
-		testcase.TestClusterReset(cluster)
+	// deploy more workloads before and after snapshot -- do not delete the workloads
+	It("Verifies Cluster Reset Restore", func() {
+		testcase.TestClusterRestoreS3(cluster, true, flags)
 	})
 
-	It("Validate Nodes After Reset", func() {
+	It("Verifies Ingress After Snapshot", func() {
+		testcase.TestIngress(true, true)
+	})
+
+	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
@@ -50,18 +54,14 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Validate Pods After Reset", func() {
+	It("Validate Pods", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
-	It("Verifies Ingress After Reset", func() {
-		testcase.TestIngress(true, true)
-	})
-
-	It("Verifies Daemonset After Reset", func() {
+	It("Verifies Daemonset", func() {
 		testcase.TestDaemonset(true, true)
 	})
 
@@ -69,16 +69,16 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(false, true)
 	})
 
-	It("Verifies dns access After Reset", func() {
+	It("Verifies dns access", func() {
 		testcase.TestDNSAccess(true, true)
 	})
 
 	if cluster.Config.Product == "k3s" {
-		It("Verifies Local Path Provisioner storage After Reset", func() {
+		It("Verifies Local Path Provisioner storage", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
 		})
 
-		It("Verifies LoadBalancer Service After Reset", func() {
+		It("Verifies LoadBalancer Service", func() {
 			testcase.TestServiceLoadBalancer(true, true)
 		})
 	}

@@ -27,8 +27,8 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+	ec2Client, err := aws.AddClient(cluster)
+	Expect(err).NotTo(HaveOccurred(), "error creating aws client: %s", err)
 
 	// create server names.
 	var serverNames, instanceServerIds, newExternalServerIps, newPrivateServerIps []string
@@ -38,7 +38,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 
 	var createErr error
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
-		awsDependencies.CreateInstances(serverNames...)
+		ec2Client.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("info", "Created server public ips: %s and ids: %s\n",
@@ -54,7 +54,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 
 	serverErr := nodeReplaceServers(
 		cluster,
-		awsDependencies,
+		ec2Client,
 		resourceName,
 		serverLeaderIP,
 		token,
@@ -68,17 +68,17 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, awsDependencies, version, channel, resourceName, serverLeaderIP, token)
+		nodeReplaceAgents(cluster, ec2Client, version, channel, resourceName, serverLeaderIP, token)
 	}
 	// delete the last remaining server = leader.
-	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
+	delErr := deleteRemainServer(serverLeaderIP, ec2Client)
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
 	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIP)
 }
 
 func nodeReplaceAgents(
 	cluster *shared.Cluster,
-	awsDependencies *aws.Client,
+	ec2Client *aws.Client,
 	version,
 	channel,
 	resourceName,
@@ -92,7 +92,7 @@ func nodeReplaceAgents(
 	}
 
 	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
-		awsDependencies.CreateInstances(agentNames...)
+		ec2Client.CreateInstances(agentNames...)
 	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
 	shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
@@ -102,7 +102,7 @@ func nodeReplaceAgents(
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
-	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, channel, newExternalAgentIps,
+	agentErr := replaceAgents(cluster, ec2Client, serverLeaderIp, token, version, channel, newExternalAgentIps,
 		newPrivateAgentIps,
 	)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
@@ -163,7 +163,7 @@ func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 			return err
 		}
 	} else {
-		err := k3sServerSCP(cluster, ip)
+		err := K3sServerSCP(cluster, ip)
 		if err != nil {
 			return err
 		}
@@ -187,7 +187,7 @@ func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 	)
 }
 
-func k3sServerSCP(cluster *shared.Cluster, ip string) error {
+func K3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
@@ -265,7 +265,7 @@ func nodeReplaceServers(
 	}
 	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
 
-	nodeErr := validateNodeJoin(newFirstServerIP)
+	nodeErr := ValidateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {
 		shared.LogLevel("error", "error validating node join: %w with ip: %s", nodeErr, newFirstServerIP)
 
@@ -313,7 +313,7 @@ func joinRemainServers(
 			return joinErr
 		}
 
-		joinErr := validateNodeJoin(externalIp)
+		joinErr := ValidateNodeJoin(externalIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
 
@@ -324,7 +324,7 @@ func joinRemainServers(
 	return nil
 }
 
-func validateNodeJoin(ip string) error {
+func ValidateNodeJoin(ip string) error {
 	node, err := shared.GetNodeNameByIP(ip)
 	if err != nil {
 		return shared.ReturnLogError("error getting node name by ip:%s %w\n", ip, err)
@@ -506,7 +506,7 @@ func buildK3sCmd(
 	ipv6 := ""
 	if nodetype == agent {
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIP,
