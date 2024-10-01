@@ -32,7 +32,6 @@ variable "enable_public_ip" {
 variable "enable_ipv6" {
   default = false
 }
-variable "product" {}
 variable "install_mode" {}
 variable "install_version" {}
 variable "channel" {}
