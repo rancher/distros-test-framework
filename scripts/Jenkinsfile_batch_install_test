@@ -55,11 +55,7 @@ node {
                 job_aws_ssh_pem_key = ""
               }
 
-              if (test_name == "docker_cri"){
-                actual_testdir_name = "validatecluster"
-              }
-
-              if (test_name == "validatecluster_arm"){
+              if (test_name == "docker_cri" || test_name == "validatecluster_arm"){
                 actual_testdir_name = "validatecluster"
               }
 
