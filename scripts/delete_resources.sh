@@ -288,6 +288,7 @@ else
         delete_all_resources "$i"
       else
         echo "Length of prefix name $i lesser than 5. Please provide a tangible prefix length for deletion."
+        exit 1
       fi
     done
 fi
