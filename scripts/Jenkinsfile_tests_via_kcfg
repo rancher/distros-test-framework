@@ -42,68 +42,81 @@ node {
         }
         dir("./") {
           stage('Run Sequential Jobs') {
-            echo "Running ${test_dir.size()} tests: ${test_dir}"
+            try {
+              TEST_FAILURE = false
+              echo "Running ${test_dir.size()} tests: ${test_dir}"
 
-            test_dir.each { test_name ->
+              test_dir.each { test_name ->
 
-              def install_params = [
-                string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
-                string(name: 'REPO', value: "${REPO}"), 
-                string(name: 'BRANCH', value: "${BRANCH}"),                                         
-                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
-                string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
-                string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-                string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),              
-                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
-                string(name: 'TEST_DIRECTORY', value: test_name),
-                string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
-                string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
-                string(name: 'KUBECONFIG', value: "${KUBECONFIG}"),                                                           
-              ]
+                def install_params = [
+                  string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
+                  string(name: 'REPO', value: "${REPO}"), 
+                  string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                  string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                  string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
+                  string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
+                  string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),              
+                  string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
+                  string(name: 'TEST_DIRECTORY', value: test_name),
+                  string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
+                  string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
+                  string(name: 'KUBE_CONFIG', value: "${KUBE_CONFIG}"),                                                           
+                ]
 
-              switch(test_name) {
-                case "validatecluster":
-                  try {
-                    build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params
-                  } catch(err) {
-                    echo "Validate Cluster Test Error: " + err
-                    currentBuild.result = 'SUCCESS'
-                  }
-                  break           
-                case "restartservice":
-                  try {
-                    build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params
-                  } catch(err) {
-                    echo "Restart Service Test Error: " + err
-                    currentBuild.result = 'SUCCESS'
-                  }
-                  break
-                case "certrotate":
-                  try {
-                    build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params
-                  } catch(err) {
-                    echo "Cert Rotate Test Error: " + err
-                    currentBuild.result = 'SUCCESS'
-                  }
-                  break                
-                case "secretsencrypt":
-                  try {
-                    build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params
-                  } catch(err) {
-                    echo "Secrets Encryption Test Error: " + err
-                    currentBuild.result = 'SUCCESS'
-                  }
-                  break
-                case "clusterreset":
-                  try {
-                    build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params
-                  } catch(err) {
-                    echo "Cluster Reset Test Error: " + err
-                    currentBuild.result = 'SUCCESS'
-                  }
-                  break                                                      
-              } // switch case
-            } // for each test_dir loop
+                switch(test_name) {
+                  case "validatecluster":
+                    try {
+                      build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params
+                    } catch(err) {
+                      echo "Validate Cluster Test Error: " + err
+                      currentBuild.result = 'SUCCESS'
+                      TEST_FAILURE = true
+                    }
+                    break           
+                  case "restartservice":
+                    try {
+                      build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params
+                    } catch(err) {
+                      echo "Restart Service Test Error: " + err
+                      currentBuild.result = 'SUCCESS'
+                      TEST_FAILURE = true
+                    }
+                    break
+                  case "certrotate":
+                    try {
+                      build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params
+                    } catch(err) {
+                      echo "Cert Rotate Test Error: " + err
+                      currentBuild.result = 'SUCCESS'
+                      TEST_FAILURE = true
+                    }
+                    break                
+                  case "secretsencrypt":
+                    try {
+                      build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params
+                    } catch(err) {
+                      echo "Secrets Encryption Test Error: " + err
+                      currentBuild.result = 'SUCCESS'
+                      TEST_FAILURE = true
+                    }
+                    break
+                  case "clusterreset":
+                    try {
+                      build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params
+                    } catch(err) {
+                      echo "Cluster Reset Test Error: " + err
+                      currentBuild.result = 'SUCCESS'
+                      TEST_FAILURE = true
+                    }
+                    break                                                      
+                } // switch case
+              } // for each test_dir loop
+            } finally {
+              if (TEST_FAILURE) {
+                echo "Resetting current build status due to test failure"
+                currentBuild.result = 'FAILURE'
+              }
+            }
           } // stage Run Sequential Jobs
         } // dir
       } // withEnv
