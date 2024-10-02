@@ -67,11 +67,19 @@ node {
                 dir("./config") {
                   //update product info
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\nKUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\n"
+                  def version_param_name = ""
+                  def channel_param_name = ""
+                  if (env.MODULE) {
+                    data += "ENV_MODULE=${env.MODULE}\n"
+                    version_param_name = "install_version"
+                    channel_param_name = "channel"
+                  } else {
+                    version_param_name = "${env.PRODUCT_NAME}_version"
+                    channel_param_name = "${env.PRODUCT_NAME}_channel"  
+                  }
                   writeFile(file: '.env', text: data)
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
-                  def version_param_name = "${env.PRODUCT_NAME}_version"
-                  def channel_param_name = "${env.PRODUCT_NAME}_channel"                  
                   def configContents = env.TFVARS
                   writeFile file: filename, text: configContents +
                     "\n${version_param_name} = \"${INSTALL_VERSION}\"" + 

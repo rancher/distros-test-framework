@@ -83,6 +83,7 @@ module "bastion" {
    bastion_subnets      = var.bastion_subnets
    availability_zone    = var.availability_zone
    sg_id                = var.sg_id
+   volume_size          = var.volume_size
    enable_public_ip     = var.enable_public_ip
    enable_ipv6          = var.enable_ipv6
    key_name             = var.key_name
