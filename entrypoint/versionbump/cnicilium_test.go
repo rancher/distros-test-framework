@@ -13,6 +13,12 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
+const (
+	kgn    = "kubectl get node -o yaml"
+	cilium     = kgn + " : | grep mirrored-cilium  -A1, "
+	cniPlugins = kgn + " : | grep hardened-cni-plugins -A1"
+)
+
 var _ = Describe("Cilium Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
@@ -37,7 +43,7 @@ var _ = Describe("Cilium Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  "kubectl get node -o yaml : | grep mirrored-cilium  -A1,kubectl get node -o yaml : | grep hardened-cni-plugins -A1",
+						Cmd:                  cilium + cniPlugins,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
