@@ -56,6 +56,5 @@ var _ = AfterSuite(func() {
 		status, err := shared.DestroyCluster()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
-		testcase.DeleteAWSInstance(cluster)
 	}
 })
