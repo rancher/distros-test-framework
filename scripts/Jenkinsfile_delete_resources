@@ -1,0 +1,107 @@
+#!groovy
+
+node {
+  def autoAbort = false
+  def job_name = "${JOB_NAME}"
+  if (job_name.contains('/')) {
+    job_names = job_name.split('/')
+    job_name = job_names[job_names.size() - 1]
+  }
+
+  def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
+  def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+  def branch = "main"
+  if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
+    branch = "${env.BRANCH}"
+  }
+
+  def repo = scm.userRemoteConfigs
+  if ("${env.REPO}" != "null" && "${env.REPO}" != "") {
+    repo = [
+      [url: "${env.REPO}"]
+    ]
+  }
+  def timeout = "60m"
+  if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
+    timeout = "${env.TIMEOUT}"
+  }
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
+    withFolderProperties {
+      paramsMap = []
+      params.each {
+        if (it.value && it.value.trim() != "") {
+          paramsMap << "$it.key=$it.value"
+        }
+      }
+      withCredentials([
+        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+      ]) {
+        withEnv(paramsMap) {
+          stage('Checkout') {
+            if ( "${env.RESOURCE_PREFIX_LIST}" == "" ) {
+                  currentBuild.result = 'ABORTED'
+                  autoAbort = true
+                  error("RESOURCE_PREFIX_LIST param cannot be empty. Aborting the build.")
+                  return
+            }
+            deleteDir()
+            checkout([
+              $class: 'GitSCM',
+              branches: [
+                [name: "*/${branch}"]
+              ],
+              extensions: scm.extensions + [
+                [$class: 'CleanCheckout']
+              ],
+              userRemoteConfigs: repo
+            ])
+          }
+          dir("./") {
+            try {              
+              stage('Build Container') {
+                if (autoAbort) {
+                  return
+                }
+                dir("./.aws") {
+                  writeFile file: 'credentials', text: '[default]' +
+                    "\naws_access_key_id = ${AWS_ACCESS_KEY_ID}" + 
+                    "\naws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}"
+                  writeFile file: 'config', text: '[default]' +
+                    "\nregion = ${REGION}" + 
+                    "\noutput = yaml" 
+                } // dir .aws
+                sh "./scripts/build.sh"
+              } // stage Build Container
+            stage('Delete Resources') {
+                if (autoAbort) {
+                  return
+                }
+                def ARG_TEXT=""
+                if ("$DRY_RUN" == "True" || "$DRY_RUN" == "true") {
+                  ARG_TEXT="-d"
+                  sh "echo 'This will be only a DRY RUN. No resources will be deleted during this job run.'"
+                }
+                sh """
+                docker run --name ${testContainer} -t ${imageName} sh -c \\
+                "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST} ${ARG_TEXT}"
+                 """
+              } // stage Delete resources
+            } finally {
+              stage('Cleanup') {
+                if (autoAbort) {
+                  throw e
+                } else {
+                  // Stop and remove containers and images, but don't fail job if these fail for whatever reason (generally due to a previous step failing)
+                  sh "docker stop ${testContainer} || true"
+                  sh "docker rm -v ${testContainer} || true"
+                  sh "docker rmi -f ${imageName} || true"
+                } // else
+              } // stage Cleanup
+            } // finally
+          } // dir
+        } // withEnv
+      } // withCredentials
+    } // withFolderProperties
+  } // wrap
+} // node

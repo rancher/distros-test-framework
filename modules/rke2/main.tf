@@ -135,5 +135,6 @@ module "bastion" {
    key_name             = var.key_name
    access_key           = var.access_key
    resource_name        = var.resource_name
+   volume_size          = var.volume_size
    no_of_bastion_nodes  = var.no_of_bastion_nodes
 }

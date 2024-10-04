@@ -17,9 +17,9 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
-		fmt.Println("Backend:", cluster.Config.DataStore)
+		shared.LogLevel("info", "Backend: "+cluster.Config.DataStore)
 	} else {
-		fmt.Println("Backend:", cluster.Config.ExternalDb)
+		shared.LogLevel("info", "Backend: "+cluster.Config.ExternalDb)
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
@@ -37,8 +37,8 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	err = shared.PrintBase64Encoded(shared.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	if cluster.GeneralConfig.BastionIP != "" {
-		shared.LogLevel("info", "Bastion Node IP: %v", cluster.GeneralConfig.BastionIP)
+	if cluster.BastionConfig.PublicIPv4Addr != "" {
+		shared.LogLevel("info", "Bastion Node IP: %v", cluster.BastionConfig.PublicIPv4Addr)
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 

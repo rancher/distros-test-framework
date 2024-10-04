@@ -21,6 +21,7 @@ var (
 type Product struct {
 	TFVars  string
 	Product string
+	Module  string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the Product configuration.
@@ -50,7 +51,9 @@ func loadEnv() (*Product, error) {
 	productConfig := &Product{
 		TFVars:  os.Getenv("ENV_TFVARS"),
 		Product: os.Getenv("ENV_PRODUCT"),
+		Module:  os.Getenv("ENV_MODULE"),
 	}
+
 	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
 		log.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
 		os.Exit(1)

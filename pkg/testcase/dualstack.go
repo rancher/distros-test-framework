@@ -36,7 +36,7 @@ func TestIngressDualStack(cluster *shared.Cluster, deleteWorkload bool) {
 		if strings.Contains(ingressIP, ":") {
 			ingressIP = shared.EncloseSqBraces(ingressIP)
 		}
-		err = assert.ValidateOnNode(cluster.GeneralConfig.BastionIP,
+		err = assert.ValidateOnNode(cluster.BastionConfig.PublicIPv4Addr,
 			"curl -sL -H 'Host: test1.com' http://"+ingressIP+"/name.html",
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)

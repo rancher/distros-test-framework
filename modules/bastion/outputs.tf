@@ -1,9 +1,10 @@
 output "public_ip" {
-  value = join("," , aws_instance.bastion.*.public_ip)
+  value = var.no_of_bastion_nodes != 0 ? aws_instance.bastion[0].public_ip : ""
   description = "The public IP of the AWS node"
+  
 }
 
-output "id" {
-  value = join("," , aws_instance.bastion.*.id)
-  description = "The ID of the AWS bastion node"
+output "public_dns" {
+  value = var.no_of_bastion_nodes != 0 ? aws_instance.bastion[0].public_ip : ""
+  description = "The public DNS of the AWS node"
 }

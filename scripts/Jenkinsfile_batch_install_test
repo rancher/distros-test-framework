@@ -55,7 +55,7 @@ node {
                 job_aws_ssh_pem_key = ""
               }
 
-              if (test_name == "docker_cri"){
+              if (test_name == "docker_cri" || test_name == "validatecluster_arm"){
                 actual_testdir_name = "validatecluster"
               }
 
@@ -76,6 +76,9 @@ node {
               switch(test_name) {
                 case "validatecluster":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
+                  break
+                case "validatecluster_arm":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
                   break
                 case "docker_cri":
                   jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }

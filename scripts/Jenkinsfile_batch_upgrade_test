@@ -51,12 +51,17 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if (test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc"){
+              if (test_name == "upgrademanual" || test_name == "upgradereplacement" || test_name == "upgradesuc" || test_name == "upgrademanual_arm"){
                 actual_testdir_name = "upgradecluster"
                 if (test_name == "upgradesuc") {
                   job_test_args = job_test_args + " -tags=${test_name} -sucUpgradeVersion ${UPGRADE_VERSION}"
                 } else {
-                  job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${UPGRADE_VERSION}"
+                  if (test_name == "upgrademanual_arm") {
+                    job_test_args = job_test_args + " -tags=upgrademanual -installVersionOrCommit ${UPGRADE_VERSION}"
+                  } else {
+                    // upgrademanual and upgradereplacement
+                    job_test_args = job_test_args + " -tags=${test_name} -installVersionOrCommit ${UPGRADE_VERSION}"
+                  }
                 }
                 job_test_args = job_test_args +  " -channel ${UPGRADE_CHANNEL}"
               }
@@ -80,6 +85,9 @@ node {
               switch(test_name) {
                 case "upgrademanual": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
+                  break
+                case "upgrademanual_arm": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_arm", parameters: upgrade_params }
                   break
                 case "upgradesuc": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }

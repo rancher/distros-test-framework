@@ -11,19 +11,24 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-func addTerraformOptions(product string) (*terraform.Options, string, error) {
+func setTerraformOptions(product, module string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", product))
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid product: %s\n", product)
+		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + product)
+	// checking if module is empty, use the product as module
+	if module == "" {
+		module = product
+	}
+
+	tfDir, err := filepath.Abs(dir + "/modules/" + module)
 	if err != nil {
-		return nil, "", fmt.Errorf("no module found for product: %s\n", product)
+		return nil, "", fmt.Errorf("no module found: %s", module)
 	}
 
 	terraformOptions := &terraform.Options{
@@ -36,26 +41,43 @@ func addTerraformOptions(product string) (*terraform.Options, string, error) {
 
 func loadTFconfig(
 	t *testing.T,
+	product, module,
 	varDir string,
 	terraformOptions *terraform.Options,
-	product string,
 ) (*Cluster, error) {
 	c := &Cluster{}
 
-	loadTFoutput(t, terraformOptions, c)
+	LogLevel("info", "Loading TF outputs...")
+	loadTFoutput(t, terraformOptions, c, module)
+	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAwsEc2(t, varDir, c)
+
 	if product == "rke2" {
-		loadWinTFCfg(t, varDir, terraformOptions, c)
+		numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
+		if numWinAgents > 0 {
+			LogLevel("info", "Loading windows TF Config...")
+			loadWinTFCfg(t, numWinAgents, terraformOptions, c)
+		}
 	}
 
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = product
-
+	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
+
+	// check for airgap
+	if module != "" && module == "airgap" {
+		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+	}
+
+	// TODO: Figure out logic to suppress for non-bastion clusters
+	LogLevel("info", "Loading bastion configs....")
+	c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
+	c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 
 	return c, nil
 }
@@ -73,10 +95,11 @@ func loadAwsEc2(t *testing.T, varDir string, c *Cluster) {
 	c.AwsEc2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
-func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster) {
-	KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
-	c.GeneralConfig.BastionIP = terraform.Output(t, terraformOptions, "bastion_ip")
-	c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
+func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {
+	if module == "" {
+		KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
+		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
+	}
 	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
 	rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
 	if rawAgentIPs != "" {
@@ -84,13 +107,12 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster)
 	}
 }
 
-func loadWinTFCfg(t *testing.T, varDir string, terraformOptions *terraform.Options, c *Cluster) {
-	rawWinAgentIPs := terraform.Output(t, terraformOptions, "windows_worker_ips")
+func loadWinTFCfg(t *testing.T, numWinAgents int, tfOptions *terraform.Options, c *Cluster) {
+	rawWinAgentIPs := terraform.Output(t, tfOptions, "windows_worker_ips")
 	if rawWinAgentIPs != "" {
 		c.WinAgentIPs = strings.Split(rawWinAgentIPs, ",")
 	}
 
-	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(t, varDir, "no_of_windows_worker_nodes"))
 	c.NumWinAgents = numWinAgents
 }
 
