@@ -79,6 +79,10 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
+
+	It("Deletes nodes created by aws cli", func() {
+		testcase.DeleteAWSInstance(cluster)
+	})
 })
 
 var _ = AfterEach(func() {
