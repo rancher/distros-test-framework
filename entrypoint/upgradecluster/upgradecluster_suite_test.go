@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -17,6 +18,7 @@ var (
 	kubeconfig string
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
+	awsClient  *aws.Client
 )
 
 func TestMain(m *testing.M) {
@@ -41,6 +43,9 @@ func TestMain(m *testing.M) {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
+
+	awsClient, err = aws.AddClient(cluster)
+	Expect(err).NotTo(HaveOccurred())
 
 	os.Exit(m.Run())
 }
