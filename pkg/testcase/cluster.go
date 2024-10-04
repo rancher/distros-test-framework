@@ -97,4 +97,3 @@ func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) 
 		Expect(agentIPs).Should(BeEmpty())
 	}
 }
-
