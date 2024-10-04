@@ -100,11 +100,6 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
-
-	It("Displays Cluster details after tests", func() {
-		testcase.DisplayClusterDetails()
-	})
-
 })
 
 var _ = AfterEach(func() {
