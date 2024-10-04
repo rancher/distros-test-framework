@@ -80,9 +80,9 @@ var _ = Describe("Test:", func() {
 		})
 	}
 
-	It("Deletes nodes created by aws cli", func() {
-		testcase.DeleteAWSInstance(cluster)
-	})
+	// Delete aws nodes created by cli
+	testcase.DeleteAWSInstance(cluster)
+	
 })
 
 var _ = AfterEach(func() {
