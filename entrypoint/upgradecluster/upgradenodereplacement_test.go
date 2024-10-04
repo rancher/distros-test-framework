@@ -79,10 +79,6 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
-
-	// Delete aws nodes created by cli
-	testcase.DeleteAWSInstance(cluster)
-	
 })
 
 var _ = AfterEach(func() {
@@ -91,4 +87,21 @@ var _ = AfterEach(func() {
 	} else {
 		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
+})
+
+var _ = AfterAll(func() {
+	ips := shared.FetchNodeExternalIPs()
+	var wg sync.WaitGroup
+	for _, ip := range ips {
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			nodeDelErr := awsClient.DeleteInstance(ip)
+			if nodeDelErr != nil {
+				shared.LogLevel("error", "on deleting node with ip: %v, got error %w", ip, nodeDelErr)
+				return
+			}
+		}(ip)
+	}
+	wg.Wait()
 })
