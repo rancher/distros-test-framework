@@ -111,7 +111,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 	return nil
 }
 
-func TestEndpointReadiness(cluster *factory.Cluster) {
+func TestEndpointReadiness(cluster *shared.Cluster) {
 	var err error
 	var wg sync.WaitGroup
 	// do more checks on the filesystem to ensure the certs are all created and in the correct location before this.
@@ -146,7 +146,7 @@ func TestEndpointReadiness(cluster *factory.Cluster) {
 	Expect(err).NotTo(HaveOccurred(), err)
 }
 
-func Testk8sAPIReady(cluster *factory.Cluster) {
+func Testk8sAPIReady(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		err := assert.CheckComponentCmdNode(
 			"kubectl get --raw='/readyz?verbose'",
@@ -157,7 +157,7 @@ func Testk8sAPIReady(cluster *factory.Cluster) {
 	}
 }
 
-func Testk8sAPILive(cluster *factory.Cluster) {
+func Testk8sAPILive(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		err := assert.CheckComponentCmdNode(
 			"kubectl get --raw='/livez?verbose'",
