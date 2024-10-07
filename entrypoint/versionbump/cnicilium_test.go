@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	kgn    = "kubectl get node -o yaml"
+	kgn        = "kubectl get node -o yaml"
 	cilium     = kgn + " : | grep mirrored-cilium  -A1, "
 	cniPlugins = kgn + " : | grep hardened-cni-plugins -A1"
 )
