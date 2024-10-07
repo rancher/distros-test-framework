@@ -10,10 +10,12 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
 )
@@ -41,9 +43,21 @@ func TestMain(m *testing.M) {
 }
 
 func TestValidateClusterSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Validate Cluster Test Suite")
 }
+
+var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+	// Add Qase reporting capabilities.
+	if qaseReport == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).NotTo(HaveOccurred())
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -52,3 +66,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}

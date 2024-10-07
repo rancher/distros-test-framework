@@ -103,7 +103,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...     
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
@@ -114,6 +114,7 @@ if [ -n "${TEST_DIR}" ]; then
         declare -a OPTS
         if [ "${TEST_TAG}" = "privateregistry" ]; then
           OPTS=(-timeout=60m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy "${DESTROY}")
+            [ -n "${IMAGE_REGISTRY_URL}" ] && OPTS+=(-imageRegistryUrl "${IMAGE_REGISTRY_URL}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
             # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
