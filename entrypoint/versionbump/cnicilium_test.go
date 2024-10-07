@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	kgn        = "kubectl get node -o yaml"
-	cilium     = kgn + " : | grep mirrored-cilium  -A1, "
-	cniPlugins = kgn + " : | grep hardened-cni-plugins -A1"
+	kgn           = "kubectl get node -o yaml"
+	ciliumCmd     = kgn + " : | grep mirrored-cilium  -A1, "
+	cniPluginsCmd = kgn + " : | grep hardened-cni-plugins -A1"
 )
 
 var _ = Describe("Cilium Version bump:", func() {
@@ -43,7 +43,7 @@ var _ = Describe("Cilium Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  cilium + cniPlugins,
+						Cmd:                  ciliumCmd + cniPluginsCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

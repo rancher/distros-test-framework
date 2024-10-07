@@ -13,7 +13,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
-var flannel string
+var flannelCmd string
 
 var _ = Describe("Flannel Version bump:", func() {
 	It("Start Up with no issues", func() {
@@ -35,16 +35,16 @@ var _ = Describe("Flannel Version bump:", func() {
 	})
 
 	It("Test flannel version bump", func() {
-		flannel := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+		flannelCmd = "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
 		if cluster.Config.Product == "k3s" {
-			flannel = "/var/lib/rancher/k3s/data/current/bin/flannel"
+			flannelCmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
 		}
 
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  flannel,
+						Cmd:                  flannelCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
