@@ -36,7 +36,11 @@ func ValidateTemplateFlags() {
 	case "components":
 		validateComponentsTest(expectedValues, expectedUpgrades)
 	case "flannel":
-		log.Debug("flannel test tag, all validations already done")
+		validateSingleCNITest(expectedValues, expectedUpgrades)
+	case "calico":
+		validateSingleCNITest(expectedValues, expectedUpgrades)
+	case "canal":
+		validateCanalTest(expectedValues, expectedUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}
@@ -89,7 +93,8 @@ func validateTestTagFromLocal() string {
 	}
 
 	if testTag != "versionbump" && testTag != "cilium" && testTag != "multus" &&
-		testTag != "components" && testTag != "flannel" {
+		testTag != "components" && testTag != "flannel" && testTag != "calico" &&
+		testTag != "canal" {
 		log.Errorf("test tag not found in: %s", testTag)
 		os.Exit(1)
 	}
@@ -125,6 +130,35 @@ func validateCiliumTest(expectedValue, valuesUpgrade []string) {
 	}
 }
 
+func validateCanalTest(expectedValue, valuesUpgrade []string) {
+	// calico + flannel
+	canalCmdsLength := 2
+	if len(expectedValue) != canalCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values: %d", canalCmdsLength, len(expectedValue))
+		os.Exit(1)
+	}
+
+	if valuesUpgrade != nil && len(valuesUpgrade) != canalCmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+			canalCmdsLength, len(valuesUpgrade))
+		os.Exit(1)
+	}
+}
+
+func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
+	cmdsLength := 1
+	if len(expectedValue) != cmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values: %d", cmdsLength, len(expectedValue))
+		os.Exit(1)
+	}
+
+	if valuesUpgrade != nil && len(valuesUpgrade) != cmdsLength {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+			cmdsLength, len(valuesUpgrade))
+		os.Exit(1)
+	}
+}
+
 func validateMultusTest(expectedValue, valuesUpgrade []string) {
 	multusCmdsLength := 4
 	if len(expectedValue) != multusCmdsLength {
@@ -141,7 +175,7 @@ func validateMultusTest(expectedValue, valuesUpgrade []string) {
 
 func validateComponentsTest(expectedValue, valuesUpgrade []string) {
 	k3scomponentsCmdsLength := 10
-	rke2componentsCmdsLength := 9
+	rke2componentsCmdsLength := 7
 
 	product := os.Getenv("ENV_PRODUCT")
 	switch product {
