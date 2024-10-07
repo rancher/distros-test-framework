@@ -19,6 +19,7 @@ var (
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
 	awsClient  *aws.Client
+	err        error
 )
 
 func TestMain(m *testing.M) {
@@ -29,7 +30,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
 	flag.Parse()
 
-	_, err := config.AddEnv()
+	_, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -43,9 +44,6 @@ func TestMain(m *testing.M) {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
-
-	awsClient, err = aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred())
 
 	os.Exit(m.Run())
 }

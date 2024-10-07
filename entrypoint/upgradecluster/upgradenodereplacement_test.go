@@ -7,13 +7,14 @@ import (
 	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test:", func() {
+var _ = Describe("Upgrade Node Replcement Test:", Ordered, func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -81,18 +82,21 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
+
+	AfterAll(func() {
+		if flags.Destroy {
+			deleteAWSResources()
+		}
+	})
+
 })
 
-var _ = AfterEach(func() {
-	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
-	} else {
-		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
-	}
-})
-
-var _ = AfterAll(func() {
+func deleteAWSResources() {
 	ips := shared.FetchNodeExternalIPs()
+	awsClient, err = aws.AddClient(cluster)
+	if err != nil {
+		shared.LogLevel("error", "error creating aws client: %w\n", err)
+	}
 	var wg sync.WaitGroup
 	for _, ip := range ips {
 		wg.Add(1)
@@ -106,4 +110,12 @@ var _ = AfterAll(func() {
 		}(ip)
 	}
 	wg.Wait()
+}
+
+var _ = AfterEach(func() {
+	if CurrentSpecReport().Failed() {
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
+	} else {
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
+	}
 })
