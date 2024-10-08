@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Upgrade Node Replcement Test:", Ordered, func() {
+var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
