@@ -54,6 +54,7 @@ func (t *templateConfigFlag) Set(value string) error {
 }
 
 type airgapFlag struct {
+	ImageRegistryUrl string
 	RegistryUsername string
 	RegistryPassword string
 	TarballType      string
