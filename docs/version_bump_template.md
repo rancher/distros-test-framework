@@ -6,7 +6,7 @@ The test can be created by adding one version or commit, run some commands on it
 
 
 ### Tests:
-Right now we have 4 tests/jobs that you can run:
+We have 5 tests/jobs that you can run for:
  
  CNIs:
 `cilium`
@@ -14,9 +14,17 @@ Right now we have 4 tests/jobs that you can run:
 `multus + canal` 
 
 `flannel`
- 
+
+`calico`
+
+`canal`
+
+And we have 2 jobs that you can run for:
+
 General components: 
-`components` (which runs all those at once )
+`components` (which runs all except the cni's at once )
+
+`versionbump` (which takes cmds and expected values along with upgrades)
 
 - In case of adding new components, you should be updating the values lenght at:
 https://github.com/rancher/distros-test-framework/blob/bfe96fc37b42eff755b2f800f912bc4f78f91972/pkg/customflag/validate.go#L143
@@ -29,9 +37,7 @@ https://github.com/rancher/distros-test-framework/blob/bfe96fc37b42eff755b2f800f
 4- containerd
 5- runc
 6- crictl
-7- canalFlannel
-8- calico
-9- ingressController
+7- ingressController
 
 ```
 - k3s
@@ -50,7 +56,6 @@ https://github.com/rancher/distros-test-framework/blob/bfe96fc37b42eff755b2f800f
 
 Version bump: 
 - Runs any combination of cmd x expected value you want.
-
 
 ### How can I do that?
 
