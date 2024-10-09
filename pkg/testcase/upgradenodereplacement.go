@@ -138,7 +138,6 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 			}
 		}(ip)
 	}
-
 	wg.Wait()
 	close(chanErr)
 
