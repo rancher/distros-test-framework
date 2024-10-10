@@ -52,14 +52,13 @@ func TestAirgapClusterPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
+	}, "2400s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
 }
 
 func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
 	cmd := fmt.Sprintf(
 		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
-		cluster.Config.Product)
+			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ", cluster.Config.Product)
 	cmd += "kubectl get pods -A -o wide --no-headers"
 	podDetails, _ = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 

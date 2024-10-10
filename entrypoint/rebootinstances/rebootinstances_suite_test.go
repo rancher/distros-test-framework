@@ -9,13 +9,17 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var cluster *shared.Cluster
+var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
+	cluster    *shared.Cluster
+)
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
@@ -42,9 +46,23 @@ func TestMain(m *testing.M) {
 }
 
 func TestRebootInstancesSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Reboot Instances Test Suite")
 }
+
+var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+	// Add Qase reporting capabilities.
+	if qaseReport == "true" {
+		qaseClient, err := qase.AddQase()
+		if err != nil {
+			shared.LogLevel("error", "error adding qase: %w\n", err)
+		}
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -89,4 +107,8 @@ func cleanEIPs() {
 			wg.Wait()
 		}
 	}
+}
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
 }

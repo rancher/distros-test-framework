@@ -12,10 +12,12 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
 )
@@ -43,14 +45,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestSecretsEncryptionSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Secrets Encryption Test Suite")
 }
 
 var _ = BeforeSuite(func() {
-	// if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cluster.Config.Product)); err != nil {
-	// 	Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
-	// }
 	if cluster.Config.Product == "k3s" {
 		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
 			"ERROR: Add secrets-encryption:true to server_flags for this test")
@@ -68,6 +67,20 @@ var _ = BeforeSuite(func() {
 	}
 })
 
+var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+	// Add Qase reporting capabilities.
+	if qaseReport == "true" {
+		qaseClient, err := qase.AddQase()
+		if err != nil {
+			shared.LogLevel("error", "error adding qase: %w\n", err)
+		}
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
+
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster()
@@ -75,3 +88,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}
