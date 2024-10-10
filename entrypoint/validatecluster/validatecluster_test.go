@@ -38,6 +38,18 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceNodePort(true, true)
 	})
 
+	It("Checks the healthz endpoints", func() {
+		testcase.TestEndpointReadiness(cluster)
+	})
+
+	It("checks k8s api readiness", func() {
+		testcase.Testk8sAPIReady(cluster)
+	})
+
+	It("checks the k8s api liveness", func() {
+		testcase.Testk8sAPILive(cluster)
+	})
+
 	It("Verifies Ingress", func() {
 		testcase.TestIngress(true, true)
 	})

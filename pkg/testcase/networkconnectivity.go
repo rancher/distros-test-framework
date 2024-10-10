@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -108,4 +109,61 @@ func testCrossNodeService(services, ports, expected []string) error {
 	}
 
 	return nil
+}
+
+func TestEndpointReadiness(cluster *shared.Cluster) {
+	var err error
+	var wg sync.WaitGroup
+	// do more checks on the filesystem to ensure the certs are all created and in the correct location before this.
+	commands := []string{
+		"sudo curl -sk http://127.0.0.1:10248/healthz",  // kubelet
+		"sudo curl -sk http://127.0.0.1:10249/healthz",  // kube-proxy
+		"sudo curl -sk https://127.0.0.1:10257/healthz", // kube-controller
+		"sudo curl -sk https://127.0.0.1:10258/healthz", // cloud-controller
+		"sudo curl -sk https://127.0.0.1:10259/healthz", // kube-scheduler
+		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
+			cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
+			cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
+		// "sudo curl -sk http://127.0.0.1:10256/healthz", SearchString: "lastUpdated" or "nodeEligible: true"
+		// check with devs for this versus second kube-proxy port
+		// "sudo curl -sk " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/etcd/server-client.crt",
+		//  cluster.Config.Product) + fmt.Sprintf(" --key /var/lib/rancher/%s/server/tls/etcd/server-client.key",
+		//  cluster.Config.Product) + " https://127.0.0.1:2379/livez?verbose",
+	}
+	for _, serverIP := range cluster.ServerIPs {
+		for _, endpoint := range commands {
+			wg.Add(1)
+			go func(serverIP, endpoint string) {
+				defer wg.Done()
+				err = assert.CheckComponentCmdNode(endpoint, serverIP, "ok")
+				if err != nil {
+					fmt.Printf("Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
+				}
+			}(serverIP, endpoint)
+		}
+	}
+	wg.Wait()
+	Expect(err).NotTo(HaveOccurred(), err)
+}
+
+func Testk8sAPIReady(cluster *shared.Cluster) {
+	for _, serverIP := range cluster.ServerIPs {
+		err := assert.CheckComponentCmdNode(
+			"kubectl get --raw='/readyz?verbose'",
+			serverIP,
+			"readyz check passed",
+		)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
+
+func Testk8sAPILive(cluster *shared.Cluster) {
+	for _, serverIP := range cluster.ServerIPs {
+		err := assert.CheckComponentCmdNode(
+			"kubectl get --raw='/livez?verbose'",
+			serverIP,
+			"livez check passed",
+		)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
 }
