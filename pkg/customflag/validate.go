@@ -3,6 +3,7 @@ package customflag
 import (
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/logger"
@@ -92,9 +93,8 @@ func validateTestTagFromLocal() string {
 		os.Exit(1)
 	}
 
-	if testTag != "versionbump" && testTag != "cilium" && testTag != "multus" &&
-		testTag != "components" && testTag != "flannel" && testTag != "calico" &&
-		testTag != "canal" {
+	testTags := []string{"calico", "canal", "cilium", "flannel", "multus", "components", "versionbump"}
+	if !slices.Contains(testTags, testTag) {
 		log.Errorf("test tag not found in: %s", testTag)
 		os.Exit(1)
 	}
@@ -117,89 +117,89 @@ func validateVersionBumpTest(expectedValue, expectedUpgrade []string, cmd string
 }
 
 func validateCiliumTest(expectedValue, valuesUpgrade []string) {
-	ciliumCmdsLength := 2
-	if len(expectedValue) != ciliumCmdsLength {
-		log.Errorf("mismatched length commands: %d x expected values: %d", ciliumCmdsLength, len(expectedValue))
+	cmdCount := 2
+	if len(expectedValue) != cmdCount {
+		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != ciliumCmdsLength {
+	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			ciliumCmdsLength, len(valuesUpgrade))
+			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
 }
 
 func validateCanalTest(expectedValue, valuesUpgrade []string) {
 	// calico + flannel
-	canalCmdsLength := 2
-	if len(expectedValue) != canalCmdsLength {
-		log.Errorf("mismatched length commands: %d x expected values: %d", canalCmdsLength, len(expectedValue))
+	cmdCount := 2
+	if len(expectedValue) != cmdCount {
+		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != canalCmdsLength {
+	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			canalCmdsLength, len(valuesUpgrade))
+			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
 }
 
 func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
-	cmdsLength := 1
-	if len(expectedValue) != cmdsLength {
-		log.Errorf("mismatched length commands: %d x expected values: %d", cmdsLength, len(expectedValue))
+	cmdCount := 1
+	if len(expectedValue) != cmdCount {
+		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != cmdsLength {
+	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			cmdsLength, len(valuesUpgrade))
+			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
 }
 
 func validateMultusTest(expectedValue, valuesUpgrade []string) {
-	multusCmdsLength := 4
-	if len(expectedValue) != multusCmdsLength {
-		log.Errorf("mismatched length commands: %d x expected values: %d", multusCmdsLength, len(expectedValue))
+	cmdCount := 4
+	if len(expectedValue) != cmdCount {
+		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != multusCmdsLength {
+	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			multusCmdsLength, len(valuesUpgrade))
+			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
 }
 
 func validateComponentsTest(expectedValue, valuesUpgrade []string) {
-	k3scomponentsCmdsLength := 10
-	rke2componentsCmdsLength := 7
+	k3sComponentsCmdsCount := 10
+	rke2ComponentsCmdsCount := 7
 
 	product := os.Getenv("ENV_PRODUCT")
 	switch product {
 	case "k3s":
-		if len(expectedValue) != k3scomponentsCmdsLength {
-			log.Errorf("mismatched length commands: %d x expected values: %d", k3scomponentsCmdsLength, len(expectedValue))
+		if len(expectedValue) != k3sComponentsCmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", k3sComponentsCmdsCount, len(expectedValue))
 			os.Exit(1)
 		}
 
-		if valuesUpgrade != nil && len(valuesUpgrade) != k3scomponentsCmdsLength {
+		if valuesUpgrade != nil && len(valuesUpgrade) != k3sComponentsCmdsCount {
 			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-				k3scomponentsCmdsLength, len(valuesUpgrade))
+				k3sComponentsCmdsCount, len(valuesUpgrade))
 			os.Exit(1)
 		}
 
 	case "rke2":
-		if len(expectedValue) != rke2componentsCmdsLength {
-			log.Errorf("mismatched length commands: %d x expected values: %d", rke2componentsCmdsLength, len(expectedValue))
+		if len(expectedValue) != rke2ComponentsCmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", rke2ComponentsCmdsCount, len(expectedValue))
 			os.Exit(1)
 		}
 
-		if valuesUpgrade != nil && len(valuesUpgrade) != rke2componentsCmdsLength {
+		if valuesUpgrade != nil && len(valuesUpgrade) != rke2ComponentsCmdsCount {
 			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-				rke2componentsCmdsLength, len(valuesUpgrade))
+				rke2ComponentsCmdsCount, len(valuesUpgrade))
 			os.Exit(1)
 		}
 	}
