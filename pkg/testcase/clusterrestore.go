@@ -108,24 +108,59 @@ func TestClusterRestoreS3(
 		"to complete background processes after restore.")
 	time.Sleep(120 * time.Second)
 
+	fmt.Println("DEBUG 0: ", newServerIP[0])
+
 	enableAndStartService(
 		cluster,
 		newServerIP[0],
 	)
 	shared.LogLevel("info", "%s service successfully enabled", product)
 
-	newKubeConfig, newKubeConfigErr := shared.UpdateKubeConfig(newServerIP[0],
-		resourceName, product)
-	Expect(newKubeConfigErr).NotTo(HaveOccurred())
-
-	shared.Update(newKubeConfig)
-
 	if product == "rke2" {
 		exportKubectl(newServerIP[0])
 		shared.LogLevel("info", "kubectl commands successfully exported")
 	}
 
+	postValidationS3(cluster, newServerIP[0])
+	shared.LogLevel("info", "%s server successfully validated post restore", product)
 }
+
+func postValidationS3(cluster *shared.Cluster, newServerIP string) {
+	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
+	kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
+
+	fmt.Println("DEBUG 1A: ", newServerIP)
+
+	// kubectlLocationCmd := "which kubectl"
+	// fmt.Println("PRINTING KUBECTL: ", kubectlLocationCmd)
+
+	// kubectlLocationCmd2, findErr := shared.FindPath("kubectl", newServerIP)
+	// Expect(findErr).NotTo(HaveOccurred())
+	// shared.LogLevel("printing kubectl path via shared.FindPath: %s", kubectlLocationCmd2)
+	// fmt.Printf("Location of kubectl: %s", kubectlLocationCmd2)
+
+	// kubectlLocationRes, kubectlLocationErr := shared.RunCommandOnNode(kubectlLocationCmd, newServerIP)
+	// Expect(kubectlLocationErr).NotTo(HaveOccurred())
+	// fmt.Printf("Location of kubectl: %s", kubectlLocationRes)
+
+	getNodesPodsCmd := fmt.Sprintf("kubectl get nodes,pods -A -o wide" + kubeconfigFlagRemote)
+	shared.LogLevel("Running %s on ip: %s", getNodesPodsCmd, newServerIP)
+	// validatePodsCmd := "kubectl get pods " + kubeconfigFlagRemote
+	time.Sleep(240 * time.Second)
+	nodesPodsRes, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
+	Expect(nodesPodsErr).NotTo(HaveOccurred())
+	fmt.Println("Response: ", nodesPodsRes)
+	fmt.Println("Error: ", nodesPodsErr.Error())
+	// validatePodsRes, validatePodsErr := shared.RunCommandOnNode(validatePodsCmd, newServerIP)
+	// fmt.Println("Response: ", validatePodsRes)
+	// fmt.Println("Error: ", validatePodsErr.Error())
+
+	// if header == name containsSubstring("nodeport") & header == status == ContainsSubstring("Completed/Running")
+}
+
+// func TestPostRestoreS3() {
+
+// }
 
 func testS3SnapshotSave(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 
@@ -240,21 +275,31 @@ func enableAndStartService(
 	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
 	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
 		[]string{newClusterIP})
+	fmt.Println("CLUSTER IP: ", newClusterIP)
+	// fmt.Println("START SERVICE OUT: ", startServiceCmdErr.Error())
+	time.Sleep(600 * time.Second)
+	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
+	statusServiceCmdRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
+		[]string{newClusterIP})
+	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
+	fmt.Println("STATUS SERVICE OUT: ", statusServiceCmdRes)
+	fmt.Println("STATUS SERVICE ERR: ", statusServiceCmdErr)
+	// Expect(statusServiceCmdRes).To(SatisfyAll(ContainSubstring("enabled"), ContainSubstring("active")))
 }
 
 func exportKubectl(newClusterIP string) {
 	//update data directory for rpm installs (rhel systems)
-	importCmd := fmt.Sprintf("sudo cat <<EOF >>.bashrc\n" +
+	exportCmd := fmt.Sprintf("sudo cat <<EOF >>.bashrc\n" +
 		"export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin " +
 		"CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \n" +
 		"alias k=kubectl\n" +
 		"EOF")
 
-	sourceCmd := `source .bashrc`
+	sourceCmd := "source .bashrc"
 
-	_, importCmdErr := shared.RunCommandOnNode(importCmd, newClusterIP)
-	Expect(importCmdErr).NotTo(HaveOccurred())
+	_, exportCmdErr := shared.RunCommandOnNode(exportCmd, newClusterIP)
+	Expect(exportCmdErr).NotTo(HaveOccurred())
 
 	_, sourceCmdErr := shared.RunCommandOnNode(sourceCmd, newClusterIP)
 	Expect(sourceCmdErr).NotTo(HaveOccurred())
