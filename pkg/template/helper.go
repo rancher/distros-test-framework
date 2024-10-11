@@ -12,7 +12,7 @@ import (
 // upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, version string) error {
 	cluster := shared.ClusterConfig()
-	err := testcase.TestUpgradeClusterManually(cluster, version)
+	err := testcase.TestUpgradeClusterManual(cluster, version)
 	if err != nil {
 		return err
 	}

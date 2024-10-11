@@ -150,7 +150,7 @@ bastion_subnets      = "<ipv4-subnet>"
 
 - Required vars in `.env` file:
 - `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
-- `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
+- `IMAGE_REGISTRY_URL`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
 ```
 ENV_MODULE=airgap
 TEST_DIR=airgap
@@ -158,6 +158,7 @@ TEST_TAG=privateregistry
 ```
 - Optional vars in `.env` file:
 ```
+IMAGE_REGISTRY_URL=registry_url
 REGISTRY_USERNAME=testuser
 REGISTRY_PASSWORD=testpass432
 ```
@@ -166,7 +167,7 @@ REGISTRY_PASSWORD=testpass432
 
 - `MODULE` should be `airgap`
 - `TEST_DIR` should be `airgap`
-- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432`
+- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
 
 #### Not supported ATM:
 - RPM installs for rke2

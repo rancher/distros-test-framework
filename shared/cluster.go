@@ -221,7 +221,7 @@ func FetchNodeExternalIPs() []string {
 // RestartCluster restarts the service on each node given by external IP.
 func RestartCluster(product, ip string) {
 	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	time.Sleep(20 * time.Second)
+	// time.Sleep(20 * time.Second)
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace.

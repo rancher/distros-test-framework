@@ -76,7 +76,7 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		_ = testcase.TestUpgradeClusterManually(cluster, flags.InstallMode.String())
+		_ = testcase.TestUpgradeClusterManual(cluster, flags.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {

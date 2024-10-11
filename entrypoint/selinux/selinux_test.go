@@ -49,7 +49,7 @@ var _ = Describe("Test:", func() {
 
 	if customflag.ServiceFlag.InstallMode.String() != "" {
 		It("Upgrade manual", func() {
-			_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
+			_ = testcase.TestUpgradeClusterManual(cluster, customflag.ServiceFlag.InstallMode.String())
 		})
 
 		It("Validate Nodes Post upgrade", func() {
