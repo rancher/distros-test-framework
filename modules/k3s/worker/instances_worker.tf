@@ -22,7 +22,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-distros-worker${count.index + 1}"
   }
   provisioner "file" {
     source               = "../install/join_k3s_agent.sh"
@@ -51,7 +51,7 @@ resource "aws_eip" "worker_with_eip" {
   count              = var.create_eip ? length(aws_instance.worker) : 0
   domain             = "vpc"
   tags = {
-    Name                 = "${var.resource_name}-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-distros-worker${count.index + 1}"
   }
 }
 
