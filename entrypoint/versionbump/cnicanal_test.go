@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	kgn        = "kubectl get node -o yaml"
-	calicoCmd  = kgn + " : | grep 'hardened-calico' -A1, "
-	flannelCmd = kgn + " : | grep 'hardened-flannel' -A1"
+	kgn     = "kubectl get node -o yaml"
+	calico  = kgn + " : | grep 'hardened-calico' -A1, "
+	flannel = kgn + " : | grep 'hardened-flannel' -A1"
 )
 
 var _ = Describe("Canal Version bump:", func() {
@@ -43,7 +43,7 @@ var _ = Describe("Canal Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  calicoCmd + flannelCmd,
+						Cmd:                  calico + flannel,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

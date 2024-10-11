@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	kgn       = "kubectl get node -o yaml"
-	calicoCmd = kgn + " : | grep mirrored-calico  -A1"
+	kgn    = "kubectl get node -o yaml"
+	calico = kgn + " : | grep mirrored-calico  -A1"
 )
 
 var _ = Describe("Calico Version bump:", func() {
@@ -42,7 +42,7 @@ var _ = Describe("Calico Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  calicoCmd,
+						Cmd:                  calico,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
