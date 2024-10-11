@@ -38,7 +38,7 @@ linters-settings:
     block-size: 4
   revive:
     confidence: 0.8
-    severity: warning
+    severity: error
     ignore-generated-header: true
     rules:
       - name: line-length-limit

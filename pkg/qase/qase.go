@@ -2,7 +2,7 @@ package qase
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 
 	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
@@ -16,7 +16,7 @@ type Client struct {
 func AddQase() (*Client, error) {
 	qaseToken := os.Getenv("QASE_AUTOMATION_TOKEN")
 	if qaseToken == "" {
-		return nil, fmt.Errorf("environment variable QASE_AUTOMATION_TOKEN is not set")
+		return nil, errors.New("QASE_AUTOMATION_TOKEN is not set")
 	}
 
 	ctx := context.WithValue(context.Background(), qaseclient.ContextAPIKeys, map[string]qaseclient.APIKey{

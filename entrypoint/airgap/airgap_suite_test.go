@@ -26,6 +26,7 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.AirgapFlag.ImageRegistryUrl, "imageRegistryUrl", "", "image registry url to get the images from")
 	flag.StringVar(&flags.AirgapFlag.RegistryUsername, "registryUsername", "testuser", "private registry username")
 	flag.StringVar(&flags.AirgapFlag.RegistryPassword, "registryPassword", "testpass765", "private registry password")
 	flag.StringVar(&flags.AirgapFlag.TarballType, "tarballType", "", "artifact tarball type")
@@ -79,15 +80,13 @@ func TestAirgapSuite(t *testing.T) {
 	RunSpecs(t, "Create Airgap Cluster Test Suite")
 }
 
-var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+var _ = ReportAfterSuite("Create Airgap Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
 	if qaseReport == "true" {
 		qaseClient, err := qase.AddQase()
-		if err != nil {
-			shared.LogLevel("error", "error adding qase: %w\n", err)
-		}
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

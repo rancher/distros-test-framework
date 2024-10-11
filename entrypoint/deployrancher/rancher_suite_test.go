@@ -95,15 +95,13 @@ func validateRancher() {
 	}
 }
 
-var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+var _ = ReportAfterSuite("Deploy Rancher Manager Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
 	if qaseReport == "true" {
 		qaseClient, err := qase.AddQase()
-		if err != nil {
-			shared.LogLevel("error", "error adding qase: %w\n", err)
-		}
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

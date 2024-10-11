@@ -18,13 +18,15 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	_, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -47,13 +49,13 @@ func TestValidateClusterSuite(t *testing.T) {
 	RunSpecs(t, "Validate Cluster Test Suite")
 }
 
-var _ = ReportAfterSuite("Test Restart Service", func(report Report) {
+var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
 	if qaseReport == "true" {
 		qaseClient, err := qase.AddQase()
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, report)
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

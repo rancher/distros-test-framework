@@ -12,9 +12,7 @@ require (
 	github.com/onsi/gomega v1.31.1
 	github.com/qase-tms/qase-go/qase-api-client v1.1.0
 	github.com/sirupsen/logrus v1.9.3
-	go.qase.io/client v0.0.4
 	golang.org/x/crypto v0.28.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -24,7 +22,6 @@ require (
 	cloud.google.com/go/iam v1.1.7 // indirect
 	cloud.google.com/go/storage v1.39.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/antihax/optional v1.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -81,4 +78,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240314234333-6e1732d8331c // indirect
 	google.golang.org/grpc v1.62.1 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

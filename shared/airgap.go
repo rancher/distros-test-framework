@@ -62,11 +62,15 @@ func bastionAsPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) (e
 
 // dockerActions executes docker_ops.sh script.
 func dockerActions(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
+	if flags.AirgapFlag.ImageRegistryUrl != "" {
+		LogLevel("info", "Images will be pulled from registry url: %v", flags.AirgapFlag.ImageRegistryUrl)
+	}
 	cmd := "sudo chmod +x docker_ops.sh && " +
 		fmt.Sprintf(
-			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v"`,
+			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v" "%v"`,
 			cluster.Config.Product, cluster.BastionConfig.PublicDNS,
-			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword)
+			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
+			flags.AirgapFlag.ImageRegistryUrl)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return err

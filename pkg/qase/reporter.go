@@ -50,10 +50,11 @@ type createResultRequest struct {
 	comment   qaseclient.NullableString
 }
 
-func (c Client) ReportTestResults(ctx context.Context, report Report) {
-	shared.LogLevel("info", "Reporting test results to Qase\n")
+// ReportTestResults receives the report from ginkgo and sends the test results to Qase.
+func (c Client) ReportTestResults(ctx context.Context, report *Report, version string) {
+	shared.LogLevel("info", "Start report test result to Qase\n")
 
-	runID, tcID := validateIDs()
+	runID, tcID := validateQaseIDs()
 
 	req := createResultRequest{
 		projectID: projectID,
@@ -64,16 +65,17 @@ func (c Client) ReportTestResults(ctx context.Context, report Report) {
 		comment:   newNullString(),
 	}
 
-	tcs, _ := c.getTestsResults(report)
+	tcs, _ := reportToTestCase(report)
 
-	req = c.parseResults(tcs, req)
+	request := parseResults(tcs, version, &req)
 
-	if err := c.createTestResult(ctx, req); err != nil {
+	if err := c.createTestResult(ctx, request); err != nil {
 		shared.LogLevel("error", "failed to create test result: %w\n", err)
 	}
 }
 
-func validateIDs() (int, *int64) {
+// validateQaseIDs validates the Qase Run ID and Test Case ID and returns parsed as int and int64 respectively.
+func validateQaseIDs() (runID int, tcID *int64) {
 	if projectID == "" {
 		shared.LogLevel("error", "QASE_PROJECT_ID is not set")
 	}
@@ -91,15 +93,19 @@ func validateIDs() (int, *int64) {
 	if err != nil {
 		shared.LogLevel("error", "invalid QASE_TEST_CASE_ID: %w\n", err)
 	}
-	tcID := &caseIDInt
+	tcID = &caseIDInt
 
 	return runID, tcID
 }
 
-func (c Client) getTestsResults(report Report) ([]TestCase, bool) {
+// reportToTestCase receives the test results report and unpacks them into a slice of TestCase type.
+//
+// returns the slice of TestCase and a boolean indicating if the suite succeeded.
+func reportToTestCase(report *Report) ([]TestCase, bool) {
 	var tcs []TestCase
 
-	for _, r := range report.SpecReports {
+	for i := range report.SpecReports {
+		r := &report.SpecReports[i]
 		var f Failures
 		if r.State.String() != passStatus {
 			f = Failures{
@@ -121,7 +127,8 @@ func (c Client) getTestsResults(report Report) ([]TestCase, bool) {
 	return tcs, report.SuiteSucceeded
 }
 
-func (c Client) parseResults(testCases []TestCase, req createResultRequest) createResultRequest {
+// parseResults receives the test results and parses the results into the createResultRequest.
+func parseResults(testCases []TestCase, version string, req *createResultRequest) *createResultRequest {
 	var failedSubTests []TestCase
 
 	for _, tc := range testCases {
@@ -136,23 +143,26 @@ func (c Client) parseResults(testCases []TestCase, req createResultRequest) crea
 		for _, tc := range failedSubTests {
 			updatedFullStackTrace := makeClickableLinks(tc.StackTrace.FullStackTrace)
 			codeLocationLink := makeClickableLinks(tc.StackTrace.CodeLocation)
+			stacTraceLocation := makeClickableLinks(tc.StackTrace.Location)
 
 			comments += fmt.Sprintf(
-				"Failed test:\nName: %s\nStatus: %s\nMessage: %s\nLocation: \n%s\n\nCodeLocation: \n%s\n\nFullStackTrace: \n%s\n\n",
-				tc.Name, tc.Status, tc.StackTrace.Message, tc.StackTrace.Location,
+				"Failed test:\nVersion Tested: %s\nName: %s\nStatus: %s\nMessage: %s\n"+
+					"Location: \n%s\n\nCodeLocation: \n%s\n\nFullStackTrace: \n%s\n\n", version,
+				tc.Name, tc.Status, tc.StackTrace.Message, stacTraceLocation,
 				codeLocationLink, updatedFullStackTrace,
 			)
 		}
 		req.comment = newNullableString(comments)
 	} else {
 		req.status = passStatus
-		req.comment = newNullString()
+		req.comment = newNullableString(fmt.Sprintf("Version Tested: %s\n", version))
 	}
 
 	return req
 }
 
-func (c Client) createTestResult(ctx context.Context, req createResultRequest) error {
+// createTestResult receives the the createResultRequest and sends the request to create a test result in Qase.
+func (c Client) createTestResult(ctx context.Context, req *createResultRequest) error {
 	qaseRequest := qaseclient.ResultCreate{
 		CaseId:  req.caseID,
 		Status:  req.status,
@@ -166,7 +176,7 @@ func (c Client) createTestResult(ctx context.Context, req createResultRequest) e
 		return fmt.Errorf("failed to create test result: %w, response: %v", err, httpRes)
 	}
 
-	shared.LogLevel("info", "Test result created: %v\n", res)
+	shared.LogLevel("info", "Test result created: %v\n", &res.Status)
 
 	return nil
 }

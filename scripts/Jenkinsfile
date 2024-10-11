@@ -48,14 +48,13 @@ node {
           }
            stage('Export QASE Filtered Jenkins Environment Variables') {
              script {
-                def qase = "REPORT_TO_QASE=${env.REPORT_TO_QASE}\nQASE_PROJECT_ID=${env.QASE_PROJECT_ID}\n" +
-                "QASE_RUN_ID=${env.QASE_RUN_ID}\nQASE_TEST_CASE_ID=${env.QASE_TEST_CASE_ID}\nQASE_AUTOMATION_TOKEN=${env.QASE_AUTOMATION_TOKEN}\n"
+                 def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
+                             'QASE_PROJECT_ID=' + env.QASE_PROJECT_ID + '\n' +
+                             'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
+                             'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
+                             'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
 
                 writeFile file: qaseEnvFile, text: qase
-                def qaseEnv = readFile(qaseEnvFile)
-
-                println('\n\nQASE ENV')
-                println(qaseEnv)
               }
             }
           dir('./') {
@@ -68,10 +67,11 @@ node {
                   }
                 }
                 dir('./config') {
-                  //update product info
+                  //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
-                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\n"
+                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n"
                   writeFile(file: '.env', text: data)
+
                   //update tfvars file
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def version_param_name = "${env.PRODUCT_NAME}_version"
@@ -89,8 +89,10 @@ node {
                   println('\n\nTFVARS TEST DATA')
                   println(testdata)
                 }
-                sh './scripts/configure.sh'
-                sh './scripts/build.sh'
+                stage('Docker Build') {
+                     sh './scripts/configure.sh'
+                     sh './scripts/build.sh'
+                }
               }
               stage('Run TestCombination') {
                     sh """
@@ -99,7 +101,8 @@ node {
                         --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
-                        ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
+                        ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem \
+                        && cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
                    }
             } finally {
