@@ -114,7 +114,6 @@ func testCrossNodeService(services, ports, expected []string) error {
 func TestEndpointReadiness(cluster *shared.Cluster) {
 	var err error
 	var wg sync.WaitGroup
-	// do more checks on the filesystem to ensure the certs are all created and in the correct location before this.
 	commands := []string{
 		"sudo curl -sk http://127.0.0.1:10248/healthz",  // kubelet
 		"sudo curl -sk http://127.0.0.1:10249/healthz",  // kube-proxy
@@ -124,22 +123,28 @@ func TestEndpointReadiness(cluster *shared.Cluster) {
 		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
 			cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
 			cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
-		// "sudo curl -sk http://127.0.0.1:10256/healthz", SearchString: "lastUpdated" or "nodeEligible: true"
-		// check with devs for this versus second kube-proxy port
-		// "sudo curl -sk " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/etcd/server-client.crt",
-		//  cluster.Config.Product) + fmt.Sprintf(" --key /var/lib/rancher/%s/server/tls/etcd/server-client.key",
-		//  cluster.Config.Product) + " https://127.0.0.1:2379/livez?verbose",
 	}
-	for _, serverIP := range cluster.ServerIPs {
+
+	servers, err := shared.GetNodesByRoles("control-plane")
+	if err != nil {
+		// handle the error, e.g. log or return an error
+		fmt.Println("Error getting nodes by roles:", err)
+		return
+	}
+	// I want the external IPs of the shared.GetNodesByRoles("control-plane") nodes
+	fmt.Println("Servers:", servers)
+
+	for _, serverIP := range servers {
 		for _, endpoint := range commands {
 			wg.Add(1)
 			go func(serverIP, endpoint string) {
 				defer wg.Done()
+				fmt.Println("Checking endpoint", endpoint, "on server", serverIP)
 				err = assert.CheckComponentCmdNode(endpoint, serverIP, "ok")
 				if err != nil {
 					fmt.Printf("Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
 				}
-			}(serverIP, endpoint)
+			}(serverIP.ExternalIP, endpoint)
 		}
 	}
 	wg.Wait()
@@ -149,7 +154,7 @@ func TestEndpointReadiness(cluster *shared.Cluster) {
 func Testk8sAPIReady(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		err := assert.CheckComponentCmdNode(
-			"kubectl get --raw='/readyz?verbose'",
+			"kubectl get --raw='http://127.0.0.1/readyz?verbose'",
 			serverIP,
 			"readyz check passed",
 		)
@@ -160,7 +165,7 @@ func Testk8sAPIReady(cluster *shared.Cluster) {
 func Testk8sAPILive(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		err := assert.CheckComponentCmdNode(
-			"kubectl get --raw='/livez?verbose'",
+			"kubectl get --raw='http://127.0.0.1/livez?verbose'",
 			serverIP,
 			"livez check passed",
 		)
