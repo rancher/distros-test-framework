@@ -14,7 +14,7 @@ var (
 
 // FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
-	InstallMode        installModeFlag
+	UpgradeMode        upgradeModeFlag
 	TestTemplateConfig templateConfigFlag
 	Destroy            destroyFlag
 	SUCUpgradeVersion  sucUpgradeVersionFlag
@@ -96,16 +96,16 @@ func (c *channelFlag) Set(value string) error {
 	return nil
 }
 
-type installModeFlag struct {
+type upgradeModeFlag struct {
 	Version string
 	Commit  string
 }
 
-func (i *installModeFlag) String() string {
+func (i *upgradeModeFlag) String() string {
 	return fmt.Sprintf("%s%s", i.Version, i.Commit)
 }
 
-func (i *installModeFlag) Set(value string) error {
+func (i *upgradeModeFlag) Set(value string) error {
 	if strings.HasPrefix(value, "v") {
 		if !strings.Contains(value, "k3s") && !strings.Contains(value, "rke2") {
 			return fmt.Errorf("invalid version format: %s", value)

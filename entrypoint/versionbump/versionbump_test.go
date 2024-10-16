@@ -43,7 +43,7 @@ var _ = Describe("Version Bump Template Upgrade:", func() {
 					},
 				},
 			},
-			InstallMode: ServiceFlag.InstallMode.String(),
+			InstallMode: ServiceFlag.UpgradeMode.String(),
 			TestConfig: &TestConfig{
 				TestFunc:       ConvertToTestCase(ServiceFlag.TestTemplateConfig.TestFuncs),
 				ApplyWorkload:  ServiceFlag.TestTemplateConfig.ApplyWorkload,

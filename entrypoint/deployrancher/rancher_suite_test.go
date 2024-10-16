@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,6 +16,7 @@ import (
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	cluster    *shared.Cluster
 	flags      *customflag.FlagConfig
 	kubeconfig string
@@ -57,7 +59,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestRancherSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Deploy Rancher Manager Test Suite")
 }
 
@@ -93,6 +95,18 @@ func validateRancher() {
 	}
 }
 
+var _ = ReportAfterSuite("Deploy Rancher Manager Test Suite", func(report Report) {
+	// Add Qase reporting capabilities.
+	if qaseReport == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
+
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster()
@@ -100,3 +114,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}
