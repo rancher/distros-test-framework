@@ -14,7 +14,7 @@ import (
 )
 
 func (k *Client) WaitForNodesReady(minReadyNodes int) error {
-	// Step 1: Check initial readiness
+	// Check initial readiness
 	readyNodesMap, nodesReady, nodesTotal, minReadyNodes, err := k.checkInitialNodesReady(minReadyNodes)
 	if err != nil {
 		return fmt.Errorf("failed to check initial nodes ready: %w", err)
@@ -29,7 +29,7 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 
 	shared.LogLevel("info", "Waiting for nodes to become ready... (%d/%d ready)", nodesReady, nodesTotal)
 
-	// Step 2: Watch for nodes becoming ready
+	// Watch for nodes becoming ready
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
