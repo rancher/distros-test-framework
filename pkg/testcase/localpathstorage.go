@@ -39,11 +39,6 @@ func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, del
 		g.Expect(err).NotTo(HaveOccurred())
 	}, "300s", "5s").Should(Succeed())
 
-	ips := shared.FetchNodeExternalIPs()
-	for _, ip := range ips {
-		shared.RestartCluster("k3s", ip)
-	}
-
 	_, err = shared.ReadDataPod(cluster, lps)
 	if err != nil {
 		return

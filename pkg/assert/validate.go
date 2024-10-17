@@ -27,7 +27,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 	}
 
 	timeout := time.After(120 * time.Second)
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	for i := 0; i < len(args); i++ {
 		cmd := args[i]
@@ -73,8 +73,10 @@ func runAssertion(
 			res, err = exec(cmd)
 
 			if err != nil {
-				shared.LogLevel("warn", "error from exec runAssertion: %v", err)
-				shared.LogLevel("warn", "Retrying...executing command: %s\n on retry count: %d\n", cmd, retry)
+				if retry == 0 || retry == 4 {
+					shared.LogLevel("warn", "error from exec runAssertion: %v\n"+
+						"Retrying...executing command: %s\n on retry count: %d\n", err, cmd, retry)
+				}
 				if retry > 5 {
 					return shared.ReturnLogError("error from exec runAssertion after 5 retries: %v\n", err)
 				}
