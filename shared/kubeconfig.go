@@ -15,17 +15,17 @@ var KubeConfigFile string
 func KubeConfigCluster(kubeconfig string) *Cluster {
 	localKubeConfigPath, decodeErr := decodeKubeConfig(kubeconfig)
 	if decodeErr != nil {
-		LogLevel("error", "error decoding kubeconfig %w\n", decodeErr)
+		LogLevel("error", "error decoding kubeconfig %v\n", decodeErr)
 		os.Exit(1)
 	}
 
-	// Set the global kubeconfig file path.
+	// Set the global kubeconfig file path since on this flow we dont have it created yet.
 	KubeConfigFile = localKubeConfigPath
 
 	nodes, getErr := GetNodes(false)
 	if getErr != nil {
-		LogLevel("error", "error getting nodes: %w\n", getErr)
-		return nil
+		LogLevel("error", "error getting nodes: %v\n", getErr)
+		os.Exit(1)
 	}
 	if len(nodes) == 0 {
 		LogLevel("error", "no nodes found\n")
@@ -35,7 +35,7 @@ func KubeConfigCluster(kubeconfig string) *Cluster {
 	var clusterErr error
 	cluster, clusterErr = addClusterFromKubeConfig(nodes)
 	if clusterErr != nil {
-		LogLevel("error", "error adding cluster from kubeconfig %w\n", clusterErr)
+		LogLevel("error", "error adding cluster from kubeconfig %v\n", clusterErr)
 		os.Exit(1)
 	}
 
@@ -49,7 +49,7 @@ func UpdateKubeConfig(newLeaderIP, resourceName, product string) (string, error)
 
 	kubeConfigUpdated, err := updateKubeConfigLocal(newLeaderIP, resourceName, product)
 	if err != nil {
-		return "", ReturnLogError("error creating new kubeconfig file: %w\n", err)
+		return "", ReturnLogError("error creating new kubeconfig file: %v\n", err)
 	}
 
 	return kubeConfigUpdated, nil
@@ -89,7 +89,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 
 	oldServerIP, kubeconfigContent, err := ExtractServerIP(resourceName)
 	if err != nil {
-		return "", ReturnLogError("error extracting server ip: %w\n", err)
+		return "", ReturnLogError("error extracting server ip: %v\n", err)
 	}
 
 	path := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
@@ -97,7 +97,7 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 
 	writeErr := os.WriteFile(path, []byte(updatedKubeConfig), 0o644)
 	if writeErr != nil {
-		return "", ReturnLogError("failed to write updated kubeconfig file: %w\n", writeErr)
+		return "", ReturnLogError("failed to write updated kubeconfig file: %v\n", writeErr)
 	}
 
 	updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
@@ -109,13 +109,13 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 func decodeKubeConfig(kubeConfig string) (string, error) {
 	dec, err := base64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {
-		return "", ReturnLogError("failed to decode kubeconfig: %w\n", err)
+		return "", ReturnLogError("failed to decode kubeconfig: %v\n", err)
 	}
 
 	localKubeConfigPath := fmt.Sprintf("/tmp/%s_kubeconfig", os.Getenv("resource_name"))
 	writeErr := os.WriteFile(localKubeConfigPath, dec, 0o644)
 	if writeErr != nil {
-		return "", ReturnLogError("failed to write kubeconfig file: %w\n", writeErr)
+		return "", ReturnLogError("failed to write kubeconfig file: %v\n", writeErr)
 	}
 
 	return localKubeConfigPath, nil

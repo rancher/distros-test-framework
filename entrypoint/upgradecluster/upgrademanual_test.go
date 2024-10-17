@@ -5,12 +5,12 @@ package upgradecluster
 import (
 	"fmt"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -76,7 +76,7 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		_ = testcase.TestUpgradeClusterManual(cluster, flags.InstallMode.String())
+		_ = testcase.TestUpgradeClusterManual(cluster, k8sClient, flags.InstallMode.String())
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {

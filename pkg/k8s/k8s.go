@@ -3,12 +3,15 @@ package k8s
 import (
 	"context"
 	"fmt"
-
 	"strings"
+	"time"
 
+	"github.com/avast/retry-go"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -16,134 +19,155 @@ import (
 )
 
 type Client struct {
-	Clientset *kubernetes.Clientset
+	Clientset     *kubernetes.Clientset
+	DinamicClient dynamic.Interface
 }
 
 func Add() (*Client, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", shared.KubeConfigFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build config from kubeconfig: %v", err)
+		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
+	clientset, configErr := kubernetes.NewForConfig(config)
+	if configErr != nil {
+		return nil, fmt.Errorf("failed to create Kubernetes clientset: %w", configErr)
 	}
 
 	return &Client{
-		Clientset: clientset,
+		Clientset:     clientset,
+		DinamicClient: dynamic.NewForConfigOrDie(config),
 	}, nil
 }
 
-func (k *Client) ListResources(resourceType, namespace, labelSelector string) (interface{}, error) {
-	listOptions := meta.ListOptions{
-		LabelSelector: labelSelector,
-		Watch:         true,
-	}
-
-	switch resourceType {
-	case "pods":
-		pods, err := k.Clientset.CoreV1().Pods(namespace).List(context.TODO(), listOptions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list pods: %v", err)
-		}
-
-		return pods.Items, nil
-	case "deployments":
-		deployments, err := k.Clientset.AppsV1().Deployments(namespace).List(context.TODO(), listOptions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list deployments: %v", err)
-		}
-
-		return deployments.Items, nil
-	case "services":
-		services, err := k.Clientset.CoreV1().Services(namespace).List(context.TODO(), listOptions)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list services: %v", err)
-		}
-
-		return services.Items, nil
-
-	default:
-		return nil, fmt.Errorf("resource type %s not implemented", resourceType)
-	}
-}
-
-func (k *Client) WatchResources(ctx context.Context, namespace, resourceType, labelSelector string) (bool, error) {
-	var watcher watch.Interface
-	var err error
-
-	listOptions := meta.ListOptions{
-		LabelSelector: labelSelector,
-		Watch:         true,
-	}
-
-	switch resourceType {
-	case strings.ToLower("pod"):
-		watcher, err = k.Clientset.CoreV1().Pods(namespace).Watch(ctx, listOptions)
-	case strings.ToLower("deployment"):
-		watcher, err = k.Clientset.AppsV1().Deployments(namespace).Watch(ctx, listOptions)
-	case strings.ToLower("service"):
-		watcher, err = k.Clientset.CoreV1().Services(namespace).Watch(ctx, listOptions)
-	case strings.ToLower("configMap"):
-		watcher, err = k.Clientset.CoreV1().ConfigMaps(namespace).Watch(ctx, listOptions)
-	case strings.ToLower("node"):
-		watcher, err = k.Clientset.CoreV1().Nodes().Watch(ctx, listOptions)
-	default:
-		return false, fmt.Errorf("resource type %s not implemented", resourceType)
-	}
-
+// CheckClusterHealth checks the health of the cluster by checking the API server and node statuses.
+//
+// minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
+//
+// if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
+func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
+	res, err := k.GetAPIServerHealth()
 	if err != nil {
-		return false, fmt.Errorf("failed to watch resource %s: %v", resourceType, err)
+		return false, fmt.Errorf("API server health check failed: %w", err)
 	}
 
-	defer watcher.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return false, fmt.Errorf("timeout or context canceled while watching %s", resourceType)
-		case event, ok := <-watcher.ResultChan():
-			if !ok {
-				return false, fmt.Errorf("%s watcher channel closed", resourceType)
-			}
-			shared.LogLevel("info", "Event Type: %v, Object: %v", event.Type, event.Object)
-
-			fmt.Printf(event.Object.GetObjectKind().GroupVersionKind().String())
-			fmt.Printf(event.Object.GetObjectKind().GroupVersionKind().Kind)
-			fmt.Printf(event.Object.GetObjectKind().GroupVersionKind().Group)
-			fmt.Printf(event.Object.GetObjectKind().GroupVersionKind().Version)
-
-			return true, nil
-		}
+	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
+		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
+
+	if !strings.Contains(res, "ok") {
+		return false, fmt.Errorf("API server health check failed: %s", res)
+	}
+
+	return true, nil
 }
 
+// ListResources search the resource type on preferred resources using the GVR and returns a list of resources.
 //
-// func processEvent(event interface{}) error {
-// 	obj, ok := event.(watch.Event)
-// 	if !ok {
-// 		return fmt.Errorf("failed to convert event to watch.Event")
-// 	}
-//
-// 	a := obj.Object.(*
-//
-// 	name := obj.GetName()
-// 	namespace := obj.GetNamespace()
-//
-// 	shared.LogLevel("info", "Event Type: %v, Resource Name: %s, Namespace: %s", event.Type, name, namespace)
-//
-// 	spec, found, err := unstructured.NestedMap(obj.Object, "spec")
-// 	if err != nil || !found {
-// 		return fmt.Errorf("failed to get spec: %v", err)
-// 	}
-//
-// 	shared.LogLevel("info", "Resource Spec: %v", spec)
-//
-// 	err = unstructured.SetNestedMap(obj.Object, spec, "spec")
-// 	if err != nil {
-// 		return fmt.Errorf("failed to set spec: %v", err)
-// 	}
-//
-// 	return nil
-// }
+// it uses the namespace or/and labelSelector to filter the resources.
+func (k *Client) ListResources(
+	resourceType ResourceType,
+	namespace, labelSelector string,
+) (*unstructured.UnstructuredList, error) {
+	gvr, err := k.getGVR(resourceType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GVR: %w", err)
+	}
+
+	var res dynamic.ResourceInterface
+	if namespace != "" {
+		res = k.DinamicClient.Resource(gvr).Namespace(namespace)
+	} else {
+		res = k.DinamicClient.Resource(gvr)
+	}
+
+	ctx := context.Background()
+	list, err := res.List(ctx, meta.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list resources: %w", err)
+	}
+
+	return list, nil
+}
+
+// GetAPIServerHealth checks the health of the API server by sending a GET request to /healthz.
+func (k *Client) GetAPIServerHealth() (string, error) {
+	var (
+		response string
+		err      error
+	)
+
+	err = retry.Do(
+		func() error {
+			rest := k.Clientset.RESTClient()
+			req := rest.Get().AbsPath("/healthz")
+
+			ctx := context.Background()
+			result := req.Do(ctx)
+			rawResponse, resErr := result.Raw()
+			if resErr != nil {
+				return fmt.Errorf("failed to get API server health: %w", resErr)
+			}
+
+			response = string(rawResponse)
+			if response != "ok" {
+				return fmt.Errorf("API server health check failed: %s", response)
+			}
+
+			return nil
+		},
+		retry.Attempts(5),
+		retry.Delay(10*time.Second),
+		retry.DelayType(retry.FixedDelay),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get API server health: %w", err)
+	}
+
+	return response, nil
+}
+
+// getGVR gets the GroupVersionResource for the specified resource type.
+func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource, error) {
+	var gvr schema.GroupVersionResource
+	err := retry.Do(
+		func() error {
+			disco := k.Clientset.Discovery()
+			apiResourceList, err := disco.ServerPreferredResources()
+			if err != nil {
+				return fmt.Errorf("failed to get preferred resources: %v", err)
+			}
+
+			for _, apiResource := range apiResourceList {
+				groupVersion, parseErr := schema.ParseGroupVersion(apiResource.GroupVersion)
+				if parseErr != nil {
+					continue
+				}
+				for i := range apiResource.APIResources {
+					resource := &apiResource.APIResources[i]
+					if resource.Kind == string(resourceType) {
+						gvr = groupVersion.WithResource(resource.Name)
+						return nil
+					}
+				}
+			}
+
+			return fmt.Errorf("resource type %s not found", resourceType)
+		},
+		retry.Attempts(10),
+		retry.Delay(5*time.Second),
+		retry.DelayType(retry.FixedDelay),
+		retry.OnRetry(func(n uint, err error) {
+			if n == 0 || n == 9 {
+				shared.LogLevel("warn", "Failed to get preferred resources: %v\nRetrying Attempt %d", err, n+1)
+			}
+		}),
+	)
+	if err != nil {
+		return schema.GroupVersionResource{}, fmt.Errorf("resource type %s not found", resourceType)
+	}
+
+	return gvr, nil
+}

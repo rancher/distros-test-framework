@@ -38,7 +38,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies Cluster Reset", func() {
-		testcase.TestClusterReset(cluster)
+		testcase.TestClusterReset(cluster, k8sClient)
 	})
 
 	It("Validate Nodes After Reset", func() {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -17,6 +18,7 @@ import (
 var (
 	kubeconfig string
 	cluster    *shared.Cluster
+	k8sClient  *k8s.Client
 )
 
 func TestMain(m *testing.M) {
@@ -55,6 +57,12 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
+	k8sClient, err = k8s.Add()
+	if err != nil {
+		shared.LogLevel("error", "error adding k8s: %w\n", err)
+		os.Exit(1)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -82,7 +90,7 @@ var _ = AfterSuite(func() {
 func addTcFlag() {
 	customflag.ValidateTemplateTcs()
 
-	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
+	testFuncs, err := template.AddTestCases(cluster, k8sClient, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
 	if err != nil {
 		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
 		return
