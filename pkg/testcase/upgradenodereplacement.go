@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -19,7 +20,7 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+func TestUpgradeReplaceNode(cluster *shared.Cluster, k8sClient *k8s.Client, flags *customflag.FlagConfig) {
 	version := flags.InstallMode.String()
 	channel := flags.Channel.String()
 	if version == "" {
@@ -74,6 +75,10 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
 	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIP)
+
+	ok, err := k8sClient.CheckClusterHealth(0)
+	Expect(err).NotTo(HaveOccurred(), err, "error checking cluster health")
+	Expect(ok).To(BeTrue(), "cluster health check failed")
 }
 
 func nodeReplaceAgents(

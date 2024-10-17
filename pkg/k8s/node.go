@@ -13,8 +13,9 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
+// TODO: doc
 func (k *Client) WaitForNodesReady(minReadyNodes int) error {
-	// Check initial readiness
+	// Check initial readiness.
 	readyNodesMap, nodesReady, nodesTotal, minReadyNodes, err := k.checkInitialNodesReady(minReadyNodes)
 	if err != nil {
 		return fmt.Errorf("failed to check initial nodes ready: %w", err)
@@ -29,7 +30,7 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 
 	shared.LogLevel("info", "Waiting for nodes to become ready... (%d/%d ready)", nodesReady, nodesTotal)
 
-	// Watch for nodes becoming ready
+	// Watch for nodes becoming ready.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -41,6 +42,7 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 	return nil
 }
 
+// todo: doc
 func (k *Client) checkInitialNodesReady(minReadyNodes int) (
 	nodeMap map[string]bool,
 	ready int,
@@ -82,6 +84,7 @@ func (k *Client) checkInitialNodesReady(minReadyNodes int) (
 	return readyNodesMap, nodesReady, nodesTotal, minReadyNodes, nil
 }
 
+// TODO: doc and split/.
 func (k *Client) watchNodesReady(
 	ctx context.Context,
 	readyNodesMap map[string]bool,
@@ -93,7 +96,7 @@ func (k *Client) watchNodesReady(
 		return fmt.Errorf("failed to get GVR: %w", err)
 	}
 
-	resource := k.DinamicClient.Resource(gvr)
+	resource := k.DynamicClient.Resource(gvr)
 	watcher, err := resource.Watch(ctx, meta.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to set up watch: %w", err)

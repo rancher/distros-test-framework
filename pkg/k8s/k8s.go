@@ -20,7 +20,7 @@ import (
 
 type Client struct {
 	Clientset     *kubernetes.Clientset
-	DinamicClient dynamic.Interface
+	DynamicClient dynamic.Interface
 }
 
 func Add() (*Client, error) {
@@ -36,7 +36,7 @@ func Add() (*Client, error) {
 
 	return &Client{
 		Clientset:     clientset,
-		DinamicClient: dynamic.NewForConfigOrDie(config),
+		DynamicClient: dynamic.NewForConfigOrDie(config),
 	}, nil
 }
 
@@ -50,7 +50,7 @@ func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("API server health check failed: %w", err)
 	}
-
+	// DynamicClient.
 	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
 		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
@@ -76,9 +76,9 @@ func (k *Client) ListResources(
 
 	var res dynamic.ResourceInterface
 	if namespace != "" {
-		res = k.DinamicClient.Resource(gvr).Namespace(namespace)
+		res = k.DynamicClient.Resource(gvr).Namespace(namespace)
 	} else {
-		res = k.DinamicClient.Resource(gvr)
+		res = k.DynamicClient.Resource(gvr)
 	}
 
 	ctx := context.Background()

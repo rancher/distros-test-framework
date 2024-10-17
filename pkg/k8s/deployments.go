@@ -29,23 +29,23 @@ func (k *Client) ListDeployments(namespace, labelSelector string) ([]apps.Deploy
 }
 
 // CompareDeployments compares two slices of deployments and returns true if they are the same.
-func CompareDeployments(oldDeployments, newDeployments []apps.Deployment) bool {
-	if len(oldDeployments) != len(newDeployments) {
-		return false
-	}
-
-	oldMap := make(map[string]apps.Deployment)
-	for _, dep := range oldDeployments {
-		key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
-		oldMap[key] = dep
-	}
-
-	for _, dep := range newDeployments {
-		key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
-		if _, exists := oldMap[key]; !exists {
-			return false
-		}
-	}
+func (k *Client) CompareDeployments(oldDeployments []apps.Deployment) bool {
+	// if len(oldDeployments) != len(newDeployments) {
+	// 	return false
+	// }
+	// TODO. NEED TO use only dep from before snap.
+	// oldMap := make(map[string]apps.Deployment)
+	// for _, dep := range oldDeployments {
+	// 	key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
+	// 	oldMap[key] = dep
+	// }
+	//
+	// for _, dep := range newDeployments {
+	// 	key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
+	// 	if _, exists := oldMap[key]; !exists {
+	// 		return false
+	// 	}
+	// }
 
 	return true
 }
