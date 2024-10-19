@@ -8,18 +8,27 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
-// SetupPrivateRegistry sets bastion node as private registry.
-func SetupPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) error {
+// SetupAirgapRegistry sets bastion node for airgap registry.
+func SetupAirgapRegistry(cluster *Cluster, flags *customflag.FlagConfig, airgapMethod string) error {
 	LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
 	_, err := getArtifacts(cluster, flags)
 	if err != nil {
 		return fmt.Errorf("error downloading artifacts: %w", err)
 	}
 
-	LogLevel("info", "Adding private registry...")
-	err = bastionAsPrivateRegistry(cluster, flags)
-	if err != nil {
-		return fmt.Errorf("error adding private registry: %w", err)
+	switch airgapMethod {
+	case "private_registry":
+		LogLevel("info", "Adding private registry...")
+		err = privateRegistry(cluster, flags)
+		if err != nil {
+			return fmt.Errorf("error adding private registry: %w", err)
+		}
+	case "system_default_registry":
+		LogLevel("info", "Adding system default registry...")
+		err = systemDefaultRegistry(cluster)
+		if err != nil {
+			return fmt.Errorf("error adding system default registry: %w", err)
+		}
 	}
 
 	LogLevel("info", "Executing Docker pull/tag/push...")
@@ -28,32 +37,26 @@ func SetupPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) error 
 		return fmt.Errorf("error performing docker actions: %w", err)
 	}
 
-	pwd, err := RunCommandOnNode("pwd", cluster.BastionConfig.PublicIPv4Addr)
-	if err != nil {
-		return fmt.Errorf("error running pwd command: %w", err)
-	}
-	regMap := map[string]string{
-		"$PRIVATE_REG": cluster.BastionConfig.PublicDNS,
-		"$USERNAME":    flags.AirgapFlag.RegistryUsername,
-		"$PASSWORD":    flags.AirgapFlag.RegistryPassword,
-		"$HOMEDIR":     pwd,
-	}
-
-	LogLevel("info", "Updating and copying registries.yaml on bastion...")
-	err = updateRegistryFile(cluster, regMap)
-	if err != nil {
-		return fmt.Errorf("error updating/copying registries.yaml: %w", err)
-	}
-
 	return err
 }
 
-// bastionAsPrivateRegistry executes private_registry.sh script.
-func bastionAsPrivateRegistry(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
+// privateRegistry executes private_registry.sh script.
+func privateRegistry(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod +x private_registry.sh && "+
 			`sudo ./private_registry.sh "%v" "%v" "%v"`,
 		flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
+		cluster.BastionConfig.PublicDNS)
+	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+
+	return err
+}
+
+// systemDefaultRegistry executes system_default_registry.sh script.
+func systemDefaultRegistry(cluster *Cluster) (err error) {
+	cmd := fmt.Sprintf(
+		"sudo chmod +x system_default_registry.sh && "+
+			`sudo ./system_default_registry.sh "%v"`,
 		cluster.BastionConfig.PublicDNS)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
@@ -77,7 +80,7 @@ func dockerActions(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
 }
 
 // CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *Cluster) error {
+func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 
@@ -93,10 +96,20 @@ func CopyAssetsOnNodes(cluster *Cluster) error {
 			if err != nil {
 				errChan <- ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
-			err = copyRegistry(cluster, nodeIP)
-			if err != nil {
-				errChan <- ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
+			
+			switch airgapMethod {
+			case "private_registry":
+				err = copyRegistry(cluster, nodeIP)
+				if err != nil {
+					errChan <- ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
+				}
+			case "system_default_registry":
+				err = trustCerts(cluster, nodeIP)
+				if err != nil {
+					errChan <- ReturnLogError("error trusting self-signed certificate on airgap node: %v\n, err: %w", nodeIP, err)
+				}
 			}
+			
 			err = makeExecs(cluster, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
@@ -114,6 +127,15 @@ func CopyAssetsOnNodes(cluster *Cluster) error {
 	}
 
 	return nil
+}
+
+func trustCerts(cluster *Cluster, ip string) (err error) {
+	// TODO: Implement for rhel, sles
+	cmd := "sudo cp domain.crt /usr/local/share/ca-certificates/domain.crt && " +
+		"sudo update-ca-certificates"
+	_, err = CmdForPrivateNode(cluster, cmd, ip)
+
+	return err
 }
 
 // copyAssets copies assets from bastion to private node.
@@ -200,8 +222,20 @@ func makeExecs(cluster *Cluster, ip string) (err error) {
 	return err
 }
 
-// updateRegistryFile updates registries.yaml file and copies to bastion node.
-func updateRegistryFile(cluster *Cluster, regMap map[string]string) (err error) {
+// UpdateRegistryFile updates registries.yaml file and copies to bastion node.
+func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
+	pwd, err := RunCommandOnNode("pwd", cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		return fmt.Errorf("error running pwd command: %w", err)
+	}
+
+	regMap := map[string]string{
+		"$PRIVATE_REG": cluster.BastionConfig.PublicDNS,
+		"$USERNAME":    flags.AirgapFlag.RegistryUsername,
+		"$PASSWORD":    flags.AirgapFlag.RegistryPassword,
+		"$HOMEDIR":     pwd,
+	}
+
 	regPath := BasePath() + "/modules/airgap/setup/registries.yaml"
 	err = ReplaceFileContents(regPath, regMap)
 	if err != nil {
