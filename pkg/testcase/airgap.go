@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -11,6 +12,11 @@ import (
 )
 
 var token string
+
+const(
+	PrivateRegistry = "private_registry"
+	SystemDefaultRegistry = "system_default_registry"
+)
 
 func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
@@ -31,20 +37,41 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 
 func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "Setting bastion as private registry...")
-	err := shared.SetupPrivateRegistry(cluster, flags)
+	err := shared.SetupAirgapRegistry(cluster, flags, "private_registry")
+	Expect(err).To(BeNil(), err)
+
+	shared.LogLevel("info", "Updating and copying registries.yaml on bastion...")
+	err = shared.UpdateRegistryFile(cluster, flags)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster)
+	err = shared.CopyAssetsOnNodes(cluster, "private_registry")
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster)
-	installOnAgents(cluster)
+	installOnServers(cluster, PrivateRegistry)
+	installOnAgents(cluster, PrivateRegistry)
 }
 
-func installOnServers(cluster *shared.Cluster) {
+func TestSystemDefaultRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	shared.LogLevel("info", "Setting bastion as private registry...")
+	err := shared.SetupAirgapRegistry(cluster, flags, "system_default_registry")
+	Expect(err).To(BeNil(), err)
+
+	shared.LogLevel("info", "Copying assets on the airgap nodes...")
+	err = shared.CopyAssetsOnNodes(cluster, "private_registry")
+	Expect(err).To(BeNil(), err)
+
+	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
+	installOnServers(cluster, SystemDefaultRegistry)
+	installOnAgents(cluster, SystemDefaultRegistry)
+}
+
+func installOnServers(cluster *shared.Cluster, airgapMethod string) {
 	serverFlags := os.Getenv("server_flags")
+	if !strings.Contains(serverFlags, "system-default-registry") {
+		serverFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+	}
 	for idx, serverIP := range cluster.ServerIPs {
 		// Installing product on primary server aka server-1, saving the token.
 		if idx == 0 {
@@ -76,7 +103,7 @@ func installOnServers(cluster *shared.Cluster) {
 	}
 }
 
-func installOnAgents(cluster *shared.Cluster) {
+func installOnAgents(cluster *shared.Cluster, airgapMethod string) {
 	agentFlags := os.Getenv("worker_flags")
 	for idx, agentIP := range cluster.AgentIPs {
 		shared.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
