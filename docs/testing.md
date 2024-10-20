@@ -176,7 +176,6 @@ enable_ipv6          = false
 no_of_bastion_nodes  = 1
 bastion_subnets      = "<ipv4-subnet>"
 ```
-
 #### For local/docker
 
 - Required vars in `.env` file: `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
