@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -13,8 +12,8 @@ import (
 
 var token string
 
-const(
-	PrivateRegistry = "private_registry"
+const (
+	PrivateRegistry       = "private_registry"
 	SystemDefaultRegistry = "system_default_registry"
 )
 
@@ -35,43 +34,12 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	}
 }
 
-func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	shared.LogLevel("info", "Setting bastion as private registry...")
-	err := shared.SetupAirgapRegistry(cluster, flags, "private_registry")
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Updating and copying registries.yaml on bastion...")
-	err = shared.UpdateRegistryFile(cluster, flags)
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster, "private_registry")
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster, PrivateRegistry)
-	installOnAgents(cluster, PrivateRegistry)
-}
-
-func TestSystemDefaultRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	shared.LogLevel("info", "Setting bastion as private registry...")
-	err := shared.SetupAirgapRegistry(cluster, flags, "system_default_registry")
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster, "private_registry")
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster, SystemDefaultRegistry)
-	installOnAgents(cluster, SystemDefaultRegistry)
-}
-
-func installOnServers(cluster *shared.Cluster, airgapMethod string) {
+func installOnServers(cluster *shared.Cluster) {
 	serverFlags := os.Getenv("server_flags")
 	if !strings.Contains(serverFlags, "system-default-registry") {
 		serverFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 	}
+
 	for idx, serverIP := range cluster.ServerIPs {
 		// Installing product on primary server aka server-1, saving the token.
 		if idx == 0 {
@@ -103,8 +71,12 @@ func installOnServers(cluster *shared.Cluster, airgapMethod string) {
 	}
 }
 
-func installOnAgents(cluster *shared.Cluster, airgapMethod string) {
+func installOnAgents(cluster *shared.Cluster) {
 	agentFlags := os.Getenv("worker_flags")
+	if !strings.Contains(agentFlags, "system-default-registry") {
+		agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+	}
+
 	for idx, agentIP := range cluster.AgentIPs {
 		shared.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
 		cmd := fmt.Sprintf(
@@ -114,22 +86,4 @@ func installOnAgents(cluster *shared.Cluster, airgapMethod string) {
 		_, err := shared.CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
-}
-
-// DisplayAirgapClusterDetails executes and prints kubectl get nodes,pods on bastion.
-func DisplayAirgapClusterDetails(cluster *shared.Cluster) {
-	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
-		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser,
-		cluster.BastionConfig.PublicIPv4Addr)
-
-	cmd := fmt.Sprintf(
-		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
-		cluster.Config.Product)
-	cmd += "kubectl get nodes,pods -A -o wide"
-
-	shared.LogLevel("info", "Display cluster details from airgap server-1: "+cmd)
-	clusterInfo, err := shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
-	Expect(err).To(BeNil(), err)
-	shared.LogLevel("info", "\n"+clusterInfo)
 }
