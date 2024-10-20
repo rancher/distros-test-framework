@@ -47,7 +47,10 @@ func privateRegistry(cluster *Cluster, flags *customflag.FlagConfig) (err error)
 			`sudo ./private_registry.sh "%v" "%v" "%v"`,
 		flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
 		cluster.BastionConfig.PublicDNS)
-	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	res, err := RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		LogLevel("error", "failed execution of private_registry.sh: "+res)
+	}
 
 	return err
 }
@@ -96,7 +99,7 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 			if err != nil {
 				errChan <- ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
-			
+
 			switch airgapMethod {
 			case "private_registry":
 				err = copyRegistry(cluster, nodeIP)
@@ -106,10 +109,10 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 			case "system_default_registry":
 				err = trustCerts(cluster, nodeIP)
 				if err != nil {
-					errChan <- ReturnLogError("error trusting self-signed certificate on airgap node: %v\n, err: %w", nodeIP, err)
+					errChan <- ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
 				}
 			}
-			
+
 			err = makeExecs(cluster, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
@@ -129,6 +132,7 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 	return nil
 }
 
+// trustCerts copied certs from bastion and updates ca certs.
 func trustCerts(cluster *Cluster, ip string) (err error) {
 	// TODO: Implement for rhel, sles
 	cmd := "sudo cp domain.crt /usr/local/share/ca-certificates/domain.crt && " +
@@ -165,7 +169,7 @@ func copyAssets(cluster *Cluster, ip string) (err error) {
 	return err
 }
 
-// copyRegistry copies registries.yaml from bastion on private node.
+// copyRegistry copies registries.yaml from bastion on to private node.
 func copyRegistry(cluster *Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
@@ -197,7 +201,7 @@ func CmdForPrivateNode(cluster *Cluster, cmd, ip string) (res string, err error)
 	return res, err
 }
 
-// getArtifacts executes get_artifacts.sh scripts.
+// getArtifacts executes get_artifacts.sh script.
 func getArtifacts(cluster *Cluster, flags *customflag.FlagConfig) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
 	cmd := fmt.Sprintf(
@@ -210,7 +214,7 @@ func getArtifacts(cluster *Cluster, flags *customflag.FlagConfig) (res string, e
 	return res, err
 }
 
-// makeExecs gives permission to files that makes them executables.
+// makeExecs gives permission to files that makes them executable.
 func makeExecs(cluster *Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
 	if cluster.Config.Product == "k3s" {
@@ -250,6 +254,26 @@ func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err err
 	}
 
 	return nil
+}
+
+// DisplayAirgapClusterDetails executes and prints kubectl get nodes,pods on bastion.
+func DisplayAirgapClusterDetails(cluster *Cluster) {
+	LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
+		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser,
+		cluster.BastionConfig.PublicIPv4Addr)
+
+	cmd := fmt.Sprintf(
+		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
+			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+		cluster.Config.Product)
+	cmd += "kubectl get nodes,pods -A -o wide"
+
+	LogLevel("info", "Display cluster details from airgap server-1: "+cmd)
+	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	if err != nil {
+		LogLevel("error", "Error getting airgap cluster details: %v", err)
+	}
+	LogLevel("info", "\n"+clusterInfo)
 }
 
 // ssPrefix adds prefix to shell commands.

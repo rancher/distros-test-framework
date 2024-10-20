@@ -127,7 +127,6 @@ resource "null_resource" "prepare_bastion" {
 
   provisioner "remote-exec" {
     inline = [<<-EOT
-      echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip
       sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh

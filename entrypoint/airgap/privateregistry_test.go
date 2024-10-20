@@ -1,3 +1,5 @@
+//go:build privateregistry
+
 package airgap
 
 import (
@@ -5,11 +7,12 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Airgap cluster with Private Registry:", func() {
+var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
 	It("Creates bastion and airgapped nodes", func() {
 		testcase.TestBuildAirgapCluster(cluster)
 	})
@@ -33,8 +36,8 @@ var _ = Describe("Test Airgap cluster with Private Registry:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Displays cluster details", func() {
-		testcase.DisplayAirgapClusterDetails(cluster)
+	AfterAll(func() {
+		shared.DisplayAirgapClusterDetails(cluster)
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip

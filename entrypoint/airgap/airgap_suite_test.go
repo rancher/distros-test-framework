@@ -38,7 +38,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Validate the right module is set.
 	validateAirgap()
 
 	// TODO: Implement using kubeconfig for airgap setup
@@ -47,6 +46,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// validateAirgap pre-validation for airgap tests.
 func validateAirgap() {
 	if os.Getenv("ENV_MODULE") == "" {
 		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
@@ -75,8 +75,8 @@ func validateAirgap() {
 	}
 }
 
-func TestAirgapSuite(t *testing.T) {
-	RegisterFailHandler(FailWithReport)
+func TestAirgapClusterSuite(t *testing.T) {
+	RegisterFailHandler(Fail)
 	RunSpecs(t, "Create Airgap Cluster Test Suite")
 }
 
