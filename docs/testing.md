@@ -1,6 +1,6 @@
-### Setup related Information 
+# Test Setup Information/Requirements 
 
-### Cert Rotate tests Setup Requirements/Assumptions
+## Testing Cert Rotate
 
 We need a split role setup for this test:
 1 Etcd ONLY node
@@ -29,7 +29,8 @@ agent1 ->  agent/worker node
 
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
-### Secret-Encryption tests Setup Requirements/Assumptions
+## Testing Secrets-Encryption
+
 For patch validation test runs, we need a split role setup for this test:
 1 Etcd ONLY node
 2 Control Plane ONLY node
@@ -62,7 +63,7 @@ For versions 1.28 and greater - we run both the traditional tests and new method
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
 
-### Dual-Stack Testing
+## Testing Dual-Stack
 
 - Required vars for `*.tfvars` file
 - `kubelet-arg: \n - node-ip=0.0.0.0` is required to be added to both server and worker flags if the public and private IPs are same
@@ -80,14 +81,15 @@ bastion_subnets      = "<dual-stack-subnet>"
 - Split roles is not supported at this time (Future enhancement)
 - Reorder IP is not supported at this time (Future enhancement)
 
-### Rancher Deployment Testing
+## Testing Rancher Deployment
 
 - Required flags in `*.tfvars` file
 ```
 create_lb: true
 ```
 
-#### For executing locally via docker
+### For executing locally via docker
+
 - Optional flags that can be added in `.env` file. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
 ```
 CERT_MANAGER_VERSION=v1.13.3
@@ -98,7 +100,8 @@ CHARTS_ARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args
 RANCHER_VERSION=v2.7.12
 ```
 
-#### For executing in Jenkins or locally without docker
+### For executing in Jenkins or locally without docker
+
 - Optional flags that can be passed as test parameters. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
 ```
 go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
@@ -110,12 +113,13 @@ go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 -rancherVersion v2.7.12
 ```
 
-#### For Rancher v2.7.12, need to add these additional helm args
+### For Rancher v2.7.12, need to add these additional helm args
+
 ```
 chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
 ```
 
-### Testing with kubeconfig file.
+## Testing with kubeconfig file
 
 - Please note that you also need to update on the `*.tfvars` the var `aws_user` with the correct one that was used to create the cluster.
 - Required variables in `.env` file
@@ -124,8 +128,7 @@ KUBE_CONFIG=<kubeconfig file base64-encoded>
 BASTION_IP=<bastion public ip> when testing Dual-Stack
 ```
 
-
- ### Testing Reboot instances with EIP ###
+## Testing Reboot Instances
 
 - Required vars in `*.tfvars` file:
 ```
@@ -137,7 +140,9 @@ Please note that using this option set to `false` you will need to manually rele
  RELEASE_EIP=false
  ```
 
-### Testing airgap cluster with private registry
+## Testing Airgap Cluster 
+
+### Private Registry
 
 - Required vars in `*.tfvars` file:
 ```
@@ -148,15 +153,14 @@ bastion_subnets      = "<ipv4-subnet>"
 ```
 #### For local/docker
 
-- Required vars in `.env` file:
-- `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
-- `IMAGE_REGISTRY_URL`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
+- Required vars in `.env` file: `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
+
 ```
 ENV_MODULE=airgap
 TEST_DIR=airgap
 TEST_TAG=privateregistry
 ```
-- Optional vars in `.env` file:
+- Optional vars in `.env` file: `IMAGE_REGISTRY_URL`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
 ```
 IMAGE_REGISTRY_URL=registry_url
 REGISTRY_USERNAME=testuser
@@ -165,11 +169,42 @@ REGISTRY_PASSWORD=testpass432
 
 #### For Jenkins
 
-- `MODULE` should be `airgap`
-- `TEST_DIR` should be `airgap`
-- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
+- `MODULE` **should** be `airgap`
+- `TEST_DIR` **should** be `airgap`
+- `TEST_TAGS` **should** include `-tags=privateregistry` and **as optional** may include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
 
-#### Not supported ATM:
+### System Default Registry
+
+- Required vars in `*.tfvars` file:
+```
+enable_public_ip     = false
+enable_ipv6          = false
+no_of_bastion_nodes  = 1
+bastion_subnets      = "<ipv4-subnet>"
+```
+#### For local/docker
+
+- Required vars in `.env` file: `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
+
+```
+ENV_MODULE=airgap
+TEST_DIR=airgap
+TEST_TAG=systemdefaultregistry
+```
+- Optional vars in `.env` file: `IMAGE_REGISTRY_URL`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
+```
+IMAGE_REGISTRY_URL=registry_url
+REGISTRY_USERNAME=testuser
+REGISTRY_PASSWORD=testpass432
+```
+
+#### For Jenkins
+
+- `MODULE` **should be** `airgap`
+- `TEST_DIR` **should** be `airgap`
+- `TEST_TAGS` **should** include `-tags=systemdefaultregistry` and **as optional**, include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
+
+### Not supported/implemented currently for airgap:
 - RPM installs for rke2
 - ExternalDB setup
 - Split roles

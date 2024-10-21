@@ -4,14 +4,14 @@
 # set -x
 # echo "$@"
 
-# Usage: ./get_artifacts.sh k3s v1.27.5+k3s1
-# Usage: ./get_artifacts.sh rke2 v1.27.5+rke2r1 amd64 "flags" tar.gz
+# Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
+# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "amd64" "flags" "tar.gz"
 
-product=$1
-version=$2
-arch=$3
+product=${1}
+version=${2}
+arch=${3}
 flags=${4}
-tarball_type=$5
+tarball_type=${5}
 prodbin=$product
 
 check_arch(){
@@ -39,21 +39,29 @@ get_assets() {
   elif [[ "$product" == "rke2" ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
     wget "$url"/sha256sum-"$arch".txt
-    wget "$url"/rke2-images.linux-"$arch".txt
+    # Ref: https://docs.rke2.io/install/airgap
+    if [[ -n "$flags" ]] && [[ "$flags" =~ "cni" ]]; then
+      wget "$url"/rke2-images-core.linux-"$arch".txt
+      if [ -n "$tarball_type" ]; then
+        wget "$url"/rke2-images-core.linux-"$arch"."$tarball_type"
+      fi
+    elif [[ -z "$flags" ]]; then
+      wget "$url"/rke2-images.linux-"$arch".txt
+      if [ -n "$tarball_type" ]; then
+        wget "$url"/rke2-images.linux-"$arch"."$tarball_type"
+      fi
+    fi
     wget "$url"/rke2.linux-"$arch".tar.gz
     wget -O rke2-install.sh https://get.rke2.io/
-    if [ -n "$tarball_type" ]; then
-      wget "$url"/rke2-images.linux-"$arch"."$tarball_type"
-    fi
   else
     echo "Invalid product: $product. Please provide k3s or rke2 as product"
   fi
 }
 
 get_cni_assets() {
-  if [[ -n "$flags" ]] && [[ "$flags" =~ "cni" ]]; then
+  if [[ -n "$flags" ]] && [[ "$flags" =~ "cni" ]] && [[ ! "$flags" == *"cni: none"* ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
-    cnis=("calico" "canal" "cilium" "flannel" "multus")
+    cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
       if [[ "$flags" =~ $cni ]]; then
         wget "$url"/rke2-images-"$cni".linux-"$arch".txt
@@ -63,6 +71,12 @@ get_cni_assets() {
         break
       fi
     done
+    if [[ "$flags" =~ "multus" ]]; then
+      wget "$url"/rke2-images-multus.linux-"$arch".txt
+      if [ -n "$tarball_type" ]; then
+        wget "$url"/rke2-images-multus.linux-"$arch"."$tarball_type"
+      fi
+    fi
   fi
 }
 

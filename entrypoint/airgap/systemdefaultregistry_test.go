@@ -1,4 +1,4 @@
-//go:build privateregistry
+//go:build systemdefaultregistry
 
 package airgap
 
@@ -12,13 +12,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
-	It("Creates bastion and airgapped nodes", func() {
+var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, func() {
+	It("Creates bastion and private nodes", func() {
 		testcase.TestBuildAirgapCluster(cluster)
 	})
 
-	It("Installs product on airgapped nodes", func() {
-		testcase.TestPrivateRegistry(cluster, flags)
+	It("Installs and validates product on private nodes:", func() {
+		testcase.TestSystemDefaultRegistry(cluster, flags)
 	})
 
 	It("Validates Nodes", func() {
@@ -41,6 +41,7 @@ var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip
+
 })
 
 var _ = AfterEach(func() {
