@@ -66,6 +66,8 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
 		g.Expect(node.Status).Should(Equal("Ready"),
 			"Nodes should all be in Ready state")
+
+		g.Expect(node.Status).ShouldNot(ContainSubstring("SchedulingDisabled"))
 	}
 }
 

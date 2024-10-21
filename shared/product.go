@@ -69,10 +69,11 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 
 func SystemCtlCmd(product, action, nodeType string) (string, error) {
 	systemctlCmdMap := map[string]string{
-		"stop":    "sudo systemctl --no-block stop",
-		"start":   "sudo systemctl --no-block start",
-		"restart": "sudo systemctl --no-block restart",
-		"status":  "sudo systemctl --no-block status",
+		"stop":            "sudo systemctl --no-block stop",
+		"start":           "sudo systemctl --no-block start",
+		"restart":         "sudo systemctl --no-block restart",
+		"status":          "sudo systemctl --no-block status",
+		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
