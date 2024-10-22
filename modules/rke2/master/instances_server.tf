@@ -6,7 +6,7 @@ resource "aws_db_instance" "db" {
   engine                 = var.external_db
   engine_version         = var.external_db_version
   instance_class         = var.instance_class
-  db_name                = "mydb"
+  db_name                = "distros-mydb"
   parameter_group_name   = var.db_group_name
   username               = var.db_username
   password               = var.db_password
@@ -23,7 +23,7 @@ resource "aws_rds_cluster" "db" {
   engine                 = var.external_db
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
-  database_name          = "mydb"
+  database_name          = "distros-mydb"
   master_username        = var.db_username
   master_password        = var.db_password
   engine_mode            = var.engine_mode
@@ -36,7 +36,7 @@ resource "aws_rds_cluster" "db" {
 resource "aws_rds_cluster_instance" "db" {
   count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
   cluster_identifier      = aws_rds_cluster.db[0].id
-  identifier              = "${var.resource_name}${local.random_string}-instance1"
+  identifier              = "${var.resource_name}${local.random_string}-distros-instance1"
   instance_class          = var.instance_class
   engine                 = aws_rds_cluster.db[0].engine
   engine_version         = aws_rds_cluster.db[0].engine_version
@@ -55,7 +55,7 @@ resource "aws_eip" "master_with_eip" {
   count                   = var.create_eip ? 1 : 0
   domain                  = "vpc"
   tags                    = {
-    Name ="${var.resource_name}-server1"
+    Name ="${var.resource_name}-distros-server1"
   }
 }
 
@@ -96,7 +96,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                              = "${var.resource_name}-server1"
+    Name                              = "${var.resource_name}-distros-server1"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -188,7 +188,7 @@ resource "aws_eip" "master2_with_eip" {
   count         = var.create_eip ? local.secondary_masters : 0
   domain        = "vpc"
   tags       = {
-    Name ="${var.resource_name}-server${count.index + 2}"
+    Name ="${var.resource_name}-distros-server${count.index + 2}"
   }
   depends_on = [aws_eip.master_with_eip ]
 }
@@ -222,7 +222,7 @@ resource "aws_instance" "master2-ha" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags  =                {
-    Name                 = "${var.resource_name}-server${count.index + 2}"
+    Name                 = "${var.resource_name}-distros-server${count.index + 2}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   depends_on = [aws_instance.master]
@@ -320,7 +320,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
   port     = 6443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-tg-6443"
+  name     = "${var.resource_name}${local.random_string}-distros-tg-6443"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -328,7 +328,7 @@ resource "aws_lb_target_group" "aws_tg_9345" {
   port     = 9345
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-tg-9345"
+  name     = "${var.resource_name}${local.random_string}-distros-tg-9345"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -336,7 +336,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
   port     = 80
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-tg-80"
+  name     = "${var.resource_name}${local.random_string}-distros-tg-80"
   health_check {
     protocol            = "HTTP"
     port                = "traffic-port"
@@ -354,7 +354,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
   port     = 443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-tg-443"
+  name     = "${var.resource_name}${local.random_string}-distros-tg-443"
   health_check {
     protocol            = "HTTP"
     port                = 80
@@ -435,7 +435,7 @@ resource "aws_lb" "aws_nlb" {
   internal           = false
   load_balancer_type = "network"
   subnets            = [var.subnets]
-  name               = "${var.resource_name}${local.random_string}-nlb"
+  name               = "${var.resource_name}${local.random_string}-distros-nlb"
   count              = var.create_lb ? 1 : 0
 }
 
@@ -485,7 +485,7 @@ resource "aws_lb_listener" "aws_nlb_listener_443" {
 
 resource "aws_route53_record" "aws_route53" {
   zone_id = data.aws_route53_zone.selected.zone_id
-  name    = "${var.resource_name}${local.random_string}-r53"
+  name    = "${var.resource_name}${local.random_string}-distros-r53"
   type    = "CNAME"
   ttl     = "300"
   records = [aws_lb.aws_nlb[0].dns_name]

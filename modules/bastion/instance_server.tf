@@ -20,7 +20,7 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-bastion-server"
+    Name                 = "${var.resource_name}-distros-bastion-server"
   }
 
   provisioner "file" {
