@@ -8,6 +8,6 @@
 *.tfstate*
 workloads/amd64/plan.yaml
 workloads/*/dynamic-ingressroute.yaml
-/config/.env
+/config/.env*
 /config/*.tfvars
 tmp/
