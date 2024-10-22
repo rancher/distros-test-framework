@@ -12,7 +12,9 @@ import (
 )
 
 func TestDeployCertManager(cluster *shared.Cluster, version string) {
-	addRepoCmd := "helm repo add jetstack https://charts.jetstack.io && helm repo update"
+	err := addRepo("jetstack", "https://charts.jetstack.io")
+	Expect(err).ToNot(HaveOccurred(), err.Error())
+	
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
 			"https://github.com/jetstack/cert-manager/releases/download/%s/cert-manager.crds.yaml",
@@ -22,7 +24,7 @@ func TestDeployCertManager(cluster *shared.Cluster, version string) {
 		"helm install cert-manager jetstack/cert-manager -n cert-manager --version %s --kubeconfig=%s",
 		version, shared.KubeConfigFile)
 
-	res, err := shared.RunCommandHost(addRepoCmd, applyCrdsCmd, installCertMgrCmd)
+	res, err := shared.RunCommandHost(applyCrdsCmd, installCertMgrCmd)
 	Expect(err).NotTo(HaveOccurred(),
 		"failed to deploy cert-manager via helm: %v\nCommand: %s\nResult: %s\n", err, installCertMgrCmd, res)
 
@@ -86,20 +88,25 @@ func TestDeployRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 }
 
 func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) string {
-	addRepoCmd := fmt.Sprintf(
-		"helm repo add %s %s && "+
-			"helm repo update",
-		flags.HelmCharts.RepoName,
-		flags.HelmCharts.RepoUrl)
+	err := addRepo(flags.HelmChartsConfig.RepoName, flags.HelmChartsConfig.RepoUrl)
+	Expect(err).To(BeNil(), err.Error())
+	
+	if flags.RancherConfig.RepoUrl != "" {
+		err = addRepo(flags.RancherConfig.RepoName, flags.RancherConfig.RepoUrl)
+		Expect(err).To(BeNil(), err.Error())
+	} else {
+		flags.RancherConfig.RepoName = flags.HelmChartsConfig.RepoName
+		flags.RancherConfig.RepoUrl = flags.HelmChartsConfig.RepoUrl
+	}
 
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+
 			"helm install rancher %s/rancher ",
 		shared.KubeConfigFile,
-		flags.HelmCharts.RepoName)
+		flags.RancherConfig.RepoName)
 
-	if flags.HelmCharts.Args != "" {
-		installRancherCmd += helmArgsBuilder(flags)
+	if flags.HelmChartsConfig.Args != "" {
+		installRancherCmd += chartsArgsBuilder(flags)
 	}
 
 	installRancherCmd += fmt.Sprintf("-n cattle-system "+
@@ -107,24 +114,20 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 		"--set global.cattle.psp.enabled=false "+
 		"--set hostname=%s "+
 		"--kubeconfig=%s",
-		flags.RancherConfig.RancherVersion,
+		flags.RancherConfig.Version,
 		cluster.FQDN,
 		shared.KubeConfigFile)
 
-	shared.LogLevel("info", "Helm command: %s", addRepoCmd)
-	response, err := shared.RunCommandHost(addRepoCmd)
-	Expect(err).NotTo(HaveOccurred(), "failed to add helm repo: %v\nCommand: %s\nResult: %s\n", err, addRepoCmd, response)
-
 	shared.LogLevel("info", "Install command: %s", installRancherCmd)
-	response, err = shared.RunCommandHost(installRancherCmd)
+	res, err := shared.RunCommandHost(installRancherCmd)
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n",
-		err, installRancherCmd, response)
+		err, installRancherCmd, res)
 
-	return response
+	return res
 }
 
-func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
-	helmArgs := flags.HelmCharts.Args
+func chartsArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
+	helmArgs := flags.HelmChartsConfig.Args
 	if strings.Contains(helmArgs, ",") {
 		argsSlice := strings.Split(helmArgs, ",")
 		for _, arg := range argsSlice {
@@ -137,4 +140,18 @@ func helmArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
 	}
 
 	return finalArgs
+}
+
+func addRepo(name, url string) (err error) {
+	shared.LogLevel("info", "Adding repo to helm - name: %v, url: %v", name, url)
+	cmd := fmt.Sprintf(
+		"helm repo add %s %s && helm repo update",
+		name, url)
+	res, err := shared.RunCommandHost(cmd)
+	if err != nil {
+		shared.LogLevel("error", "failed to add helm repo...\nCommand: %s\nResult: %s\n",cmd, res)
+		return err
+	}
+	
+	return nil
 }

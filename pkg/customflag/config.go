@@ -20,8 +20,9 @@ type FlagConfig struct {
 	SUCUpgradeVersion  sucUpgradeVersionFlag
 	Channel            channelFlag
 	External           externalConfigFlag
+	CertMangerConfig   certManagerConfigFlag
 	RancherConfig      rancherConfigFlag
-	HelmCharts         helmChartsFlag
+	HelmChartsConfig   helmChartsConfigFlag
 	AirgapFlag         airgapFlag
 }
 
@@ -169,7 +170,7 @@ func (e *externalConfigFlag) Set(value string) error {
 	return nil
 }
 
-type helmChartsFlag struct {
+type helmChartsConfigFlag struct {
 	Args     string
 	Version  string
 	RepoName string
@@ -177,6 +178,11 @@ type helmChartsFlag struct {
 }
 
 type rancherConfigFlag struct {
-	CertManagerVersion string
-	RancherVersion     string
+	RepoName string
+	RepoUrl  string
+	Version  string
+}
+
+type certManagerConfigFlag struct {
+	Version string
 }
