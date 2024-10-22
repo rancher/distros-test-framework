@@ -15,6 +15,7 @@ var token string
 const (
 	PrivateRegistry       = "private_registry"
 	SystemDefaultRegistry = "system_default_registry"
+	Tarball               = "tarball"
 )
 
 func TestBuildAirgapCluster(cluster *shared.Cluster) {
