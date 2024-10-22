@@ -14,7 +14,7 @@ import (
 func TestDeployCertManager(cluster *shared.Cluster, version string) {
 	err := addRepo("jetstack", "https://charts.jetstack.io")
 	Expect(err).ToNot(HaveOccurred(), err.Error())
-	
+
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
 			"https://github.com/jetstack/cert-manager/releases/download/%s/cert-manager.crds.yaml",
@@ -90,7 +90,7 @@ func TestDeployRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) string {
 	err := addRepo(flags.HelmChartsConfig.RepoName, flags.HelmChartsConfig.RepoUrl)
 	Expect(err).To(BeNil(), err.Error())
-	
+
 	if flags.RancherConfig.RepoUrl != "" {
 		err = addRepo(flags.RancherConfig.RepoName, flags.RancherConfig.RepoUrl)
 		Expect(err).To(BeNil(), err.Error())
@@ -149,9 +149,9 @@ func addRepo(name, url string) (err error) {
 		name, url)
 	res, err := shared.RunCommandHost(cmd)
 	if err != nil {
-		shared.LogLevel("error", "failed to add helm repo...\nCommand: %s\nResult: %s\n",cmd, res)
+		shared.LogLevel("error", "failed to add helm repo...\nCommand: %s\nResult: %s\n", cmd, res)
 		return err
 	}
-	
+
 	return nil
 }

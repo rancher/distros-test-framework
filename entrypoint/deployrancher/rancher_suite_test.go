@@ -94,7 +94,7 @@ func validateRancher() {
 		os.Exit(1)
 	}
 
-	if flags.RancherConfig.RepoUrl != "" && flags.RancherConfig.RepoName != flags.HelmChartsConfig.RepoName {
+	if flags.RancherConfig.RepoUrl != "" && flags.RancherConfig.RepoUrl != flags.HelmChartsConfig.RepoUrl {
 		// Check rancher repo
 		res, err := shared.CheckHelmRepo(
 			flags.RancherConfig.RepoName,
