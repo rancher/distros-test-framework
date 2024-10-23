@@ -19,10 +19,10 @@ type FlagConfig struct {
 	Destroy            destroyFlag
 	SUCUpgradeVersion  sucUpgradeVersionFlag
 	Channel            channelFlag
-	External           externalConfigFlag
-	CertMangerConfig   certManagerConfigFlag
-	RancherConfig      rancherConfigFlag
-	HelmChartsConfig   helmChartsConfigFlag
+	External           externalFlag
+	CertManager        certManagerFlag
+	Rancher            rancherFlag
+	Charts             helmChartsFlag
 	AirgapFlag         airgapFlag
 }
 
@@ -156,33 +156,33 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
-type externalConfigFlag struct {
+type externalFlag struct {
 	SonobuoyVersion string
 }
 
-func (e *externalConfigFlag) String() string {
+func (e *externalFlag) String() string {
 	return e.SonobuoyVersion
 }
 
-func (e *externalConfigFlag) Set(value string) error {
+func (e *externalFlag) Set(value string) error {
 	e.SonobuoyVersion = value
 
 	return nil
 }
 
-type helmChartsConfigFlag struct {
+type helmChartsFlag struct {
 	Args     string
 	Version  string
 	RepoName string
 	RepoUrl  string
 }
 
-type rancherConfigFlag struct {
+type rancherFlag struct {
 	RepoName string
 	RepoUrl  string
 	Version  string
 }
 
-type certManagerConfigFlag struct {
+type certManagerFlag struct {
 	Version string
 }
