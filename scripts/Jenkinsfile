@@ -53,7 +53,7 @@ node {
                              'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
                              'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
                              'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
-
+                 println(qase)
                 writeFile file: qaseEnvFile, text: qase
               }
             }

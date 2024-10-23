@@ -1,13 +1,9 @@
-name: Qase Run Create
+name: Qase Patch Validation Create
 on:
   workflow_dispatch:
     inputs:
-      versions:
-        description: 'Provide the versions'
-        required: true
-        default: 'v1.29.0,v1.30.0,v1.31.0,v1.32.0'
       rcs:
-        description: 'Provide the list of RCs to run'
+        description: 'Provide the list of RCs (comma separated)'
         required: true
         default: 'v1.29.0-rc1,v1.30.0-rc1,v1.31.0-rc1,v1.32.0-rc1'
 
@@ -26,7 +22,12 @@ jobs:
           fetch-depth: 0
 
       - name: Perm for Script
-        run: chmod +x ./scripts/qase-run.sh
+        run: chmod +x ./scripts/qase-patch-validation.sh
 
+      - name: Qase Run Script
+        shell: bash
+        env:
+          RCS: ${{ github.event.inputs.rcs }}
+          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+        run:  ./scripts/qase-patch-validation.sh
 
- 
