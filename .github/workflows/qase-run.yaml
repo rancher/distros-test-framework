@@ -14,65 +14,11 @@ on:
         required: true
         default: 'v1.29.0-rc1, v1.30.0-rc1, v1.31.0-rc1, v1.32.0-rc1'
 
-#      title:
-#        description: 'Provide the title for the run in Qase.io'
-#        required: true
-#        default: ''
-
-#      description:
-#          description: 'Provide the description for the run in Qase.io'
-#          required: true
-#          default: ''
-#
-#      milestone:
-#          description: 'Provide the milestone for the run in Qase.io'
-#          required: true
-#          default: '<Month> <Year> Patch release'
-
 jobs:
-  set-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Generate Matrix
-        id: set-matrix
-        shell: bash
-        run: |
-          versions="${{ github.event.inputs.versions }}"
-          rcs="${{ github.event.inputs.rcs }}"
-          
-          IFS=',' read -r -a version_array <<< "$versions"
-          IFS=',' read -r -a rc_array <<< "$rcs"
-          
-          if [ "${#version_array[@]}" -ne "${#rc_array[@]}" ]; then
-            echo "Error: Number of versions and RCs do not match."
-            exit 1
-          fi
-          
-          matrix="{\"include\":["
-          for ((i=0; i<${#version_array[@]}; i++)); do
-            version="${version_array[$i]}"
-            rc="${rc_array[$i]}"
-            matrix="$matrix{\"version\":\"$version\",\"rc\":\"$rc\"}"
-            if [ $i -lt $((${#version_array[@]}-1)) ]; then
-              matrix="$matrix,"
-            fi
-          done
-          matrix="$matrix]}"
-          
-          echo "Generated Matrix: $matrix"
-          
-          echo "::set-output name=matrix::$matrix"
-
   create_qase_run:
-    needs:  set-matrix
     name: 'Create Qase Run'
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: true
-      matrix: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
-      max-parallel: 4
+    if: github.ref == 'refs/heads/qase'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,43 +26,73 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Execute Permission for Scripts
-        run: |
-          chmod +x ./scripts/qase-run.sh
-          
+        run: chmod +x ./scripts/qase-run.sh
 
-      - name: Config vars
-        id: vars
+      - name: Process Versions and RCs
+        id: process_inputs
+        shell: bash
+        run: |
+            versions="${{ github.event.inputs.versions }}"
+            rcs="${{ github.event.inputs.rcs }}"
+            
+            IFS=',' read -r -a version_array <<< "$versions"
+            IFS=',' read -r -a rc_array <<< "$rcs"
+            
+            if [ "${#version_array[@]}" -ne "${#rc_array[@]}" ]; then
+              echo "Error: Number of versions and RCs do not match."
+              exit 1
+            fi
+            
+            echo "Number of versions: ${#version_array[@]}"
+            
+            # Export arrays for use in subsequent steps
+            echo "VERSION_ARRAY<<EOF" >> $GITHUB_ENV
+            printf "%s\n" "${version_array[@]}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            
+            echo "RC_ARRAY<<EOF" >> $GITHUB_ENV
+            printf "%s\n" "${rc_array[@]}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+
+      - name: Loop Over Versions and RCs
+        shell: bash
         env:
           QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
-        shell: bash
+          VERSION_ARRAY: ${{ env.VERSION_ARRAY }}
+          RC_ARRAY: ${{ env.RC_ARRAY }}
         run: |
           CURRENT_MONTH=$(date +"%B")
           CURRENT_YEAR=$(date +"%Y")
-                echo "current month" $CURRENT_MONTH
-                echo "current year" $CURRENT_YEAR
+
+          
+          mapfile -t version_array <<< "$VERSION_ARRAY"
+          mapfile -t rc_array <<< "$RC_ARRAY"
+
+          for ((i=0; i<${#version_array[@]}; i++)); do
+            VERSION="${version_array[$i]}"
+            RC="${rc_array[$i]}"
+
+            TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for $VERSION"
+            DESCRIPTION="rc Version: $RC"
+            MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
+
+            echo "Creating Qase Test Run with:"
+            echo "Title: $TITLE"
+            echo "Description: $DESCRIPTION"
+            echo "Milestone: $MILESTONE"
+
+            ./scripts/qase-run.sh \
+              --token "$QASE_API_TOKEN" \
+              --title "$TITLE" \
+              --description "$DESCRIPTION" \
+              --milestone "$MILESTONE"
+          done
+              
  
-               VERSION="${{ matrix.version }}"
-               RC="${{ matrix.rc }}"
-                TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for $VERSION"
-                DESCRIPTION="rc Version: $RC"
-               MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
-                echo "title=$TITLE" >> $GITHUB_OUTPUT
-                echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
-                echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
-                  echo "QASE_API_TOKEN=${QASE_API_TOKEN}" >> $GITHUB_ENV
 
   #          TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for ${{ github.event.inputs.version }}"
 #          DESCRIPTION="rc Version: ${{ github.event.inputs.rcs }}"
 #          MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
 
-      - name: Create Qase Test Run
-        env:
-          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
-        run: |
-             ./scripts/qase-run.sh \
-              --token "$QASE_API_TOKEN" \
-                --title "${{ steps.vars.outputs.title }}" \
-                --description "${{ steps.vars.outputs.description }}" \
-                --milestone "${{ steps.vars.outputs.milestone }}"
 
 
