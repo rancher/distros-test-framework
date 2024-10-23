@@ -13,7 +13,7 @@ import (
 
 func TestDeployCertManager(cluster *shared.Cluster, version string) {
 	err := addRepo("jetstack", "https://charts.jetstack.io")
-	Expect(err).ToNot(HaveOccurred(), err.Error())
+	Expect(err).To(BeNil(), err)
 
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
@@ -89,11 +89,12 @@ func TestDeployRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 
 func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) string {
 	err := addRepo(flags.HelmChartsConfig.RepoName, flags.HelmChartsConfig.RepoUrl)
-	Expect(err).To(BeNil(), err.Error())
+	Expect(err).To(BeNil(), err)
 
-	if flags.RancherConfig.RepoUrl != "" {
+	if flags.RancherConfig.RepoUrl != "" &&
+		flags.RancherConfig.RepoUrl != flags.HelmChartsConfig.RepoUrl {
 		err = addRepo(flags.RancherConfig.RepoName, flags.RancherConfig.RepoUrl)
-		Expect(err).To(BeNil(), err.Error())
+		Expect(err).To(BeNil(), err)
 	} else {
 		flags.RancherConfig.RepoName = flags.HelmChartsConfig.RepoName
 		flags.RancherConfig.RepoUrl = flags.HelmChartsConfig.RepoUrl
