@@ -24,6 +24,7 @@ validate_parameters() {
         exit 1
     fi
 }
+
 # Function to create a milestone
 create_milestone() {
     echo "Creating milestone: $MILESTONE_TITLE"
@@ -76,7 +77,6 @@ create_test_run() {
 }
 
 main() {
-    parse_parameters "$@"
     validate_parameters
     create_milestone
     create_test_run
