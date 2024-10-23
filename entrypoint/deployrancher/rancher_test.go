@@ -31,7 +31,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Deploys cert-manager", func() {
-		testcase.TestDeployCertManager(cluster, flags.CertMangerConfig.Version)
+		testcase.TestDeployCertManager(cluster, flags.CertManager.Version)
 	})
 
 	It("Deploys rancher manager", func() {

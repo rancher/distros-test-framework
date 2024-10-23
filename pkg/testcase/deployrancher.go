@@ -88,25 +88,25 @@ func TestDeployRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 }
 
 func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) string {
-	err := addRepo(flags.HelmChartsConfig.RepoName, flags.HelmChartsConfig.RepoUrl)
+	err := addRepo(flags.Charts.RepoName, flags.Charts.RepoUrl)
 	Expect(err).To(BeNil(), err)
 
-	if flags.RancherConfig.RepoUrl != "" &&
-		flags.RancherConfig.RepoUrl != flags.HelmChartsConfig.RepoUrl {
-		err = addRepo(flags.RancherConfig.RepoName, flags.RancherConfig.RepoUrl)
+	if flags.Rancher.RepoUrl != "" &&
+		flags.Rancher.RepoUrl != flags.Charts.RepoUrl {
+		err = addRepo(flags.Rancher.RepoName, flags.Rancher.RepoUrl)
 		Expect(err).To(BeNil(), err)
 	} else {
-		flags.RancherConfig.RepoName = flags.HelmChartsConfig.RepoName
-		flags.RancherConfig.RepoUrl = flags.HelmChartsConfig.RepoUrl
+		flags.Rancher.RepoName = flags.Charts.RepoName
+		flags.Rancher.RepoUrl = flags.Charts.RepoUrl
 	}
 
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+
 			"helm install rancher %s/rancher ",
 		shared.KubeConfigFile,
-		flags.RancherConfig.RepoName)
+		flags.Rancher.RepoName)
 
-	if flags.HelmChartsConfig.Args != "" {
+	if flags.Charts.Args != "" {
 		installRancherCmd += chartsArgsBuilder(flags)
 	}
 
@@ -115,7 +115,7 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 		"--set global.cattle.psp.enabled=false "+
 		"--set hostname=%s "+
 		"--kubeconfig=%s",
-		flags.RancherConfig.Version,
+		flags.Rancher.Version,
 		cluster.FQDN,
 		shared.KubeConfigFile)
 
@@ -128,7 +128,7 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 }
 
 func chartsArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
-	helmArgs := flags.HelmChartsConfig.Args
+	helmArgs := flags.Charts.Args
 	if strings.Contains(helmArgs, ",") {
 		argsSlice := strings.Split(helmArgs, ",")
 		for _, arg := range argsSlice {
