@@ -7,7 +7,7 @@ import (
 )
 
 func TestSnapshotWebhook(applyWorkload bool) error {
-	assert := " Spec.VolumeSnapshotClassName must not be the empty string"
+	assert := " volumeSnapshotClassName must not be the empty string"
 
 	if applyWorkload {
 		workloadErr := shared.ManageWorkload("apply", "snapshot-webhook.yaml")
@@ -20,7 +20,7 @@ func TestSnapshotWebhook(applyWorkload bool) error {
 				return workloadErr
 			}
 			shared.LogLevel("error", workloadErr.Error(),
-				"Error: webhook not rejecting bad VolumeSnapshot, please double check")
+				"Error: expected error not matching for invalid VolumeSnapshot, please double check")
 
 			return nil
 		}
