@@ -1,0 +1,122 @@
+name: Qase Run Create - Patch Validation
+
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Provide the versions (comma-separated)'
+        required: true
+        default: 'v1.29.0, v1.30.0, v1.31.0, v1.32.0'
+
+      rcs:
+        description: 'Provide the list of RCs to run (comma-separated)'
+        required: true
+        default: 'v1.29.0-rc1, v1.30.0-rc1, v1.31.0-rc1, v1.32.0-rc1'
+
+#      title:
+#        description: 'Provide the title for the run in Qase.io'
+#        required: true
+#        default: ''
+
+#      description:
+#          description: 'Provide the description for the run in Qase.io'
+#          required: true
+#          default: ''
+#
+#      milestone:
+#          description: 'Provide the milestone for the run in Qase.io'
+#          required: true
+#          default: '<Month> <Year> Patch release'
+
+jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Generate Matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          versions="${{ github.event.inputs.versions }}"
+          rcs="${{ github.event.inputs.rcs }}"
+          
+          IFS=',' read -r -a version_array <<< "$versions"
+          IFS=',' read -r -a rc_array <<< "$rcs"
+          
+          if [ "${#version_array[@]}" -ne "${#rc_array[@]}" ]; then
+            echo "Error: Number of versions and RCs do not match."
+            exit 1
+          fi
+          
+          matrix="{\"include\":["
+          for ((i=0; i<${#version_array[@]}; i++)); do
+            version="${version_array[$i]}"
+            rc="${rc_array[$i]}"
+            matrix="$matrix{\"version\":\"$version\",\"rc\":\"$rc\"}"
+            if [ $i -lt $((${#version_array[@]}-1)) ]; then
+              matrix="$matrix,"
+            fi
+          done
+          matrix="$matrix]}"
+          
+          echo "Generated Matrix: $matrix"
+          
+          echo "::set-output name=matrix::$matrix"
+
+  create_qase_run:
+    needs:  set-matrix
+    name: 'Create Qase Run'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJson(needs.set-matrix.outputs.matrix) }}
+      max-parallel: 4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Execute Permission for Scripts
+        run: |
+          chmod +x ./scripts/qase-run.sh
+          
+
+      - name: Config vars
+        id: vars
+        env:
+          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+        shell: bash
+        run: |
+          CURRENT_MONTH=$(date +"%B")
+          CURRENT_YEAR=$(date +"%Y")
+                echo "current month" $CURRENT_MONTH
+                echo "current year" $CURRENT_YEAR
+ 
+               VERSION="${{ matrix.version }}"
+               RC="${{ matrix.rc }}"
+                TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for $VERSION"
+                DESCRIPTION="rc Version: $RC"
+               MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
+                echo "title=$TITLE" >> $GITHUB_OUTPUT
+                echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+                echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+                  echo "QASE_API_TOKEN=${QASE_API_TOKEN}" >> $GITHUB_ENV
+
+  #          TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for ${{ github.event.inputs.version }}"
+#          DESCRIPTION="rc Version: ${{ github.event.inputs.rcs }}"
+#          MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
+
+      - name: Create Qase Test Run
+        env:
+          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+        run: |
+             ./scripts/qase-run.sh \
+              --token "$QASE_API_TOKEN" \
+                --title "${{ steps.vars.outputs.title }}" \
+                --description "${{ steps.vars.outputs.description }}" \
+                --milestone "${{ steps.vars.outputs.milestone }}"
+
+
