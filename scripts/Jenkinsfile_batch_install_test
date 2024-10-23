@@ -70,7 +70,10 @@ node {
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
                 string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
                 string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
-                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),                                                          
+                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),
+                string(name: 'REPORT_TO_QASE', value: "${REPORT_TO_QASE}"),
+                string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
+                string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
 
               switch(test_name) {

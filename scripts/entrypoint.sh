@@ -6,8 +6,8 @@ ENV_PATH="/go/src/github.com/rancher/distros-test-framework/config/.env"
 
 
 CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PRODUCT}.tfvars"
-[ -n "$K3S_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$K3S_VERSION\"/" "$CONFIG_PATH"
-[ -n "$RKE2_VERSION" ] && sed -i "s/rke2_version\s*=\s*.*/rke2_version = \"$RKE2_VERSION\"/" "$CONFIG_PATH"
+[ -n "$INSTALL_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
+[ -n "$INSTALL_VERSION" ] && sed -i "s/rke2_version\s*=\s*.*/rke2_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
 [ -n "$INSTALL_MODE" ] && sed -i "s/install_mode\s*=\s*.*/install_mode = \"$INSTALL_MODE\"/" "$CONFIG_PATH"
 [ -n "$K3S_CHANNEL" ] && sed -i "s/k3s_channel\s*=\s*.*/k3s_channel = \"$K3S_CHANNEL\"/" "$CONFIG_PATH"
 [ -n "$RKE2_CHANNEL" ] && sed -i "s/rke2_channel\s*=\s*.*/rke2_channel = \"$RKE2_CHANNEL\"/" "$CONFIG_PATH"

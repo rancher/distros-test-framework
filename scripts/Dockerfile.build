@@ -36,6 +36,8 @@ WORKDIR $GOPATH/src/github.com/rancher/distros-test-framework
 
 COPY . .
 
+RUN CGO_ENABLED=0
+
 RUN go mod download
 
 RUN go mod tidy

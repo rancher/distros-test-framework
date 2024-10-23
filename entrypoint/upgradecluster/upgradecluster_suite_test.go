@@ -10,10 +10,12 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
@@ -21,7 +23,7 @@ var (
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
-	flag.Var(&flags.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&flags.UpgradeMode, "installVersionOrCommit", "Upgrade with version or commit")
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
@@ -46,9 +48,21 @@ func TestMain(m *testing.M) {
 }
 
 func TestClusterUpgradeSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Upgrade Cluster Test Suite")
 }
+
+var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
+	// Add Qase reporting capabilities.
+	if qaseReport == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, flags.UpgradeMode.String())
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -57,3 +71,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}
