@@ -1,6 +1,4 @@
 name: Qase Run Create - Patch Validation
-
-
 on:
   workflow_dispatch:
     inputs:
@@ -18,19 +16,19 @@ jobs:
   create_qase_run:
     name: 'Create Qase Run'
     runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/qase'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Set up Execute Permission for Scripts
+      - name: Perm for Script
         run: chmod +x ./scripts/qase-run.sh
 
       - name: Process Versions and RCs
-        id: process_inputs
-        shell: bash
+        id: process-versions-rcs
+        if: always()
+#        shell: bash
         run: |
             versions="${{ github.event.inputs.versions }}"
             rcs="${{ github.event.inputs.rcs }}"
@@ -45,7 +43,6 @@ jobs:
             
             echo "Number of versions: ${#version_array[@]}"
             
-            # Export arrays for use in subsequent steps
             echo "VERSION_ARRAY<<EOF" >> $GITHUB_ENV
             printf "%s\n" "${version_array[@]}" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
@@ -54,8 +51,10 @@ jobs:
             printf "%s\n" "${rc_array[@]}" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
 
-      - name: Loop Over Versions and RCs
-        shell: bash
+      - name: Qase Run Script
+        id: qase-run-script
+        if: always()
+#        shell: bash
         env:
           QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
           VERSION_ARRAY: ${{ env.VERSION_ARRAY }}
@@ -64,7 +63,6 @@ jobs:
           CURRENT_MONTH=$(date +"%B")
           CURRENT_YEAR=$(date +"%Y")
 
-          
           mapfile -t version_array <<< "$VERSION_ARRAY"
           mapfile -t rc_array <<< "$RC_ARRAY"
 
@@ -88,11 +86,3 @@ jobs:
               --milestone "$MILESTONE"
           done
               
- 
-
-  #          TITLE="Patch Validation for RKE2 and K3S - $CURRENT_MONTH $CURRENT_YEAR for ${{ github.event.inputs.version }}"
-#          DESCRIPTION="rc Version: ${{ github.event.inputs.rcs }}"
-#          MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
-
-
-
