@@ -96,8 +96,13 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 		err = addRepo(flags.Rancher.RepoName, flags.Rancher.RepoUrl)
 		Expect(err).To(BeNil(), err)
 	} else {
-		flags.Rancher.RepoName = flags.Charts.RepoName
 		flags.Rancher.RepoUrl = flags.Charts.RepoUrl
+		if flags.Rancher.RepoName == "" {
+			flags.Rancher.RepoName = flags.Charts.RepoName
+		}
+		if flags.Rancher.Version == "" {
+			flags.Rancher.Version = flags.Charts.Version
+		}
 	}
 
 	installRancherCmd := fmt.Sprintf(
