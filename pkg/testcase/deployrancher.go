@@ -91,25 +91,11 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 	err := addRepo(flags.Charts.RepoName, flags.Charts.RepoUrl)
 	Expect(err).To(BeNil(), err)
 
-	if flags.Rancher.RepoUrl != "" &&
-		flags.Rancher.RepoUrl != flags.Charts.RepoUrl {
-		err = addRepo(flags.Rancher.RepoName, flags.Rancher.RepoUrl)
-		Expect(err).To(BeNil(), err)
-	} else {
-		flags.Rancher.RepoUrl = flags.Charts.RepoUrl
-		if flags.Rancher.RepoName == "" {
-			flags.Rancher.RepoName = flags.Charts.RepoName
-		}
-		if flags.Rancher.Version == "" {
-			flags.Rancher.Version = flags.Charts.Version
-		}
-	}
-
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+
 			"helm install rancher %s/rancher ",
 		shared.KubeConfigFile,
-		flags.Rancher.RepoName)
+		flags.Charts.RepoName)
 
 	if flags.Charts.Args != "" {
 		installRancherCmd += chartsArgsBuilder(flags)
@@ -120,7 +106,7 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 		"--set global.cattle.psp.enabled=false "+
 		"--set hostname=%s "+
 		"--kubeconfig=%s",
-		flags.Rancher.Version,
+		flags.Charts.Version,
 		cluster.FQDN,
 		shared.KubeConfigFile)
 

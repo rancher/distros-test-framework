@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test:", func() {
+var _ = Describe("Test Deploy Rancher:", func() {
 
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
@@ -36,6 +36,21 @@ var _ = Describe("Test:", func() {
 
 	It("Deploys rancher manager", func() {
 		testcase.TestDeployRancher(cluster, flags)
+	})
+
+	It("Validate Nodes post rancher deployment", func() {
+		testcase.TestNodeStatus(
+			cluster,
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods post rancher deployment", func() {
+		testcase.TestPodStatus(
+			cluster,
+			assert.PodAssertRestart(),
+			assert.PodAssertReady())
 	})
 })
 
