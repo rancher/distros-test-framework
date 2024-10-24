@@ -21,13 +21,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Go Modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+      # - name: Cache Go Modules
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ~/go/pkg/mod
+      #     key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-go-
 
       - name: Build Docker image
         run: docker build . -q -f scripts/Dockerfile.build -t acceptance-tests
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Get list of changed files
         id: get-changed-files
