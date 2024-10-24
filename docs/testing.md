@@ -90,16 +90,12 @@ create_lb: true
 #### For executing locally via docker
 - Optional flags that can be added in `.env` file. Default values are set on `entrypoint/deployrancher/rancher_suite_test.go`
 ```
-CERT_MANAGER_VERSION=v1.13.3
+CERT_MANAGER_VERSION=v1.16.1
 CHARTS_VERSION=v2.7.12
 CHARTS_REPO_NAME=<charts repo name>
 CHARTS_REPO_URL=<charts repo url>
 CHARTS_ARGS=bootstrapPassword=admin,replicas=1 #(Comma separated chart args)
-RANCHER_REPO_NAME=<rancher repo name>
-RANCHER_REPO_URL=<rancher repo url>
-RANCHER_VERSION=v2.9.0
 ```
-**NOTE:** If `RANCHER_REPO_NAME` and `RANCHER_REPO_URL` is **empty**, then `CHARTS_REPO_NAME` and `CHARTS_REPO_URL` will be used for installing Rancher.
 
 #### For executing in Jenkins or locally without docker
 - Optional flags that can be passed as test parameters. Default values are set on `entrypoint/deployrancher/rancher_suite_test.go`
@@ -109,10 +105,7 @@ go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 -chartsVersion v2.7.12 \
 -chartsRepoName <charts repo name> \
 -chartsRepoUrl <charts repo url> \
--chartsArgs bootstrapPassword=admin,replicas=1 \
--rancherRepoName <rancher repo name> \
--rancherRepoUrl <rancher repo url>
--rancherVersion v2.7.12
+-chartsArgs bootstrapPassword=admin,replicas=1
 ```
 
 #### For Rancher v2.7.12, need to add these additional charts args

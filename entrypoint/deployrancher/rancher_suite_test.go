@@ -25,14 +25,11 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.CertManager.Version, "certManagerVersion", "v1.13.0", "cert-manager version")
+	flag.StringVar(&flags.CertManager.Version, "certManagerVersion", "v1.16.1", "cert-manager version")
 	flag.StringVar(&flags.Charts.Version, "chartsVersion", "", "rancher helm chart version")
 	flag.StringVar(&flags.Charts.RepoName, "chartsRepoName", "", "rancher helm chart repo name")
 	flag.StringVar(&flags.Charts.RepoUrl, "chartsRepoUrl", "", "rancher helm chart repo url")
 	flag.StringVar(&flags.Charts.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
-	flag.StringVar(&flags.Rancher.RepoName, "rancherRepoName", "", "rancher repo name")
-	flag.StringVar(&flags.Rancher.RepoUrl, "rancherRepoUrl", "", "rancher repo url")
-	flag.StringVar(&flags.Rancher.Version, "rancherVersion", "", "rancher version that will be deployed on the cluster")
 	flag.Parse()
 
 	customflag.ValidateVersionFormat()
@@ -97,22 +94,6 @@ func validateRancher() {
 	if res == "" {
 		shared.LogLevel("error", "No version found in helm repo %v\n", flags.Charts.RepoName)
 		os.Exit(1)
-	}
-
-	if flags.Rancher.RepoUrl != "" && flags.Rancher.RepoUrl != flags.Charts.RepoUrl {
-		// Check rancher repo
-		res, err := shared.CheckHelmRepo(
-			flags.Rancher.RepoName,
-			flags.Rancher.RepoUrl,
-			flags.Rancher.Version)
-		if err != nil {
-			shared.LogLevel("error", "Error while checking helm repo %v\n", err)
-			os.Exit(1)
-		}
-		if res == "" {
-			shared.LogLevel("error", "No version found in helm repo %v\n", flags.Rancher.RepoName)
-			os.Exit(1)
-		}
 	}
 }
 

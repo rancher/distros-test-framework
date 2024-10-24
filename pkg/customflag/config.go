@@ -21,7 +21,6 @@ type FlagConfig struct {
 	Channel            channelFlag
 	External           externalFlag
 	CertManager        certManagerFlag
-	Rancher            rancherFlag
 	Charts             helmChartsFlag
 	AirgapFlag         airgapFlag
 }
@@ -175,12 +174,6 @@ type helmChartsFlag struct {
 	Version  string
 	RepoName string
 	RepoUrl  string
-}
-
-type rancherFlag struct {
-	RepoName string
-	RepoUrl  string
-	Version  string
 }
 
 type certManagerFlag struct {
