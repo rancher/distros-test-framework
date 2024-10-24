@@ -1,0 +1,121 @@
+name: Qase Patch Validation Create
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: 'Provide the versions'
+        required: true
+        default: 'v1.29.0,v1.30.0,v1.31.0,v1.32.0'
+      rcs:
+        description: 'Provide the list of RCs to run'
+        required: true
+        default: 'v1.29.0-rc1,v1.30.0-rc1,v1.31.0-rc1,v1.32.0-rc1'
+
+permissions:
+  contents: read
+
+jobs:
+  create_qase_run:
+    name: 'Create Qase Run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout distros
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Perm for Script
+        run: chmod +x ./scripts/qase-patch-validation.sh
+
+      - name: Set env variables
+        shell: bash
+        env:
+            QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+            QASE_PROJECT_CODE: 'DEMO'
+            PLAN_ID: '3'
+            TAG: 'team-rke2'
+        run: |
+          echo "Setting env variables"
+          echo "QASE_PROJECT_CODE=$QASE_PROJECT_CODE" >> $GITHUB_ENV
+          
+          CURRENT_MONTH=$(date +"%B")
+          CURRENT_YEAR=$(date +"%Y")
+          echo "CURRENT_MONTH=$CURRENT_MONTH" >> $GITHUB_ENV
+          echo "CURRENT_YEAR=$CURRENT_YEAR" >> $GITHUB_ENV
+          
+          echo "QASE_API_TOKEN=$QASE_API_TOKEN" >> $GITHUB_ENV
+          echo "PLAN_ID=$PLAN_ID" >> $GITHUB_ENV
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          
+          MILESTONE="$CURRENT_YEAR-$CURRENT_MONTH Patch release"
+          echo "MILESTONE=$MILESTONE" >> $GITHUB_ENV
+
+      - name: Create Qase Milestone
+        env:
+          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+          QASE_PROJECT_CODE: ${{ env.QASE_PROJECT_CODE }}
+          MILESTONE: ${{ env.MILESTONE }}
+        run: |
+            echo "Creating Qase Milestone:" $MILESTONE
+            MILESTONE_ID=$(./scripts/qase-patch-validation.sh true "$MILESTONE")
+          
+            echo "MILESTONE_ID=$MILESTONE_ID" >> $GITHUB_ENV
+          
+
+      - name: Process Versions and RCs
+        shell: bash
+        run: |
+          versions="${{ github.event.inputs.versions }}"
+          rcs="${{ github.event.inputs.rcs }}"
+          
+          IFS=',' read -r -a versions_to_process <<< "$versions"
+          IFS=',' read -r -a rcs_to_process <<< "$rcs"
+          
+          echo "Versions to process: ${#versions_to_process[@]}"
+          echo "RCs to process: ${#rcs_to_process[@]}"
+          
+          if [ "${#versions_to_process[@]}" -ne "${#rcs_to_process[@]}" ]; then
+            echo "Error: Number of versions and RCs do not match."
+            exit 1
+          fi
+ 
+          echo "VERSIONS<<EOF" >> $GITHUB_ENV
+          printf "%s\n" "${versions_to_process[@]}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          echo "RCS<<EOF" >> $GITHUB_ENV
+          printf "%s\n" "${rcs_to_process[@]}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Qase Run Script
+        shell: bash
+        env:
+          MILESTONE_ID: ${{ env.MILESTONE_ID }}
+          QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+          QASE_PROJECT_CODE: ${{ env.QASE_PROJECT_CODE }}
+          PLAN_ID: ${{ env.PLAN_ID }}
+          TAG: ${{ env.TAG }}
+          All_VERSIONS: ${{ env.VERSIONS }}
+          All_RCS: ${{ env.RCS }}
+        run: |
+          mapfile -t versions <<< "${All_VERSIONS}"
+          mapfile -t rcs <<< "${All_RCS}"
+ 
+          for ((i=0; i<${#versions[@]}; i++)); do
+            VERSION="${versions[$i]}"
+            RC="${rcs[$i]}"
+
+            export TITLE="Patch Validation for RKE2 and K3S -${{ env.CURRENT_MONTH }}-${{ env.CURRENT_YEAR }} -$VERSION"
+            export DESCRIPTION="rc Version: $RC"
+          
+            echo "Creating Qase Test Run with:"
+            echo "Title: $TITLE"
+            echo "Description: $DESCRIPTION"
+            echo "Milestone: ${{ env.MILESTONE }}"
+          
+              ./scripts/qase-patch-validation.sh 
+          done
+
+
+
