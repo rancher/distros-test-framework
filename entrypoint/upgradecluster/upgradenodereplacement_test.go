@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -37,7 +38,7 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
-			testcase.TestServiceLoadBalancer(true, false)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, false)
 		})
 	}
 
@@ -77,7 +78,14 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(false, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, false, true)
+		})
+	}
+
+	if cluster.Config.Product == "rke2" {
+		It("Verifies Snapshot Webhook pre-upgrade", func() {
+			err := testcase.TestSnapshotWebhook(true)
+			Expect(err).To(HaveOccurred())
 		})
 	}
 })

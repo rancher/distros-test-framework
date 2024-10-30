@@ -84,7 +84,7 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, true)
 		})
 
 		It("Verifies Traefik IngressRoute using old GKV", func() {

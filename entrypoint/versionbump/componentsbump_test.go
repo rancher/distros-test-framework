@@ -106,7 +106,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true, true)
+			testcase.TestServiceLoadBalancer(cluster, true, true)
 		})
 	}
 

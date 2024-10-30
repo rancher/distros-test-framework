@@ -57,7 +57,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
 		return "", fmt.Errorf(
-			"command: %s failed on run ssh: %s with error: %w\n, stderr: %v",
+			"command: %s failed on run ssh: %s with error: %w\nstderr: %v",
 			cmd,
 			ip,
 			err,
@@ -330,7 +330,7 @@ func LogLevel(level, format string, args ...interface{}) {
 	envLogLevel := os.Getenv("LOG_LEVEL")
 	envLogLevel = strings.ToLower(envLogLevel)
 
-	switch level {
+	switch strings.ToLower(level) {
 	case "debug":
 		if envLogLevel == "debug" {
 			log.Debug(msg)

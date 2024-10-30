@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/shared"
@@ -17,6 +18,7 @@ import (
 var (
 	kubeconfig string
 	cluster    *shared.Cluster
+	awsClient  *aws.Client
 )
 
 func TestMain(m *testing.M) {
@@ -55,6 +57,12 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
+	awsClient, err = aws.AddClient(cluster)
+	if err != nil {
+		shared.LogLevel("error", "error adding aws client: %w\n", err)
+		os.Exit(1)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -82,7 +90,7 @@ var _ = AfterSuite(func() {
 func addTcFlag() {
 	customflag.ValidateTemplateTcs()
 
-	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
+	testFuncs, err := template.AddTestCases(cluster, awsClient, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
 	if err != nil {
 		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
 		return

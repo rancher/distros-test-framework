@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -52,15 +53,15 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
-	tcs := addTestCaseMap(cluster)
+func AddTestCases(cluster *shared.Cluster, awsClient *aws.Client, names []string) ([]testCase, error) {
+	tcs := addTestCaseMap(cluster, awsClient)
 	return processTestCaseNames(tcs, names)
 }
 
 // addTestCaseMap initializes and returns the map of test cases.
 //
 //nolint:revive // we want to keep the argument for visibility.
-func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
+func addTestCaseMap(cluster *shared.Cluster, awsClient *aws.Client) map[string]testCase {
 	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
 		"TestIngress":          testcase.TestIngress,
@@ -70,7 +71,9 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 		"TestLocalPathProvisionerStorage": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestLocalPathProvisionerStorage(cluster, applyWorkload, deleteWorkload)
 		},
-		"TestServiceLoadBalancer": testcase.TestServiceLoadBalancer,
+		"TestServiceLoadBalancer": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestServiceLoadBalancer(cluster, awsClient, applyWorkload, deleteWorkload)
+		},
 		"TestInternodeConnectivityMixedOS": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestInternodeConnectivityMixedOS(cluster, applyWorkload, deleteWorkload)
 		},

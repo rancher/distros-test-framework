@@ -63,7 +63,7 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
-			testcase.TestServiceLoadBalancer(true, false)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, false)
 		})
 
 		It("Verifies Local Path Provisioner storage pre-upgrade", func() {
@@ -123,7 +123,7 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(false, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, false, true)
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {

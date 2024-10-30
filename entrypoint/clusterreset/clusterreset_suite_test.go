@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -19,6 +20,7 @@ var (
 	kubeconfig string
 	cluster    *shared.Cluster
 	cfg        *config.Product
+	awsClient  *aws.Client
 	err        error
 )
 
@@ -39,6 +41,12 @@ func TestMain(m *testing.M) {
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
+
+	awsClient, err = aws.AddClient(cluster)
+	if err != nil {
+		shared.LogLevel("error", "error adding aws client: %w\n", err)
+		os.Exit(1)
 	}
 
 	os.Exit(m.Run())

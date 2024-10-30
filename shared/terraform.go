@@ -49,6 +49,7 @@ func loadTFconfig(
 
 	LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
+
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAwsEc2(t, varDir, c)
 

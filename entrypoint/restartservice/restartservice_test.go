@@ -48,7 +48,7 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies LoadBalancer Service before service restarts", func() {
-			testcase.TestServiceLoadBalancer(true, false)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, false)
 		})
 	}
 
@@ -97,7 +97,7 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies LoadBalancer Service after service restarts", func() {
-			testcase.TestServiceLoadBalancer(false, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, false, true)
 		})
 	}
 })

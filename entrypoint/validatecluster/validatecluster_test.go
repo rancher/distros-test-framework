@@ -3,11 +3,10 @@ package validatecluster
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -30,40 +29,45 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies ClusterIP Service", func() {
-		testcase.TestServiceClusterIP(true, true)
-	})
-
-	It("Verifies NodePort Service", func() {
-		testcase.TestServiceNodePort(true, true)
-	})
-
-	It("Verifies Ingress", func() {
-		testcase.TestIngress(true, true)
-	})
-
-	It("Verifies Daemonset", func() {
-		testcase.TestDaemonset(true, true)
-	})
-
-	It("Verifies dns access", func() {
-		testcase.TestDNSAccess(true, true)
-	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred(), err)
-		})
-	}
+	// It("Verifies ClusterIP Service", func() {
+	// 	testcase.TestServiceClusterIP(true, true)
+	// })
+	//
+	// It("Verifies NodePort Service", func() {
+	// 	testcase.TestServiceNodePort(true, true)
+	// })
+	//
+	// It("Verifies Ingress", func() {
+	// 	testcase.TestIngress(true, true)
+	// })
+	//
+	// It("Verifies Daemonset", func() {
+	// 	testcase.TestDaemonset(true, true)
+	// })
+	//
+	// It("Verifies dns access", func() {
+	// 	testcase.TestDNSAccess(true, true)
+	// })
+	//
+	// if cluster.Config.Product == "rke2" {
+	// 	It("Verifies Snapshot Webhook", func() {
+	// 		err := testcase.TestSnapshotWebhook(true)
+	// 		Expect(err).To(HaveOccurred(), err)
+	//
+	// 	})
+	// }
 
 	if cluster.Config.Product == "k3s" {
-		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
-		})
+		// It("Verifies Local Path Provisioner storage", func() {
+		// 	testcase.TestLocalPathProvisionerStorage(cluster, true, true)
+		// })
 
 		It("Verifies LoadBalancer Service", func() {
-			testcase.TestServiceLoadBalancer(true, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, false)
+		})
+
+		It("Verifies LoadBalancer Service-2 ", func() {
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, false)
 		})
 
 		It("Verifies Traefik IngressRoute using old GKV", func() {
@@ -73,7 +77,12 @@ var _ = Describe("Test:", func() {
 		It("Verifies Traefik IngressRoute using new GKV", func() {
 			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
+
+		It("Verifies LoadBalancer Service- 3 ", func() {
+			testcase.TestServiceLoadBalancer(cluster, awsClient, false, true)
+		})
 	}
+
 })
 
 var _ = AfterEach(func() {

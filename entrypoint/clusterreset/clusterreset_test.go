@@ -78,7 +78,7 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies LoadBalancer Service After Reset", func() {
-			testcase.TestServiceLoadBalancer(true, true)
+			testcase.TestServiceLoadBalancer(cluster, awsClient, true, true)
 		})
 	}
 })

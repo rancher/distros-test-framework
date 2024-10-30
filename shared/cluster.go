@@ -407,7 +407,7 @@ func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 	return pods, nil
 }
 
-// parsePods parses the pods from the kubeclt get pods command.
+// ParsePods parses the pods from the kubeclt get pods command.
 func ParsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")
