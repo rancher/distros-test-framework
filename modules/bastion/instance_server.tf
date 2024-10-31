@@ -20,7 +20,7 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-distros-bastion-server"
+    Name                 = "${var.resource_name}-${local.resource_tag}-bastion-server"
   }
 
   provisioner "file" {
@@ -31,4 +31,8 @@ resource "aws_instance" "bastion" {
   provisioner "local-exec" {
     command = "echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip"
   }
+}
+
+locals {
+  resource_tag =  "distros-qa"
 }

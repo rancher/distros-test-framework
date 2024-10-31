@@ -22,7 +22,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-distros-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
   provisioner "file" {
     source               = "../install/join_k3s_agent.sh"
@@ -51,7 +51,7 @@ resource "aws_eip" "worker_with_eip" {
   count              = var.create_eip ? length(aws_instance.worker) : 0
   domain             = "vpc"
   tags = {
-    Name                 = "${var.resource_name}-distros-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
 }
 
@@ -60,17 +60,9 @@ data "local_file" "master_ip" {
   filename           = "/tmp/${var.resource_name}_master_ip"
 }
 
-locals {
-  master_ip = trimspace(data.local_file.master_ip.content)
-}
-
 data "local_file" "token" {
   depends_on        = [var.dependency]
   filename          = "/tmp/${var.resource_name}_nodetoken"
-}
-
-locals {
-  node_token = trimspace(data.local_file.token.content)
 }
 
 resource "null_resource" "worker_eip" {
@@ -96,4 +88,11 @@ resource "null_resource" "worker_eip" {
   }
   depends_on = [aws_eip.worker_with_eip,
                  aws_eip_association.worker_eip_association]
+}
+
+locals {
+  master_ip       = trimspace(data.local_file.master_ip.content)
+  node_token      = trimspace(data.local_file.token.content)
+
+  resource_tag    =  "distros-qa"
 }

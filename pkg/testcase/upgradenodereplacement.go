@@ -33,7 +33,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	// create server names.
 	var serverNames, instanceServerIds, newExternalServerIps, newPrivateServerIps []string
 	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-distros-server-replace-%d", resourceName, i+1))
+		serverNames = append(serverNames, fmt.Sprintf("%s-distros-qa-server-replace-%d", resourceName, i+1))
 	}
 
 	var createErr error
@@ -88,7 +88,7 @@ func nodeReplaceAgents(
 	// create agent names.
 	var agentNames []string
 	for i := 0; i < len(cluster.AgentIPs); i++ {
-		agentNames = append(agentNames, fmt.Sprintf("%s-distros-agent-replace-%d", resourceName, i+1))
+		agentNames = append(agentNames, fmt.Sprintf("%s-distros-qa-agent-replace-%d", resourceName, i+1))
 	}
 
 	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=

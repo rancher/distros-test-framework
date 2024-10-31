@@ -1,12 +1,12 @@
 resource "aws_db_instance" "db" {
   count                  = (var.datastore_type == "etcd" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
-  identifier             = "${var.resource_name}${local.random_string}-db"
+  identifier             = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
   engine                 = var.external_db
   engine_version         = var.external_db_version
   instance_class         = var.instance_class
-  db_name                = "distros-mydb"
+  db_name                = "${local.resource_tag}-mydb"
   parameter_group_name   = var.db_group_name
   username               = var.db_username
   password               = var.db_password
@@ -19,11 +19,11 @@ resource "aws_db_instance" "db" {
 
 resource "aws_rds_cluster" "db" {
   count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
-  cluster_identifier     = "${var.resource_name}${local.random_string}-db"
+  cluster_identifier     = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
   engine                 = var.external_db
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
-  database_name          = "distros-mydb"
+  database_name          = "${local.resource_tag}-mydb"
   master_username        = var.db_username
   master_password        = var.db_password
   engine_mode            = var.engine_mode
@@ -36,7 +36,7 @@ resource "aws_rds_cluster" "db" {
 resource "aws_rds_cluster_instance" "db" {
   count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
   cluster_identifier      = aws_rds_cluster.db[0].id
-  identifier              = "${var.resource_name}${local.random_string}-distros-instance1"
+  identifier              = "${var.resource_name}${local.random_string}-${local.resource_tag}-instance1"
   instance_class          = var.instance_class
   engine                 = aws_rds_cluster.db[0].engine
   engine_version         = aws_rds_cluster.db[0].engine_version
@@ -55,7 +55,7 @@ resource "aws_eip" "master_with_eip" {
   count                   = var.create_eip ? 1 : 0
   domain                  = "vpc"
   tags                    = {
-    Name ="${var.resource_name}-distros-server1"
+    Name ="${var.resource_name}-${local.resource_tag}-server1"
   }
 }
 
@@ -66,14 +66,6 @@ resource "aws_eip_association" "master_eip_association" {
   depends_on              = [aws_eip.master_with_eip]
 }
 
-locals {
-  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
-  master_node_ip          = var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip
-  }
-
-locals {
-  fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
-}
 
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
@@ -96,7 +88,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                              = "${var.resource_name}-distros-server1"
+    Name                              = "${var.resource_name}-${local.resource_tag}-server1"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -180,15 +172,11 @@ resource "null_resource" "master_eip" {
                  aws_eip_association.master_eip_association]
 }
 
-locals {
-  secondary_masters = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
-}
-
 resource "aws_eip" "master2_with_eip" {
   count         = var.create_eip ? local.secondary_masters : 0
   domain        = "vpc"
   tags       = {
-    Name ="${var.resource_name}-distros-server${count.index + 2}"
+    Name ="${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
   }
   depends_on = [aws_eip.master_with_eip ]
 }
@@ -222,7 +210,7 @@ resource "aws_instance" "master2-ha" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags  =                {
-    Name                 = "${var.resource_name}-distros-server${count.index + 2}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   depends_on = [aws_instance.master]
@@ -320,7 +308,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
   port     = 6443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-distros-tg-6443"
+  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-6443"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -328,7 +316,7 @@ resource "aws_lb_target_group" "aws_tg_9345" {
   port     = 9345
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-distros-tg-9345"
+  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-9345"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -336,7 +324,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
   port     = 80
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-distros-tg-80"
+  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-80"
   health_check {
     protocol            = "HTTP"
     port                = "traffic-port"
@@ -354,7 +342,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
   port     = 443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-distros-tg-443"
+  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-443"
   health_check {
     protocol            = "HTTP"
     port                = 80
@@ -435,7 +423,7 @@ resource "aws_lb" "aws_nlb" {
   internal           = false
   load_balancer_type = "network"
   subnets            = [var.subnets]
-  name               = "${var.resource_name}${local.random_string}-distros-nlb"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-nlb"
   count              = var.create_lb ? 1 : 0
 }
 
@@ -485,7 +473,7 @@ resource "aws_lb_listener" "aws_nlb_listener_443" {
 
 resource "aws_route53_record" "aws_route53" {
   zone_id = data.aws_route53_zone.selected.zone_id
-  name    = "${var.resource_name}${local.random_string}-distros-r53"
+  name    = "${var.resource_name}${local.random_string}-${local.resource_tag}-r53"
   type    = "CNAME"
   ttl     = "300"
   records = [aws_lb.aws_nlb[0].dns_name]
@@ -495,11 +483,6 @@ resource "aws_route53_record" "aws_route53" {
 data "aws_route53_zone" "selected" {
   name         = var.hosted_zone
   private_zone = false
-}
-
-locals {
-  serverIp   = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
-  depends_on = [aws_instance.master]
 }
 
 resource "null_resource" "update_kubeconfig" {
@@ -524,4 +507,15 @@ resource "null_resource" "store_fqdn" {
     command = "echo \"${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip}\" >/tmp/${var.resource_name}_fixed_reg_addr"
   }
   depends_on = [aws_instance.master]
+}
+
+locals {
+  serverIp                = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
+  secondary_masters       = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
+
+  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  master_node_ip          = var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip
+
+  fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
+  resource_tag            =  "distros-qa"
 }
