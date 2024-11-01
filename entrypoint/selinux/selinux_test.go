@@ -47,9 +47,9 @@ var _ = Describe("Test:", func() {
 		testcase.TestSelinuxContext(cluster)
 	})
 
-	if customflag.ServiceFlag.UpgradeMode.String() != "" {
+	if customflag.ServiceFlag.InstallMode.String() != "" {
 		It("Upgrade manual", func() {
-			_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.UpgradeMode.String())
+			_ = testcase.TestUpgradeClusterManually(cluster, customflag.ServiceFlag.InstallMode.String())
 		})
 
 		It("Validate Nodes Post upgrade", func() {

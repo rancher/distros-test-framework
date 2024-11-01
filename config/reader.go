@@ -56,7 +56,7 @@ func loadEnv() (*Product, error) {
 		Module:         os.Getenv("ENV_MODULE"),
 	}
 
-	ValidateInitVars(productConfig)
+	validateInitVars(productConfig)
 
 	// set the environment variables from the tfvars file.
 	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
@@ -68,7 +68,7 @@ func loadEnv() (*Product, error) {
 	return productConfig, nil
 }
 
-func ValidateInitVars(productConfig *Product) {
+func validateInitVars(productConfig *Product) {
 	if productConfig.InstallVersion == "" {
 		log.Errorf("install version for %s is not set\n", productConfig.Product)
 		os.Exit(1)
