@@ -115,7 +115,7 @@ func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 		}
 		err = assert.CheckComponentCmdNode(
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
-			cluster.GeneralConfig.BastionIP,
+			cluster.BastionConfig.PublicIPv4Addr,
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}

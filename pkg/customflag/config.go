@@ -23,6 +23,7 @@ type FlagConfig struct {
 	RancherConfig      rancherConfigFlag
 	HelmCharts         helmChartsFlag
 	S3Flags            s3ConfigFlag
+	AirgapFlag         airgapFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -34,9 +35,6 @@ type testMapConfigFlag struct {
 	ExpectedValue        string
 	ExpectedValueUpgrade string
 }
-
-type TestCaseFlag func(applyWorkload, deleteWorkload bool)
-
 type templateConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
@@ -55,6 +53,15 @@ func (t *templateConfigFlag) Set(value string) error {
 
 	return nil
 }
+
+type airgapFlag struct {
+	ImageRegistryUrl string
+	RegistryUsername string
+	RegistryPassword string
+	TarballType      string
+}
+
+type TestCaseFlag func(applyWorkload, deleteWorkload bool)
 
 type stringSlice []string
 

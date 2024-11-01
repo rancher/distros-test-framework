@@ -3,7 +3,7 @@ resource "aws_instance" "bastion" {
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
   ipv6_address_count          = var.enable_ipv6 ? 1 : 0
-  count                       = var.no_of_bastion_nodes
+  count                       = var.no_of_bastion_nodes == 0 ? 0 : 1
   
   connection {
     type          = "ssh"
@@ -12,7 +12,7 @@ resource "aws_instance" "bastion" {
     private_key   = file(var.access_key)
   }
   root_block_device {
-    volume_size          = "20"
+    volume_size          = var.volume_size
     volume_type          = "standard"
   }
   subnet_id              = var.bastion_subnets

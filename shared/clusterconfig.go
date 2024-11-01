@@ -3,21 +3,19 @@ package shared
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 var (
 	once    sync.Once
 	cluster *Cluster
+	product string
+	module  string
 )
 
 type Cluster struct {
@@ -31,7 +29,7 @@ type Cluster struct {
 	FQDN          string
 	Config        clusterConfig
 	Aws           AwsConfig
-	GeneralConfig generalConfig
+	BastionConfig bastionConfig
 }
 
 type AwsConfig struct {
@@ -59,10 +57,13 @@ type clusterConfig struct {
 	DataStore        string
 	Product          string
 	Arch             string
+	Version          string
+	ServerFlags      string
 }
 
-type generalConfig struct {
-	BastionIP string
+type bastionConfig struct {
+	PublicIPv4Addr string
+	PublicDNS      string
 }
 
 type Node struct {
@@ -88,11 +89,18 @@ type Pod struct {
 	ReadinessGates string
 }
 
+// setConfig gets env configs and sets on local vars.
+func setConfig() {
+	product = os.Getenv("ENV_PRODUCT")
+	module = os.Getenv("ENV_MODULE")
+}
+
 // ClusterConfig returns a singleton cluster with all terraform config and vars.
 func ClusterConfig() *Cluster {
+	setConfig()
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster()
+		cluster, err = newCluster(product, module)
 		if err != nil {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
@@ -168,16 +176,15 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			ExternalDb:       os.Getenv("external_db"),
 			Arch:             os.Getenv("arch"),
 		},
-		GeneralConfig: generalConfig{
-			BastionIP: os.Getenv("BASTION_IP"),
+		BastionConfig: bastionConfig{
+			PublicIPv4Addr: os.Getenv("BASTION_IP"),
 		},
 	}, nil
 }
 
 // newCluster creates a new cluster and returns his values from terraform config and vars.
-func newCluster() (*Cluster, error) {
-	product := os.Getenv("ENV_PRODUCT")
-	terraformOptions, varDir, err := addTerraformOptions(product)
+func newCluster(product, module string) (*Cluster, error) {
+	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +207,7 @@ func newCluster() (*Cluster, error) {
 	))
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error getting no_of_worker_nodes from var file: %w\n", err)
+			"error getting no_of_worker_nodes from var file: %w", err)
 	}
 
 	LogLevel("info", "Applying Terraform config and Creating cluster\n")
@@ -208,13 +215,16 @@ func newCluster() (*Cluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)
 	}
+	LogLevel("info", "Applying Terraform config completed!\n")
 
+	LogLevel("info", "Checking and adding split roles...")
 	numServers, err = addSplitRole(t, varDir, numServers)
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := loadTFconfig(t, varDir, terraformOptions, product)
+	LogLevel("info", "Loading TF Configs...")
+	c, err := loadTFconfig(t, product, module, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -222,35 +232,18 @@ func newCluster() (*Cluster, error) {
 	c.NumServers = numServers
 	c.NumAgents = numAgents
 	c.Status = "cluster created"
+	LogLevel("info", "Cluster has been created successfully...")
 
 	return c, nil
 }
 
 // DestroyCluster destroys the cluster and returns it.
 func DestroyCluster() (string, error) {
-	cfg, err := config.AddEnv()
+	terraformOptions, _, err := setTerraformOptions(product, module)
 	if err != nil {
 		return "", err
 	}
-
-	_, callerFilePath, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
-	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", cfg.Product))
-	if err != nil {
-		return "", fmt.Errorf("invalid product: %s", cfg.Product)
-	}
-
-	tfDir, err := filepath.Abs(dir + "/modules/" + cfg.Product)
-	if err != nil {
-		return "", fmt.Errorf("no module found for product: %s", cfg.Product)
-	}
-
-	terraformOptions := terraform.Options{
-		TerraformDir: tfDir,
-		VarFiles:     []string{varDir},
-	}
-	terraform.Destroy(&testing.T{}, &terraformOptions)
+	terraform.Destroy(&testing.T{}, terraformOptions)
 
 	return "cluster destroyed", nil
 }
