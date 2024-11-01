@@ -22,12 +22,8 @@ set_vars() {
     QASE_MILESTONE="${CURRENT_MONTH}-${CURRENT_YEAR} Patch release"
     echo "QASE_MILESTONE=$QASE_MILESTONE"
 
+    # Get the list of rcs to process from GH action parameter.
     IFS=',' read -r -a rcs_to_process <<<"${RCS}"
-
-    if [ "${#rcs_to_process[@]}" -ne 4 ]; then
-        echo "Error: Number of RCs should be 4."
-        exit 1
-    fi
 
     All_RCS=${rcs_to_process[*]}
 }
@@ -90,7 +86,7 @@ process() {
     done
 }
 
-# Function to create test run with given parameters being: title, description, milestone id,plan id and tag.
+# Function to create test run with given parameters being: title, description, milestone id, plan id and tag.
 create_test_run() {
     TAG_JSON='["'"$QASE_TAG"'"]'
 

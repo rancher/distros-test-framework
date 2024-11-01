@@ -23,7 +23,7 @@ var (
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
-	flag.Var(&flags.UpgradeMode, "installVersionOrCommit", "Upgrade with version or commit")
+	flag.Var(&flags.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
@@ -58,7 +58,7 @@ var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, &report, flags.UpgradeMode.String())
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, flags.InstallMode.String())
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

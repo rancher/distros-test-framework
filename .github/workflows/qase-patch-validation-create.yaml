@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Perm for Script
+      - name: Set Permission for script
         run: chmod +x ./scripts/qase-patch-validation.sh
 
       - name: Qase Run Script

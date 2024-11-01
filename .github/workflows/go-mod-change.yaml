@@ -1,30 +1,79 @@
-name: Qase Run Create
+name: verify go.mod changes
+
 on:
   workflow_dispatch:
     inputs:
-      versions:
-        description: 'Provide the versions'
+      repo:
+        description: 'The repository you want to select ie k3s-io/k3s or rancher/rke2, the default is k3s-io/k3s.'
+        required: false
+        default: 'k3s-io/k3s'
+      target0:
+        description: 'Which release you want to check the go.mod for values.'
         required: true
-        default: 'v1.29.0,v1.30.0,v1.31.0,v1.32.0'
-      rcs:
-        description: 'Provide the list of RCs to run'
+        default: 'master'
+      target1:
+        description: 'The release to compare against the master branch/latest release'
         required: true
-        default: 'v1.29.0-rc1,v1.30.0-rc1,v1.31.0-rc1,v1.32.0-rc1'
-
-permissions:
-  contents: read
+        default: 'release-1.27'
+      target2:
+        required: false
+      moduleKeyword:
+        description: "The keyword denoting the module you want to check within the go.mod file"
+        required: true
+        default: 'kine'
+  push:
+    branches:
+      - master
+      - release-1.2*
+    paths:
+      - 'go.mod'
 
 jobs:
-  create_qase_run:
-    name: 'Create Qase Run'
+  check_goMod:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout distros
+      - name: checkout latest
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Perm for Script
-        run: chmod +x ./scripts/qase-run.sh
-
+          repository: '${{ github.event.inputs.repo }}'
+          ref: '${{ github.event.inputs.target0 }}'
+          sparse-checkout: |
+            go.mod
+          sparse-checkout-cone-mode: false
+      - name: rename go.mod
+        run: |
+          mkdir -p /tmp/comparisons/
+           mv go.mod /tmp/comparisons/target0-go.mod
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ github.event.inputs.repo }}'
+          ref: "${{ github.event.inputs.target1 }}"
+          sparse-checkout: |
+            go.mod
+          sparse-checkout-cone-mode: false
+      - name: rename go.mod
+        run: |
+          mv go.mod /tmp/comparisons/target1-go.mod
+      - name: Checkout tools repo
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ github.event.inputs.repo }}'
+          ref: "${{ github.event.inputs.target2 }}"
+          sparse-checkout: |
+            go.mod
+          sparse-checkout-cone-mode: false
+      - name: rename go.mod
+        run: |
+          mv go.mod /tmp/comparisons/target2-go.mod
+      - name: compare go.mod files
+        run: |
+          target0=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target0-go.mod)
+          target1=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target1-go.mod)
+          target2=$(grep -i ${{ inputs.moduleKeyword }} /tmp/comparisons/target2-go.mod) 
+          echo "The versions present in these go.mod files are below" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ${target0}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${target1}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${target2}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY

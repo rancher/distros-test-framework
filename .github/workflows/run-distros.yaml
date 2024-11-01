@@ -21,13 +21,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # - name: Cache Go Modules
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/go/pkg/mod
-      #     key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-go-
+      - name: Cache Go Modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Build Docker image
         run: docker build . -q -f scripts/Dockerfile.build -t acceptance-tests

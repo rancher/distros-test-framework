@@ -82,7 +82,7 @@ func TestAirgapSuite(t *testing.T) {
 
 var _ = ReportAfterSuite("Create Airgap Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
-	if qaseReport == "true" {
+	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
