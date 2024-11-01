@@ -116,10 +116,10 @@ func TestClusterRestoreS3(
 	)
 	shared.LogLevel("info", "%s service successfully enabled", product)
 
-	if product == "rke2" {
-		exportKubectl(newServerIP[0])
-		shared.LogLevel("info", "kubectl commands successfully exported")
-	}
+	// if product == "rke2" {
+	// 	exportKubectl(newServerIP[0])
+	// 	shared.LogLevel("info", "kubectl commands successfully exported")
+	// }
 
 	postValidationS3(cluster, newServerIP[0])
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
@@ -127,7 +127,7 @@ func TestClusterRestoreS3(
 
 func postValidationS3(cluster *shared.Cluster, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
-	kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
+	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
 	fmt.Println("DEBUG 1A: ", newServerIP)
 
@@ -143,10 +143,10 @@ func postValidationS3(cluster *shared.Cluster, newServerIP string) {
 	// Expect(kubectlLocationErr).NotTo(HaveOccurred())
 	// fmt.Printf("Location of kubectl: %s", kubectlLocationRes)
 
-	getNodesPodsCmd := fmt.Sprintf("kubectl get nodes,pods -A -o wide" + kubeconfigFlagRemote)
+	getNodesPodsCmd := fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl get nodes,pods -A -o wide %s", cluster.Config.Product, kubeconfigFlagRemote)
 	shared.LogLevel("Running %s on ip: %s", getNodesPodsCmd, newServerIP)
 	// validatePodsCmd := "kubectl get pods " + kubeconfigFlagRemote
-	time.Sleep(240 * time.Second)
+	// time.Sleep(240 * time.Second)
 	nodesPodsRes, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
 	fmt.Println("Response: ", nodesPodsRes)
@@ -288,23 +288,30 @@ func enableAndStartService(
 	// Expect(statusServiceCmdRes).To(SatisfyAll(ContainSubstring("enabled"), ContainSubstring("active")))
 }
 
-func exportKubectl(newClusterIP string) {
-	//update data directory for rpm installs (rhel systems)
-	exportCmd := fmt.Sprintf("sudo cat <<EOF >>.bashrc\n" +
-		"export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin " +
-		"CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \n" +
-		"alias k=kubectl\n" +
-		"EOF")
+// func exportKubectl(newClusterIP string) {
+// 	//update data directory for rpm installs (rhel systems)
+// 	exportCmd := fmt.Sprintf("sudo cat <<EOF >>.bashrc\n" +
+// 		"export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin " +
+// 		"CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \n" +
+// 		"alias k=kubectl\n" +
+// 		"EOF")
 
-	sourceCmd := "source .bashrc"
+// 	sourceCmd := "source .bashrc"
 
-	_, exportCmdErr := shared.RunCommandOnNode(exportCmd, newClusterIP)
-	Expect(exportCmdErr).NotTo(HaveOccurred())
+// 	_, exportCmdErr := shared.RunCommandOnNode(exportCmd, newClusterIP)
+// 	_, sourceCmdErr := shared.RunCommandOnNode(sourceCmd, newClusterIP)
+// 	Expect(sourceCmdErr).NotTo(HaveOccurred())
+// 	exportCmd = fmt.Printf("echo $PATH")
 
-	_, sourceCmdErr := shared.RunCommandOnNode(sourceCmd, newClusterIP)
-	Expect(sourceCmdErr).NotTo(HaveOccurred())
+// 	fmt.Printf("DEBUG 0: PATH: ")
+// 	_, exportCmdErr := shared.RunCommandOnNode(exportCmd, newClusterIP)
+// 	exportCmd = fmt.Printf("ls /var/lib/rancher/rke2/bin")
 
-}
+// 	fmt.Printf("DEBUG 0: PATH: ")
+// 	_, exportCmdErr := shared.RunCommandOnNode(exportCmd, newClusterIP)
+// 	Expect(exportCmdErr).NotTo(HaveOccurred())
+
+// }
 
 func setConfigFile(product string, newClusterIP string) {
 	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n" +
