@@ -1,12 +1,12 @@
 resource "aws_db_instance" "db" {
   count                  = (var.datastore_type == "etcd" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
-  identifier             = "${var.resource_name}${local.random_string}-db"
+  identifier             = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
   engine                 = var.external_db
   engine_version         = var.external_db_version
   instance_class         = var.instance_class
-  db_name                = "mydb"
+  db_name                = "${local.resource_tag}-mydb"
   parameter_group_name   = var.db_group_name
   username               = var.db_username
   password               = var.db_password
@@ -19,11 +19,11 @@ resource "aws_db_instance" "db" {
 
 resource "aws_rds_cluster" "db" {
   count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
-  cluster_identifier     = "${var.resource_name}${local.random_string}-db"
+  cluster_identifier     = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
   engine                 = var.external_db
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
-  database_name          = "mydb"
+  database_name          = "${local.resource_tag}-mydb"
   master_username        = var.db_username
   master_password        = var.db_password
   engine_mode            = var.engine_mode
@@ -36,7 +36,7 @@ resource "aws_rds_cluster" "db" {
 resource "aws_rds_cluster_instance" "db" {
   count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
   cluster_identifier      = aws_rds_cluster.db[0].id
-  identifier              = "${var.resource_name}${local.random_string}-instance1"
+  identifier              = "${var.resource_name}${local.random_string}-${local.resource_tag}-instance1"
   instance_class          = var.instance_class
   engine                  = aws_rds_cluster.db[0].engine
   engine_version          = aws_rds_cluster.db[0].engine_version
@@ -46,7 +46,7 @@ resource "aws_eip" "master_with_eip" {
   count                   = var.create_eip ? 1 : 0
   domain                  = "vpc"
   tags                    = {
-    Name ="${var.resource_name}-server1"
+    Name ="${var.resource_name}-${local.resource_tag}-server1"
   }
 }
 
@@ -55,15 +55,6 @@ resource "aws_eip_association" "master_eip_association" {
   instance_id             = aws_instance.master.id
   allocation_id           = aws_eip.master_with_eip[count.index].id
   depends_on              = [aws_eip.master_with_eip]
-}
-
-locals {
-  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
-  master_node_ip          = var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip
-  }
-
-locals {
-  fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
 }
 
 resource "aws_instance" "master" {
@@ -87,7 +78,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags                   = {
-    Name                 = "${var.resource_name}-server1"
+    Name                 = "${var.resource_name}-${local.resource_tag}-server1"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -195,29 +186,17 @@ data "local_file" "token" {
   depends_on = [aws_instance.master]
 }
 
-locals {
-  node_token = trimspace(data.local_file.token.content)
-}
-
 resource "random_string" "suffix" {
   length = 3
   upper = false
   special = false
 }
 
-locals {
-  random_string =  random_string.suffix.result
-}
-
-locals {
-  secondary_masters = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
-}
-
 resource "aws_eip" "master2_with_eip" {
   count         = var.create_eip ? local.secondary_masters : 0
   domain        = "vpc"
   tags       = {
-    Name ="${var.resource_name}-server${count.index + 2}"
+    Name ="${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
   }
   depends_on = [aws_eip.master_with_eip ]
 }
@@ -252,7 +231,7 @@ resource "aws_instance" "master2-ha" {
   key_name               = var.key_name
   depends_on             = [aws_instance.master]
   tags = {
-    Name                 = "${var.resource_name}-server${count.index + 2}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -335,7 +314,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
   port               = 80
   protocol           = "TCP"
   vpc_id             = var.vpc_id
-  name               = "${var.resource_name}${local.random_string}-tg-80"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-80"
   health_check {
         protocol            = "HTTP"
         port                = "traffic-port"
@@ -370,7 +349,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
   port               = 443
   protocol           = "TCP"
   vpc_id             = var.vpc_id
-  name               = "${var.resource_name}${local.random_string}-tg-443"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-443"
   health_check {
         protocol            = "HTTP"
         port                = 80
@@ -404,7 +383,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
   port               = 6443
   protocol           = "TCP"
   vpc_id             = var.vpc_id
-  name               = "${var.resource_name}${local.random_string}-tg-6443"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-6443"
 }
 
 resource "aws_lb_target_group_attachment" "aws_tg_attachment_6443" {
@@ -428,7 +407,7 @@ resource "aws_lb" "aws_nlb" {
   internal           = false
   load_balancer_type = "network"
   subnets            = [var.subnets]
-  name               = "${var.resource_name}${local.random_string}-nlb"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-nlb"
 }
 
 resource "aws_lb_listener" "aws_nlb_listener_80" {
@@ -468,7 +447,7 @@ resource "aws_route53_record" "aws_route53" {
   count              = var.create_lb ? 1 : 0
   depends_on         = [aws_lb_listener.aws_nlb_listener_6443]
   zone_id            = data.aws_route53_zone.selected.zone_id
-  name               = "${var.resource_name}${local.random_string}-r53"
+  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-r53"
   type               = "CNAME"
   ttl                = "300"
   records            = [aws_lb.aws_nlb[0].dns_name]
@@ -477,12 +456,6 @@ resource "aws_route53_record" "aws_route53" {
 data "aws_route53_zone" "selected" {
   name               = var.qa_space
   private_zone       = false
-}
-
-
-locals {
-  serverIP   = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
-  depends_on = [aws_instance.master]
 }
 
 resource "null_resource" "update_kubeconfig" {
@@ -505,5 +478,17 @@ depends_on = [aws_instance.master, aws_instance.master2-ha]
     command    = "test -f /tmp/${var.resource_name}_control_plane_${count.index} && grep '6443' /tmp/${var.resource_name}_config && sed s/127.0.0.1:6443/\"${count.index == 0 ? local.serverIP : aws_instance.master2-ha[count.index - 1].public_ip}:6443\"/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
     on_failure = continue
   }
-
 }
+
+locals {
+  serverIP                = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip
+  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  master_node_ip          = var.create_eip ? aws_eip.master_with_eip[0].public_ip : aws_instance.master.public_ip
+  secondary_masters       = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
+
+  fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
+  node_token              = trimspace(data.local_file.token.content)
+
+  random_string           =  random_string.suffix.result
+  resource_tag            =  "distros-qa"
+ }
