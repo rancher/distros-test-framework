@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -83,10 +83,9 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 
 	AfterAll(func() {
 		if flags.Destroy {
-			aws.DeleteEC2Instances(cluster)
+			support.DeleteEC2Nodes(cluster)
 		}
 	})
-
 })
 
 var _ = AfterEach(func() {

@@ -1,14 +1,16 @@
-package aws
+package support
 
 import (
 	"sync"
 
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-func DeleteEC2Instances(cluster *shared.Cluster) {
+// DeleteEC2Nodes Deletes all the nodes on the cluster based on externalIPs.
+func DeleteEC2Nodes(cluster *shared.Cluster) {
 	ips := shared.FetchNodeExternalIPs()
-	awsClient, err := AddClient(cluster)
+	awsClient, err := aws.AddClient(cluster)
 	if err != nil {
 		shared.LogLevel("error", "error creating aws client: %w\n", err)
 	}

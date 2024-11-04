@@ -13,7 +13,7 @@ resource "aws_instance" "windows_worker" {
   vpc_security_group_ids = ["${var.sg_id}"]
   key_name               = var.key_name
   tags = {
-    Name = "${var.resource_name}-${local.resource_tag}-windows-worker"
+    Name = "${var.resource_name}-${local.resource_tag}-windows-worker-${count.index + 1}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
 }
@@ -24,8 +24,8 @@ data "local_file" "master_ip" {
 }
 
 locals {
-  master_ip = trimspace("${data.local_file.master_ip.content}")
-  resource_tag    =  "distros-qa"
+  master_ip    = trimspace("${data.local_file.master_ip.content}")
+  resource_tag = "distros-qa"
 }
 
 data "local_file" "token" {
