@@ -52,7 +52,7 @@ type createResultRequest struct {
 
 // ReportTestResults receives the report from ginkgo and sends the test results to Qase.
 func (c Client) ReportTestResults(ctx context.Context, report *Report, version string) {
-	shared.LogLevel("info", "Start report test result to Qase\n")
+	shared.LogLevel("info", "Start publishing test results to Qase\n")
 
 	runID, tcID := validateQaseIDs()
 
