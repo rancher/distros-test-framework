@@ -3,6 +3,7 @@ package mixedoscluster
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -57,7 +58,7 @@ func TestMixedOSClusterCreateSuite(t *testing.T) {
 
 var _ = ReportAfterSuite("Create Mixed OS Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
-	if qaseReport == "true" {
+	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 

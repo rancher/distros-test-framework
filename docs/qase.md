@@ -24,9 +24,7 @@ This job aims to automatically create Test Runs in Qase to perform distros patch
 
 ### Usefull links
 - [Qase API documentation](https://developers.qase.io/reference/introduction-to-the-qase-api)
-
 - [Qase API token](https://app.qase.io/user/api/token)
-
 
 # Test cases Definition
 - [Test cases - K3S](https://app.qase.io/plan/K3SRKE2/15)

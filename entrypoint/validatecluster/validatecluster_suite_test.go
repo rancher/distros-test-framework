@@ -3,6 +3,7 @@ package validatecluster
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -51,7 +52,7 @@ func TestValidateClusterSuite(t *testing.T) {
 
 var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
-	if qaseReport == "true" {
+	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 

@@ -3,6 +3,7 @@ package restartservice
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -51,7 +52,7 @@ func TestRestartServiceSuite(t *testing.T) {
 
 var _ = ReportAfterSuite("Restart Service Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
-	if qaseReport == "true" {
+	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
