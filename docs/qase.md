@@ -22,7 +22,7 @@ This job aims to automatically create Test Runs in Qase to perform distros patch
 - Fill in the required parameters with targeted rcs.
 - Based on parameters above, the workflow will create the title, description and milestone for the test run in Qase.
 
-### Usefull links
+# Usefull links
 - [Qase API documentation](https://developers.qase.io/reference/introduction-to-the-qase-api)
 - [Qase API token](https://app.qase.io/user/api/token)
 
