@@ -1,4 +1,4 @@
-//go:build cilium
+//go:build canal
 
 package versionbump
 
@@ -13,7 +13,13 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
-var _ = Describe("Cilium Version bump:", func() {
+const (
+	kgn        = "kubectl get node -o yaml"
+	calicoCmd  = kgn + " : | grep 'hardened-calico' -A1, "
+	flannelCmd = kgn + " : | grep 'hardened-flannel' -A1"
+)
+
+var _ = Describe("Canal Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -32,12 +38,12 @@ var _ = Describe("Cilium Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Test Bump version", func() {
+	It("Test Calico and Flannel version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  "kubectl get node -o yaml : | grep mirrored-cilium  -A1,kubectl get node -o yaml : | grep hardened-cni-plugins -A1",
+						Cmd:                  calicoCmd + flannelCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

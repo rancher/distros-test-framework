@@ -15,8 +15,6 @@ import (
 
 const (
 	kgn               = "kubectl get node -o yaml"
-	canalFlannel      = kgn + " : | grep 'hardened-flannel' -A1, "
-	calico            = kgn + " : | grep 'hardened-calico' -A1, "
 	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
 	containerd        = kgn + " : | grep containerd -A1, "
 	localPath         = kgn + " : | grep local-path -A1, "
@@ -52,9 +50,9 @@ var _ = Describe("Components Version Upgrade:", func() {
 	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
 	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
 	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
-		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-canal(flannel)\n8-calico\n9-ingress Controller"
+		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-ingress Controller"
 
-	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + canalFlannel + calico + ingressController
+	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
