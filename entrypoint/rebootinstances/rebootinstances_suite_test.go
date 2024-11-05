@@ -86,7 +86,7 @@ func cleanEIPs() {
 					return
 				}
 			}(ip)
-			wg.Wait()
 		}
+		wg.Wait()
 	}
 }

@@ -39,7 +39,7 @@ resource "aws_instance" "worker" {
   ]
   key_name = var.key_name
   tags = {
-    Name = "${var.resource_name}-worker${count.index + 1}"
+    Name = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -99,5 +99,5 @@ resource "null_resource" "worker_eip" {
 }
 
 locals {
-  resource_tag    =  "distros-qa"
+  resource_tag = "distros-qa"
 }

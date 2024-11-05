@@ -42,7 +42,6 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 	if len(names) == 0 {
 		return nil, nil, nil, shared.ReturnLogError("must sent name for the instance")
 	}
-
 	errChan := make(chan error, len(names))
 	resChan := make(chan response, len(names))
 	var wg sync.WaitGroup
@@ -51,24 +50,23 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 		wg.Add(1)
 		go func(n string) {
 			defer wg.Done()
-
 			res, err := c.create(n)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error creating instance: %w\n", err)
 				return
 			}
-
 			nodeID, err := extractID(res)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error extracting instance id: %w\n", err)
 				return
 			}
-
 			externalIp, privateIp, err := c.fetchIP(nodeID)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error fetching ip: %w\n", err)
 				return
 			}
+			shared.LogLevel("info", fmt.Sprintf("Created instance-> {id: %s, name: %s, ip: %s}",
+				nodeID, n, externalIp))
 
 			resChan <- response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
 		}(n)
@@ -132,10 +130,14 @@ func (c Client) DeleteInstance(ip string) error {
 			}
 			instanceName := "Unknown"
 			if len(node.Tags) > 0 {
-				instanceName = *node.Tags[0].Value
+				for _, tag := range node.Tags {
+					if *tag.Key == "Name" {
+						instanceName = *tag.Value
+					}
+				}
 			}
-			shared.LogLevel("info", fmt.Sprintf("Terminated instance: %s (ID: %s)",
-				instanceName, *node.InstanceId))
+			shared.LogLevel("info", fmt.Sprintf("Terminated instance-> {id: %s, name: %s, ip: %s}",
+				*node.InstanceId, instanceName, *node.PublicIpAddress))
 		}
 	}
 
