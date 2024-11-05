@@ -1,4 +1,4 @@
-name: Qase Patch Validation Create
+name: Create Patch Validation Test Run
 on:
   workflow_dispatch:
     inputs:

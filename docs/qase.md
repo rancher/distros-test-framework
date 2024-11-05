@@ -1,10 +1,10 @@
 ## [Qase-Reporter](../pkg/qase/README.md)
-## [Qase-Patch-Validation-Create](#qase-patch-validation-create)
+## [Create Patch Validation Test Run](#create-patch-validation-test-run)
 ## [Usefull links](#usefull-links)
 ## [Test cases Definition](#test-cases-definition)
 
 
-# Qase-Patch-Validation-Create
+# Create Patch Validation Test Run
 
 ### Description
 This job aims to automatically create Test Runs in Qase to perform distros patch/minor validation for a given project code and test plan ID.
@@ -18,7 +18,7 @@ This job aims to automatically create Test Runs in Qase to perform distros patch
 
 ### Usage
 - Go to gh actions https://github.com/rancher/distros-test-framework/actions
-- Click on `run workflow` and select the `Qase-Patch-Validation-Create` workflow.
+- Click on `run workflow` and select the `Create Patch Validation Test Run` workflow.
 - Fill in the required parameters with targeted rcs.
 - Based on parameters above, the workflow will create the title, description and milestone for the test run in Qase.
 
