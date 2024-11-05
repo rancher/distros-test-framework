@@ -48,15 +48,11 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 		return "", ReturnLogError("cmd should not be empty")
 	}
 
-	fmt.Println("DEBUG 1: ", cmd, ip)
-
 	host := ip + ":22"
 	conn, err := configureSSH(host)
 	if err != nil {
 		return "", ReturnLogError("failed to configure SSH: %w\n", err)
 	}
-
-	fmt.Println("DEBUG 2: ", err)
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
 	if err != nil && !strings.Contains(stderr, "restart") {
@@ -241,8 +237,6 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 		return "", "", ReturnLogError("failed to create session: %w\n", err)
 	}
 
-	fmt.Println("DEBUG 2B: cmd: ", cmd)
-
 	defer session.Close()
 
 	var stdoutBuf bytes.Buffer
@@ -253,8 +247,6 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	errssh := session.Run(cmd)
 	stdoutStr = stdoutBuf.String()
 	stderrStr = stderrBuf.String()
-
-	fmt.Println("DEBUG 2C")
 
 	if errssh != nil {
 		return "", stderrStr, errssh

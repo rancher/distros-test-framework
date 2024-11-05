@@ -108,8 +108,6 @@ func TestClusterRestoreS3(
 		"to complete background processes after restore.")
 	time.Sleep(120 * time.Second)
 
-	fmt.Println("DEBUG 0: ", newServerIP[0])
-
 	enableAndStartService(
 		cluster,
 		newServerIP[0],
@@ -123,13 +121,17 @@ func TestClusterRestoreS3(
 
 	postValidationS3(cluster, newServerIP[0])
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
+
+	newKubeConfig, _ := shared.UpdateKubeConfig(newServerIP[0], serverName[0], product)
+	fmt.Println(newKubeConfig)
+
 }
 
 func postValidationS3(cluster *shared.Cluster, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
-	fmt.Println("DEBUG 1A: ", newServerIP)
+	// fmt.Println("DEBUG 1A: ", newServerIP)
 
 	// kubectlLocationCmd := "which kubectl"
 	// fmt.Println("PRINTING KUBECTL: ", kubectlLocationCmd)

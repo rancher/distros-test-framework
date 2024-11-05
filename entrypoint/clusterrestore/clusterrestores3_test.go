@@ -38,6 +38,25 @@ var _ = Describe("Test:", func() {
 		testcase.TestClusterRestoreS3(cluster, true, flags)
 	})
 
+	// It("Validate Nodes", func() {
+	// 	testcase.TestNodeStatus(
+	// 		cluster,
+	// 		assert.NodeAssertReadyStatus(),
+	// 		nil,
+	// 	)
+	// })
+
+	// It("Validate Pods", func() {
+	// 	testcase.TestPodStatus(
+	// 		cluster,
+	// 		assert.PodAssertRestart(),
+	// 		assert.PodAssertReady())
+	// })
+
+	It("Verifies NodePort Service After Snapshot", func() {
+		testcase.TestServiceNodePort(false, true)
+	})
+
 })
 
 var _ = AfterEach(func() {
