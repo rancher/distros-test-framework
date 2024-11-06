@@ -1,6 +1,6 @@
 resource "aws_db_instance" "db" {
   count                  = (var.datastore_type == "etcd" || var.external_db == "NULL" ? 0 : (var.external_db != "" && var.external_db != "aurora-mysql" ? 1 : 0))
-  identifier             = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
+  identifier             = "${var.resource_name}-${local.resource_tag}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
   engine                 = var.external_db
@@ -19,7 +19,7 @@ resource "aws_db_instance" "db" {
 
 resource "aws_rds_cluster" "db" {
   count                  = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
-  cluster_identifier     = "${var.resource_name}${local.random_string}-${local.resource_tag}-db"
+  cluster_identifier     = "${var.resource_name}-${local.resource_tag}-db"
   engine                 = var.external_db
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
@@ -36,7 +36,7 @@ resource "aws_rds_cluster" "db" {
 resource "aws_rds_cluster_instance" "db" {
   count                   = (var.external_db == "aurora-mysql" && var.datastore_type == "external" ? 1 : 0)
   cluster_identifier      = aws_rds_cluster.db[0].id
-  identifier              = "${var.resource_name}${local.random_string}-${local.resource_tag}-instance1"
+  identifier              = "${var.resource_name}-${local.resource_tag}-instance1"
   instance_class          = var.instance_class
   engine                 = aws_rds_cluster.db[0].engine
   engine_version         = aws_rds_cluster.db[0].engine_version
@@ -289,16 +289,6 @@ locals {
   node_token = trimspace(data.local_file.token.content)
 }
 
-resource "random_string" "suffix" {
-  length = 4
-  upper = false
-  special = false
-}
-
-locals {
-  random_string =  random_string.suffix.result
-}
-
 resource "local_file" "master_ips" {
   content  = join(",", aws_instance.master.*.public_ip, aws_instance.master2-ha.*.public_ip)
   filename = "/tmp/${var.resource_name}_master_ips"
@@ -308,7 +298,7 @@ resource "aws_lb_target_group" "aws_tg_6443" {
   port     = 6443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-6443"
+  name     = "${var.resource_name}-${local.resource_tag}-tg-6443"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -316,7 +306,7 @@ resource "aws_lb_target_group" "aws_tg_9345" {
   port     = 9345
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-9345"
+  name     = "${var.resource_name}-${local.resource_tag}-tg-9345"
   count    = var.create_lb ? 1 : 0
 }
 
@@ -324,7 +314,7 @@ resource "aws_lb_target_group" "aws_tg_80" {
   port     = 80
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-80"
+  name     = "${var.resource_name}-${local.resource_tag}-tg-80"
   health_check {
     protocol            = "HTTP"
     port                = "traffic-port"
@@ -342,7 +332,7 @@ resource "aws_lb_target_group" "aws_tg_443" {
   port     = 443
   protocol = "TCP"
   vpc_id   = var.vpc_id
-  name     = "${var.resource_name}${local.random_string}-${local.resource_tag}-tg-443"
+  name     = "${var.resource_name}-${local.resource_tag}-tg-443"
   health_check {
     protocol            = "HTTP"
     port                = 80
@@ -423,7 +413,7 @@ resource "aws_lb" "aws_nlb" {
   internal           = false
   load_balancer_type = "network"
   subnets            = [var.subnets]
-  name               = "${var.resource_name}${local.random_string}-${local.resource_tag}-nlb"
+  name               = "${var.resource_name}-${local.resource_tag}-nlb"
   count              = var.create_lb ? 1 : 0
 }
 
@@ -473,7 +463,7 @@ resource "aws_lb_listener" "aws_nlb_listener_443" {
 
 resource "aws_route53_record" "aws_route53" {
   zone_id = data.aws_route53_zone.selected.zone_id
-  name    = "${var.resource_name}${local.random_string}-${local.resource_tag}-r53"
+  name    = "${var.resource_name}-${local.resource_tag}-r53"
   type    = "CNAME"
   ttl     = "300"
   records = [aws_lb.aws_nlb[0].dns_name]
