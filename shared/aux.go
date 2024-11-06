@@ -38,7 +38,6 @@ func RunCommandHost(cmds ...string) (string, error) {
 			return c.Stderr.(*bytes.Buffer).String(), err
 		}
 	}
-
 	return output.String(), nil
 }
 
@@ -142,7 +141,7 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
-			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
+			"ssh-keyscan %[1]s >> /$HOME/.ssh/known_hosts && "+
 				"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
 			c.AwsEc2.AccessKey,

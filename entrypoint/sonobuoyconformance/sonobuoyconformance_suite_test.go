@@ -1,4 +1,4 @@
-package mixedoscluster
+package sonobuoyconformance
 
 import (
 	"flag"
@@ -19,7 +19,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.57.2", "Sonobuoy Version that will be executed on the cluster")
+	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.57.2", "Sonobuoy binary version")
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
@@ -38,18 +38,13 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	if cluster.Config.Product == "k3s" {
-		shared.LogLevel("error", "\nproduct not supported: %s", cluster.Config.Product)
-		os.Exit(1)
-	}
-
 	os.Exit(m.Run())
 }
 
-func TestMixedOSClusterCreateSuite(t *testing.T) {
+func TestConformance(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Create Mixed OS Cluster Test Suite")
+	RunSpecs(t, "Run Conformance Suite")
 }
 
 var _ = AfterSuite(func() {
