@@ -34,6 +34,7 @@ type testMapConfigFlag struct {
 	ExpectedValue        string
 	ExpectedValueUpgrade string
 }
+
 type templateConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
