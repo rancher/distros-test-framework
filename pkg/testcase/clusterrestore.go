@@ -119,11 +119,19 @@ func TestClusterRestoreS3(
 	// 	shared.LogLevel("info", "kubectl commands successfully exported")
 	// }
 
+	fmt.Println("Server IP: ", newServerIP[0])
+	fmt.Println("Server Name: ", serverName[0])
+
+	copyCmd := fmt.Sprintf("cp /tmp/%s_kubeconfig /tmp/%s_kubeconfig", resourceName, serverName[0])
+
+	_, copyCmdErr := shared.RunCommandHost(copyCmd)
+	Expect(copyCmdErr).NotTo(HaveOccurred())
+
+	_, err = shared.UpdateKubeConfig(newServerIP[0], serverName[0], product)
+	Expect(err).NotTo(HaveOccurred())
+
 	postValidationS3(cluster, newServerIP[0])
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
-
-	newKubeConfig, _ := shared.UpdateKubeConfig(newServerIP[0], serverName[0], product)
-	fmt.Println(newKubeConfig)
 
 }
 
@@ -145,14 +153,16 @@ func postValidationS3(cluster *shared.Cluster, newServerIP string) {
 	// Expect(kubectlLocationErr).NotTo(HaveOccurred())
 	// fmt.Printf("Location of kubectl: %s", kubectlLocationRes)
 
+	shared.PrintClusterState()
+
 	getNodesPodsCmd := fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl get nodes,pods -A -o wide %s", cluster.Config.Product, kubeconfigFlagRemote)
 	shared.LogLevel("Running %s on ip: %s", getNodesPodsCmd, newServerIP)
 	// validatePodsCmd := "kubectl get pods " + kubeconfigFlagRemote
 	// time.Sleep(240 * time.Second)
-	nodesPodsRes, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
+	_, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
-	fmt.Println("Response: ", nodesPodsRes)
-	fmt.Println("Error: ", nodesPodsErr.Error())
+	// fmt.Println("Response: ", nodesPodsRes)
+	// fmt.Println("Error: ", nodesPodsErr.Error())
 	// validatePodsRes, validatePodsErr := shared.RunCommandOnNode(validatePodsCmd, newServerIP)
 	// fmt.Println("Response: ", validatePodsRes)
 	// fmt.Println("Error: ", validatePodsErr.Error())
@@ -277,16 +287,16 @@ func enableAndStartService(
 	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
 	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
 		[]string{newClusterIP})
-	fmt.Println("CLUSTER IP: ", newClusterIP)
 	// fmt.Println("START SERVICE OUT: ", startServiceCmdErr.Error())
-	time.Sleep(600 * time.Second)
 	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
+	time.Sleep(600 * time.Second)
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
 	statusServiceCmdRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
 		[]string{newClusterIP})
-	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
 	fmt.Println("STATUS SERVICE OUT: ", statusServiceCmdRes)
 	fmt.Println("STATUS SERVICE ERR: ", statusServiceCmdErr)
+	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
+
 	// Expect(statusServiceCmdRes).To(SatisfyAll(ContainSubstring("enabled"), ContainSubstring("active")))
 }
 
@@ -316,9 +326,10 @@ func enableAndStartService(
 // }
 
 func setConfigFile(product string, newClusterIP string) {
-	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n" +
-		"write-kubeconfig-mode: 644\n" +
-		"EOF")
+	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n"+
+		"write-kubeconfig-mode: 644\n"+
+		"node-external-ip: %s\n"+
+		"EOF", newClusterIP)
 
 	path := fmt.Sprintf("/etc/rancher/%s/", product)
 	mkdirCmd := fmt.Sprintf("sudo mkdir -p %s", path)
@@ -330,7 +341,7 @@ func setConfigFile(product string, newClusterIP string) {
 	_, mkdirCmdErr := shared.RunCommandOnNode(mkdirCmd, newClusterIP)
 	Expect(mkdirCmdErr).NotTo(HaveOccurred())
 
-	_, copycopyConfigFileCmdErr := shared.RunCommandOnNode(copyConfigFileCmd, newClusterIP)
-	Expect(copycopyConfigFileCmdErr).NotTo(HaveOccurred())
+	_, copyConfigFileCmdErr := shared.RunCommandOnNode(copyConfigFileCmd, newClusterIP)
+	Expect(copyConfigFileCmdErr).NotTo(HaveOccurred())
 
 }

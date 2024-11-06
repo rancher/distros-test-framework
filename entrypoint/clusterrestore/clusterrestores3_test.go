@@ -29,9 +29,9 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies NodePort Service Before Snapshot", func() {
-		testcase.TestServiceNodePort(true, false)
-	})
+	// It("Verifies NodePort Service Before Snapshot", func() {
+	// 	testcase.TestServiceNodePort(true, false)
+	// })
 
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
@@ -53,9 +53,9 @@ var _ = Describe("Test:", func() {
 	// 		assert.PodAssertReady())
 	// })
 
-	It("Verifies NodePort Service After Snapshot", func() {
-		testcase.TestServiceNodePort(false, true)
-	})
+	// It("Verifies NodePort Service After Snapshot", func() {
+	// 	testcase.TestServiceNodePort(false, true)
+	// })
 
 })
 

@@ -127,3 +127,5 @@ func processCiliumStatus(pod *shared.Pod) {
 		ciliumPodsRunning++
 	}
 }
+
+// func TestRestoreS3PodStatus()

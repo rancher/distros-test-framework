@@ -94,3 +94,5 @@ func getPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {
 
 	return nodeDetails, err
 }
+
+// func TestRestoreS3NodeStatus()
