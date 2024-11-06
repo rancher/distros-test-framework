@@ -20,6 +20,7 @@ var (
 	kubeconfig string
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
+	err        error
 )
 
 func TestMain(m *testing.M) {
@@ -30,7 +31,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
 	flag.Parse()
 
-	_, err := config.AddEnv()
+	_, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)

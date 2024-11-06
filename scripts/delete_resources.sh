@@ -8,8 +8,8 @@ delete_ec2_instances () {
     if [ "${EC2_INSTANCE_IDS}" = "" ];then
       echo "No ec2 instances found with prefix: $1. Nothing to delete."
     else
-      echo "Terminating ec2 instances for $1 if still up and running:
-      INSTANCE IDs: ${EC2_INSTANCE_IDS}"
+      echo "Terminating ec2 instances for $1 if still up and running"
+      echo "INSTANCE IDs: ${EC2_INSTANCE_IDS}"
       for INSTANCE_ID in ${EC2_INSTANCE_IDS}
       do
         echo "Deleting instance id: ${INSTANCE_ID}"
