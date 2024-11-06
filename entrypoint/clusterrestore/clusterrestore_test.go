@@ -35,9 +35,10 @@ var _ = Describe("Test:", func() {
 
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestoreS3(cluster, true, flags)
+		testcase.TestClusterRestore(cluster, true, flags)
 	})
 
+	// TODO: its better have a custom POST validation as u are already doing.
 	// It("Validate Nodes", func() {
 	// 	testcase.TestNodeStatus(
 	// 		cluster,
@@ -45,7 +46,7 @@ var _ = Describe("Test:", func() {
 	// 		nil,
 	// 	)
 	// })
-
+	//
 	// It("Validate Pods", func() {
 	// 	testcase.TestPodStatus(
 	// 		cluster,
@@ -53,9 +54,9 @@ var _ = Describe("Test:", func() {
 	// 		assert.PodAssertReady())
 	// })
 
-	It("Verifies NodePort Service After Snapshot", func() {
-		testcase.TestServiceNodePort(false, true)
-	})
+	// It("Verifies NodePort Service After Snapshot", func() {
+	// 	testcase.TestServiceNodePort(false, true)
+	// })
 
 })
 

@@ -122,15 +122,15 @@ if [ -n "${TEST_DIR}" ]; then
         fi
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "clusterrestore" ]; then
-        if [ "${TEST_TAG}" = "clusterrestores3" ]; then
+
+       ## TODO: YOU DONT NEED  TESTTAG
             declare -a OPTS
-                OPTS=(-timeout=45m -v -count=1 ./entrypoint/clusterrestore/... -tags="${TEST_TAG}")
+                OPTS=(-timeout=45m -v -count=1 ./entrypoint/clusterrestore/...  )
                     [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
                     [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
             go test "${OPTS[@]}"
         fi
     fi
-fi
 }
 
 main() {
