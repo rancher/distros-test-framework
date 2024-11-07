@@ -90,8 +90,7 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")
             [ -n "${CHARTS_REPO_URL}" ] && OPTS+=(-chartsRepoUrl "${CHARTS_REPO_URL}")
             [ -n "${CHARTS_ARGS}" ] && OPTS+=(-chartsArgs "${CHARTS_ARGS}")
-            [ -n "${RANCHER_VERSION}" ] && OPTS+=(-rancherVersion "${RANCHER_VERSION}")
-      go test "${OPTS[@]}"
+        go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
@@ -103,7 +102,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...     
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then

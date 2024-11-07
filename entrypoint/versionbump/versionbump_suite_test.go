@@ -57,9 +57,9 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	k8sClient, err = k8s.Add()
+	k8sClient, err = k8s.AddClient()
 	if err != nil {
-		shared.LogLevel("error", "error adding k8s: %w\n", err)
+		shared.LogLevel("error", "error adding k8s client: %w\n", err)
 		os.Exit(1)
 	}
 

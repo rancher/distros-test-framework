@@ -23,7 +23,7 @@ func Template(template TestTemplate) {
 	err := executeTestCombination(template)
 	Expect(err).NotTo(HaveOccurred(), "error validating test template: %w", err)
 
-	k8sClient, err := k8s.Add()
+	k8sClient, err := k8s.AddClient()
 	Expect(err).NotTo(HaveOccurred(), "error adding k8s: %w", err)
 
 	if template.InstallMode != "" {

@@ -13,9 +13,12 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// TODO: doc
+// WaitForNodesReady validates readiness of nodes by checking how much/if/which nodes are ready, with a minimum threshold.
+//
+// minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
+//
+// if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
 func (k *Client) WaitForNodesReady(minReadyNodes int) error {
-	// Check initial readiness.
 	readyNodesMap, nodesReady, nodesTotal, minReadyNodes, err := k.checkInitialNodesReady(minReadyNodes)
 	if err != nil {
 		return fmt.Errorf("failed to check initial nodes ready: %w", err)
@@ -30,11 +33,7 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 
 	shared.LogLevel("info", "Waiting for nodes to become ready... (%d/%d ready)", nodesReady, nodesTotal)
 
-	// Watch for nodes becoming ready.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	err = k.watchNodesReady(ctx, readyNodesMap, &nodesReady, nodesTotal, minReadyNodes)
+	err = k.watchNodesReady(context.Background(), readyNodesMap, &nodesReady, nodesTotal, minReadyNodes)
 	if err != nil {
 		return fmt.Errorf("failed to watch nodes ready: %w", err)
 	}
@@ -42,7 +41,12 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 	return nil
 }
 
-// todo: doc
+// checkInitialNodesReady receive the amount of minReadyNodes.
+// checks the initial state of the nodes and returns:
+// - nodeMap: a map of node names to their readiness status.
+// - ready: the number of nodes that are ready.
+// - total: the total number of nodes in the cluster.
+// - minNode: the minimum number of nodes required to be ready.
 func (k *Client) checkInitialNodesReady(minReadyNodes int) (
 	nodeMap map[string]bool,
 	ready int,
@@ -84,7 +88,11 @@ func (k *Client) checkInitialNodesReady(minReadyNodes int) (
 	return readyNodesMap, nodesReady, nodesTotal, minReadyNodes, nil
 }
 
-// TODO: doc and split/.
+// watchNodesReady watches the nodes and updates the ready count based on:
+//
+// minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
+// nodesReady is the number of nodes that are ready.
+// nodesTotal is the total number of nodes in the cluster.
 func (k *Client) watchNodesReady(
 	ctx context.Context,
 	readyNodesMap map[string]bool,

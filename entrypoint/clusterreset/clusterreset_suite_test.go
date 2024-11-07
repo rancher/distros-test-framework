@@ -3,11 +3,13 @@ package clusterreset
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,16 +17,19 @@ import (
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
 	k8sClient  *k8s.Client
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	_, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -39,9 +44,9 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	k8sClient, err = k8s.Add()
+	k8sClient, err = k8s.AddClient()
 	if err != nil {
-		shared.LogLevel("error", "error adding k8s: %w\n", err)
+		shared.LogLevel("error", "error adding k8s client: %w\n", err)
 		os.Exit(1)
 	}
 
@@ -49,9 +54,21 @@ func TestMain(m *testing.M) {
 }
 
 func TestClusterResetSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Cluster Reset Test Suite")
 }
+
+var _ = ReportAfterSuite("Cluster Reset Test Suite", func(report Report) {
+	// AddClient Qase reporting capabilities.
+	if strings.ToLower(qaseReport) == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -60,3 +77,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}

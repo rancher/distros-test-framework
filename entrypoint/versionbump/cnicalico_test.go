@@ -1,4 +1,4 @@
-//go:build flannel
+//go:build calico
 
 package versionbump
 
@@ -13,7 +13,12 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
-var _ = Describe("Flannel Version bump:", func() {
+const (
+	kgn       = "kubectl get node -o yaml"
+	calicoCmd = kgn + " : | grep mirrored-calico  -A1"
+)
+
+var _ = Describe("Calico Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -32,17 +37,12 @@ var _ = Describe("Flannel Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Test flannel version bump", func() {
-		cmd := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
-		if cluster.Config.Product == "k3s" {
-			cmd = "/var/lib/rancher/k3s/data/current/bin/flannel"
-		}
-
+	It("Test Calico version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  cmd,
+						Cmd:                  calicoCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

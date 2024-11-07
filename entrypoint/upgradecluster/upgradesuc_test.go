@@ -75,7 +75,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
-		_ = testcase.TestUpgradeClusterSUC(cluster, flags.SUCUpgradeVersion.String())
+		_ = testcase.TestUpgradeClusterSUC(cluster, k8sClient, flags.SUCUpgradeVersion.String())
 	})
 
 	It("Checks Node status post-upgrade", func() {

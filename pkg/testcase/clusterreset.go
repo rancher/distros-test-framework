@@ -19,6 +19,7 @@ func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset", productLocationCmd)
+
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 
 	clusterReset(cluster, resetCmd)
@@ -27,9 +28,8 @@ func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
 
-	restartServer(cluster, k8sClient)
-	shared.LogLevel("info", "%s-service started. Waiting 60 seconds for nodes "+
-		"and pods to sync after reset.", cluster.Config.Product)
+	restartServer(cluster)
+	shared.LogLevel("info", "%s-service restarted", cluster.Config.Product)
 
 	ok, err := k8sClient.CheckClusterHealth(0)
 	Expect(err).NotTo(HaveOccurred())
@@ -37,18 +37,22 @@ func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
 }
 
 func clusterReset(cluster *shared.Cluster, resetCmd string) {
+	var (
+		resetRes    string
+		resetCmdErr error
+	)
+
+	resetRes, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
 	switch cluster.Config.Product {
 	case "rke2":
 		// rke2 cluster reset output returns stderr channel
-		_, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
+		Expect(resetRes).To(BeEmpty())
 		Expect(resetCmdErr).To(HaveOccurred())
 		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
 
 	case "k3s":
 		// k3s cluster reset output returns stdout channel
-		resetRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
-		shared.LogLevel("info", "cluster reset: %v", resetRes)
 		Expect(resetCmdErr).NotTo(HaveOccurred())
 		Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
 		Expect(resetRes).To(ContainSubstring("has been reset"))
@@ -78,7 +82,7 @@ func stopServer(cluster *shared.Cluster) {
 	Expect(statusRes).To(SatisfyAny(ContainSubstring("failed"), ContainSubstring("inactive")))
 }
 
-func restartServer(cluster *shared.Cluster, k8sClient *k8s.Client) {
+func restartServer(cluster *shared.Cluster) {
 	var startFirst []string
 	var startLast []string
 
@@ -93,9 +97,6 @@ func restartServer(cluster *shared.Cluster, k8sClient *k8s.Client) {
 
 	_, startErr := shared.ManageService(cluster.Config.Product, "restart", "server", startFirst)
 	Expect(startErr).NotTo(HaveOccurred())
-
-	err := k8sClient.WaitForNodesReady(0)
-	Expect(err).NotTo(HaveOccurred())
 
 	_, startLastErr := shared.ManageService(cluster.Config.Product, "restart", "server", startLast)
 	Expect(startLastErr).NotTo(HaveOccurred())

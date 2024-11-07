@@ -17,9 +17,9 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
-		shared.LogLevel("info", "Backend: "+cluster.Config.DataStore)
+		shared.LogLevel("info", "\nBackend: "+cluster.Config.DataStore+"\n")
 	} else {
-		shared.LogLevel("info", "Backend: "+cluster.Config.ExternalDb)
+		shared.LogLevel("info", "\nBackend: "+cluster.Config.ExternalDb+"\n")
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
@@ -80,15 +80,6 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			return
 		}
 	}
-}
-
-// TestDisplayClusterDetails used to display cluster details.
-func TestDisplayClusterDetails() {
-	_, err := shared.GetNodes(true)
-	Expect(err).NotTo(HaveOccurred())
-
-	_, err = shared.GetPods(true)
-	Expect(err).NotTo(HaveOccurred())
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs.

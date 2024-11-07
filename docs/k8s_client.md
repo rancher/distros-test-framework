@@ -1,1 +1,1 @@
-[k8s client]()
+[k8s client](./pkg/k8s/README.md)

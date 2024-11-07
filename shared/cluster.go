@@ -58,8 +58,9 @@ func applyWorkload(workload, filename string) error {
 
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
+	fmt.Println(out)
 	if err != nil || out == "" {
-		if strings.Contains(out, "error when creating") {
+		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
 
@@ -411,7 +412,7 @@ func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 	return pods, nil
 }
 
-// parsePods parses the pods from the kubeclt get pods command.
+// ParsePods parses the pods from the kubeclt get pods command.
 func ParsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")

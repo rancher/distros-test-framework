@@ -83,6 +83,8 @@ func validateTestTagFromJenkins(testArgs string) string {
 		"cilium":      true,
 		"multus":      true,
 		"flannel":     true,
+		"canal":       true,
+		"calico":      true,
 	}
 
 	if !strings.HasPrefix(testArgs, "-tags=") {

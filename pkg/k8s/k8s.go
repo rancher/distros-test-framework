@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -23,7 +22,7 @@ type Client struct {
 	DynamicClient dynamic.Interface
 }
 
-func Add() (*Client, error) {
+func AddClient() (*Client, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", shared.KubeConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
@@ -45,12 +44,14 @@ func Add() (*Client, error) {
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
 // if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
+//
+// if ip and port not passed, it will check the health of the current cluster context.
 func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 	res, err := k.GetAPIServerHealth()
 	if err != nil {
 		return false, fmt.Errorf("API server health check failed: %w", err)
 	}
-	// DynamicClient.
+
 	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
 		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
@@ -101,11 +102,10 @@ func (k *Client) GetAPIServerHealth() (string, error) {
 
 	err = retry.Do(
 		func() error {
-			rest := k.Clientset.RESTClient()
-			req := rest.Get().AbsPath("/healthz")
+			restClient := k.Clientset.RESTClient()
+			req := restClient.Get().AbsPath("/healthz")
 
-			ctx := context.Background()
-			result := req.Do(ctx)
+			result := req.Do(context.Background())
 			rawResponse, resErr := result.Raw()
 			if resErr != nil {
 				return fmt.Errorf("failed to get API server health: %w", resErr)
@@ -118,8 +118,8 @@ func (k *Client) GetAPIServerHealth() (string, error) {
 
 			return nil
 		},
-		retry.Attempts(5),
-		retry.Delay(10*time.Second),
+		retry.Attempts(21),
+		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 	)
 	if err != nil {
@@ -132,12 +132,13 @@ func (k *Client) GetAPIServerHealth() (string, error) {
 // getGVR gets the GroupVersionResource for the specified resource type.
 func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource, error) {
 	var gvr schema.GroupVersionResource
+
 	err := retry.Do(
 		func() error {
-			disco := k.Clientset.Discovery()
-			apiResourceList, err := disco.ServerPreferredResources()
+			discovery := k.Clientset.Discovery()
+			apiResourceList, err := discovery.ServerPreferredResources()
 			if err != nil {
-				return fmt.Errorf("failed to get preferred resources: %v", err)
+				return fmt.Errorf("failed to get preferred resources: %w", err)
 			}
 
 			for _, apiResource := range apiResourceList {
@@ -145,10 +146,13 @@ func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource,
 				if parseErr != nil {
 					continue
 				}
+
 				for i := range apiResource.APIResources {
 					resource := &apiResource.APIResources[i]
+
 					if resource.Kind == string(resourceType) {
 						gvr = groupVersion.WithResource(resource.Name)
+
 						return nil
 					}
 				}
@@ -156,12 +160,12 @@ func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource,
 
 			return fmt.Errorf("resource type %s not found", resourceType)
 		},
-		retry.Attempts(10),
-		retry.Delay(5*time.Second),
+		retry.Attempts(21),
+		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
-			if n == 0 || n == 9 {
-				shared.LogLevel("warn", "Failed to get preferred resources: %v\nRetrying Attempt %d", err, n+1)
+			if n == 0 || n == 20 {
+				shared.LogLevel("warn", "Failed to get preferred resources: Attempt-%v\nError: %v", n+1, err)
 			}
 		}),
 	)

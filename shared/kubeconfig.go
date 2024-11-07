@@ -42,6 +42,11 @@ func KubeConfigCluster(kubeconfig string) *Cluster {
 	return cluster
 }
 
+// UpdateKubeConfig updates the kubeconfig file with the new leader ip.
+//
+// the path used by KubeConfigFile is maintained.
+//
+// returns the updated kubeconfig in base64.
 func UpdateKubeConfig(newLeaderIP, resourceName, product string) (string, error) {
 	if resourceName == "" {
 		return "", ReturnLogError("resourceName not sent\n")
@@ -56,6 +61,8 @@ func UpdateKubeConfig(newLeaderIP, resourceName, product string) (string, error)
 }
 
 // ExtractServerIP extracts the server IP from the kubeconfig file.
+//
+// returns the server ip and the kubeconfigContent as plain string.
 func ExtractServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
 	if resourceName == "" {
 		return "", "", ReturnLogError("resource name not sent\n")
