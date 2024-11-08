@@ -329,6 +329,7 @@ func setConfigFile(product string, newClusterIP string) {
 	createConfigFileCmd := fmt.Sprintf("sudo cat <<EOF >>config.yaml\n"+
 		"write-kubeconfig-mode: 644\n"+
 		"node-external-ip: %s\n"+
+		"cluster-init: true\n"+
 		"EOF", newClusterIP)
 
 	path := fmt.Sprintf("/etc/rancher/%s/", product)
