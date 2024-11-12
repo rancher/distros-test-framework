@@ -95,28 +95,36 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 		wg.Add(1)
 		go func(nodeIP string) {
 			defer wg.Done()
+			LogLevel("debug", "Copy %v assets on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
 			err = copyAssets(cluster, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
+			LogLevel("debug", "Copy %v assets on node IP: %s -> Complete!", cluster.Config.Product, nodeIP)
 
 			switch airgapMethod {
 			case "private_registry":
+				LogLevel("debug", "Copy registry.yaml on node IP: %s -> Starting...", nodeIP)
 				err = copyRegistry(cluster, nodeIP)
 				if err != nil {
 					errChan <- ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
 				}
+				LogLevel("debug", "Copy registry.yaml on node IP: %s -> Complete!", nodeIP)
 			case "system_default_registry":
+				LogLevel("debug", "Trust CA Certs on node IP: %s -> Starting...", nodeIP)
 				err = trustCerts(cluster, nodeIP)
 				if err != nil {
 					errChan <- ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
 				}
+				LogLevel("debug", "Trust CA Certs on node IP: %s -> Complete!", nodeIP)
 			}
 
+			LogLevel("debug", "Make %s executable on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
 			err = makeExecs(cluster, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
 			}
+			LogLevel("debug", "Make %s executable on node IP: %s -> Complete!", cluster.Config.Product, nodeIP)
 		}(nodeIP)
 	}
 

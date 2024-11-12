@@ -76,7 +76,7 @@ func validateAirgap() {
 }
 
 func TestAirgapClusterSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Create Airgap Cluster Test Suite")
 }
 

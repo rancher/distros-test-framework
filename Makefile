@@ -50,42 +50,32 @@ test-skip:
 		SKIP_FLAG=--ginkgo.skip="${SKIP}"
 	endif
 
-
 test-create:
 	@go test -timeout=45m -v -count=1 ./entrypoint/createcluster/...
-
 
 test-cert-rotate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/certrotate/...
 
-
 test-secrets-encrypt:
 	@go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
-
 
 test-validate:
 	@go test -timeout=45m -v -count=1 ./entrypoint/validatecluster/...
 
-
 test-upgrade-suc:
 	@go test -timeout=45m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion ${SUC_UPGRADE_VERSION} -channel "${CHANNEL}"
-
 
 test-upgrade-manual:
 	@go test -timeout=45m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
-
 test-upgrade-node-replacement:
 	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
-
 
 test-create-mixedos:
 	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})
 
-
 test-create-dualstack:
 	@go test -timeout=45m -v -count=1 ./entrypoint/dualstack/...
-
 
 test-version-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=versionbump \
@@ -100,19 +90,16 @@ test-version-bump:
 	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
 	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
-
 test-components-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=components \
 	-expectedValue ${EXPECTED_VALUE} \
 	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT})
 
-
 test-validate-selinux:
 	@go test -timeout=45m -v -count=1 ./entrypoint/selinux/... \
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT}) \
 	$(if ${CHANNEL},-channel ${CHANNEL})
-
 
 test-restart-service:
 	@go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
@@ -120,7 +107,11 @@ test-restart-service:
 test-reboot-instances:
 	@go test -timeout=45m -v -count=1 ./entrypoint/rebootinstances/...
 
+test-private-registry:
+	@go test -timeout=45m -v -tags=privateregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
+test-system-default-registry:
+	@go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
 #========================= TestCode Static Quality Check =========================#
 pre-commit:
