@@ -31,7 +31,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Secrets Encryption", func() {
-		testcase.TestSecretsEncryption(k8sClient)
+		testcase.TestSecretsEncryption()
 	})
 
 	It("Validate Nodes", func() {

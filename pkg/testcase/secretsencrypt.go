@@ -6,13 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestSecretsEncryption(k8sClient *k8s.Client) {
+func TestSecretsEncryption() {
 	nodes, errGetNodes := shared.GetNodesByRoles("etcd", "control-plane")
 	Expect(nodes).NotTo(BeEmpty())
 	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes")
@@ -27,17 +26,17 @@ func TestSecretsEncryption(k8sClient *k8s.Client) {
 
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
-	secretsEncryptOps(k8sClient, "prepare", product, cpIp, nodes)
-	secretsEncryptOps(k8sClient, "rotate", product, cpIp, nodes)
-	secretsEncryptOps(k8sClient, "reencrypt", product, cpIp, nodes)
+	secretsEncryptOps("prepare", product, cpIp, nodes)
+	secretsEncryptOps("rotate", product, cpIp, nodes)
+	secretsEncryptOps("reencrypt", product, cpIp, nodes)
 
 	if strings.Contains(os.Getenv("TEST_TYPE"), "both") {
 		shared.LogLevel("info", "TEST: 'NEW' Secrets Encryption method")
-		secretsEncryptOps(k8sClient, "rotate-keys", product, cpIp, nodes)
+		secretsEncryptOps("rotate-keys", product, cpIp, nodes)
 	}
 }
 
-func secretsEncryptOps(k8sClient *k8s.Client, action, product, cpIP string, nodes []shared.Node) {
+func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	shared.LogLevel("info", "TEST: Secrets-Encryption:  "+action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
@@ -47,8 +46,6 @@ func secretsEncryptOps(k8sClient *k8s.Client, action, product, cpIP string, node
 	verifyActionStdOut(action, stdOutput)
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
-
-		// todo: add cluster health check here
 		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
 	}
 	for _, node := range nodes {
@@ -57,15 +54,12 @@ func secretsEncryptOps(k8sClient *k8s.Client, action, product, cpIP string, node
 		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
 		// Order of reboot matters. Etcd first then control plane nodes.
 		// Little lag needed between node restarts to avoid issues.
-
-		// todo: add cluster health check here
 		time.Sleep(30 * time.Second)
 		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
 		if waitEtcdErr != nil {
 			shared.LogLevel("WARN", "pods not up after 30 seconds.")
 		}
 	}
-
 	switch product {
 	case "k3s":
 		waitPodsErr := shared.WaitForPodsRunning(10, 3)
