@@ -9,7 +9,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// ListDeployments returns a list of deployments names in the given namespace.
+// ListDeployments returns a list of deployment names in the given namespace.
 //
 // It can filter by labelSelector or send an empty string to list all deployments.
 //
@@ -34,10 +34,10 @@ func (k *Client) ListDeployments(namespace, labelSelector string) ([]string, err
 		deployments = append(deployments, deployment)
 	}
 
-	return getNameAndNs(deployments), nil
+	return getDeploymentNames(deployments), nil
 }
 
-func getNameAndNs(deployments []apps.Deployment) []string {
+func getDeploymentNames(deployments []apps.Deployment) []string {
 	var names []string
 	for i := range deployments {
 		names = append(names, deployments[i].Name)

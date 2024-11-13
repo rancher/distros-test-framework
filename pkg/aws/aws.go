@@ -320,7 +320,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 				Tags: []*ec2.Tag{
 					{
 						Key:   aws.String("Name"),
-						Value: aws.String("distros-qa-" + name),
+						Value: aws.String(name + "-distros-qa"),
 					},
 				},
 			},

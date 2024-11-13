@@ -39,7 +39,7 @@ func AddClient() (*Client, error) {
 	}, nil
 }
 
-// CheckClusterHealth checks the health of the cluster by checking the API server and node statuses.
+// CheckClusterHealth checks the health of the cluster by checking the API server and node status.
 //
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
