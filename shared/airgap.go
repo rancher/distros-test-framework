@@ -248,15 +248,20 @@ func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err err
 		"$HOMEDIR":     pwd,
 	}
 
-	regPath := BasePath() + "/modules/airgap/setup/registries.yaml"
-	err = ReplaceFileContents(regPath, regMap)
+	path := BasePath() + "/modules/airgap/setup"
+	err = CopyFileContents(path+"/registries.yaml.example", path+"/registries.yaml")
+	if err != nil {
+		return fmt.Errorf("error copying registries.yaml contents: %w", err)
+	}
+
+	err = ReplaceFileContents(path+"/registries.yaml", regMap)
 	if err != nil {
 		return fmt.Errorf("error replacing registries.yaml contents: %w", err)
 	}
 
 	err = RunScp(
 		cluster, cluster.BastionConfig.PublicIPv4Addr,
-		[]string{regPath}, []string{"~/registries.yaml"})
+		[]string{path + "/registries.yaml"}, []string{"~/registries.yaml"})
 	if err != nil {
 		return fmt.Errorf("error scp-ing registries.yaml on bastion: %w", err)
 	}

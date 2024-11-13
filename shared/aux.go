@@ -494,6 +494,21 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	return nil
 }
 
+// CopyFileContents reads file from path and copies them locally.
+func CopyFileContents(srcPath, destPath string) error {
+	contents, err := os.ReadFile(srcPath)
+	if err != nil {
+		return ReturnLogError("File does not exist: %v", srcPath)
+	}
+
+	err = os.WriteFile(destPath, contents, 0o666)
+	if err != nil {
+		return ReturnLogError("Write to File failed: %v", destPath)
+	}
+
+	return nil
+}
+
 // ReplaceFileContents reads file from path and replaces them based on key value pair provided.
 func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	contents, err := os.ReadFile(filePath)

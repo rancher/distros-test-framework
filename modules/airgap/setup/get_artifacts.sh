@@ -52,7 +52,6 @@ download_retry() {
   attempt_num=1
 
   while [ $attempt_num -le $max_attempts ]; do
-    
     if eval "$cmd"; then
       echo "Command succeeded after $attempt_num attempts."
       break
@@ -101,7 +100,7 @@ get_assets() {
 }
 
 get_cni_assets() {
-  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ ! "$server_flags" == *"cni: none"* ]]; then
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ "$server_flags" != *"cni: none"* ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
