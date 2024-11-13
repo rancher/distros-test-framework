@@ -88,29 +88,27 @@ create_lb: true
 ```
 
 #### For executing locally via docker
-- Optional flags that can be added in `.env` file. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
+- Optional flags that can be added in `.env` file. Default values are set on `entrypoint/deployrancher/rancher_suite_test.go`
 ```
-CERT_MANAGER_VERSION=v1.13.3
+CERT_MANAGER_VERSION=v1.16.1
 CHARTS_VERSION=v2.7.12
-CHARTS_REPO_NAME=<helm repo name>
-CHARTS_REPO_URL=<helm chart repo url>
-CHARTS_ARGS=bootstrapPassword=admin,replicas=1 #(Comma separated helm chart args)
-RANCHER_VERSION=v2.7.12
+CHARTS_REPO_NAME=<charts repo name>
+CHARTS_REPO_URL=<charts repo url>
+CHARTS_ARGS=bootstrapPassword=admin,replicas=1 #(Comma separated chart args)
 ```
 
 #### For executing in Jenkins or locally without docker
-- Optional flags that can be passed as test parameters. Default values are set on entrypoint/deployrancher/rancher_suite_test.go
+- Optional flags that can be passed as test parameters. Default values are set on `entrypoint/deployrancher/rancher_suite_test.go`
 ```
 go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 -certManagerVersion v1.13.3 \
 -chartsVersion v2.7.12 \
--chartsRepoName <helm repo name> \
--chartsRepoUrl <helm chart repo url> \
--chartsArgs bootstrapPassword=admin,replicas=1 \
--rancherVersion v2.7.12
+-chartsRepoName <charts repo name> \
+-chartsRepoUrl <charts repo url> \
+-chartsArgs bootstrapPassword=admin,replicas=1
 ```
 
-#### For Rancher v2.7.12, need to add these additional helm args
+#### For Rancher v2.7.12, need to add these additional charts args
 ```
 chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
 ```
@@ -150,7 +148,7 @@ bastion_subnets      = "<ipv4-subnet>"
 
 - Required vars in `.env` file:
 - `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
-- `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
+- `IMAGE_REGISTRY_URL`, `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` can be user configured, default will be used if not provided
 ```
 ENV_MODULE=airgap
 TEST_DIR=airgap
@@ -158,6 +156,7 @@ TEST_TAG=privateregistry
 ```
 - Optional vars in `.env` file:
 ```
+IMAGE_REGISTRY_URL=registry_url
 REGISTRY_USERNAME=testuser
 REGISTRY_PASSWORD=testpass432
 ```
@@ -166,7 +165,7 @@ REGISTRY_PASSWORD=testpass432
 
 - `MODULE` should be `airgap`
 - `TEST_DIR` should be `airgap`
-- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432`
+- `TEST_TAGS` should include `-tags=privateregistry` and additionally may include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
 
 #### Not supported ATM:
 - RPM installs for rke2

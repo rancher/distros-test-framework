@@ -24,7 +24,7 @@ resource "aws_instance" "master" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-server${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 1}"
   } 
 }
 
@@ -46,7 +46,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
 }
 
@@ -72,7 +72,7 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   tags = {
-    Name                 = "${var.resource_name}-bastion"
+    Name                 = "${var.resource_name}-${local.resource_tag}-bastion"
   }
   
   provisioner "file" {
@@ -130,4 +130,8 @@ resource "null_resource" "prepare_bastion" {
     EOT
     ]
   }
+}
+
+locals {
+  resource_tag =  "distros-qa"
 }

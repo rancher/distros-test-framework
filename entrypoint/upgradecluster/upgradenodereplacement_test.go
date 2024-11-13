@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test:", func() {
+var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -53,7 +53,7 @@ var _ = Describe("Test:", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
-			assert.NodeAssertVersionTypeUpgrade(&customflag.ServiceFlag))
+			assert.NodeAssertVersionTypeUpgrade(flags))
 	})
 
 	It("Checks Pod Status after upgrade", func() {
@@ -80,6 +80,12 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
+
+	AfterAll(func() {
+		if flags.Destroy {
+			support.DeleteEC2Nodes(cluster)
+		}
+	})
 })
 
 var _ = AfterEach(func() {

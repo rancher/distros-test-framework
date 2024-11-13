@@ -19,9 +19,10 @@ var (
 )
 
 type Product struct {
-	TFVars  string
-	Product string
-	Module  string
+	TFVars         string
+	Product        string
+	InstallVersion string
+	Module         string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the Product configuration.
@@ -49,9 +50,28 @@ func loadEnv() (*Product, error) {
 	}
 
 	productConfig := &Product{
-		TFVars:  os.Getenv("ENV_TFVARS"),
-		Product: os.Getenv("ENV_PRODUCT"),
-		Module:  os.Getenv("ENV_MODULE"),
+		TFVars:         os.Getenv("ENV_TFVARS"),
+		Product:        os.Getenv("ENV_PRODUCT"),
+		InstallVersion: os.Getenv("INSTALL_VERSION"),
+		Module:         os.Getenv("ENV_MODULE"),
+	}
+
+	validateInitVars(productConfig)
+
+	// set the environment variables from the tfvars file.
+	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
+	if err := setEnv(tfPath); err != nil {
+		log.Errorf("failed to set environment variables: %v\n", err)
+		return nil, err
+	}
+
+	return productConfig, nil
+}
+
+func validateInitVars(productConfig *Product) {
+	if productConfig.InstallVersion == "" {
+		log.Errorf("install version for %s is not set\n", productConfig.Product)
+		os.Exit(1)
 	}
 
 	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
@@ -63,15 +83,6 @@ func loadEnv() (*Product, error) {
 		log.Errorf("unknown product: %s\n", productConfig.Product)
 		os.Exit(1)
 	}
-
-	// set the environment variables from the tfvars file.
-	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
-	if err := setEnv(tfPath); err != nil {
-		log.Errorf("failed to set environment variables: %v\n", err)
-		return nil, err
-	}
-
-	return productConfig, nil
 }
 
 func setEnv(fullPath string) error {

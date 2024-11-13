@@ -8,7 +8,7 @@ resource "aws_eip" "worker_with_eip" {
   count              = var.create_eip ? var.no_of_worker_nodes : 0
   domain             = "vpc"
   tags = {
-    Name                 = "${var.resource_name}-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
 }
 
@@ -39,7 +39,7 @@ resource "aws_instance" "worker" {
   ]
   key_name = var.key_name
   tags = {
-    Name = "${var.resource_name}-worker${count.index + 1}"
+    Name = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "file" {
@@ -54,8 +54,6 @@ resource "aws_instance" "worker" {
     ]
   }
 }
-
-
 
 data "local_file" "master_ip" {
   depends_on = [var.dependency]
@@ -98,4 +96,8 @@ resource "null_resource" "worker_eip" {
   }
   depends_on = [aws_eip.worker_with_eip,
                  aws_eip_association.worker_eip_association]
+}
+
+locals {
+  resource_tag = "distros-qa"
 }

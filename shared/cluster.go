@@ -58,8 +58,9 @@ func applyWorkload(workload, filename string) error {
 
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
+	fmt.Println(out)
 	if err != nil || out == "" {
-		if strings.Contains(out, "error when creating") {
+		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
 

@@ -5,7 +5,7 @@
 # echo "$@"
 
 # Usage: ./get_artifacts.sh k3s v1.27.5+k3s1
-# Usage: ./get_artifacts.sh rke2 v1.27.5+rke2 amd64 "flags" tar.gz
+# Usage: ./get_artifacts.sh rke2 v1.27.5+rke2r1 amd64 "flags" tar.gz
 
 product=$1
 version=$2

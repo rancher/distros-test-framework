@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,6 +16,7 @@ import (
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	cluster    *shared.Cluster
 	flags      *customflag.FlagConfig
 	kubeconfig string
@@ -25,12 +27,11 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.RancherConfig.CertManagerVersion, "certManagerVersion", "v1.11.0", "cert-manager version")
-	flag.StringVar(&flags.HelmCharts.Version, "chartsVersion", "v2.8.0", "rancher helm chart version")
-	flag.StringVar(&flags.HelmCharts.RepoName, "chartsRepoName", "rancher-latest", "rancher helm repo name")
-	flag.StringVar(&flags.HelmCharts.RepoUrl, "chartsRepoUrl", "https://releases.rancher.com/server-charts/latest", "rancher helm repo url")
-	flag.StringVar(&flags.HelmCharts.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
-	flag.StringVar(&flags.RancherConfig.RancherVersion, "rancherVersion", "v2.8.0", "rancher version that will be deployed on the cluster")
+	flag.StringVar(&flags.CertManager.Version, "certManagerVersion", "v1.16.1", "cert-manager version")
+	flag.StringVar(&flags.Charts.Version, "chartsVersion", "", "rancher helm chart version")
+	flag.StringVar(&flags.Charts.RepoName, "chartsRepoName", "", "rancher helm chart repo name")
+	flag.StringVar(&flags.Charts.RepoUrl, "chartsRepoUrl", "", "rancher helm chart repo url")
+	flag.StringVar(&flags.Charts.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
 	flag.Parse()
 
 	customflag.ValidateVersionFormat()
@@ -57,11 +58,16 @@ func TestMain(m *testing.M) {
 }
 
 func TestRancherSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Deploy Rancher Manager Test Suite")
 }
 
 func validateRancher() {
+	if flags.Charts.Version == "" || flags.Charts.RepoName == "" || flags.Charts.RepoUrl == "" {
+		shared.LogLevel("error", "charts version or repo name or url is not set as args\n")
+		os.Exit(1)
+	}
+
 	if os.Getenv("create_lb") == "" || os.Getenv("create_lb") != "true" {
 		shared.LogLevel("error", "create_lb is not set in tfvars\n")
 		os.Exit(1)
@@ -78,20 +84,32 @@ func validateRancher() {
 		}
 	}
 
-	// Check helm chart repo
+	// Check chart repo
 	res, err := shared.CheckHelmRepo(
-		flags.HelmCharts.RepoName,
-		flags.HelmCharts.RepoUrl,
-		flags.HelmCharts.Version)
+		flags.Charts.RepoName,
+		flags.Charts.RepoUrl,
+		flags.Charts.Version)
 	if err != nil {
 		shared.LogLevel("error", "Error while checking helm repo %v\n", err)
 		os.Exit(1)
 	}
 	if res == "" {
-		shared.LogLevel("error", "No version found in helm repo %v\n", flags.HelmCharts.RepoName)
+		shared.LogLevel("error", "No version found in helm repo %v\n", flags.Charts.RepoName)
 		os.Exit(1)
 	}
 }
+
+var _ = ReportAfterSuite("Deploy Rancher Manager Test Suite", func(report Report) {
+	// Add Qase reporting capabilities.
+	if strings.ToLower(qaseReport) == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -100,3 +118,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}
