@@ -13,7 +13,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// WaitForNodesReady validates readiness of nodes by checking how much/if/which nodes are ready, with a minimum threshold.
+// WaitForNodesReady validates readiness of nodes by checking how many/which nodes are ready, with a minimum threshold.
 //
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //

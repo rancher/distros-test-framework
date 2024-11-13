@@ -75,7 +75,7 @@ func runAssertion(
 			if err != nil {
 				if retry == 0 || retry == 4 {
 					shared.LogLevel("warn", "error from exec runAssertion: %v\n"+
-						"Retrying...executing command: %s\n on retry count: %d\n", err, cmd, retry)
+						"Retrying command: %s\n on retry count: %d\n", err, cmd, retry)
 				}
 				if retry > 5 {
 					return shared.ReturnLogError("error from exec runAssertion after 5 retries: %v\n", err)
