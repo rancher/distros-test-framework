@@ -303,7 +303,6 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 
 	getNodesPodsCmd := kubectlCmd + fmt.Sprintf(" get nodes,pods -A -o wide %s", kubeconfigFlagRemote)
 	fmt.Println("GET NODES AND PODS CMD: ", getNodesPodsCmd)
-
 	_, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
 
