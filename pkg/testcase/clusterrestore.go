@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -280,8 +281,27 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
-	getNodesPodsCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml && PATH=$PATH:/var/lib/rancher/%s/bin  && /var/lib/rancher/%s/bin/kubectl get nodes,pods -A -o wide %s",
-		cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, kubeconfigFlagRemote)
+	var pathCmd string
+	var kubectlCmd string
+	var kubectlCmdErr error
+
+	exportKubeConfigCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
+
+	if cluster.Config.Product == "rke2" {
+		pathCmd = fmt.Sprintf("PATH=$PATH:/var/lib/rancher/%s/bin", cluster.Config.Product)
+		kubectlCmd = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", cluster.Config.Product)
+		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
+		fmt.Println("KUBECTL CMD: ", kubectlCmd)
+	} else {
+		pathCmd = "PATH=$PATH:/usr/local/bin"
+		kubectlCmd, kubectlCmdErr = shared.RunCommandOnNode("which kubectl", newServerIP)
+		Expect(kubectlCmdErr).NotTo(HaveOccurred())
+		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
+		fmt.Println("KUBECTL CMD: ", kubectlCmd)
+	}
+
+	getNodesPodsCmd := kubectlCmd + fmt.Sprintf(" get nodes,pods -A -o wide %s", kubeconfigFlagRemote)
+	fmt.Println("GET NODES AND PODS CMD: ", getNodesPodsCmd)
 	// shared.LogLevel("Running %s on ip: %s", getNodesPodsCmd, newServerIP)
 	// validatePodsCmd := "kubectl get pods " + kubeconfigFlagRemote
 	// time.Sleep(1 * time.Second)
@@ -291,13 +311,10 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 
 	shared.PrintClusterState()
 
+	ingressPostRestore(newServerIP, true, kubectlCmd)
+
 	// kubectlCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml && PATH=$PATH:/var/lib/rancher/%s/bin  && /var/lib/rancher/%s/bin/kubectl ",
 	// 	cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, cluster.Config.Product)
-
-	// DEPLOY INGRESS BEFORE RUNNING THIS CMD
-	// ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+"get pods -n test-ingress -l k8s-app=nginx-app-ingress"+
-	// 	" --field-selector=status.phase=Running", "Running")
-	// Expect(ingressErr).NotTo(HaveOccurred())
 
 	// daemonsetErr := assert.ValidateOnNode(newServerIP, kubectlCmd+"get pods -n test-daemonset ` -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}'`", "Running")
 	// Expect(daemonsetErr).NotTo(HaveOccurred())
@@ -311,6 +328,27 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	//TODO: VALIDATE DNS AFTER RESTORE (SHOULD NOT BE THERE)
 }
 
-// func ingressPostRestore(newServerIP string) {
+func ingressPostRestore(newServerIP string, applyWorkload bool, kubectlCmd string) {
+	if applyWorkload {
+		workloadErr := shared.ManageWorkload("apply", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
+	}
 
-// }
+	//DEPLOY INGRESS BEFORE RUNNING THIS CMD
+	ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-ingress -l k8s-app=nginx-app-ingress"+
+		" --field-selector=status.phase=Running", "Running")
+	Expect(ingressErr).NotTo(HaveOccurred())
+
+}
+
+func clusterIPPostRestore(newServerIP string, applyWorkload bool, kubectlCmd string) {
+	if applyWorkload {
+		workloadErr := shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
+
+	ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+"kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip "+
+		"--field-selector=status.phase=Running", "Running")
+	Expect(ingressErr).NotTo(HaveOccurred())
+
+}

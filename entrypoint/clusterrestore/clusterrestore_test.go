@@ -29,7 +29,15 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies NodePort Service Before Snapshot", func() {
+	// It("Verifies ClusterIP Service Before Restore", func() {
+	// 	testcase.TestServiceClusterIP(true, true)
+	// })
+
+	// It("Verifies Ingress Before Restore", func() {
+	// 	testcase.TestIngress(true, true)
+	// })
+
+	It("Verifies NodePort Service Before Restore", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
