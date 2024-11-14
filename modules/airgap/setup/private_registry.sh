@@ -18,7 +18,13 @@ if [ -z "$hostname" ]; then
 fi
 
 generate_certs() {
-    docker run -v "$PWD"/certs:/certs -e CA_SUBJECT="My own root CA" -e CA_EXPIRE="1825" -e SSL_EXPIRE="365" -e SSL_SUBJECT="$hostname" -e SSL_DNS="$hostname" -e SILENT="true" superseb/omgwtfssl
+    docker run -v "$PWD"/certs:/certs \
+    -e CA_SUBJECT="My own root CA" \
+    -e CA_EXPIRE="1825" \
+    -e SSL_EXPIRE="365" \
+    -e SSL_SUBJECT="$hostname" \
+    -e SSL_DNS="$hostname" \
+    -e SILENT="true" superseb/omgwtfssl
 }
 
 move_certs() {

@@ -18,7 +18,7 @@ function validate_dir(){
        certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
-            case "$TEST_TAG"  in
+            case "$TEST_TAG" in
                 upgrademanual|upgradesuc|upgradereplacement)
                 ;;
                 *)
@@ -29,8 +29,8 @@ function validate_dir(){
        fi
        if [[ "$TEST_DIR" == "airgap" ]];
         then
-            case "$TEST_TAG"  in
-                privateregistry)
+            case "$TEST_TAG" in
+                privateregistry|systemdefaultregistry)
                 ;;
                 *)
                 printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
@@ -111,7 +111,7 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "airgap" ]; then
         declare -a OPTS
-        if [ "${TEST_TAG}" = "privateregistry" ]; then
+        if [[ "${TEST_TAG}" == "privateregistry" ]] || [[ "${TEST_TAG}" == "systemdefaultregistry" ]]; then
           OPTS=(-timeout=60m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy "${DESTROY}")
             [ -n "${IMAGE_REGISTRY_URL}" ] && OPTS+=(-imageRegistryUrl "${IMAGE_REGISTRY_URL}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")

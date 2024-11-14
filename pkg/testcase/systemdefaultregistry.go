@@ -7,17 +7,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	shared.LogLevel("info", "Setting bastion as private registry...")
-	err := shared.SetupAirgapRegistry(cluster, flags, PrivateRegistry)
-	Expect(err).To(BeNil(), err)
-
-	shared.LogLevel("info", "Updating and copying registries.yaml on bastion...")
-	err = shared.UpdateRegistryFile(cluster, flags)
+func TestSystemDefaultRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	shared.LogLevel("info", "Setting bastion as system default registry...")
+	err := shared.SetupAirgapRegistry(cluster, flags, SystemDefaultRegistry)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster, PrivateRegistry)
+	err = shared.CopyAssetsOnNodes(cluster, SystemDefaultRegistry)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
