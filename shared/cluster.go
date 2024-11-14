@@ -223,8 +223,7 @@ func FetchNodeExternalIPs() []string {
 func RestartCluster(product, ip string) error {
 	_, err := RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
 	if err != nil {
-		LogLevel("error", "failed to restart %s: on ip: %s %v\n", product, ip, err)
-		return fmt.Errorf("failed to restart %s: %v", product, err)
+		return ReturnLogError("failed to restart %s: on ip: %s %v\n", product, ip, err)
 	}
 
 	return nil
