@@ -19,7 +19,7 @@ func KubeConfigCluster(kubeconfig string) *Cluster {
 		os.Exit(1)
 	}
 
-	// Set the global kubeconfig file path since on this flow we dont have it created yet.
+	// Set the global kubeconfig file path as it's not created for this flow.
 	KubeConfigFile = localKubeConfigPath
 
 	nodes, getErr := GetNodes(false)
