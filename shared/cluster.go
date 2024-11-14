@@ -220,9 +220,13 @@ func FetchNodeExternalIPs() []string {
 }
 
 // RestartCluster restarts the service on each node given by external IP.
-func RestartCluster(product, ip string) {
-	_, _ = RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	time.Sleep(20 * time.Second)
+func RestartCluster(product, ip string) error {
+	_, err := RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
+	if err != nil {
+		return ReturnLogError("failed to restart %s: on ip: %s %v\n", product, ip, err)
+	}
+
+	return nil
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace.
@@ -283,7 +287,7 @@ func PrintClusterState() {
 func GetNodes(display bool) ([]Node, error) {
 	res, err := RunCommandHost("kubectl get nodes -o wide --no-headers --kubeconfig=" + KubeConfigFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get nodes: %w", err)
 	}
 
 	nodes := ParseNodes(res)
@@ -407,7 +411,7 @@ func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
 	return pods, nil
 }
 
-// parsePods parses the pods from the kubeclt get pods command.
+// ParsePods parses the pods from the kubeclt get pods command.
 func ParsePods(res string) []Pod {
 	pods := make([]Pod, 0, 10)
 	podList := strings.Split(strings.TrimSpace(res), "\n")

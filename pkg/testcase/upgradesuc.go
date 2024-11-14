@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(cluster *shared.Cluster, version string) error {
+func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, version string) error {
 	shared.PrintClusterState()
 
 	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
@@ -46,6 +47,10 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, version string) error {
 
 	workloadErr = shared.ManageWorkload("apply", "plan.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "failed to upgrade cluster.")
+
+	ok, err := k8sClient.CheckClusterHealth(0)
+	Expect(err).NotTo(HaveOccurred(), err, "error checking cluster health")
+	Expect(ok).To(BeTrue(), "cluster health check failed")
 
 	return nil
 }

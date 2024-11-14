@@ -1,16 +1,18 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// TestUpgradeClusterManually upgrades the cluster "manually".
-func TestUpgradeClusterManually(cluster *shared.Cluster, version string) error {
+// TestUpgradeClusterManual upgrades the cluster "manually".
+func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, version string) error {
 	shared.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {
@@ -23,13 +25,13 @@ func TestUpgradeClusterManually(cluster *shared.Cluster, version string) error {
 	}
 
 	if cluster.NumServers > 0 {
-		if err := upgradeServer(cluster.Config.Product, version, cluster.ServerIPs); err != nil {
+		if err := upgradeServer(*k8sClient, cluster.Config.Product, version, cluster.ServerIPs); err != nil {
 			return err
 		}
 	}
 
 	if cluster.NumAgents > 0 {
-		if err := upgradeAgent(cluster.Config.Product, version, cluster.AgentIPs); err != nil {
+		if err := upgradeAgent(*k8sClient, cluster.Config.Product, version, cluster.AgentIPs); err != nil {
 			return err
 		}
 	}
@@ -38,7 +40,7 @@ func TestUpgradeClusterManually(cluster *shared.Cluster, version string) error {
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(product, nodeType, installType string, ips []string) error {
+func upgradeProduct(k8sClient k8s.Client, product, nodeType, installType string, ips []string) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(ips))
 
@@ -58,11 +60,23 @@ func upgradeProduct(product, nodeType, installType string, ips []string) error {
 			}
 
 			shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
-			shared.RestartCluster(product, ip)
+			err := shared.RestartCluster(product, ip)
+			if err != nil {
+				return
+			}
 		}(ip, upgradeCommand)
 	}
+
 	wg.Wait()
 	close(errCh)
+
+	ok, err := k8sClient.CheckClusterHealth(0)
+	if err != nil {
+		return fmt.Errorf("error waiting for cluster to be ready: %w", err)
+	}
+	if !ok {
+		return errors.New("cluster is not healthy")
+	}
 
 	return nil
 }
@@ -95,10 +109,10 @@ func getChannel(product string) string {
 	return defaultChannel
 }
 
-func upgradeServer(product, installType string, serverIPs []string) error {
-	return upgradeProduct(product, "server", installType, serverIPs)
+func upgradeServer(k8sClient k8s.Client, product, installType string, serverIPs []string) error {
+	return upgradeProduct(k8sClient, product, "server", installType, serverIPs)
 }
 
-func upgradeAgent(product, installType string, agentIPs []string) error {
-	return upgradeProduct(product, "agent", installType, agentIPs)
+func upgradeAgent(k8sClient k8s.Client, product, installType string, agentIPs []string) error {
+	return upgradeProduct(k8sClient, product, "agent", installType, agentIPs)
 }

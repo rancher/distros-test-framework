@@ -5,11 +5,11 @@ package upgradecluster
 import (
 	"fmt"
 
+	. "github.com/onsi/ginkgo/v2"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
-
-	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
