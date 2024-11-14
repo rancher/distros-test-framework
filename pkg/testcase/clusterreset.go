@@ -111,6 +111,8 @@ func deleteDataDirectories(cluster *shared.Cluster) {
 		checkDirCmd := fmt.Sprintf("sudo -i ls -l /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, checkDirErr := shared.RunCommandOnNode(checkDirCmd, cluster.ServerIPs[i])
 
-		Expect(checkDirErr.Error()).To(ContainSubstring("No such file or directory"))
+		if checkDirErr != nil {
+			Expect(checkDirErr.Error()).To(ContainSubstring("No such file or directory"))
+		}
 	}
 }

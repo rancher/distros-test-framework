@@ -153,25 +153,25 @@ func trustCerts(cluster *Cluster, ip string) (err error) {
 // copyAssets copies assets from bastion to private node.
 func copyAssets(cluster *Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
 	switch cluster.Config.Product {
 	case "rke2":
 		cmd += fmt.Sprintf(
 			"sudo %v -r artifacts %v@%v:~/ && ",
-			ssPrefix("scp", cluster.AwsEc2.KeyName),
-			cluster.AwsEc2.AwsUser, ip)
+			ssPrefix("scp", cluster.Aws.KeyName),
+			cluster.Aws.AwsUser, ip)
 	case "k3s":
 		cmd += fmt.Sprintf(
 			"sudo %v %v* %v@%v:~/ && ",
-			ssPrefix("scp", cluster.AwsEc2.KeyName),
+			ssPrefix("scp", cluster.Aws.KeyName),
 			cluster.Config.Product,
-			cluster.AwsEc2.AwsUser, ip)
+			cluster.Aws.AwsUser, ip)
 	}
 	cmd += fmt.Sprintf(
 		"sudo %v certs/* install_product.sh %v-install.sh %v@%v:~/",
-		ssPrefix("scp", cluster.AwsEc2.KeyName),
+		ssPrefix("scp", cluster.Aws.KeyName),
 		cluster.Config.Product,
-		cluster.AwsEc2.AwsUser, ip)
+		cluster.Aws.AwsUser, ip)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return err
@@ -181,8 +181,8 @@ func copyAssets(cluster *Cluster, ip string) (err error) {
 func copyRegistry(cluster *Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
-		ssPrefix("scp", cluster.AwsEc2.KeyName),
-		cluster.AwsEc2.AwsUser, ip)
+		ssPrefix("scp", cluster.Aws.KeyName),
+		cluster.Aws.AwsUser, ip)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		return fmt.Errorf("error scp-ing registries.yaml on airgapped node: %v, \nerr: %w", ip, err)
@@ -201,8 +201,8 @@ func copyRegistry(cluster *Cluster, ip string) (err error) {
 func CmdForPrivateNode(cluster *Cluster, cmd, ip string) (res string, err error) {
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
-		ssPrefix("ssh", cluster.AwsEc2.KeyName),
-		cluster.AwsEc2.AwsUser, ip, cmd)
+		ssPrefix("ssh", cluster.Aws.KeyName),
+		cluster.Aws.AwsUser, ip, cmd)
 	LogLevel("debug", "Cmd on bastion node: "+serverCmd)
 	res, err = RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
 
@@ -272,7 +272,7 @@ func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err err
 // DisplayAirgapClusterDetails executes and prints kubectl get nodes,pods on bastion.
 func DisplayAirgapClusterDetails(cluster *Cluster) {
 	LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
-		cluster.AwsEc2.KeyName, cluster.AwsEc2.AwsUser,
+		cluster.Aws.KeyName, cluster.Aws.AwsUser,
 		cluster.BastionConfig.PublicIPv4Addr)
 
 	cmd := fmt.Sprintf(

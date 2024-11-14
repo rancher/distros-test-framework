@@ -74,11 +74,12 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 		"restart":         "sudo systemctl --no-block restart",
 		"status":          "sudo systemctl --no-block status",
 		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
+		"enable":          "sudo systemctl --no-block enable",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status")
+		return "", ReturnLogError("action value should be: start | stop | restart | statuss | enable")
 	}
 
 	name, err := serviceName(product, nodeType)

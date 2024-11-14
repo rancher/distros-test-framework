@@ -35,6 +35,7 @@
 - `GetAPIServerHealth`  : This function is used to check if the API server is healthy and ready to be used.
 - `WaitForNodesReady`   : This function is used to wait for all nodes to be ready.
 - `ListDeployments`     : This function is used to list deployments in a given namespace.
+- `WaitForPodsReady`    : This function is used to wait for all pods to be ready.
 
 - Other functions are basically auxiliary functions to help the main functions to work properly.
 

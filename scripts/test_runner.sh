@@ -14,7 +14,7 @@ function validate_test_image() {
 
 function validate_dir(){
   case "$TEST_DIR" in
-       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|\
+       upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
        certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
@@ -118,6 +118,12 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
             # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
         fi
+        go test "${OPTS[@]}"
+    elif [ "${TEST_DIR}" = "clusterrestore" ]; then
+        declare -a OPTS
+          OPTS=(-timeout=45m -v -count=1 ./entrypoint/clusterrestore/... )
+           [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
+           [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
         go test "${OPTS[@]}"
     fi
 fi

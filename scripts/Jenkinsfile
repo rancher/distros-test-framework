@@ -68,7 +68,9 @@ node {
                 dir('./config') {
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
-                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n"
+                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
+                   "\nS3_BUCKET=${env.S3_BUCKET}\nS3_FOLDER=${env.S3_FOLDER}\n"
+
                     def version_param_name = "${env.PRODUCT_NAME}_version"
                     def channel_param_name = "${env.PRODUCT_NAME}_channel"
                     //for airgap, remove after standarization

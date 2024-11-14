@@ -29,15 +29,21 @@ type Cluster struct {
 	NumAgents     int
 	FQDN          string
 	Config        clusterConfig
-	AwsEc2        awsEc2Config
+	Aws           AwsConfig
 	BastionConfig bastionConfig
 }
 
-type awsEc2Config struct {
+type AwsConfig struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	Region          string
+	EC2Config
+}
+
+type EC2Config struct {
 	AccessKey        string
 	AwsUser          string
 	Ami              string
-	Region           string
 	VolumeSize       string
 	InstanceClass    string
 	Subnets          string
@@ -121,9 +127,11 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 	// if it is configureSSH() call then return the cluster with only aws key/user.
 	if nodes == nil {
 		return &Cluster{
-			AwsEc2: awsEc2Config{
-				AccessKey: os.Getenv("access_key"),
-				AwsUser:   os.Getenv("aws_user"),
+			Aws: AwsConfig{
+				EC2Config: EC2Config{
+					AccessKey: os.Getenv("access_key"),
+					AwsUser:   os.Getenv("aws_user"),
+				},
 			},
 		}, nil
 	}
@@ -148,17 +156,20 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
-		AwsEc2: awsEc2Config{
-			AccessKey:        os.Getenv("access_key"),
-			AwsUser:          os.Getenv("aws_user"),
-			Ami:              os.Getenv("aws_ami"),
-			Region:           os.Getenv("region"),
-			VolumeSize:       os.Getenv("volume_size"),
-			InstanceClass:    os.Getenv("ec2_instance_class"),
-			Subnets:          os.Getenv("subnets"),
-			AvailabilityZone: os.Getenv("availability_zone"),
-			SgId:             os.Getenv("sg_id"),
-			KeyName:          os.Getenv("key_name"),
+		Aws: AwsConfig{
+			Region: os.Getenv("region"),
+			EC2Config: EC2Config{
+				AccessKey: os.Getenv("access_key"),
+				AwsUser:   os.Getenv("aws_user"),
+				Ami:       os.Getenv("aws_ami"),
+
+				VolumeSize:       os.Getenv("volume_size"),
+				InstanceClass:    os.Getenv("ec2_instance_class"),
+				Subnets:          os.Getenv("subnets"),
+				AvailabilityZone: os.Getenv("availability_zone"),
+				SgId:             os.Getenv("sg_id"),
+				KeyName:          os.Getenv("key_name"),
+			},
 		},
 		Config: clusterConfig{
 			Product:          os.Getenv("ENV_PRODUCT"),
