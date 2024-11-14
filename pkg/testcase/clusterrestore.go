@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -34,6 +35,7 @@ func TestClusterRestore(
 	}
 
 	takeS3Snapshot(cluster, flags)
+	shared.LogLevel("info", "snapshot taken in s3")
 
 	onDemandPath, onDemandPathErr := shared.RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots", product),
 		cluster.ServerIPs[0])
@@ -280,27 +282,62 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
-	getNodesPodsCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml && PATH=$PATH:/var/lib/rancher/%s/bin  && /var/lib/rancher/%s/bin/kubectl get nodes,pods -A -o wide %s",
-		cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, kubeconfigFlagRemote)
-	// shared.LogLevel("Running %s on ip: %s", getNodesPodsCmd, newServerIP)
-	// validatePodsCmd := "kubectl get pods " + kubeconfigFlagRemote
-	// time.Sleep(1 * time.Second)
+	var pathCmd string
+	var kubectlCmd string
+	var kubectlCmdErr error
+
+	exportKubeConfigCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
+
+	if cluster.Config.Product == "rke2" {
+		pathCmd = fmt.Sprintf("PATH=$PATH:/var/lib/rancher/%s/bin", cluster.Config.Product)
+		kubectlCmd = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", cluster.Config.Product)
+		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
+		fmt.Println("KUBECTL CMD: ", kubectlCmd)
+	} else {
+		pathCmd = "PATH=$PATH:/usr/local/bin"
+		kubectlCmd, kubectlCmdErr = shared.RunCommandOnNode("which kubectl", newServerIP)
+		Expect(kubectlCmdErr).NotTo(HaveOccurred())
+		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
+		fmt.Println("KUBECTL CMD: ", kubectlCmd)
+	}
+
+	getNodesPodsCmd := kubectlCmd + fmt.Sprintf(" get nodes,pods -A -o wide %s", kubeconfigFlagRemote)
+	fmt.Println("GET NODES AND PODS CMD: ", getNodesPodsCmd)
+
 	_, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
-	// fmt.Println("Response: ", nodesPodsRes)
 
 	shared.PrintClusterState()
+	time.Sleep(20 * time.Second)
+
+	// validateNodesPostRestore(cluster)
+
+	// validatePodsPostRestore(cluster)
+
+	var oldNodeIPs []string
+	oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
+	oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
+
+	for _, ip := range oldNodeIPs {
+		shared.DeleteNode(ip)
+	}
+	time.Sleep(240 * time.Second)
+
+	testIngressPostRestore(newServerIP, true, true, kubectlCmd)
+	shared.LogLevel("info", "ingress successfully validated post cluster restore")
+
+	testClusterIPPostRestore(newServerIP, true, true, kubectlCmd)
+	shared.LogLevel("info", "clusterIP successfully validated post cluster restore")
+
+	testNodePortPostRestore(newServerIP, false, true, kubectlCmd)
+	shared.LogLevel("info", "nodeport successfully validated post cluster restore")
+
+	testDNSAccessPostRestore(newServerIP, kubectlCmd)
+	shared.LogLevel("info", "dns successfully validated post cluster restore")
 
 	// kubectlCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml && PATH=$PATH:/var/lib/rancher/%s/bin  && /var/lib/rancher/%s/bin/kubectl ",
 	// 	cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, cluster.Config.Product)
 
-	// DEPLOY INGRESS BEFORE RUNNING THIS CMD
-	// ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+"get pods -n test-ingress -l k8s-app=nginx-app-ingress"+
-	// 	" --field-selector=status.phase=Running", "Running")
-	// Expect(ingressErr).NotTo(HaveOccurred())
-
-	// daemonsetErr := assert.ValidateOnNode(newServerIP, kubectlCmd+"get pods -n test-daemonset ` -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}'`", "Running")
-	// Expect(daemonsetErr).NotTo(HaveOccurred())
 	// TODO: now thats is working u can start making validations on the cluster.
 	// validatePodsRes, validatePodsErr := shared.RunCommandOnNode(validatePodsCmd, newServerIP)
 	// fmt.Println("Response: ", validatePodsRes)
@@ -311,6 +348,84 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	//TODO: VALIDATE DNS AFTER RESTORE (SHOULD NOT BE THERE)
 }
 
-// func ingressPostRestore(newServerIP string) {
+func testIngressPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
+	if applyWorkload {
+		workloadErr := shared.ManageWorkload("apply", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
+	}
 
+	//DEPLOY INGRESS BEFORE RUNNING THIS CMD
+	ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-ingress -l k8s-app=nginx-app-ingress"+
+		" --field-selector=status.phase=Running", "Running")
+	Expect(ingressErr).NotTo(HaveOccurred())
+
+	if deleteWorkload {
+		workloadErr := shared.ManageWorkload("delete", "ingress.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deleted")
+	}
+
+}
+
+func testNodePortPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
+	if applyWorkload {
+		workloadErr := shared.ManageWorkload("apply", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deployed")
+	}
+
+	nodePortErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-nodeport -l k8s-app=nginx-app-nodeport "+
+		"--field-selector=status.phase=Running", "Running")
+	Expect(nodePortErr).NotTo(HaveOccurred())
+
+	if deleteWorkload {
+		workloadErr := shared.ManageWorkload("delete", "nodeport.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deleted")
+	}
+
+}
+
+func testClusterIPPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
+	if applyWorkload {
+		workloadErr := shared.ManageWorkload("apply", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
+	}
+
+	clusterIPErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-clusterip -l k8s-app=nginx-app-clusterip "+
+		"--field-selector=status.phase=Running", "Running")
+	Expect(clusterIPErr).NotTo(HaveOccurred())
+
+	if deleteWorkload {
+		workloadErr := shared.ManageWorkload("delete", "clusterip.yaml")
+		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
+	}
+
+}
+
+func testDNSAccessPostRestore(newServerIP string, kubectlCmd string) {
+	dnsErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n dnsutils dnsutils")
+	Expect(dnsErr).To(HaveOccurred())
+}
+
+// func validateNodesPostRestore(cluster *shared.Cluster) {
+// var oldNodeIPs []string
+// oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
+// oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
+
+// for _, ip := range oldNodeIPs {
+// 	shared.DeleteNode(ip)
+// }
+
+// 	time.Sleep(60 * time.Second)
+// 	TestNodeStatus(
+// 		cluster,
+// 		assert.NodeAssertReadyStatus(),
+// 		nil,
+// 	)
+// }
+
+// func validatePodsPostRestore(cluster *shared.Cluster) {
+// 	TestPodStatus(
+// 		cluster,
+// 		assert.PodAssertRestart(),
+// 		assert.PodAssertReady(),
+// 	)
 // }

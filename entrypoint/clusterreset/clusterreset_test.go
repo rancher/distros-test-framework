@@ -54,7 +54,8 @@ var _ = Describe("Test:", func() {
 		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
-			assert.PodAssertReady())
+			assert.PodAssertReady(),
+		)
 	})
 
 	It("Verifies Ingress After Reset", func() {
