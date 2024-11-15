@@ -65,7 +65,6 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 
 	_, copyCmdErr := shared.RunCommandHost("cp /tmp/%s_kubeconfig /tmp/%s_kubeconfig", resourceName, serverName[0])
 	Expect(copyCmdErr).NotTo(HaveOccurred())
-
 	_, kubeConfigErr := shared.UpdateKubeConfig(newServerIP, serverName[0], product)
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
