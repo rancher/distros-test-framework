@@ -63,7 +63,8 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 	enableAndStartService(cluster, newServerIP)
 	shared.LogLevel("info", "%s service successfully enabled", product)
 
-	_, copyCmdErr := shared.RunCommandHost("cp /tmp/%s_kubeconfig /tmp/%s_kubeconfig", resourceName, serverName[0])
+	copyCmd := fmt.Sprintf("cp /tmp/%s_kubeconfig /tmp/%s_kubeconfig", resourceName, serverName[0])
+	_, copyCmdErr := shared.RunCommandHost(copyCmd)
 	Expect(copyCmdErr).NotTo(HaveOccurred())
 
 	_, kubeConfigErr := shared.UpdateKubeConfig(newServerIP, serverName[0], product)
@@ -248,6 +249,7 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	var pathCmd string
 	var kubectlCmd string
 	var kubectlCmdErr error
+
 	if cluster.Config.Product == "rke2" {
 		pathCmd = fmt.Sprintf("PATH=$PATH:/var/lib/rancher/%s/bin", cluster.Config.Product)
 		kubectlCmd = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", cluster.Config.Product)
