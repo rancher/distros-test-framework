@@ -373,17 +373,15 @@ func testValidatePodsPostRestore() {
 	Expect(err).NotTo(HaveOccurred())
 	fmt.Println("Pods: ", res)
 	Expect(res).NotTo(BeEmpty())
-	serverFlags := os.Getenv("server_flags")
 	for _, pod := range res {
-		if strings.Contains(serverFlags, "calico") && strings.Contains(pod.NameSpace, "calico-system") {
+		if strings.Contains(pod.NameSpace, "calico-system") {
 			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
 				shared.LogLevel("info", "calico-system pods have been successfully validated")
 			} else {
 				shared.LogLevel("error", "unable to validate calico-system pods")
 			}
 		}
-		if strings.Contains(serverFlags, "calico") && strings.Contains(serverFlags, "multus") &&
-			strings.Contains(pod.NameSpace, "tigera-operator") {
+		if strings.Contains(pod.NameSpace, "tigera-operator") {
 			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
 				shared.LogLevel("info", "tigera-operator pods have been successfully validated")
 			} else {
