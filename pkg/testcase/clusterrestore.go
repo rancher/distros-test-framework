@@ -188,7 +188,7 @@ func enableAndStartService(
 	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
 	Expect(startServiceCmdErr).NotTo(HaveOccurred())
 
-	time.Sleep(120 * time.Second)
+	time.Sleep(300 * time.Second)
 
 	statusServiceCmdRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
 		[]string{newClusterIP})
@@ -267,7 +267,7 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
 
 	shared.PrintClusterState()
-	time.Sleep(20 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	var oldNodeIPs []string
 	oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
@@ -280,7 +280,7 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	}
 
 	shared.LogLevel("info", "deleting old nodes")
-	time.Sleep(240 * time.Second)
+	time.Sleep(300 * time.Second)
 
 	testIngressPostRestore(newServerIP, true, true, kubectlCmd)
 	shared.LogLevel("info", "ingress successfully validated post cluster restore")
