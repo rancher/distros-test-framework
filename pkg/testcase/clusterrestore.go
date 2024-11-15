@@ -71,6 +71,7 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
 	postValidationRestore(cluster, newServerIP)
+	shared.PrintClusterState()
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
 }
 
@@ -146,11 +147,21 @@ func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 }
 
 func setConfigFile(product, newClusterIP string) {
-	createConfigFileCmd := fmt.Sprintf("sudo  bash -c 'cat <<EOF>/etc/rancher/%s/config.yaml\n"+
-		"write-kubeconfig-mode: 644\n"+
-		"node-external-ip: %s\n"+
-		"cluster-init: true\n"+
-		"EOF'", product, newClusterIP)
+	var createConfigFileCmd string
+
+	if product == "rke2" {
+		createConfigFileCmd = fmt.Sprintf("sudo  bash -c 'cat <<EOF>/etc/rancher/%s/config.yaml\n"+
+			"write-kubeconfig-mode: 644\n"+
+			"node-external-ip: %s\n"+
+			os.Getenv("server_flags")+"\n"+
+			"EOF'", product, newClusterIP)
+	} else {
+		createConfigFileCmd = fmt.Sprintf("sudo  bash -c 'cat <<EOF>/etc/rancher/%s/config.yaml\n"+
+			"write-kubeconfig-mode: 644\n"+
+			"node-external-ip: %s\n"+
+			"cluster-init: true\n"+
+			"EOF'", product, newClusterIP)
+	}
 
 	path := fmt.Sprintf("/etc/rancher/%s/", product)
 	cmd := fmt.Sprintf("sudo  mkdir -p %s && %s", path, createConfigFileCmd)

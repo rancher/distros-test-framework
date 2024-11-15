@@ -204,3 +204,38 @@ REGISTRY_PASSWORD=testpass432
 - ExternalDB setup
 - Split roles
 - ARM Architecture
+
+## Validating Cluster Reset Restore Path
+
+For patch validation test runs, we need an HA Setup and a single fresh instance:
+3 servers
+1 agent
+1 fresh instance
+
+- Required vars in `*.tfvars` file:
+
+```
+server_flags    = "" (unless using a cni)
+worker_flags    = "" (unless using a cni)
+```
+
+#### For Local/Docker
+
+- Required vars in `.env` file:
+```
+AWS_ACCESS_KEY_ID=<KEY_ID>
+AWS_SECRET_ACCESS_KEY=<KEY>
+```
+- Optional vars in `.env` file: these can be user configured, default will be used if not provided.
+```
+S3_BUCKET=distros_qa
+S3_FOLDER=snapshots
+```
+
+#### For Jenkins
+- `TEST_DIRECTORY` **should** be `clusterrestore`
+- `TEST_ARGS` **should** include **as optional** `-destroy true -s3Bucket distros_qa -s3Folder snapshots`
+
+### Not supported/implemented currently for cluster restore:
+- Hardened Cluster Setup
+- ExternalDB Setup
