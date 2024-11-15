@@ -19,7 +19,7 @@ set_vars() {
     CURRENT_MONTH="$(date +"%B")"
     CURRENT_YEAR="$(date +"%Y")"
 
-    QASE_MILESTONE="${CURRENT_MONTH}-${CURRENT_YEAR} Patch release"
+    QASE_MILESTONE="${CURRENT_MONTH} ${CURRENT_YEAR} Patch Validation"
     echo "QASE_MILESTONE=$QASE_MILESTONE"
 
     # Get the list of rcs to process from GH action parameter.
@@ -78,8 +78,9 @@ process() {
                 IDENTIFIER='k3s1'
             fi
 
-            TITLE="Patch Validation $product ${CURRENT_MONTH}-${CURRENT_YEAR} $VERSION+$IDENTIFIER"
-            DESCRIPTION="rc Version: $RC"
+            product=$(echo "$product" | tr '[:lower:]' '[:upper:]')
+            TITLE="$product ${CURRENT_MONTH} ${CURRENT_YEAR} Patch Validation for $VERSION+$IDENTIFIER"
+            DESCRIPTION="Version: $RC"
 
             create_test_run
         done
