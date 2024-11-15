@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -19,7 +18,6 @@ var awsConfig shared.AwsConfig
 
 func TestClusterRestore(
 	cluster *shared.Cluster,
-	k8sClient *k8s.Client,
 	applyWorkload bool,
 	flags *customflag.FlagConfig,
 ) {
@@ -96,7 +94,7 @@ func TestClusterRestore(
 	_, kubeConfigErr := shared.UpdateKubeConfig(newServerIP, serverName[0], product)
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
-	postValidationRestore(cluster, k8sClient, newServerIP)
+	postValidationRestore(cluster, newServerIP)
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
 }
 
@@ -280,7 +278,7 @@ func restoreS3Snapshot(
 	}
 }
 
-func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newServerIP string) {
+func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
@@ -321,6 +319,7 @@ func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newSe
 	for _, ip := range oldNodeIPs {
 		shared.DeleteNode(ip)
 	}
+	shared.LogLevel("info", "deleting old nodes")
 	time.Sleep(240 * time.Second)
 
 	testIngressPostRestore(newServerIP, true, true, kubectlCmd)
@@ -335,22 +334,12 @@ func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newSe
 	testDNSAccessPostRestore(newServerIP, kubectlCmd)
 	shared.LogLevel("info", "dns successfully validated post cluster restore")
 
-	deps, err := k8sClient.ListDeployments("", "")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(deps).NotTo(BeEmpty())
-	fmt.Printf("Deployments: %v\n", deps)
+	testValidateNodesPostRestore(newServerIP)
+	shared.LogLevel("info", "nodes post restore have been validated")
 
-	// kubectlCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml && PATH=$PATH:/var/lib/rancher/%s/bin  && /var/lib/rancher/%s/bin/kubectl ",
-	// 	cluster.Config.Product, cluster.Config.Product, cluster.Config.Product, cluster.Config.Product)
+	testValidatePodsPostRestore()
+	shared.LogLevel("info", "pods post restore have been validated")
 
-	// TODO: now thats is working u can start making validations on the cluster.
-	// validatePodsRes, validatePodsErr := shared.RunCommandOnNode(validatePodsCmd, newServerIP)
-	// fmt.Println("Response: ", validatePodsRes)
-
-	// if header == name containsSubstring("nodeport") & header == status == ContainsSubstring("Completed/Running")
-
-	// TODO: VALIDATE NODEPORT AFTER RESTORE (SHOULD STILL BE THERE)
-	// TODO: VALIDATE DNS AFTER RESTORE (SHOULD NOT BE THERE)
 }
 
 func testIngressPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
@@ -410,27 +399,48 @@ func testDNSAccessPostRestore(newServerIP string, kubectlCmd string) {
 	Expect(dnsErr).To(HaveOccurred())
 }
 
-// func validateNodesPostRestore(cluster *shared.Cluster) {
-// var oldNodeIPs []string
-// oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
-// oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
+func testValidateNodesPostRestore(newServerIP string) {
+	res, err := shared.GetNodes(true)
+	Expect(err).NotTo(HaveOccurred())
+	fmt.Println("Nodes: ", res)
+	Expect(res).NotTo(BeEmpty())
+	for _, node := range res {
+		if strings.Contains(node.ExternalIP, newServerIP) && strings.Contains(node.Status, "Ready") {
+			shared.LogLevel("info", "%s node is Ready", newServerIP)
+		} else {
+			shared.LogLevel("error", "%s node is NotReady", newServerIP)
+		}
+	}
+}
 
-// for _, ip := range oldNodeIPs {
-// 	shared.DeleteNode(ip)
-// }
-
-// 	time.Sleep(60 * time.Second)
-// 	TestNodeStatus(
-// 		cluster,
-// 		assert.NodeAssertReadyStatus(),
-// 		nil,
-// 	)
-// }
-
-// func validatePodsPostRestore(cluster *shared.Cluster) {
-// 	TestPodStatus(
-// 		cluster,
-// 		assert.PodAssertRestart(),
-// 		assert.PodAssertReady(),
-// 	)
-// }
+func testValidatePodsPostRestore() {
+	res, err := shared.GetPods(true)
+	Expect(err).NotTo(HaveOccurred())
+	fmt.Println("Pods: ", res)
+	Expect(res).NotTo(BeEmpty())
+	for _, pod := range res {
+		if strings.Contains(pod.NameSpace, "calico-system") {
+			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
+				shared.LogLevel("info", "calico-system pods have been successfully validated")
+			} else {
+				shared.LogLevel("error", "unable to validate calico-system pods")
+			}
+		}
+		if strings.Contains(pod.NameSpace, "tigera-operator") {
+			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
+				shared.LogLevel("info", "tigera-operator pods have been successfully validated")
+			} else {
+				shared.LogLevel("error", "unable to validate tigera-operator pods")
+			}
+		}
+		if strings.Contains(pod.NameSpace, "kube-system") {
+			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
+				shared.LogLevel("info", "pods have been successfully validated")
+			} else {
+				shared.LogLevel("error", "unable to validate pods")
+			}
+		} else {
+			shared.LogLevel("error", "failed to validate nodes")
+		}
+	}
+}

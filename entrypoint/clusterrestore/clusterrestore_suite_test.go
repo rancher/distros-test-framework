@@ -8,7 +8,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -21,7 +20,6 @@ var (
 	flags      *customflag.FlagConfig
 	kubeconfig string
 	cfg        *config.Product
-	k8sClient  *k8s.Client
 	cluster    *shared.Cluster
 )
 
@@ -48,11 +46,11 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	k8sClient, err = k8s.AddClient()
-	if err != nil {
-		shared.LogLevel("error", "error adding k8s client: %w\n", err)
-		os.Exit(1)
-	}
+	// k8sClient, err = k8s.AddClient()
+	// if err != nil {
+	// 	shared.LogLevel("error", "error adding k8s client: %w\n", err)
+	// 	os.Exit(1)
+	// }
 
 	os.Exit(m.Run())
 }

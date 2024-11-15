@@ -29,13 +29,13 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	// It("Verifies ClusterIP Service Before Restore", func() {
-	// 	testcase.TestServiceClusterIP(true, true)
-	// })
+	It("Verifies ClusterIP Service Before Restore", func() {
+		testcase.TestServiceClusterIP(true, true)
+	})
 
-	// It("Verifies Ingress Before Restore", func() {
-	// 	testcase.TestIngress(true, true)
-	// })
+	It("Verifies Ingress Before Restore", func() {
+		testcase.TestIngress(true, true)
+	})
 
 	It("Verifies NodePort Service Before Restore", func() {
 		testcase.TestServiceNodePort(true, false)
@@ -43,28 +43,8 @@ var _ = Describe("Test:", func() {
 
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestore(cluster, k8sClient, true, flags)
+		testcase.TestClusterRestore(cluster, true, flags)
 	})
-
-	// TODO: its better have a custom POST validation as u are already doing.
-	// It("Validate Nodes", func() {
-	// 	testcase.TestNodeStatus(
-	// 		cluster,
-	// 		assert.NodeAssertReadyStatus(),
-	// 		nil,
-	// 	)
-	// })
-	//
-	// It("Validate Pods", func() {
-	// 	testcase.TestPodStatus(
-	// 		cluster,
-	// 		assert.PodAssertRestart(),
-	// 		assert.PodAssertReady())
-	// })
-
-	// It("Verifies NodePort Service After Snapshot", func() {
-	// 	testcase.TestServiceNodePort(false, true)
-	// })
 
 })
 
