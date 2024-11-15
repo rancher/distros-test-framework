@@ -75,11 +75,16 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 }
 
 func cleanVersionData(product, version string) string {
+	var versionClean string
 	versionStr := fmt.Sprintf("%s version ", product)
 	versionCleanUp := strings.TrimPrefix(version, versionStr)
 
 	endChar := strings.Index(versionCleanUp, "(")
-	versionClean := versionCleanUp[:endChar]
+	if endChar != -1 {
+		versionClean = versionCleanUp[:endChar]
+	} else {
+		shared.LogLevel("error", "index returned -1")
+	}
 
 	return versionClean
 }
@@ -283,16 +288,12 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	time.Sleep(300 * time.Second)
 
 	testIngressPostRestore(newServerIP, true, true, kubectlCmd)
-	shared.LogLevel("info", "ingress successfully validated post cluster restore")
 
 	testClusterIPPostRestore(newServerIP, true, true, kubectlCmd)
-	shared.LogLevel("info", "clusterIP successfully validated post cluster restore")
 
 	testNodePortPostRestore(newServerIP, false, true, kubectlCmd)
-	shared.LogLevel("info", "nodeport successfully validated post cluster restore")
 
 	testDNSAccessPostRestore(newServerIP, kubectlCmd)
-	shared.LogLevel("info", "dns successfully validated post cluster restore")
 
 	testValidateNodesPostRestore(newServerIP)
 	shared.LogLevel("info", "nodes post restore have been validated")
@@ -315,6 +316,7 @@ func testIngressPostRestore(newServerIP string, applyWorkload, deleteWorkload bo
 		workloadErr := shared.ManageWorkload("delete", "ingress.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deleted")
 	}
+	shared.LogLevel("info", "ingress successfully validated post cluster restore")
 }
 
 func testNodePortPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
@@ -331,6 +333,7 @@ func testNodePortPostRestore(newServerIP string, applyWorkload, deleteWorkload b
 		workloadErr := shared.ManageWorkload("delete", "nodeport.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deleted")
 	}
+	shared.LogLevel("info", "nodeport successfully validated post cluster restore")
 }
 
 func testClusterIPPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
@@ -347,11 +350,14 @@ func testClusterIPPostRestore(newServerIP string, applyWorkload, deleteWorkload 
 		workloadErr := shared.ManageWorkload("delete", "clusterip.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
 	}
+	shared.LogLevel("info", "clusterIP successfully validated post cluster restore")
 }
 
 func testDNSAccessPostRestore(newServerIP, kubectlCmd string) {
 	dnsErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n dnsutils dnsutils")
 	Expect(dnsErr).To(HaveOccurred())
+
+	shared.LogLevel("info", "dns successfully validated post cluster restore")
 }
 
 func testValidateNodesPostRestore(newServerIP string) {
