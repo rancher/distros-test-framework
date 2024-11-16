@@ -73,7 +73,7 @@ func installOnServers(cluster *shared.Cluster) {
 
 func installOnAgents(cluster *shared.Cluster) {
 	agentFlags := os.Getenv("worker_flags")
-	if !strings.Contains(agentFlags, "system-default-registry") {
+	if cluster.Config.Product == "rke2" && !strings.Contains(agentFlags, "system-default-registry") {
 		agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 	}
 
