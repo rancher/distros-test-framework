@@ -3,6 +3,9 @@ package shared
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/avast/retry-go"
 
 	"github.com/rancher/distros-test-framework/config"
 )
@@ -45,6 +48,8 @@ func productVersion(product string) (string, error) {
 }
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server.
+//
+// status action actually returns the status response space trimmed.
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
 	if len(ips) == 0 {
 		return "", ReturnLogError("ips string array cannot be empty")
@@ -55,12 +60,37 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 		if getError != nil {
 			return ip, getError
 		}
-		manageServiceOut, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return ip, err
+
+		var manageServiceOut string
+		var err error
+
+		retryErr := retry.Do(
+			func() error {
+				manageServiceOut, err = RunCommandOnNode(cmd, ip)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			},
+			retry.Attempts(20),
+			retry.Delay(5*time.Second),
+			retry.OnRetry(func(n uint, err error) {
+				if n == 0 || n == 19 {
+					LogLevel("warn", "Failed to run command: %s on node %s: Attempt-%v\nError: %v", cmd, ip, n+1, err)
+				}
+			}),
+		)
+		if retryErr != nil {
+			return ip, fmt.Errorf("failed to run command: %s on node %s: %w", cmd, ip, retryErr)
 		}
+
 		if manageServiceOut != "" {
 			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
+
+			if action == "status" {
+				return strings.TrimSpace(manageServiceOut), nil
+			}
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
@@ -37,10 +38,10 @@ type AwsConfig struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	Region          string
-	EC2Config
+	EC2
 }
 
-type EC2Config struct {
+type EC2 struct {
 	AccessKey        string
 	AwsUser          string
 	Ami              string
@@ -90,18 +91,11 @@ type Pod struct {
 	ReadinessGates string
 }
 
-// setConfig gets env configs and sets on local vars.
-func setConfig() {
-	product = os.Getenv("ENV_PRODUCT")
-	module = os.Getenv("ENV_MODULE")
-}
-
 // ClusterConfig returns a singleton cluster with all terraform config and vars.
-func ClusterConfig() *Cluster {
-	setConfig()
+func ClusterConfig(cfg *config.Product) *Cluster {
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster(product, module)
+		cluster, err = newCluster(cfg.Product, cfg.Module)
 		if err != nil {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
@@ -128,7 +122,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 	if nodes == nil {
 		return &Cluster{
 			Aws: AwsConfig{
-				EC2Config: EC2Config{
+				EC2: EC2{
 					AccessKey: os.Getenv("access_key"),
 					AwsUser:   os.Getenv("aws_user"),
 				},
@@ -136,12 +130,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		}, nil
 	}
 
-	var (
-		serverIPs []string
-		agentIPs  []string
-	)
+	var serverIPs, agentIPs []string
 
-	// separate the nodes IPs based on roles.
 	for i := range nodes {
 		if nodes[i].Roles == "<none>" && nodes[i].Roles != "control-plane" {
 			agentIPs = append(agentIPs, nodes[i].ExternalIP)
@@ -158,7 +148,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		NumServers: len(serverIPs),
 		Aws: AwsConfig{
 			Region: os.Getenv("region"),
-			EC2Config: EC2Config{
+			EC2: EC2{
 				AccessKey: os.Getenv("access_key"),
 				AwsUser:   os.Getenv("aws_user"),
 				Ami:       os.Getenv("aws_ami"),
@@ -186,6 +176,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster(product, module string) (*Cluster, error) {
+	c := &Cluster{}
+
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
@@ -212,29 +204,35 @@ func newCluster(product, module string) (*Cluster, error) {
 			"error getting no_of_worker_nodes from var file: %w", err)
 	}
 
-	LogLevel("info", "Applying Terraform config and Creating cluster\n")
+	LogLevel("debug", "Applying Terraform config and Creating cluster\n")
 	_, err = terraform.InitAndApplyE(t, terraformOptions)
 	if err != nil {
 		return nil, fmt.Errorf("\nTerraform apply Failed: %w", err)
 	}
-	LogLevel("info", "Applying Terraform config completed!\n")
+	LogLevel("debug", "Applying Terraform config completed!\n")
 
-	LogLevel("info", "Checking and adding split roles...")
-	numServers, err = addSplitRole(t, varDir, numServers)
+	if os.Getenv("split_roles") == "true" {
+		LogLevel("debug", "Checking and adding split roles...")
+		numServers, err = addSplitRole(t, varDir, numServers)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	LogLevel("debug", "Loading TF Configs...")
+	c, err = loadTFconfig(t, c, product, module, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	LogLevel("info", "Loading TF Configs...")
-	c, err := loadTFconfig(t, product, module, varDir, terraformOptions)
-	if err != nil {
-		return nil, err
-	}
+	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 
 	c.NumServers = numServers
 	c.NumAgents = numAgents
 	c.Status = "cluster created"
-	LogLevel("info", "Cluster has been created successfully...")
+
+	LogLevel("debug", "Cluster has been created successfully...")
 
 	return c, nil
 }

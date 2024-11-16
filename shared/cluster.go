@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
@@ -280,7 +282,7 @@ func PrintClusterState() {
 	if err != nil {
 		_ = ReturnLogError("failed to print cluster state: %w\n", err)
 	}
-	LogLevel("info", "Current cluster state:\n%s\n", res)
+	LogLevel("debug", "Current cluster state:\n%s\n", res)
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
@@ -327,6 +329,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		matchedNodes = append(matchedNodes, ParseNodes(res)...)
 	}
 
@@ -591,9 +594,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 				continue
 			}
 
-			name := strings.TrimSpace(nodeName)
-
-			return name, nil
+			return strings.TrimSpace(nodeName), nil
 		}
 	}
 }
@@ -687,4 +688,14 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
+}
+
+// AddProductCfg its a helper function to add env config on this pkg.
+func AddProductCfg() *config.Product {
+	cfg, err := config.AddEnv()
+	if err != nil {
+		LogLevel("error", "error adding env vars: %w\n", err)
+	}
+
+	return cfg
 }

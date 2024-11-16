@@ -4,122 +4,78 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-var awsConfig shared.AwsConfig
-
-func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *customflag.FlagConfig) {
-	setConfigs()
-
-	product, version, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred())
-
-	version = cleanVersionData(product, version)
-
-	if applyWorkload {
-		workloadErr := shared.ManageWorkload("apply", product+"-extra-metadata.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
-	}
-
-	takeS3Snapshot(cluster, flags)
-	shared.LogLevel("info", "snapshot taken in s3")
-
-	onDemandPath, onDemandPathErr := shared.RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots",
-		product), cluster.ServerIPs[0])
-	Expect(onDemandPathErr).NotTo(HaveOccurred())
-
-	validateS3snapshots(cluster, flags, onDemandPath)
-	shared.LogLevel("info", "successfully validated s3 snapshot save in s3")
-
+func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *config.Product, flags *customflag.FlagConfig) {
 	clusterToken, clusterTokenErr := shared.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
+	onDemandPath := s3Snapshot(cluster, awsClient, flags)
+
+	stopInstances(cluster, awsClient)
+
 	resourceName := os.Getenv("resource_name")
-	ec2, err := aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
-
-	stopInstances(cluster, ec2)
-
 	var serverName []string
 	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
 
-	externalServerIP, _, _, createErr := ec2.CreateInstances(serverName...)
+	externalServerIP, _, _, createErr := awsClient.CreateInstances(serverName...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 	newServerIP := externalServerIP[0]
 
-	installProduct(cluster, newServerIP, version)
-	shared.LogLevel("info", "%s successfully installed on server: %s", product, newServerIP)
-
+	installProduct(cluster, newServerIP, cfg.InstallVersion)
 	restoreS3Snapshot(cluster, onDemandPath, clusterToken, newServerIP, flags)
-
 	enableAndStartService(cluster, newServerIP)
-	shared.LogLevel("info", "%s service successfully enabled", product)
 
-	copyCmd := fmt.Sprintf("cp /tmp/%s_kubeconfig /tmp/%s_kubeconfig", resourceName, serverName[0])
-	_, copyCmdErr := shared.RunCommandHost(copyCmd)
-	Expect(copyCmdErr).NotTo(HaveOccurred())
-
-	_, kubeConfigErr := shared.UpdateKubeConfig(newServerIP, serverName[0], product)
+	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName[0], cluster.Config.Product, "/tmp/"+serverName[0]+"_kubeconfig")
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
-	postValidationRestore(cluster, newServerIP)
-	shared.PrintClusterState()
-	shared.LogLevel("info", "%s server successfully validated post restore", product)
+	// create k8s client now because it depends on updated kubeconfig file.
+	k8sClient, k8sErr := k8s.AddClient()
+	Expect(k8sErr).NotTo(HaveOccurred())
+
+	postValidationRestore(cluster, k8sClient, newServerIP)
 }
 
-func cleanVersionData(product, version string) string {
-	var versionClean string
-	versionStr := fmt.Sprintf("%s version ", product)
-	versionCleanUp := strings.TrimPrefix(version, versionStr)
+// s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
+func s3Snapshot(cluster *shared.Cluster, awsClient *aws.Client, flags *customflag.FlagConfig) string {
+	workloadErr := shared.ManageWorkload("apply", cluster.Config.Product+"-extra-metadata.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
 
-	endChar := strings.Index(versionCleanUp, "(")
-	if endChar != -1 {
-		versionClean = versionCleanUp[:endChar]
-	} else {
-		shared.LogLevel("error", "index returned -1")
-	}
+	takeS3Snapshot(cluster, flags)
 
-	return versionClean
+	onDemandPath, onDemandPathErr := shared.RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots",
+		cluster.Config.Product), cluster.ServerIPs[0])
+	Expect(onDemandPathErr).NotTo(HaveOccurred())
+
+	validateS3snapshot(awsClient, flags, onDemandPath)
+
+	return onDemandPath
 }
 
-func setConfigs() {
-	awsConfig = shared.AwsConfig{
-		AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-	}
-}
-
-func takeS3Snapshot(
-	cluster *shared.Cluster,
-	flags *customflag.FlagConfig,
-) {
+func takeS3Snapshot(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 
 	takeSnapshotCmd := fmt.Sprintf("sudo %s etcd-snapshot save --s3 --s3-bucket=%s "+
 		"--s3-folder=%s --s3-region=%s --s3-access-key=%s --s3-secret-key=%s",
 		productLocationCmd, flags.S3Flags.Bucket, flags.S3Flags.Folder, cluster.Aws.Region,
-		awsConfig.AccessKeyID, awsConfig.SecretAccessKey)
-
+		cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey)
 	_, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
 
-	TestDNSAccess(true, false)
+	shared.LogLevel("info", "snapshot taken in s3")
 }
 
-func validateS3snapshots(cluster *shared.Cluster, flags *customflag.FlagConfig, onDemandPath string) {
-	s3, err := aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error creating s3 client: %s", err)
-
-	s3List, s3ListErr := s3.GetObjects(flags)
+func validateS3snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, onDemandPath string) {
+	s3List, s3ListErr := awsClient.GetObjects(flags)
 	Expect(s3ListErr).NotTo(HaveOccurred())
 	for _, listObject := range s3List {
 		if strings.Contains(*listObject.Key, onDemandPath) {
@@ -127,6 +83,8 @@ func validateS3snapshots(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 			break
 		}
 	}
+
+	shared.LogLevel("info", "successfully validated s3 snapshot save in s3")
 }
 
 func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
@@ -138,78 +96,60 @@ func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 	for _, ip := range instancesIPs {
 		id, idsErr := ec2.GetInstanceIDByIP(ip)
 		Expect(idsErr).NotTo(HaveOccurred())
-		//
 		err := ec2.StopInstance(id)
-		if err != nil {
-			return
-		}
+		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
-func setConfigFile(product, newClusterIP string) {
-	var createConfigFileCmd string
+func installProduct(cluster *shared.Cluster, newClusterIP string, version string) {
+	setConfigFile(cluster, newClusterIP)
 
-	if product == "rke2" {
-		createConfigFileCmd = fmt.Sprintf("sudo  bash -c 'cat <<EOF>/etc/rancher/%s/config.yaml\n"+
-			"write-kubeconfig-mode: 644\n"+
-			"node-external-ip: %s\n"+
-			os.Getenv("server_flags")+"\n"+
-			"EOF'", product, newClusterIP)
-	} else {
-		createConfigFileCmd = fmt.Sprintf("sudo  bash -c 'cat <<EOF>/etc/rancher/%s/config.yaml\n"+
-			"write-kubeconfig-mode: 644\n"+
-			"node-external-ip: %s\n"+
-			"cluster-init: true\n"+
-			"EOF'", product, newClusterIP)
-	}
-
-	path := fmt.Sprintf("/etc/rancher/%s/", product)
-	cmd := fmt.Sprintf("sudo  mkdir -p %s && %s", path, createConfigFileCmd)
-
-	_, mkdirCmdErr := shared.RunCommandOnNode(cmd, newClusterIP)
-	Expect(mkdirCmdErr).NotTo(HaveOccurred())
-}
-
-func installProduct(
-	cluster *shared.Cluster,
-	newClusterIP string,
-	version string,
-) {
-	setConfigFile(cluster.Config.Product, newClusterIP)
-
-	installCmd := "curl -sfL "
+	installCmd := shared.GetInstallCmd(cluster.Config.Product, version, "server")
 	if cluster.Config.Product == "k3s" {
-		installCmd += fmt.Sprintf("https://get.%s.io/ | sudo INSTALL_%s_VERSION=%s  INSTALL_%s_SKIP_ENABLE=true sh -",
-			cluster.Config.Product, strings.ToUpper(cluster.Config.Product), version,
-			strings.ToUpper(cluster.Config.Product))
-	} else {
-		installCmd += fmt.Sprintf("https://get.%s.io | sudo INSTALL_%s_VERSION=%s sh -",
-			cluster.Config.Product, strings.ToUpper(cluster.Config.Product), version)
+		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
+		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
 	}
 
 	_, installCmdErr := shared.RunCommandOnNode(installCmd, newClusterIP)
 	Expect(installCmdErr).NotTo(HaveOccurred())
+
+	shared.LogLevel("info", "%s successfully installed on server: %s", cluster.Config.Product, newClusterIP)
 }
 
-func enableAndStartService(
-	cluster *shared.Cluster,
-	newClusterIP string,
-) {
-	_, enableServiceCmdErr := shared.ManageService(cluster.Config.Product, "enable", "server",
-		[]string{newClusterIP})
-	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
-	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
-		[]string{newClusterIP})
+func setConfigFile(cluster *shared.Cluster, newClusterIP string) {
+	serverFlags := os.Getenv("server_flags")
+	if serverFlags == "" {
+		serverFlags = "write-kubeconfig-mode: 644"
+	}
+	serverFlags = strings.ReplaceAll(serverFlags, `\n`, "\n")
 
-	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
-	Expect(startServiceCmdErr).NotTo(HaveOccurred())
+	tempFilePath := "/tmp/config.yaml"
+	tempFile, err := os.Create(tempFilePath)
+	Expect(err).NotTo(HaveOccurred())
 
-	time.Sleep(300 * time.Second)
+	defer tempFile.Close()
 
-	statusServiceCmdRes, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
-		[]string{newClusterIP})
-	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
-	fmt.Println("STATUS SERVICE OUT: ", statusServiceCmdRes)
+	_, writeErr := tempFile.WriteString(fmt.Sprintf("node-external-ip: %s\n", newClusterIP))
+	Expect(writeErr).NotTo(HaveOccurred())
+
+	flagValues := strings.Split(serverFlags, "\n")
+	for _, entry := range flagValues {
+		entry = strings.TrimSpace(entry)
+		if entry != "" {
+			_, err := tempFile.WriteString(fmt.Sprintf("%s\n", entry))
+			Expect(err).NotTo(HaveOccurred())
+		}
+	}
+
+	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
+	user := os.Getenv("aws_user")
+	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
+
+	_, mkdirCmdErr := shared.RunCommandOnNode(cmd, newClusterIP)
+	Expect(mkdirCmdErr).NotTo(HaveOccurred())
+
+	scpErr := shared.RunScp(cluster, newClusterIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
+	Expect(scpErr).NotTo(HaveOccurred())
 }
 
 func restoreS3Snapshot(
@@ -235,8 +175,8 @@ func restoreS3Snapshot(
 		flags.S3Flags.Bucket,
 		flags.S3Flags.Folder,
 		cluster.Aws.Region,
-		awsConfig.AccessKeyID,
-		awsConfig.SecretAccessKey,
+		cluster.Aws.AccessKeyID,
+		cluster.Aws.SecretAccessKey,
 		token)
 
 	switch cluster.Config.Product {
@@ -248,6 +188,7 @@ func restoreS3Snapshot(
 	case "rke2":
 		_, restoreCmdErr = shared.RunCommandOnNode(restoreCmd, newClusterIP)
 		Expect(restoreCmdErr).To(HaveOccurred())
+		Expect(restoreCmdErr.Error()).To(Not(BeNil()))
 		Expect(restoreCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
 		Expect(restoreCmdErr.Error()).To(ContainSubstring("has been reset"))
 	default:
@@ -255,7 +196,26 @@ func restoreS3Snapshot(
 	}
 }
 
-func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
+func enableAndStartService(cluster *shared.Cluster, newClusterIP string) {
+	_, enableServiceCmdErr := shared.ManageService(cluster.Config.Product, "enable", "server",
+		[]string{newClusterIP})
+	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
+
+	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
+		[]string{newClusterIP})
+	Expect(startServiceCmdErr).NotTo(HaveOccurred())
+
+	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
+
+	status, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
+		[]string{newClusterIP})
+	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
+	Expect(status).To(ContainSubstring("active (running)"))
+
+	shared.LogLevel("info", "%s service successfully enabled", cluster.Config.Product)
+}
+
+func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newServerIP string) {
 	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
 
@@ -270,7 +230,6 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 		pathCmd = fmt.Sprintf("PATH=$PATH:/var/lib/rancher/%s/bin", cluster.Config.Product)
 		kubectlCmd = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", cluster.Config.Product)
 		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
-		fmt.Println("KUBECTL CMD: ", kubectlCmd)
 	} else {
 		pathCmd = "PATH=$PATH:/usr/local/bin"
 		kubectlCmd, kubectlCmdErr = shared.RunCommandOnNode("which kubectl", newServerIP)
@@ -282,135 +241,19 @@ func postValidationRestore(cluster *shared.Cluster, newServerIP string) {
 	_, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
 	Expect(nodesPodsErr).NotTo(HaveOccurred())
 
-	shared.PrintClusterState()
-	time.Sleep(60 * time.Second)
-
+	shared.LogLevel("debug", "deleting old nodes")
 	var oldNodeIPs []string
 	oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
 	oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
 	for _, ip := range oldNodeIPs {
 		err := shared.DeleteNode(ip)
-		if err != nil {
-			shared.LogLevel("error", "error deleting nodes")
-		}
+		Expect(err).NotTo(HaveOccurred())
 	}
 
-	shared.LogLevel("info", "deleting old nodes")
-	time.Sleep(300 * time.Second)
-
-	testIngressPostRestore(newServerIP, true, true, kubectlCmd)
-
-	testClusterIPPostRestore(newServerIP, true, true, kubectlCmd)
-
-	testNodePortPostRestore(newServerIP, false, true, kubectlCmd)
-
-	testDNSAccessPostRestore(newServerIP, kubectlCmd)
-
-	testValidateNodesPostRestore(newServerIP)
-	shared.LogLevel("info", "nodes post restore have been validated")
-
-	testValidatePodsPostRestore()
-	shared.LogLevel("info", "pods post restore have been validated")
-}
-
-func testIngressPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
-	if applyWorkload {
-		workloadErr := shared.ManageWorkload("apply", "ingress.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "ingress manifest not deployed")
-	}
-
-	ingressErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-ingress -l k8s-app=nginx-app-ingress"+
-		" --field-selector=status.phase=Running", "Running")
-	Expect(ingressErr).NotTo(HaveOccurred())
-
-	if deleteWorkload {
-		workloadErr := shared.ManageWorkload("delete", "ingress.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Ingress manifest not deleted")
-	}
-	shared.LogLevel("info", "ingress successfully validated post cluster restore")
-}
-
-func testNodePortPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
-	if applyWorkload {
-		workloadErr := shared.ManageWorkload("apply", "nodeport.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deployed")
-	}
-
-	nodePortErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-nodeport -l k8s-app=nginx-app-nodeport "+
-		"--field-selector=status.phase=Running", "Running")
-	Expect(nodePortErr).NotTo(HaveOccurred())
-
-	if deleteWorkload {
-		workloadErr := shared.ManageWorkload("delete", "nodeport.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "NodePort manifest not deleted")
-	}
-	shared.LogLevel("info", "nodeport successfully validated post cluster restore")
-}
-
-func testClusterIPPostRestore(newServerIP string, applyWorkload, deleteWorkload bool, kubectlCmd string) {
-	if applyWorkload {
-		workloadErr := shared.ManageWorkload("apply", "clusterip.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
-	}
-
-	clusterIPErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n test-clusterip -l"+
-		" k8s-app=nginx-app-clusterip "+"--field-selector=status.phase=Running", "Running")
-	Expect(clusterIPErr).NotTo(HaveOccurred())
-
-	if deleteWorkload {
-		workloadErr := shared.ManageWorkload("delete", "clusterip.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deleted")
-	}
-	shared.LogLevel("info", "clusterIP successfully validated post cluster restore")
-}
-
-func testDNSAccessPostRestore(newServerIP, kubectlCmd string) {
-	dnsErr := assert.ValidateOnNode(newServerIP, kubectlCmd+" get pods -n dnsutils dnsutils")
-	Expect(dnsErr).To(HaveOccurred())
-
-	shared.LogLevel("info", "dns successfully validated post cluster restore")
-}
-
-func testValidateNodesPostRestore(newServerIP string) {
-	res, err := shared.GetNodes(true)
+	// validate overall cluster health after restore.
+	ok, err := k8sClient.CheckClusterHealth(0, cluster)
 	Expect(err).NotTo(HaveOccurred())
-	fmt.Println("Nodes: ", res)
-	Expect(res).NotTo(BeEmpty())
-	for _, node := range res {
-		if strings.Contains(node.ExternalIP, newServerIP) && strings.Contains(node.Status, "Ready") {
-			shared.LogLevel("info", "%s node is Ready", newServerIP)
-		} else {
-			shared.LogLevel("error", "%s node is NotReady", newServerIP)
-		}
-	}
-}
+	Expect(ok).To(BeTrue())
 
-func testValidatePodsPostRestore() {
-	res, err := shared.GetPods(true)
-	Expect(err).NotTo(HaveOccurred())
-	fmt.Println("Pods: ", res)
-	Expect(res).NotTo(BeEmpty())
-	for _, pod := range res {
-		if strings.Contains(pod.NameSpace, "calico-system") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "calico-system pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate calico-system pods")
-			}
-		}
-		if strings.Contains(pod.NameSpace, "tigera-operator") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "tigera-operator pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate tigera-operator pods")
-			}
-		}
-		if strings.Contains(pod.NameSpace, "kube-system") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate pods")
-			}
-		}
-	}
+	shared.PrintClusterState()
 }

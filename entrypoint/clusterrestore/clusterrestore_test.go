@@ -29,23 +29,29 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies ClusterIP Service Before Restore", func() {
-		testcase.TestServiceClusterIP(true, true)
-	})
-
 	It("Verifies Ingress Before Restore", func() {
-		testcase.TestIngress(true, true)
+		testcase.TestIngress(true, false)
 	})
 
 	It("Verifies NodePort Service Before Restore", func() {
 		testcase.TestServiceNodePort(true, false)
 	})
 
-	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestore(cluster, true, flags)
+		testcase.TestClusterRestore(cluster, awsClient, cfg, flags)
 	})
 
+	It("Verifies ClusterIP Service after Restore if we can apply, work and delete workloads", func() {
+		testcase.TestServiceClusterIP(true, true)
+	})
+
+	It("Verifies NodePort Service after Restore if service is still there and we can access it", func() {
+		testcase.TestServiceNodePort(false, false)
+	})
+
+	It("Verifies Ingress after Restore if still there and we can access it", func() {
+		testcase.TestIngress(false, false)
+	})
 })
 
 var _ = AfterEach(func() {

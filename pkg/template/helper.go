@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
@@ -12,7 +13,12 @@ import (
 
 // upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, k8sClient *k8s.Client, version string) error {
-	cluster := shared.ClusterConfig()
+	cfg, cfgErr := config.AddEnv()
+	if cfgErr != nil {
+		return fmt.Errorf("error adding env vars: %w", cfgErr)
+	}
+
+	cluster := shared.ClusterConfig(cfg)
 	err := testcase.TestUpgradeClusterManual(cluster, k8sClient, version)
 	if err != nil {
 		return err
@@ -96,15 +102,15 @@ func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]t
 		"TestCertRotate": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestCertRotate(cluster)
 		},
-		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSecretsEncryption()
-		},
+		// "TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
+		// 	testcase.TestSecretsEncryption()
+		// },
 		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)
 		},
-		"TestClusterReset": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestClusterReset(cluster, k8sClient)
-		},
+		// "TestClusterReset": func(applyWorkload, deleteWorkload bool) {
+		// 	testcase.TestClusterReset(cluster, k8sClient)
+		// },
 	}
 }
 

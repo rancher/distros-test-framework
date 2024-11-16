@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -106,11 +107,47 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 	if writeErr != nil {
 		return "", ReturnLogError("failed to write updated kubeconfig file: %v\n", writeErr)
 	}
-	KubeConfigFile = path
 
 	updatedKubeConfig = base64.StdEncoding.EncodeToString([]byte(updatedKubeConfig))
 
 	return updatedKubeConfig, nil
+}
+
+// NewLocalKubeconfigFile get the remote cluster kubeconfig file updates the server ip and writes it to a local file.
+//
+// also sets the global KubeConfigFile pointing to the new kubeconfig file.
+func NewLocalKubeconfigFile(newServerIP, resourceName, product, localPath string) error {
+	if newServerIP == "" {
+		return ReturnLogError("ip not sent.\n")
+	}
+	if product == "" {
+		return ReturnLogError("product not sent.\n")
+	}
+	if resourceName == "" {
+		return ReturnLogError("resourceName not sent.\n")
+	}
+	if localPath == "" {
+		return ReturnLogError("path not sent.\n")
+	}
+
+	cmd := fmt.Sprintf("sudo cat /etc/rancher/%s/%s.yaml", product, product)
+	kubeconfigContent, err := RunCommandOnNode(cmd, newServerIP)
+	if err != nil {
+		return ReturnLogError("failed to get kubeconfig file: %v\n", err)
+	}
+
+	serverIPRgx := regexp.MustCompile(`server: https://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+`)
+	replace := fmt.Sprintf("server: https://%s", newServerIP)
+	updated := serverIPRgx.ReplaceAllString(kubeconfigContent, replace)
+
+	writeErr := os.WriteFile(localPath, []byte(updated), 0o644)
+	if writeErr != nil {
+		return ReturnLogError("failed to write updated kubeconfig file: %v\n", writeErr)
+	}
+
+	KubeConfigFile = localPath
+
+	return nil
 }
 
 // decodeKubeConfig decodes the kubeconfig and writes it to a local /tmp file.

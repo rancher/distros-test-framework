@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,10 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 
 	shared.LogLevel("info", "Waiting for nodes to become ready... (%d/%d ready)", nodesReady, nodesTotal)
 
-	err = k.watchNodesReady(context.Background(), readyNodesMap, &nodesReady, nodesTotal, minReadyNodes)
+	ctxTimedOut, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	err = k.watchNodesReady(ctxTimedOut, readyNodesMap, &nodesReady, nodesTotal, minReadyNodes)
 	if err != nil {
 		return fmt.Errorf("failed to watch nodes ready: %w", err)
 	}

@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
+		cluster = shared.ClusterConfig(cfg)
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)

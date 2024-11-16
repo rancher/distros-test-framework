@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	validateAirgap()
 
 	// TODO: Implement using kubeconfig for airgap setup
-	cluster = shared.ClusterConfig()
+	cluster = shared.ClusterConfig(cfg)
 
 	os.Exit(m.Run())
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -21,6 +22,7 @@ var (
 	kubeconfig string
 	cfg        *config.Product
 	cluster    *shared.Cluster
+	awsClient  *aws.Client
 )
 
 func TestMain(m *testing.M) {
@@ -31,7 +33,7 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
-	_, err = config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -40,17 +42,17 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
+		cluster = shared.ClusterConfig(cfg)
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	// k8sClient, err = k8s.AddClient()
-	// if err != nil {
-	// 	shared.LogLevel("error", "error adding k8s client: %w\n", err)
-	// 	os.Exit(1)
-	// }
+	awsClient, err = aws.AddClient(cluster)
+	if err != nil {
+		shared.LogLevel("error", "error adding aws nodes: %s", err)
+		os.Exit(1)
+	}
 
 	os.Exit(m.Run())
 }

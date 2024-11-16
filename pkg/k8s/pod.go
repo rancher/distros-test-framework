@@ -2,135 +2,179 @@ package k8s
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/avast/retry-go"
 	v1 "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-// WaitForPodsReady validates readiness of pods by checking how many/which pods are ready, with a minimum threshold.
-func (k *Client) WaitForPodsReady(namespace string) error {
-	readyPodsMap, podsReady, podsTotal, err := k.checkInitialPodsReady(namespace)
-	if err != nil {
-		return fmt.Errorf("failed to check initial pods ready: %w", err)
+var (
+	ciliumPodsRunning, ciliumPodsNotRunning int
+)
+
+// WaitForPods validates pods that are running or completed on the given namespace.
+func (k *Client) WaitForPods(namespaces []string, label string, cluster *shared.Cluster) error {
+	if namespaces == nil {
+		ns, err := k.ListNamespaces()
+		if err != nil {
+			return fmt.Errorf("failed to list namespaces: %w", err)
+		}
+		if len(ns) == 0 {
+			return fmt.Errorf("no namespaces found")
+		}
+
+		namespaces = ns
 	}
 
-	shared.LogLevel("info", "Waiting for pods to become ready... (%d/%d ready)", podsReady, podsTotal)
+	fmt.Printf("Namespaces: %v\n", namespaces)
 
-	err = k.watchPodsReady(context.Background(), namespace, readyPodsMap, &podsReady, podsTotal)
+	podsReady, err := k.validatePods(context.Background(), namespaces, label, cluster)
 	if err != nil {
-		return fmt.Errorf("failed to watch pods ready: %w", err)
+		return fmt.Errorf("failed to list pods and check status: %w", err)
+	}
+
+	if !podsReady {
+		return fmt.Errorf("pods are not ready")
+	} else {
+		shared.LogLevel("info", "All pods are ready.")
 	}
 
 	return nil
 }
 
-// checkInitialPodsReady checks the initial state of the pods.
-func (k *Client) checkInitialPodsReady(namespace string) (
-	podMap map[string]bool,
-	ready int,
-	total int,
-	err error,
-) {
-	podList, err := k.ListResources(ResourceTypePod, namespace, "")
-	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to list pods: %w", err)
+func (k *Client) validatePods(ctx context.Context, namespaces []string, label string, cluster *shared.Cluster) (bool, error) {
+	var ciliumChecked bool
+
+	retryErr := retry.Do(
+		func() error {
+
+			podsReady := true
+			for _, namespace := range namespaces {
+				pods, err := k.Clientset.CoreV1().Pods(namespace).List(ctx, meta.ListOptions{
+					LabelSelector: label,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to list pods: %w", err)
+				}
+
+				for _, pod := range pods.Items {
+					if !podIsOk(&pod) {
+						podsReady = false
+						shared.LogLevel("debug", "Pod %s is not ready. Status: %s", pod.Name, pod.Status.Phase)
+						break
+					}
+					shared.LogLevel("debug", "Pod %s is ready. Status: %s", pod.Name, pod.Status.Phase)
+
+					if !ciliumChecked && isCiliumCNI(&pod, cluster) {
+						if processCiliumPodStatus(&pod) {
+							ciliumChecked = true
+						} else {
+							podsReady = false
+							break
+						}
+					}
+				}
+
+				if !podsReady {
+					break
+				}
+			}
+
+			if podsReady {
+				return nil
+			}
+
+			return fmt.Errorf("pods are not ready yet")
+		},
+		retry.Context(ctx),
+		retry.Delay(5*time.Second),
+		retry.Attempts(39),
+	)
+	if retryErr != nil {
+		return false, fmt.Errorf("failed to validate pods: %w", retryErr)
 	}
 
-	podsTotal := len(podList.Items)
-	if podsTotal == 0 {
-		return nil, 0, 0, errors.New("no pods found")
-	}
+	shared.LogLevel("info", "All pods are ready.")
 
-	podsReady := 0
-	readyPodsMap := make(map[string]bool)
-
-	for _, res := range podList.Items {
-		var pod v1.Pod
-		convertErr := runtime.DefaultUnstructuredConverter.FromUnstructured(res.Object, &pod)
-		if convertErr != nil {
-			return nil, 0, 0, fmt.Errorf("failed to convert to Pod: %w", convertErr)
-		}
-
-		podCurrentReady := podReady(&pod)
-		readyPodsMap[pod.Name] = podCurrentReady
-		if podCurrentReady {
-			podsReady++
-		}
-	}
-
-	return readyPodsMap, podsReady, podsTotal, nil
+	return true, nil
 }
 
-// watchPodsReady watches the pods and updates the ready count based on:
+// isCiliumCNI checks if there is pod is a cilium-operator under specific cluster conditions like:
 //
-// podsReady is the number of pods that are ready.
-// podsTotal is the total number of pods in the namespace.
-func (k *Client) watchPodsReady(
-	ctx context.Context,
-	namespace string,
-	readyPodsMap map[string]bool,
-	podsReady *int,
-	podsTotal int,
-) error {
-	gvr, err := k.getGVR(ResourceTypePod)
-	if err != nil {
-		return fmt.Errorf("failed to get GVR: %w", err)
+// RKE2 with a single server and no agents.
+func isCiliumCNI(pod *v1.Pod, cluster *shared.Cluster) bool {
+	return strings.Contains(pod.Name, "cilium-operator") &&
+		cluster.Config.Product == "rke2" &&
+		cluster.NumServers == 1 &&
+		cluster.NumAgents == 0
+}
+
+func processCiliumPodStatus(pod *v1.Pod) bool {
+	if pod.Status.Phase == v1.PodPending && podReady(pod) == "0/1" {
+		ciliumPodsNotRunning++
+	} else if pod.Status.Phase == v1.PodRunning && podReady(pod) == "1/1" {
+		ciliumPodsRunning++
 	}
 
-	resource := k.DynamicClient.Resource(gvr).Namespace(namespace)
-	watcher, err := resource.Watch(ctx, meta.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to set up watch: %w", err)
-	}
-	defer watcher.Stop()
+	switch {
+	case ciliumPodsRunning == 0 && ciliumPodsNotRunning == 1:
+		shared.LogLevel("warn", "No Cilium operator pods running yet, only pending.")
+		return false
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case event, ok := <-watcher.ResultChan():
-			if !ok {
-				return errors.New("watcher channel closed")
-			}
+	case ciliumPodsRunning == 0 && ciliumPodsNotRunning > 1:
+		shared.LogLevel("error", "No Cilium operator pods running, only pending: Name:%s, Status:%s", pod.Name, pod.Status)
+		return false
 
-			objUnstructured, ok := event.Object.(*unstructured.Unstructured)
-			if !ok {
-				return fmt.Errorf("unexpected type %T", event.Object)
-			}
+	case ciliumPodsRunning >= 1 && ciliumPodsNotRunning == 1:
+		shared.LogLevel("info", "At least one Cilium operator pod is running.")
+		return true
 
-			var pod v1.Pod
-			convertErr := runtime.DefaultUnstructuredConverter.FromUnstructured(objUnstructured.Object, &pod)
-			if convertErr != nil {
-				return fmt.Errorf("failed to convert to Pod: %w", convertErr)
-			}
+	case ciliumPodsRunning >= 1:
+		shared.LogLevel("info", "At least one Cilium operator pod is running.")
+		return true
 
-			podPreviousReady := readyPodsMap[pod.Name]
-			podCurrentReady := podReady(&pod)
-			readyPodsMap[pod.Name] = podCurrentReady
-
-			if !podPreviousReady && podCurrentReady {
-				*podsReady++
-				shared.LogLevel("info", "Pod %s became ready (%d/%d)", pod.Name, *podsReady, podsTotal)
-			} else if podPreviousReady && !podCurrentReady {
-				*podsReady--
-				shared.LogLevel("info", "Pod %s is no longer ready (%d/%d)", pod.Name, *podsReady, podsTotal)
-			}
-		}
+	default:
+		shared.LogLevel("error", "No Cilium operator pods running.")
+		return false
 	}
 }
 
-func podReady(pod *v1.Pod) bool {
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == v1.PodReady && condition.Status == v1.ConditionTrue {
-			return true
+func podIsOk(pod *v1.Pod) bool {
+	if pod.Status.Phase == v1.PodRunning || pod.Status.Phase == v1.PodSucceeded {
+		readyCount := 0
+		for _, c := range pod.Status.ContainerStatuses {
+			if c.Ready {
+				readyCount++
+			}
 		}
+
+		return readyCount == len(pod.Status.ContainerStatuses)
 	}
 
 	return false
+}
+
+// podReady returns the status of the pod in "ready/total" format.
+func podReady(pod *v1.Pod) string {
+	totalContainers := len(pod.Spec.Containers) + len(pod.Spec.InitContainers)
+	readyPodsContainers := 0
+
+	for _, ss := range pod.Status.ContainerStatuses {
+		if ss.Ready {
+			readyPodsContainers++
+		}
+	}
+
+	for _, ics := range pod.Status.InitContainerStatuses {
+		if ics.Ready {
+			readyPodsContainers++
+		}
+	}
+
+	return fmt.Sprintf("%d/%d", readyPodsContainers, totalContainers)
 }

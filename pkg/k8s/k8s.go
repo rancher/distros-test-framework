@@ -44,9 +44,7 @@ func AddClient() (*Client, error) {
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
 // if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
-//
-// if ip and port not passed, it will check the health of the current cluster context.
-func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
+func (k *Client) CheckClusterHealth(minReadyNodes int, cluster *shared.Cluster) (bool, error) {
 	res, err := k.GetAPIServerHealth()
 	if err != nil {
 		return false, fmt.Errorf("API server health check failed: %w", err)
@@ -60,11 +58,27 @@ func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
 
-	if podsErr := k.WaitForPodsReady(""); podsErr != nil {
+	if podsErr := k.WaitForPods([]string{}, "", cluster); podsErr != nil {
 		return false, fmt.Errorf("pod status check failed: %w", podsErr)
 	}
 
 	return true, nil
+}
+
+// ListNamespaces returns a list of namespaces in the cluster.
+func (k *Client) ListNamespaces() ([]string, error) {
+	ctx := context.Background()
+	namespaces, err := k.Clientset.CoreV1().Namespaces().List(ctx, meta.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	var nsList []string
+	for _, ns := range namespaces.Items {
+		nsList = append(nsList, ns.Name)
+	}
+
+	return nsList, nil
 }
 
 // ListResources search the resource type on preferred resources using the GVR and returns a list of resources.
@@ -122,7 +136,7 @@ func (k *Client) GetAPIServerHealth() (string, error) {
 
 			return nil
 		},
-		retry.Attempts(21),
+		retry.Attempts(51),
 		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 	)
@@ -164,9 +178,8 @@ func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource,
 
 			return fmt.Errorf("resource type %s not found", resourceType)
 		},
-		retry.Attempts(21),
-		retry.Delay(3*time.Second),
-		retry.DelayType(retry.FixedDelay),
+		retry.Attempts(51),
+		retry.Delay(5*time.Second),
 		retry.OnRetry(func(n uint, err error) {
 			if n == 0 || n == 20 {
 				shared.LogLevel("warn", "Failed to get preferred resources: Attempt-%v\nError: %v", n+1, err)

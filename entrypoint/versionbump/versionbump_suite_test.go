@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 		addTcFlag()
 	}
 
-	_, err := config.AddEnv()
+	cfg, err := config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
+		cluster = shared.ClusterConfig(cfg)
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)

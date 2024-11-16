@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
         - name: volume-test
-          image: nginx:stable-alpine
+          image: rancher/mirrored-library-nginx:1.27.2-alpine
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: volv
