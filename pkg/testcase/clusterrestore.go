@@ -411,8 +411,6 @@ func testValidatePodsPostRestore() {
 			} else {
 				shared.LogLevel("error", "unable to validate pods")
 			}
-		} else {
-			shared.LogLevel("error", "failed to validate nodes")
 		}
 	}
 }
