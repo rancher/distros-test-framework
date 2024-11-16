@@ -239,3 +239,4 @@ S3_FOLDER=snapshots
 ### Not supported/implemented currently for cluster restore:
 - Hardened Cluster Setup
 - ExternalDB Setup
+- Selinux Setup
