@@ -16,7 +16,7 @@ import (
 
 var awsConfig shared.AwsConfig
 
-func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *customflag.FlagConfig) {
+func TestClusterRestore(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	setConfigs()
 
 	product, version, err := shared.Product()
@@ -24,13 +24,12 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 
 	version = cleanVersionData(product, version)
 
-	if applyWorkload {
-		workloadErr := shared.ManageWorkload("apply", product+"-extra-metadata.yaml")
-		Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
-	}
+	workloadErr := shared.ManageWorkload("apply", product+"-extra-metadata.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
 
 	takeS3Snapshot(cluster, flags)
 	shared.LogLevel("info", "snapshot taken in s3")
+	TestDNSAccess(true, false)
 
 	onDemandPath, onDemandPathErr := shared.RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots",
 		product), cluster.ServerIPs[0])
@@ -71,7 +70,6 @@ func TestClusterRestore(cluster *shared.Cluster, applyWorkload bool, flags *cust
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
 	postValidationRestore(cluster, newServerIP)
-	shared.PrintClusterState()
 	shared.LogLevel("info", "%s server successfully validated post restore", product)
 }
 
@@ -111,8 +109,6 @@ func takeS3Snapshot(
 
 	_, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
-
-	TestDNSAccess(true, false)
 }
 
 func validateS3snapshots(cluster *shared.Cluster, flags *customflag.FlagConfig, onDemandPath string) {
@@ -390,27 +386,18 @@ func testValidatePodsPostRestore() {
 	Expect(err).NotTo(HaveOccurred())
 	fmt.Println("Pods: ", res)
 	Expect(res).NotTo(BeEmpty())
-	for _, pod := range res {
-		if strings.Contains(pod.NameSpace, "calico-system") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "calico-system pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate calico-system pods")
-			}
+	for i := 0; i < len(res); i++ {
+		if strings.Contains(res[i].NameSpace, "calico-system") {
+			Expect(res[i].Status).To(SatisfyAny(ContainSubstring("Running"), ContainSubstring("Completed")))
+			shared.LogLevel("info", "calico-system pods have been successfully validated")
 		}
-		if strings.Contains(pod.NameSpace, "tigera-operator") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "tigera-operator pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate tigera-operator pods")
-			}
+		if strings.Contains(res[i].NameSpace, "tigera-operator") {
+			Expect(res[i].Status).To(SatisfyAny(ContainSubstring("Running"), ContainSubstring("Completed")))
+			shared.LogLevel("info", "tigera-operator pods have been successfully validated")
 		}
-		if strings.Contains(pod.NameSpace, "kube-system") {
-			if strings.Contains(pod.Status, "Completed") || strings.Contains(pod.Status, "Running") {
-				shared.LogLevel("info", "pods have been successfully validated")
-			} else {
-				shared.LogLevel("error", "unable to validate pods")
-			}
+		if strings.Contains(res[i].NameSpace, "kube-system") {
+			Expect(res[i].Status).To(SatisfyAny(ContainSubstring("Running"), ContainSubstring("Completed")))
+			shared.LogLevel("info", "pods have been successfully validated")
 		}
 	}
 }

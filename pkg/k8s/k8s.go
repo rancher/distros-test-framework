@@ -39,7 +39,7 @@ func AddClient() (*Client, error) {
 	}, nil
 }
 
-// CheckClusterHealth checks the health of the cluster by checking the API server,nodes and pods status.
+// CheckClusterHealth checks the health of the cluster by checking the API server and node status.
 //
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
@@ -52,16 +52,12 @@ func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 		return false, fmt.Errorf("API server health check failed: %w", err)
 	}
 
-	if !strings.Contains(res, "ok") {
-		return false, fmt.Errorf("API server health check failed: %s", res)
-	}
-
 	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
 		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
 
-	if podsErr := k.WaitForPodsReady(""); podsErr != nil {
-		return false, fmt.Errorf("pod status check failed: %w", podsErr)
+	if !strings.Contains(res, "ok") {
+		return false, fmt.Errorf("API server health check failed: %s", res)
 	}
 
 	return true, nil

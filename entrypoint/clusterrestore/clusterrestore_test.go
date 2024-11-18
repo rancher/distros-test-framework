@@ -43,7 +43,7 @@ var _ = Describe("Test:", func() {
 
 	// deploy more workloads before and after snapshot -- do not delete the workloads
 	It("Verifies Cluster Reset Restore", func() {
-		testcase.TestClusterRestore(cluster, true, flags)
+		testcase.TestClusterRestore(cluster, flags)
 	})
 
 })

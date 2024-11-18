@@ -136,10 +136,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		}, nil
 	}
 
-	var (
-		serverIPs []string
-		agentIPs  []string
-	)
+	var serverIPs, agentIPs []string
 
 	// separate the nodes IPs based on roles.
 	for i := range nodes {
@@ -159,10 +156,9 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		Aws: AwsConfig{
 			Region: os.Getenv("region"),
 			EC2Config: EC2Config{
-				AccessKey: os.Getenv("access_key"),
-				AwsUser:   os.Getenv("aws_user"),
-				Ami:       os.Getenv("aws_ami"),
-
+				AccessKey:        os.Getenv("access_key"),
+				AwsUser:          os.Getenv("aws_user"),
+				Ami:              os.Getenv("aws_ami"),
 				VolumeSize:       os.Getenv("volume_size"),
 				InstanceClass:    os.Getenv("ec2_instance_class"),
 				Subnets:          os.Getenv("subnets"),
