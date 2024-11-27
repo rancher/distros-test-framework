@@ -47,6 +47,8 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
 		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
+	} else {
+		time.Sleep(5 * time.Second) // Wait for prepare action to complete before restarting service.
 	}
 	for _, node := range nodes {
 		nodearr := []string{node.ExternalIP}
