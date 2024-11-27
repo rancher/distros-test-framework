@@ -88,7 +88,7 @@ node {
                   break             
                 case "restartservice":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
+                  jobs[test_name+"_splitroles"] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
                   break
                 case "rebootinstances":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances", parameters: install_params }
