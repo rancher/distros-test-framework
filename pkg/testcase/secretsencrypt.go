@@ -45,33 +45,40 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
 	if (action == "reencrypt") || (action == "rotate-keys") {
-		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
+		shared.LogLevel("debug", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
 		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
 	} else {
+		shared.LogLevel("debug", "prepare/rotate op may need some time to complete - Sleep for 10 seconds before service restarts")
 		time.Sleep(10 * time.Second) // Wait for prepare/rotate action to complete before restarting service.
 	}
-	for _, node := range nodes {
-		nodearr := []string{node.ExternalIP}
-		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
-		// Order of reboot matters. Etcd first then control plane nodes.
-		// Little lag needed between node restarts to avoid issues.
-		time.Sleep(30 * time.Second)
-		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-		if waitEtcdErr != nil {
-			shared.LogLevel("WARN", "pods not up after 30 seconds.")
+
+	for i := range 2 { // For bigger setups 3 etcd, 2 cp, 1 agent nodes, it seems to need 2 restarts to copy encryption files.
+		shared.LogLevel("debug", "restart loop %d", i)
+		for _, node := range nodes {
+			nodearr := []string{node.ExternalIP}
+			nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+			Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+			// Order of reboot matters. Etcd first then control plane nodes.
+			// Little lag needed between node restarts to avoid issues.
+			shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
+			time.Sleep(30 * time.Second)
+			waitEtcdErr := shared.WaitForPodsRunning(10, 3)
+			if waitEtcdErr != nil {
+				shared.LogLevel("warn", "pods not up after 30 seconds.")
+			}
 		}
 	}
+
 	switch product {
 	case "k3s":
 		waitPodsErr := shared.WaitForPodsRunning(10, 3)
 		if waitPodsErr != nil {
-			shared.LogLevel("WARN", "pods not up after 30 seconds")
+			shared.LogLevel("warn", "pods not up after 30 seconds")
 		}
 	case "rke2":
 		waitPodsErr := shared.WaitForPodsRunning(10, 6)
 		if waitPodsErr != nil {
-			shared.LogLevel("WARN", "pods not up after 60 seconds")
+			shared.LogLevel("warn", "pods not up after 60 seconds")
 		}
 	}
 
@@ -92,16 +99,16 @@ func waitForHashMatch(cpIP, product string) (string, error) {
 	for i := 1; i <= times; i++ {
 		secretEncryptStatus, errGetStatus = shared.SecretEncryptOps("status", cpIP, product)
 		if errGetStatus != nil {
-			shared.LogLevel("DEBUG", "error getting secret-encryption status. Retry.")
+			shared.LogLevel("debug", "error getting secret-encryption status. Retry.")
 		}
 		if secretEncryptStatus != "" && strings.Contains(secretEncryptStatus, "All hashes match") {
-			shared.LogLevel("DEBUG", "Total sleep time before hashes matched: %d seconds", i*int(defaultTime))
+			shared.LogLevel("debug", "Total sleep time before hashes matched: %d seconds", i*int(defaultTime))
 
 			return secretEncryptStatus, nil
 		}
 		time.Sleep(defaultTime * time.Second)
 	}
-	shared.LogLevel("WARN", "Hashes did not match after %d seconds", times*int(defaultTime))
+	shared.LogLevel("warn", "Hashes did not match after %d seconds", times*int(defaultTime))
 
 	return secretEncryptStatus, errGetStatus
 }
@@ -152,12 +159,12 @@ func logEncryptionFileContents(nodes []shared.Node, product string) error {
 		if errConfig != nil {
 			return shared.ReturnLogError("error cat of " + configFile)
 		}
-		shared.LogLevel("DEBUG", "cat %s:\n %s", configFile, configStdOut)
+		shared.LogLevel("debug", "cat %s:\n %s", configFile, configStdOut)
 		currentTime := time.Now()
 		Expect(configStdOut).To(ContainSubstring("aescbckey-" + currentTime.Format("2006-01-02")))
 
 		stateOut, errState := shared.RunCommandOnNode(cmdShowState, ip)
-		shared.LogLevel("DEBUG", "cat %s:\n %s", stateFile, stateOut)
+		shared.LogLevel("debug", "cat %s:\n %s", stateFile, stateOut)
 		if errState != nil {
 			return shared.ReturnLogError("error cat of " + stateFile)
 		}
