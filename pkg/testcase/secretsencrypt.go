@@ -45,8 +45,14 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
 
-	shared.LogLevel("debug", "secrets-encrypt ops needs extra time to complete - Sleep for 30 seconds before service restarts")
-	time.Sleep(30 * time.Second)
+	switch product {
+	case "k3s":
+		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 30 seconds before service restarts")
+		time.Sleep(30 * time.Second)
+	case "rke2":
+		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 60 seconds before service restarts")
+		time.Sleep(60 * time.Second)
+	}
 
 	for _, node := range nodes {
 		nodearr := []string{node.ExternalIP}
