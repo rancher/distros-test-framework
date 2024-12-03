@@ -44,30 +44,26 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	stdOutput, err := shared.SecretEncryptOps(action, cpIP, product)
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
-	if (action == "reencrypt") || (action == "rotate-keys") {
-		shared.LogLevel("debug", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
-		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
-	} else {
-		shared.LogLevel("debug", "prepare/rotate op may need some time to complete - Sleep for 10 seconds before service restarts")
-		time.Sleep(10 * time.Second) // Wait for prepare/rotate action to complete before restarting service.
-	}
 
-	for i := range 2 { // For bigger setups 3 etcd, 2 cp, 1 agent nodes, it seems to need 2 restarts to copy encryption files.
-		shared.LogLevel("debug", "restart loop %d", i)
-		for _, node := range nodes {
-			nodearr := []string{node.ExternalIP}
-			nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-			Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
-			// Order of reboot matters. Etcd first then control plane nodes.
-			// Little lag needed between node restarts to avoid issues.
-			shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
-			time.Sleep(30 * time.Second)
-			waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-			if waitEtcdErr != nil {
-				shared.LogLevel("warn", "pods not up after 30 seconds.")
-			}
+	shared.LogLevel("debug", "secrets-encrypt ops needs extra time to complete - Sleep for 30 seconds before service restarts")
+	time.Sleep(30 * time.Second)
+
+	// for i := range 2 { // For bigger setups 3 etcd, 2 cp, 1 agent nodes, it seems to need 2 restarts to copy encryption files.
+	// 	shared.LogLevel("debug", "restart loop %d", i)
+	for _, node := range nodes {
+		nodearr := []string{node.ExternalIP}
+		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+		// Order of reboot matters. Etcd first then control plane nodes.
+		// Little lag needed between node restarts to avoid issues.
+		shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
+		time.Sleep(30 * time.Second)
+		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
+		if waitEtcdErr != nil {
+			shared.LogLevel("warn", "pods not up after 30 seconds.")
 		}
 	}
+	// }
 
 	switch product {
 	case "k3s":
