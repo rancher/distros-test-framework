@@ -57,12 +57,12 @@ func verifyTLSDirContent(product string, ips []string) {
 	cmd := "sudo ls -lt " + serverDir + "/ | grep tls | awk {'print $9'} | sed -n '2 p'"
 
 	for _, ip := range ips {
-		shared.LogLevel("info", "Working on node with ip: "+ip)
+		shared.LogLevel("info", "Working on node with ip: %v", ip)
 
 		tlsDir, tlsError := shared.RunCommandOnNode(cmd, ip)
 		Expect(tlsError).NotTo(HaveOccurred(), "Unable to get new TLS Directory name for "+ip)
 
-		shared.LogLevel("info", "TLS Directory name:  "+tlsDir)
+		shared.LogLevel("info", "TLS Directory name:  %v", tlsDir)
 		newTLSDir := fmt.Sprintf("%s/%s", serverDir, tlsDir)
 
 		shared.LogLevel("info", "Comparing Directories: %s and %s", origTLSDir, newTLSDir)
@@ -73,7 +73,7 @@ func verifyTLSDirContent(product string, ips []string) {
 		identicalFileList, err := shared.RunCommandOnNode(cmd2, ip)
 		Expect(err).NotTo(HaveOccurred(), "error getting identical files on "+ip)
 
-		shared.LogLevel("debug", fmt.Sprintf("Identical Files Output for %s: %s", ip, identicalFileList))
+		shared.LogLevel("debug", "Identical Files Output for %s: %s", ip, identicalFileList)
 
 		verifyIdenticalFiles(identicalFileList)
 	}

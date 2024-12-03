@@ -22,8 +22,8 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if cluster.BastionConfig.PublicIPv4Addr != "" {
-		shared.LogLevel("info", "Bastion Public IP: "+cluster.BastionConfig.PublicIPv4Addr)
-		shared.LogLevel("info", "Bastion Public DNS: "+cluster.BastionConfig.PublicDNS)
+		shared.LogLevel("info", "Bastion Public IP: %v", cluster.BastionConfig.PublicIPv4Addr)
+		shared.LogLevel("info", "Bastion Public DNS: %v", cluster.BastionConfig.PublicDNS)
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
@@ -55,7 +55,7 @@ func installOnServers(cluster *shared.Cluster) {
 			token, err = shared.CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 			Expect(token).NotTo(BeEmpty())
-			shared.LogLevel("debug", "token: "+token)
+			shared.LogLevel("debug", "token: %v", token)
 		}
 
 		// Installing product on additional servers.
