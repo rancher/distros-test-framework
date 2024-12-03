@@ -48,8 +48,6 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	shared.LogLevel("debug", "secrets-encrypt ops needs extra time to complete - Sleep for 30 seconds before service restarts")
 	time.Sleep(30 * time.Second)
 
-	// for i := range 2 { // For bigger setups 3 etcd, 2 cp, 1 agent nodes, it seems to need 2 restarts to copy encryption files.
-	// 	shared.LogLevel("debug", "restart loop %d", i)
 	for _, node := range nodes {
 		nodearr := []string{node.ExternalIP}
 		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
@@ -63,7 +61,6 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 			shared.LogLevel("warn", "pods not up after 30 seconds.")
 		}
 	}
-	// }
 
 	switch product {
 	case "k3s":
