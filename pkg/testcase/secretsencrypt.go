@@ -50,8 +50,8 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 30 seconds before service restarts")
 		time.Sleep(30 * time.Second)
 	case "rke2":
-		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 60 seconds before service restarts")
-		time.Sleep(60 * time.Second)
+		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 80 seconds before service restarts")
+		time.Sleep(80 * time.Second)
 	}
 
 	for _, node := range nodes {
@@ -85,7 +85,7 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	Expect(errGetStatus).NotTo(HaveOccurred(), "error getting secret-encryption status")
 	verifyStatusStdOut(action, secretEncryptStatus)
 
-	errLog := logEncryptionFileContents(nodes, product)
+	errLog := logEncryptionFileContents(nodes, action, product)
 	Expect(errLog).NotTo(HaveOccurred())
 }
 
@@ -146,7 +146,7 @@ func verifyStatusStdOut(action, stdout string) {
 	}
 }
 
-func logEncryptionFileContents(nodes []shared.Node, product string) error {
+func logEncryptionFileContents(nodes []shared.Node, action, product string) error {
 	configFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-config.json", product)
 	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
 	cmdShowConfig := "sudo cat  " + configFile
@@ -166,6 +166,11 @@ func logEncryptionFileContents(nodes []shared.Node, product string) error {
 		shared.LogLevel("debug", "cat %s:\n %s", stateFile, stateOut)
 		if errState != nil {
 			return shared.ReturnLogError("error cat of " + stateFile)
+		}
+		if (action == "reencrypt") || (action == "rotate-keys") {
+			Expect(stateOut).To(ContainSubstring("reencrypt_finished"))
+		} else {
+			Expect(stateOut).To(ContainSubstring(action))
 		}
 	}
 
