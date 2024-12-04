@@ -396,6 +396,12 @@ func testValidatePodsPostRestore() {
 			shared.LogLevel("info", "tigera-operator pods have been successfully validated")
 		}
 		if strings.Contains(res[i].NameSpace, "kube-system") {
+			if strings.Contains(res[i].Name, "cilium-operator") {
+				//  if strings.Contains(res[i].Status, "Pending") {
+				// 	Expect(res[i].Ready).To(Equal("0/1"))
+				//  }
+				// add ciliumPod information
+			}
 			Expect(res[i].Status).To(SatisfyAny(ContainSubstring("Running"), ContainSubstring("Completed")))
 			shared.LogLevel("info", "pods have been successfully validated")
 		}
