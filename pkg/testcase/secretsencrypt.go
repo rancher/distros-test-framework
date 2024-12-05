@@ -37,12 +37,12 @@ func TestSecretsEncryption() {
 }
 
 func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
-	shared.LogLevel("info", "TEST: Secrets-Encryption:  "+action)
+	shared.LogLevel("info", "TEST: Secrets-Encryption:  %v", action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
 
 	stdOutput, err := shared.SecretEncryptOps(action, cpIP, product)
-	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
+	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: %v", action)
 	verifyActionStdOut(action, stdOutput)
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
@@ -148,7 +148,7 @@ func logEncryptionFileContents(nodes []shared.Node, product string) error {
 		ip := node.ExternalIP
 		configStdOut, errConfig := shared.RunCommandOnNode(cmdShowConfig, ip)
 		if errConfig != nil {
-			return shared.ReturnLogError("error cat of " + configFile)
+			return shared.ReturnLogError("error cat of %v", configFile)
 		}
 		shared.LogLevel("DEBUG", "cat %s:\n %s", configFile, configStdOut)
 		currentTime := time.Now()
@@ -157,7 +157,7 @@ func logEncryptionFileContents(nodes []shared.Node, product string) error {
 		stateOut, errState := shared.RunCommandOnNode(cmdShowState, ip)
 		shared.LogLevel("DEBUG", "cat %s:\n %s", stateFile, stateOut)
 		if errState != nil {
-			return shared.ReturnLogError("error cat of " + stateFile)
+			return shared.ReturnLogError("error cat of %v", stateFile)
 		}
 	}
 

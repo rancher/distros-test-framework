@@ -30,8 +30,14 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	originalFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-upgrade-plan.yaml",
-		cluster.Config.Arch, cluster.Config.Product)
+	var originalFilePath string
+	if os.Getenv("split_roles") == "true" {
+		originalFilePath = shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-suc-plan-splitroles.yaml",
+			cluster.Config.Arch, cluster.Config.Product)
+	} else {
+		originalFilePath = shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-suc-plan.yaml",
+			cluster.Config.Arch, cluster.Config.Product)
+	}
 	newFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/plan.yaml", cluster.Config.Arch)
 
 	content, err := os.ReadFile(originalFilePath)
