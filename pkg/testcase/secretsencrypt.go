@@ -47,18 +47,16 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 
 	shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 30 seconds before service restarts")
 	time.Sleep(30 * time.Second)
-	var range_count int
 
+	var range_count int
 	switch product {
 	case "k3s":
 		range_count = 1
 	case "rke2":
 		range_count = 2
-		// shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 150 seconds before service restarts")
-		// time.Sleep(150 * time.Second)
 	}
 
-	for i := range range_count {
+	for i := 1; i <= range_count; i++ {
 		shared.LogLevel("debug", "Restart Loop %d", i)
 		for _, node := range nodes {
 			nodearr := []string{node.ExternalIP}
