@@ -45,26 +45,33 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
 
+	shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 30 seconds before service restarts")
+	time.Sleep(30 * time.Second)
+	var range_count int
+
 	switch product {
 	case "k3s":
-		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 30 seconds before service restarts")
-		time.Sleep(30 * time.Second)
+		range_count = 1
 	case "rke2":
-		shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 80 seconds before service restarts")
-		time.Sleep(80 * time.Second)
+		range_count = 2
+		// shared.LogLevel("debug", "secrets-encrypt ops need extra time to complete - Sleep for 150 seconds before service restarts")
+		// time.Sleep(150 * time.Second)
 	}
 
-	for _, node := range nodes {
-		nodearr := []string{node.ExternalIP}
-		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
-		// Order of reboot matters. Etcd first then control plane nodes.
-		// Little lag needed between node restarts to avoid issues.
-		shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
-		time.Sleep(30 * time.Second)
-		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-		if waitEtcdErr != nil {
-			shared.LogLevel("warn", "pods not up after 30 seconds.")
+	for i := range range_count {
+		shared.LogLevel("debug", "Restart Loop %d", i)
+		for _, node := range nodes {
+			nodearr := []string{node.ExternalIP}
+			nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+			Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+			// Order of reboot matters. Etcd first then control plane nodes.
+			// Little lag needed between node restarts to avoid issues.
+			shared.LogLevel("debug", "Sleep for 45 seconds before service restarts between servers")
+			time.Sleep(30 * time.Second)
+			waitEtcdErr := shared.WaitForPodsRunning(10, 3)
+			if waitEtcdErr != nil {
+				shared.LogLevel("warn", "pods not up after 30 seconds.")
+			}
 		}
 	}
 
