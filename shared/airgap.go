@@ -86,7 +86,6 @@ func dockerActions(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
 func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string, tarballType *string) error {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
-
 	errChan := make(chan error, len(nodeIPs))
 	var err error
 	var wg sync.WaitGroup
@@ -95,46 +94,38 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string, tarballType *strin
 		wg.Add(1)
 		go func(nodeIP string) {
 			defer wg.Done()
-			LogLevel("debug", "Copy %v assets on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
+			LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, nodeIP)
 			err = copyAssets(cluster, airgapMethod, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
-			LogLevel("debug", "Copy %v assets on node IP: %s -> Complete!", cluster.Config.Product, nodeIP)
-
 			switch airgapMethod {
 			case "private_registry":
-				LogLevel("debug", "Copy registry.yaml on node IP: %s -> Starting...", nodeIP)
+				LogLevel("debug", "Copying registry.yaml on node IP: %s", nodeIP)
 				err = copyRegistry(cluster, nodeIP)
 				if err != nil {
 					errChan <- ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
 				}
-				LogLevel("debug", "Copy registry.yaml on node IP: %s -> Complete!", nodeIP)
 			case "system_default_registry":
-				LogLevel("debug", "Trust CA Certs on node IP: %s -> Starting...", nodeIP)
+				LogLevel("debug", "Trust CA Certs on node IP: %s", nodeIP)
 				err = trustCert(cluster, nodeIP)
 				if err != nil {
 					errChan <- ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
 				}
-				LogLevel("debug", "Trust CA Certs on node IP: %s -> Complete!", nodeIP)
 			case "tarball":
-				LogLevel("debug", "Copying tarball on node IP: %s -> Starting...", nodeIP)
+				LogLevel("debug", "Copying tarball on node IP: %s", nodeIP)
 				err = copyTarball(cluster, nodeIP, *tarballType)
 				if err != nil {
 					errChan <- ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
 				}
-				LogLevel("debug", "Copying tarball on node IP: %s -> Complete!", nodeIP)
 			}
-
-			LogLevel("debug", "Make %s executable on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
+			LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
 			err = makeExecs(cluster, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
 			}
-			LogLevel("debug", "Make %s executable on node IP: %s -> Complete!", cluster.Config.Product, nodeIP)
 		}(nodeIP)
 	}
-
 	wg.Wait()
 	close(errChan)
 
