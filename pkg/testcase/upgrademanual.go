@@ -3,10 +3,8 @@ package testcase
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -25,13 +23,13 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	}
 
 	if cluster.NumServers > 0 {
-		if err := upgradeServer(*k8sClient, cluster.Config.Product, version, cluster.ServerIPs); err != nil {
+		if err := upgradeProduct(k8sClient, cluster, "server", version); err != nil {
 			return err
 		}
 	}
 
 	if cluster.NumAgents > 0 {
-		if err := upgradeAgent(*k8sClient, cluster.Config.Product, version, cluster.AgentIPs); err != nil {
+		if err := upgradeProduct(k8sClient, cluster, "agent", version); err != nil {
 			return err
 		}
 	}
@@ -40,11 +38,19 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(k8sClient k8s.Client, product, nodeType, installType string, ips []string) error {
+func upgradeProduct(k8sClient *k8s.Client, cluster *shared.Cluster, nodeType, installType string) error {
 	var wg sync.WaitGroup
+
+	var ips []string
+	if nodeType == "server" {
+		ips = cluster.ServerIPs
+	} else {
+		ips = cluster.AgentIPs
+	}
+
 	errCh := make(chan error, len(ips))
 
-	upgradeCommand := getInstallCmd(product, installType, nodeType)
+	upgradeCommand := shared.GetInstallCmd(cluster.Config.Product, installType, nodeType)
 
 	for _, ip := range ips {
 		wg.Add(1)
@@ -60,7 +66,7 @@ func upgradeProduct(k8sClient k8s.Client, product, nodeType, installType string,
 			}
 
 			shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
-			err := shared.RestartCluster(product, ip)
+			err := shared.RestartCluster(cluster.Config.Product, ip)
 			if err != nil {
 				return
 			}
@@ -79,40 +85,4 @@ func upgradeProduct(k8sClient k8s.Client, product, nodeType, installType string,
 	}
 
 	return nil
-}
-
-func getInstallCmd(product, installType, nodeType string) string {
-	var installFlag string
-	var installCmd string
-
-	var channel = getChannel(product)
-
-	if strings.HasPrefix(installType, "v") {
-		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
-	} else {
-		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
-	}
-
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
-
-	return fmt.Sprintf(installCmd, installFlag, channel)
-}
-
-func getChannel(product string) string {
-	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
-
-	if customflag.ServiceFlag.Channel.String() != "" {
-		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
-			customflag.ServiceFlag.Channel.String())
-	}
-
-	return defaultChannel
-}
-
-func upgradeServer(k8sClient k8s.Client, product, installType string, serverIPs []string) error {
-	return upgradeProduct(k8sClient, product, "server", installType, serverIPs)
-}
-
-func upgradeAgent(k8sClient k8s.Client, product, installType string, agentIPs []string) error {
-	return upgradeProduct(k8sClient, product, "agent", installType, agentIPs)
 }

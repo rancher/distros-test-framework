@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/logger"
 )
 
@@ -145,9 +146,9 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
 				"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
-			c.AwsEc2.AccessKey,
+			c.Aws.AccessKey,
 			localPath,
-			c.AwsEc2.AwsUser,
+			c.Aws.AwsUser,
 			remotePath,
 		)
 
@@ -203,7 +204,8 @@ func configureSSH(host string) (*ssh.Client, error) {
 	// get access key and user from cluster config.
 	kubeConfig := os.Getenv("KUBE_CONFIG")
 	if kubeConfig == "" {
-		cluster = ClusterConfig()
+		productCfg := AddProductCfg()
+		cluster = ClusterConfig(productCfg)
 	} else {
 		cluster, err = addClusterFromKubeConfig(nil)
 		if err != nil {
@@ -211,13 +213,13 @@ func configureSSH(host string) (*ssh.Client, error) {
 		}
 	}
 
-	authMethod, err := publicKey(cluster.AwsEc2.AccessKey)
+	authMethod, err := publicKey(cluster.Aws.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
-		User: cluster.AwsEc2.AwsUser,
+		User: cluster.Aws.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -568,4 +570,32 @@ func CleanSliceStrings(stringsSlice []string) []string {
 	}
 
 	return stringsSlice
+}
+
+func GetInstallCmd(product, installType, nodeType string) string {
+	var installFlag string
+	var installCmd string
+
+	var channel = getChannel(product)
+
+	if strings.HasPrefix(installType, "v") {
+		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
+	} else {
+		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+
+	return fmt.Sprintf(installCmd, installFlag, channel)
+}
+
+func getChannel(product string) string {
+	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+
+	if customflag.ServiceFlag.Channel.String() != "" {
+		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
+			customflag.ServiceFlag.Channel.String())
+	}
+
+	return defaultChannel
 }

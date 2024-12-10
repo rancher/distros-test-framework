@@ -1,4 +1,4 @@
-package upgradecluster
+package clusterrestore
 
 import (
 	"flag"
@@ -6,32 +6,31 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
-	kubeconfig string
 	flags      *customflag.FlagConfig
-	cluster    *shared.Cluster
-	k8sClient  *k8s.Client
+	kubeconfig string
 	cfg        *config.Product
-	err        error
+	cluster    *shared.Cluster
+	awsClient  *aws.Client
 )
 
 func TestMain(m *testing.M) {
+	var err error
 	flags = &customflag.ServiceFlag
-	flag.Var(&flags.InstallMode, "installVersionOrCommit", "Upgrade with version or commit")
-	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
+	flag.StringVar(&flags.S3Flags.Bucket, "s3Bucket", "distros_qa", "s3 bucket to store snapshots")
+	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -49,37 +48,37 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	k8sClient, err = k8s.AddClient()
+	awsClient, err = aws.AddClient(cluster)
 	if err != nil {
-		shared.LogLevel("error", "error adding k8s client: %w\n", err)
+		shared.LogLevel("error", "error adding aws nodes: %s", err)
 		os.Exit(1)
 	}
 
 	os.Exit(m.Run())
 }
 
-func TestClusterUpgradeSuite(t *testing.T) {
+func TestClusterResetRestoreSuite(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Upgrade Cluster Test Suite")
+	RunSpecs(t, "Cluster Reset Restore Test Suite")
 }
-
-var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
-	// AddClient Qase reporting capabilities.
-	if strings.ToLower(qaseReport) == "true" {
-		qaseClient, err := qase.AddQase()
-		Expect(err).ToNot(HaveOccurred(), "error adding qase")
-
-		qaseClient.ReportTestResults(qaseClient.Ctx, &report, flags.InstallMode.String())
-	} else {
-		shared.LogLevel("info", "Qase reporting is not enabled")
-	}
-})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
+	}
+})
+
+var _ = ReportAfterSuite("Cluster Reset Restore Test Suite", func(report Report) {
+	// AddClient Qase reporting capabilities.
+	if strings.ToLower(qaseReport) == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
 	}
 })
 
