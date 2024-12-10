@@ -54,6 +54,7 @@ var _ = BeforeSuite(func() {
 	if cluster.Config.Product == "k3s" {
 		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
 			"ERROR: Add secrets-encryption:true to server_flags for this test")
+		os.Exit(1)
 	}
 })
 
