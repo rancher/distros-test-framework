@@ -33,6 +33,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	validateSecretsEncryptFlag()
+
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
@@ -50,13 +52,14 @@ func TestSecretsEncryptionSuite(t *testing.T) {
 	RunSpecs(t, "Secrets Encryption Test Suite")
 }
 
-var _ = BeforeSuite(func() {
-	if cluster.Config.Product == "k3s" {
-		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
-			"ERROR: Add secrets-encryption:true to server_flags for this test")
-		os.Exit(1)
+func validateSecretsEncryptFlag() {
+	if cfg.Product == "k3s" {
+		if !strings.Contains(os.Getenv("server_flags"), "secrets-encryption:") {
+			shared.LogLevel("error", "Add secrets-encryption:true to server_flags for this test")
+			os.Exit(1)
+		}
 	}
-})
+}
 
 var _ = ReportAfterSuite("Secrets Encryption Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
