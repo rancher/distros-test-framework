@@ -320,7 +320,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 			return nil, ReturnLogError("invalid role: %s", role)
 		}
 
-		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.creationTimestamp}'" +
 			" --no-headers --kubeconfig=" + KubeConfigFile +
 			" -l role-" + role
 		res, err := RunCommandHost(cmd)

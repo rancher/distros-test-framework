@@ -65,8 +65,8 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 				errChan <- shared.ReturnLogError("error fetching ip: %w\n", err)
 				return
 			}
-			shared.LogLevel("info", fmt.Sprintf("Created instance-> {id: %s, name: %s, ip: %s}",
-				nodeID, n, externalIp))
+			shared.LogLevel("info", "Created instance-> {id: %s, name: %s, ip: %s}",
+				nodeID, n, externalIp)
 
 			resChan <- response{nodeId: nodeID, externalIp: externalIp, privateIp: privateIp}
 		}(n)
@@ -136,8 +136,8 @@ func (c Client) DeleteInstance(ip string) error {
 					}
 				}
 			}
-			shared.LogLevel("info", fmt.Sprintf("Terminated instance-> {id: %s, name: %s, ip: %s}",
-				*node.InstanceId, instanceName, *node.PublicIpAddress))
+			shared.LogLevel("info", "Terminated instance-> {id: %s, name: %s, ip: %s}",
+				*node.InstanceId, instanceName, *node.PublicIpAddress)
 		}
 	}
 
@@ -356,8 +356,8 @@ func (c Client) waitForInstanceRunning(instanceId string) error {
 
 			status := statusRes.InstanceStatuses[0]
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				shared.LogLevel("info", fmt.Sprintf("Instance %s is running "+
-					"and passed status checks", instanceId))
+				shared.LogLevel("info", "Instance %s is running "+
+					"and passed status checks", instanceId)
 
 				return nil
 			}
@@ -387,7 +387,7 @@ func (c Client) waitInstanceStop(instanceID string) error {
 
 			status := statusRes.InstanceStatuses[0]
 			if *status.InstanceState.Name == "stopped" {
-				shared.LogLevel("info", fmt.Sprintf("Instance %s is stopped", instanceID))
+				shared.LogLevel("info", "Instance %s is stopped", instanceID)
 
 				return nil
 			}

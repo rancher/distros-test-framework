@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -17,9 +18,9 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
-		shared.LogLevel("info", "\nBackend: "+cluster.Config.DataStore+"\n")
+		shared.LogLevel("info", "\nBackend: %v\n", cluster.Config.DataStore)
 	} else {
-		shared.LogLevel("info", "\nBackend: "+cluster.Config.ExternalDb+"\n")
+		shared.LogLevel("info", "\nBackend: %v\n", cluster.Config.ExternalDb)
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {
@@ -47,6 +48,8 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	if cluster.Config.Product == "rke2" {
 		checkAndPrintAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
+	shared.LogLevel("info", "Adding 90 sec delay to allow cluster to settle")
+	time.Sleep(90 * time.Second)
 }
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
