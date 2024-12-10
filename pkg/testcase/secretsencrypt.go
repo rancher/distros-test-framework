@@ -60,7 +60,9 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 
 	// Restart all other server nodes - etcd and control plane
 	for _, node := range nodes {
-		if node.ExternalIP != etcdIp {
+		if node.ExternalIP == etcdIp {
+			continue
+		} else {
 			nodearr := []string{node.ExternalIP}
 			nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
 			Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
