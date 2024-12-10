@@ -34,6 +34,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	if cfg.Product == "k3s" {
+		if !strings.Contains(os.Getenv("server_flags"), "secrets-encryption") {
+			shared.LogLevel("info", "secrets-encryption flag is required to be set as server_flags.")
+			os.Exit(1)
+		}
+
+	}
+
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
@@ -52,11 +60,6 @@ func TestSecretsEncryptionSuite(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	if cluster.Config.Product == "k3s" {
-		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
-			"ERROR: Add secrets-encryption:true to server_flags for this test")
-	}
-
 	version := os.Getenv(fmt.Sprintf("%s_version", cluster.Config.Product))
 
 	var envErr error

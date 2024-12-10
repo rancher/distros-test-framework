@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -30,13 +31,12 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 	)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	var originalFilePath string
-	if os.Getenv("split_roles") == "true" {
-		originalFilePath = shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-suc-plan-splitroles.yaml",
-			cluster.Config.Arch, cluster.Config.Product)
+	originalFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-",
+		cluster.Config.Arch, cluster.Config.Product)
+	if isSplitRoles, _ := strconv.ParseBool(os.Getenv("split_roles")); isSplitRoles {
+		originalFilePath += "suc-plan-splitroles.yaml"
 	} else {
-		originalFilePath = shared.BasePath() + fmt.Sprintf("/workloads/%s/%s-suc-plan.yaml",
-			cluster.Config.Arch, cluster.Config.Product)
+		originalFilePath += "suc-plan.yaml"
 	}
 	newFilePath := shared.BasePath() + fmt.Sprintf("/workloads/%s/plan.yaml", cluster.Config.Arch)
 
