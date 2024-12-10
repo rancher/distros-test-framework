@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -30,10 +29,8 @@ func TestSecretsEncryption() {
 	secretsEncryptOps("rotate", product, cpIp, nodes)
 	secretsEncryptOps("reencrypt", product, cpIp, nodes)
 
-	if strings.Contains(os.Getenv("TEST_TYPE"), "both") {
-		shared.LogLevel("info", "TEST: 'NEW' Secrets Encryption method")
-		secretsEncryptOps("rotate-keys", product, cpIp, nodes)
-	}
+	shared.LogLevel("info", "TEST: 'NEW' Secrets Encryption method")
+	secretsEncryptOps("rotate-keys", product, cpIp, nodes)
 }
 
 func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
