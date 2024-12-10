@@ -48,7 +48,7 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 	workloadErr = shared.ManageWorkload("apply", "plan.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "failed to upgrade cluster.")
 
-	ok, err := k8sClient.CheckClusterHealth(0, cluster)
+	ok, err := k8sClient.CheckClusterHealth(0)
 	Expect(err).NotTo(HaveOccurred(), err, "error checking cluster health")
 	Expect(ok).To(BeTrue(), "cluster health check failed")
 

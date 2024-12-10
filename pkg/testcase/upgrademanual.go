@@ -76,7 +76,7 @@ func upgradeProduct(k8sClient *k8s.Client, cluster *shared.Cluster, nodeType, in
 	wg.Wait()
 	close(errCh)
 
-	ok, err := k8sClient.CheckClusterHealth(0, cluster)
+	ok, err := k8sClient.CheckClusterHealth(0)
 	if err != nil {
 		return fmt.Errorf("error waiting for cluster to be ready: %w", err)
 	}

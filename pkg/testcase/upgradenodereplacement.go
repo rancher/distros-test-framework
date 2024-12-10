@@ -72,7 +72,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
 	shared.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
-	clusterErr := validateClusterHealth(cluster)
+	clusterErr := validateClusterHealth()
 	if clusterErr != nil {
 		shared.LogLevel("error", "error validating cluster health: %w\n", clusterErr)
 	}
@@ -599,13 +599,13 @@ func joinNode(cmd, ip string) error {
 	return nil
 }
 
-func validateClusterHealth(cluster *shared.Cluster) error {
+func validateClusterHealth() error {
 	k8sC, err := k8s.AddClient()
 	if err != nil {
 		return fmt.Errorf("error adding k8s client: %w", err)
 	}
 
-	ok, err := k8sC.CheckClusterHealth(0, cluster)
+	ok, err := k8sC.CheckClusterHealth(0)
 	if err != nil {
 		return fmt.Errorf("error checking cluster health: %w", err)
 	}

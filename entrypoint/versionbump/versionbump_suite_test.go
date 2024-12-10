@@ -19,6 +19,8 @@ var (
 	kubeconfig string
 	cluster    *shared.Cluster
 	k8sClient  *k8s.Client
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
@@ -40,7 +42,7 @@ func TestMain(m *testing.M) {
 		addTcFlag()
 	}
 
-	cfg, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -73,7 +75,7 @@ func TestVersionBumpSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
@@ -90,7 +92,7 @@ var _ = AfterSuite(func() {
 func addTcFlag() {
 	customflag.ValidateTemplateTcs()
 
-	testFuncs, err := template.AddTestCases(cluster, k8sClient, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
+	testFuncs, err := template.AddTestCases(cluster, customflag.ServiceFlag.TestTemplateConfig.TestFuncNames)
 	if err != nil {
 		shared.LogLevel("error", "error on adding test cases to testConfigFlag: %w", err)
 		return

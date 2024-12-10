@@ -18,6 +18,8 @@ var (
 	kubeconfig string
 	cluster    *shared.Cluster
 	k8sClient  *k8s.Client
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
@@ -26,7 +28,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
 	flag.Parse()
 
-	cfg, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -57,7 +59,7 @@ func TestSelinuxSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

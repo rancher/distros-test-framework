@@ -221,7 +221,7 @@ worker_flags    = "" (unless using a cni)
 
 #### For Local/Docker
 
-- Required vars in `.env` file:
+- Required vars that should be exported anywhere locally:
 ```
 AWS_ACCESS_KEY_ID=<KEY_ID>
 AWS_SECRET_ACCESS_KEY=<KEY>

@@ -16,8 +16,6 @@ import (
 var (
 	once    sync.Once
 	cluster *Cluster
-	product string
-	module  string
 )
 
 type Cluster struct {
@@ -100,7 +98,7 @@ func ClusterConfig(cfg *config.Product) *Cluster {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
 				LogLevel("info", "\nmoving to start destroy operation\n")
-				status, destroyErr := DestroyCluster()
+				status, destroyErr := DestroyCluster(cfg)
 				if destroyErr != nil {
 					LogLevel("error", "error destroying cluster: %w\n", destroyErr)
 					os.Exit(1)
@@ -185,20 +183,14 @@ func newCluster(product, module string) (*Cluster, error) {
 
 	t := &testing.T{}
 	numServers, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"no_of_server_nodes",
-	))
+		t, varDir, "no_of_server_nodes"))
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error getting no_of_server_nodes from var file: %w", err)
 	}
 
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"no_of_worker_nodes",
-	))
+		t, varDir, "no_of_worker_nodes"))
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error getting no_of_worker_nodes from var file: %w", err)
@@ -227,19 +219,17 @@ func newCluster(product, module string) (*Cluster, error) {
 
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
-
 	c.NumServers = numServers
 	c.NumAgents = numAgents
 	c.Status = "cluster created"
-
 	LogLevel("debug", "Cluster has been created successfully...")
 
 	return c, nil
 }
 
 // DestroyCluster destroys the cluster and returns it.
-func DestroyCluster() (string, error) {
-	terraformOptions, _, err := setTerraformOptions(product, module)
+func DestroyCluster(cfg *config.Product) (string, error) {
+	terraformOptions, _, err := setTerraformOptions(cfg.Product, cfg.Module)
 	if err != nil {
 		return "", err
 	}

@@ -6,7 +6,7 @@ resource "aws_db_instance" "db" {
   engine                 = var.external_db
   engine_version         = var.external_db_version
   instance_class         = var.instance_class
-  db_name                = "${local.resource_tag}-mydb"
+  db_name                = "mydb"
   parameter_group_name   = var.db_group_name
   username               = var.db_username
   password               = var.db_password
@@ -23,7 +23,7 @@ resource "aws_rds_cluster" "db" {
   engine                 = var.external_db
   engine_version         = var.external_db_version
   availability_zones     = [var.availability_zone]
-  database_name          = "${local.resource_tag}-mydb"
+  database_name          = "mydb"
   master_username        = var.db_username
   master_password        = var.db_password
   engine_mode            = var.engine_mode

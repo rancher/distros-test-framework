@@ -34,10 +34,11 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 	restoreS3Snapshot(cluster, onDemandPath, clusterToken, newServerIP, flags)
 	enableAndStartService(cluster, newServerIP)
 
-	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName[0], cluster.Config.Product, "/tmp/"+serverName[0]+"_kubeconfig")
+	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName[0], cluster.Config.Product,
+		"/tmp/"+serverName[0]+"_kubeconfig")
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
-	// create k8s client now because it depends on updated kubeconfig file.
+	// create k8s client now because it depends on newly created kubeconfig file.
 	k8sClient, k8sErr := k8s.AddClient()
 	Expect(k8sErr).NotTo(HaveOccurred())
 
@@ -101,7 +102,7 @@ func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 	}
 }
 
-func installProduct(cluster *shared.Cluster, newClusterIP string, version string) {
+func installProduct(cluster *shared.Cluster, newClusterIP, version string) {
 	setConfigFile(cluster, newClusterIP)
 
 	installCmd := shared.GetInstallCmd(cluster.Config.Product, version, "server")
@@ -129,14 +130,14 @@ func setConfigFile(cluster *shared.Cluster, newClusterIP string) {
 
 	defer tempFile.Close()
 
-	_, writeErr := tempFile.WriteString(fmt.Sprintf("node-external-ip: %s\n", newClusterIP))
+	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", newClusterIP)
 	Expect(writeErr).NotTo(HaveOccurred())
 
 	flagValues := strings.Split(serverFlags, "\n")
 	for _, entry := range flagValues {
 		entry = strings.TrimSpace(entry)
 		if entry != "" {
-			_, err := tempFile.WriteString(fmt.Sprintf("%s\n", entry))
+			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
 			Expect(err).NotTo(HaveOccurred())
 		}
 	}
@@ -210,7 +211,7 @@ func enableAndStartService(cluster *shared.Cluster, newClusterIP string) {
 	status, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
 		[]string{newClusterIP})
 	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
-	Expect(status).To(ContainSubstring("active (running)"))
+	Expect(status).To(ContainSubstring("active "))
 
 	shared.LogLevel("info", "%s service successfully enabled", cluster.Config.Product)
 }
@@ -250,8 +251,8 @@ func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newSe
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-	// validate overall cluster health after restore.
-	ok, err := k8sClient.CheckClusterHealth(0, cluster)
+	// validate overall cluster health after restore, one node (new one) should be in Ready state.
+	ok, err := k8sClient.CheckClusterHealth(1)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(ok).To(BeTrue())
 

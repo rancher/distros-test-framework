@@ -13,13 +13,17 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var cluster *shared.Cluster
+var (
+	cluster *shared.Cluster
+	cfg     *config.Product
+	err     error
+)
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	cfg, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
@@ -37,7 +41,7 @@ func TestCreateClusterSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

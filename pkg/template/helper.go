@@ -59,15 +59,15 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(cluster *shared.Cluster, k8sClient *k8s.Client, names []string) ([]testCase, error) {
-	tcs := addTestCaseMap(cluster, k8sClient)
+func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
+	tcs := addTestCaseMap(cluster)
 	return processTestCaseNames(tcs, names)
 }
 
 // addTestCaseMap initializes and returns the map of test cases.
 //
 //nolint:revive // we want to keep the argument for visibility.
-func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]testCase {
+func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
 		"TestIngress":          testcase.TestIngress,
@@ -102,15 +102,15 @@ func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]t
 		"TestCertRotate": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestCertRotate(cluster)
 		},
-		// "TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
-		// 	testcase.TestSecretsEncryption()
-		// },
+		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestSecretsEncryption()
+		},
 		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)
 		},
-		// "TestClusterReset": func(applyWorkload, deleteWorkload bool) {
-		// 	testcase.TestClusterReset(cluster, k8sClient)
-		// },
+		"TestClusterReset": func(applyWorkload, deleteWorkload bool) {
+			testcase.TestClusterReset(cluster)
+		},
 	}
 }
 

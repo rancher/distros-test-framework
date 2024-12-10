@@ -41,6 +41,13 @@ var _ = Describe("Test:", func() {
 		testcase.TestClusterRestore(cluster, awsClient, cfg, flags)
 	})
 
+	It("Validate Pods after Restore", func() {
+		testcase.TestPodStatus(
+			cluster,
+			assert.PodAssertRestart(),
+			assert.PodAssertReady())
+	})
+
 	It("Verifies ClusterIP Service after Restore if we can apply, work and delete workloads", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})

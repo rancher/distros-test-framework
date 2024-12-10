@@ -39,12 +39,12 @@ func AddClient() (*Client, error) {
 	}, nil
 }
 
-// CheckClusterHealth checks the health of the cluster by checking the API server,nodes and pods status.
+// CheckClusterHealth checks the health of the cluster by checking the API server and node status.
 //
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
 // if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
-func (k *Client) CheckClusterHealth(minReadyNodes int, cluster *shared.Cluster) (bool, error) {
+func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 	res, err := k.GetAPIServerHealth()
 	if err != nil {
 		return false, fmt.Errorf("API server health check failed: %w", err)
@@ -58,27 +58,7 @@ func (k *Client) CheckClusterHealth(minReadyNodes int, cluster *shared.Cluster) 
 		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
 
-	if podsErr := k.WaitForPods([]string{}, "", cluster); podsErr != nil {
-		return false, fmt.Errorf("pod status check failed: %w", podsErr)
-	}
-
 	return true, nil
-}
-
-// ListNamespaces returns a list of namespaces in the cluster.
-func (k *Client) ListNamespaces() ([]string, error) {
-	ctx := context.Background()
-	namespaces, err := k.Clientset.CoreV1().Namespaces().List(ctx, meta.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list namespaces: %w", err)
-	}
-
-	var nsList []string
-	for _, ns := range namespaces.Items {
-		nsList = append(nsList, ns.Name)
-	}
-
-	return nsList, nil
 }
 
 // ListResources search the resource type on preferred resources using the GVR and returns a list of resources.

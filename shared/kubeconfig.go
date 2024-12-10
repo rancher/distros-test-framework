@@ -136,7 +136,7 @@ func NewLocalKubeconfigFile(newServerIP, resourceName, product, localPath string
 		return ReturnLogError("failed to get kubeconfig file: %v\n", err)
 	}
 
-	serverIPRgx := regexp.MustCompile(`server: https://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+`)
+	serverIPRgx := regexp.MustCompile(`server: https://\d+\.\d+\.\d+\.\d+`)
 	replace := fmt.Sprintf("server: https://%s", newServerIP)
 	updated := serverIPRgx.ReplaceAllString(kubeconfigContent, replace)
 

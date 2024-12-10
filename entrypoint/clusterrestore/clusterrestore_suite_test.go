@@ -64,7 +64,7 @@ func TestClusterResetRestoreSuite(t *testing.T) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
