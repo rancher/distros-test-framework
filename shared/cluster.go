@@ -341,12 +341,15 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 // provide product k3s|rke2 string as input.
 func GetPrimaryEtcdIp(product string) (string, error) {
 	nodes, errGetNodes := GetNodesByRoles("etcd")
+
 	if errGetNodes != nil {
 		return "", ReturnLogError("failed to get etcd nodes by roles: \n%w", errGetNodes)
 	}
+
 	for _, node := range nodes {
 		cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml | grep server | grep https | cut -d ':' -f 3", product)
 		res, err := RunCommandOnNode(cmd, node.ExternalIP)
+
 		if err == nil {
 			LogLevel("debug", "Cmd Output: %s", res)
 			if res != "" {
