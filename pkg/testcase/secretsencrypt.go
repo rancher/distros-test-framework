@@ -46,8 +46,6 @@ func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shar
 	time.Sleep(30 * time.Second)
 
 	// Restart Primary Etcd Node First
-	// primaryEtcdIp, getError := shared.GetPrimaryEtcdIp(product)
-	// Expect(getError).NotTo(HaveOccurred(), "error getting primary etcd node")
 	restartServerAndWait(primaryEtcdIp, product)
 
 	// Restart all other server nodes - etcd and control plane
