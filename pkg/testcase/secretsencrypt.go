@@ -62,18 +62,17 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	for _, node := range nodes {
 		if node.ExternalIP == etcdIp {
 			continue
-		} else {
-			nodearr := []string{node.ExternalIP}
-			nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-			Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
-			// Order of reboot matters. Etcd first then control plane nodes.
-			// Little lag needed between node restarts to avoid issues.
-			shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
-			time.Sleep(30 * time.Second)
-			waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-			if waitEtcdErr != nil {
-				shared.LogLevel("warn", "pods not up after 30 seconds.")
-			}
+		}
+		nodearr := []string{node.ExternalIP}
+		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+		// Order of reboot matters. Etcd first then control plane nodes.
+		// Little lag needed between node restarts to avoid issues.
+		shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
+		time.Sleep(30 * time.Second)
+		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
+		if waitEtcdErr != nil {
+			shared.LogLevel("warn", "pods not up after 30 seconds.")
 		}
 	}
 
