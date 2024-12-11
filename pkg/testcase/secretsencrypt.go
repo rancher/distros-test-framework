@@ -10,7 +10,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSecretsEncryption() {
+func TestSecretsEncryption(cluster *shared.Cluster) {
+	Expect(cluster.Status).To(Equal("cluster created"))
+	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
+
 	nodes, errGetNodes := shared.GetNodesByRoles("etcd", "control-plane")
 	Expect(nodes).NotTo(BeEmpty())
 	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes")
@@ -21,19 +24,16 @@ func TestSecretsEncryption() {
 	errSecret := shared.CreateSecret("secret1", "default")
 	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
 
-	shared.LogLevel("info", "TEST: 'CLASSIC' Secrets Encryption method")
-
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
-	secretsEncryptOps("prepare", product, cpIp, nodes)
-	secretsEncryptOps("rotate", product, cpIp, nodes)
-	secretsEncryptOps("reencrypt", product, cpIp, nodes)
 
-	shared.LogLevel("info", "TEST: 'NEW' Secrets Encryption method")
-	secretsEncryptOps("rotate-keys", product, cpIp, nodes)
+	secretsEncryptOps("prepare", product, cluster.ServerIPs[0], cpIp, nodes)
+	secretsEncryptOps("rotate", product, cluster.ServerIPs[0], cpIp, nodes)
+	secretsEncryptOps("reencrypt", product, cluster.ServerIPs[0], cpIp, nodes)
+	secretsEncryptOps("rotate-keys", product, cluster.ServerIPs[0], cpIp, nodes)
 }
 
-func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
+func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shared.Node) {
 	shared.LogLevel("info", "TEST: Secrets-Encryption:  "+action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
@@ -46,13 +46,13 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	time.Sleep(30 * time.Second)
 
 	// Restart Primary Etcd Node First
-	etcdIp, getError := shared.GetPrimaryEtcdIp(product)
-	Expect(getError).NotTo(HaveOccurred(), "error getting primary etcd node")
-	restartServerAndWait(etcdIp, product)
+	// primaryEtcdIp, getError := shared.GetPrimaryEtcdIp(product)
+	// Expect(getError).NotTo(HaveOccurred(), "error getting primary etcd node")
+	restartServerAndWait(primaryEtcdIp, product)
 
 	// Restart all other server nodes - etcd and control plane
 	for _, node := range nodes {
-		if node.ExternalIP == etcdIp {
+		if node.ExternalIP == primaryEtcdIp {
 			continue
 		}
 		restartServerAndWait(node.ExternalIP, product)
@@ -104,7 +104,7 @@ func waitForHashMatch(cpIP, product string) (string, error) {
 			shared.LogLevel("debug", "error getting secret-encryption status. Retry.")
 		}
 		if secretEncryptStatus != "" && strings.Contains(secretEncryptStatus, "All hashes match") {
-			shared.LogLevel("debug", "Total sleep time before hashes matched: %d seconds", i*int(defaultTime))
+			shared.LogLevel("debug", "Hash matched after: %d seconds", i*int(defaultTime))
 
 			return secretEncryptStatus, nil
 		}
