@@ -337,12 +337,12 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	return nodes, nil
 }
 
-// GetPrimaryEtcdIp returns the primary etcd node public/external IP as a string, and error if not found
-// provide product k3s|rke2 string as input
+// GetPrimaryEtcdIp returns the primary etcd node public/external IP as a string, and error if not found.
+// provide product k3s|rke2 string as input.
 func GetPrimaryEtcdIp(product string) (string, error) {
 	nodes, errGetNodes := GetNodesByRoles("etcd")
 	if errGetNodes != nil {
-		return "", ReturnLogError("error", "failed to Get ETCD Nodes: \n%w", errGetNodes)
+		return "", ReturnLogError("failed to Get ETCD Nodes: \n%w", errGetNodes)
 	}
 	for _, node := range nodes {
 		cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml | grep server | grep https | cut -d ':' -f 3", product)
@@ -352,15 +352,14 @@ func GetPrimaryEtcdIp(product string) (string, error) {
 			if res != "" {
 				etcdIp := strings.ReplaceAll(res, "/", "")
 				return etcdIp, nil
-			} else {
-				LogLevel("debug", "empty output for getting server - so this is the primary etcd server")
-				return node.ExternalIP, nil
 			}
+			LogLevel("debug", "empty output for getting server - so this is the primary etcd server")
+			return node.ExternalIP, nil
 		} else {
 			LogLevel("error", "Error running cmd %s on ip %s", cmd, node.ExternalIP)
 		}
 	}
-	return "", ReturnLogError("error", "failed to Get Primary ETCD Node IP")
+	return "", ReturnLogError("failed to Get Primary ETCD Node IP")
 }
 
 // ParseNodes parses the nodes from the kubeclt get nodes command.
