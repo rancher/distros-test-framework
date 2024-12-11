@@ -48,32 +48,14 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 	// Restart Primary Etcd Node First
 	etcdIp, getError := shared.GetPrimaryEtcdIp(product)
 	Expect(getError).NotTo(HaveOccurred(), "error getting primary etcd node")
-	nodearr := []string{etcdIp}
-	etcdNodeIp, errRestartPrimary := shared.ManageService(product, "restart", "server", nodearr)
-	Expect(errRestartPrimary).NotTo(HaveOccurred(), "error restart service for node: "+etcdNodeIp)
-	shared.LogLevel("debug", "Sleep for 30 seconds after primary etcd server restart")
-	time.Sleep(30 * time.Second)
-	waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-	if waitEtcdErr != nil {
-		shared.LogLevel("warn", "pods not up after 30 seconds.")
-	}
+	restartServerAndWait(etcdIp, product)
 
 	// Restart all other server nodes - etcd and control plane
 	for _, node := range nodes {
 		if node.ExternalIP == etcdIp {
 			continue
 		}
-		nodearr := []string{node.ExternalIP}
-		nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-		Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
-		// Order of reboot matters. Etcd first then control plane nodes.
-		// Little lag needed between node restarts to avoid issues.
-		shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
-		time.Sleep(30 * time.Second)
-		waitEtcdErr := shared.WaitForPodsRunning(10, 3)
-		if waitEtcdErr != nil {
-			shared.LogLevel("warn", "pods not up after 30 seconds.")
-		}
+		restartServerAndWait(node.ExternalIP, product)
 	}
 
 	switch product {
@@ -95,6 +77,19 @@ func secretsEncryptOps(action, product, cpIP string, nodes []shared.Node) {
 
 	errLog := logEncryptionFileContents(nodes, action, product)
 	Expect(errLog).NotTo(HaveOccurred())
+}
+
+func restartServerAndWait(ip, product string) {
+	nodearr := []string{ip}
+	nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
+	Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+	// Little lag needed between node restarts to avoid issues.
+	shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
+	time.Sleep(30 * time.Second)
+	waitEtcdErr := shared.WaitForPodsRunning(10, 3)
+	if waitEtcdErr != nil {
+		shared.LogLevel("warn", "pods not up after 30 seconds.")
+	}
 }
 
 func waitForHashMatch(cpIP, product string) (string, error) {
