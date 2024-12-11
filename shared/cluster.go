@@ -350,18 +350,20 @@ func GetPrimaryEtcdIp(product string) (string, error) {
 		cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml | grep server | grep https | cut -d ':' -f 3", product)
 		res, err := RunCommandOnNode(cmd, node.ExternalIP)
 
-		if err == nil {
-			LogLevel("debug", "Cmd Output: %s", res)
-			if res != "" {
-				etcdIp := strings.ReplaceAll(res, "/", "")
-
-				return etcdIp, nil
-			}
-			LogLevel("debug", "empty output for getting server - so this is the primary etcd server")
-
-			return node.ExternalIP, nil
+		if err != nil {
+			LogLevel("warn", "error running cmd %s on ip %s", cmd, node.ExternalIP)
+			continue
 		}
-		LogLevel("warn", "error running cmd %s on ip %s", cmd, node.ExternalIP)
+
+		LogLevel("debug", "Cmd Output: %s", res)
+		if res != "" {
+			etcdIp := strings.ReplaceAll(res, "/", "")
+
+			return etcdIp, nil
+		}
+		LogLevel("debug", "empty output for getting server - so this is the primary etcd server")
+
+		return node.ExternalIP, nil
 	}
 
 	return "", ReturnLogError("failed to get primary etcd node ip")
