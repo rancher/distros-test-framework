@@ -26,15 +26,16 @@ func TestSecretsEncryption(cluster *shared.Cluster) {
 
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
-
+	shared.LogLevel("info", "TEST: Old Method of Secrets-Encryption")
 	secretsEncryptOps("prepare", product, cluster.ServerIPs[0], cpIp, nodes)
 	secretsEncryptOps("rotate", product, cluster.ServerIPs[0], cpIp, nodes)
 	secretsEncryptOps("reencrypt", product, cluster.ServerIPs[0], cpIp, nodes)
+	shared.LogLevel("info", "TEST: New Method of Secrets-Encryption")
 	secretsEncryptOps("rotate-keys", product, cluster.ServerIPs[0], cpIp, nodes)
 }
 
 func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shared.Node) {
-	shared.LogLevel("info", "TEST: Secrets-Encryption:  "+action)
+	shared.LogLevel("info", "TEST: Secrets-Encryption: %s starts.", action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
 
@@ -42,8 +43,10 @@ func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shar
 	Expect(err).NotTo(HaveOccurred(), "error: secret-encryption: "+action)
 	verifyActionStdOut(action, stdOutput)
 
-	shared.LogLevel("debug", "secrets-encrypt ops need to complete - Sleep for 30 seconds before service restarts")
-	time.Sleep(30 * time.Second)
+	if (action == "reencrypt") || (action == "rotate-keys") {
+		shared.LogLevel("DEBUG", "reencrypt op needs some time to complete - Sleep for 20 seconds before service restarts")
+		time.Sleep(20 * time.Second) // Wait for reencrypt action to complete before restarting services.
+	}
 
 	// Restart Primary Etcd Node First
 	restartServerAndWait(primaryEtcdIp, product)
@@ -75,6 +78,7 @@ func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shar
 
 	errLog := logEncryptionFileContents(nodes, action, product)
 	Expect(errLog).NotTo(HaveOccurred())
+	shared.LogLevel("debug", "TEST: Secrets-Encryption: %s is completed", action)
 }
 
 func restartServerAndWait(ip, product string) {
