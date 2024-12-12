@@ -22,20 +22,14 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 
 	stopInstances(cluster, awsClient)
 
-	resourceName := os.Getenv("resource_name")
-	var serverName []string
-	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
-
-	externalServerIP, _, _, createErr := awsClient.CreateInstances(serverName...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
-	newServerIP := externalServerIP[0]
+	serverName, newServerIP := newInstance(awsClient)
 
 	installProduct(cluster, newServerIP, cfg.InstallVersion)
 	restoreS3Snapshot(cluster, onDemandPath, clusterToken, newServerIP, flags)
 	enableAndStartService(cluster, newServerIP)
 
-	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName[0], cluster.Config.Product,
-		"/tmp/"+serverName[0]+"_kubeconfig")
+	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName, cluster.Config.Product,
+		"/tmp/"+serverName+"_kubeconfig")
 	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
 	// create k8s client now because it depends on newly created kubeconfig file.
@@ -102,6 +96,17 @@ func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 	}
 }
 
+func newInstance(awsClient *aws.Client) (string, string) {
+	resourceName := os.Getenv("resource_name")
+	var serverName []string
+	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))
+
+	externalServerIP, _, _, createErr := awsClient.CreateInstances(serverName...)
+	Expect(createErr).NotTo(HaveOccurred(), createErr)
+
+	return serverName[0], externalServerIP[0]
+}
+
 func installProduct(cluster *shared.Cluster, newClusterIP, version string) {
 	setConfigFile(cluster, newClusterIP)
 
@@ -164,7 +169,6 @@ func restoreS3Snapshot(
 		restoreCmdRes string
 		restoreCmdErr error
 	)
-
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, newClusterIP)
 	Expect(findErr).NotTo(HaveOccurred())
 

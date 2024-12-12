@@ -232,10 +232,6 @@ S3_BUCKET=distros_qa
 S3_FOLDER=snapshots
 ```
 
-#### For Jenkins
-- `TEST_DIRECTORY` **should** be `clusterrestore`
-- `TEST_ARGS` **should** include **as optional** `-destroy true -s3Bucket distros_qa -s3Folder snapshots`
-
 ### Not supported/implemented currently for cluster restore:
 - Hardened Cluster Setup
 - ExternalDB Setup
