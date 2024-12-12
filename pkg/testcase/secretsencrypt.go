@@ -34,7 +34,7 @@ func TestSecretsEncryption(cluster *shared.Cluster) {
 	secretsEncryptOps("rotate-keys", product, cluster.ServerIPs[0], cpIp, nodes)
 }
 
-func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shared.Node) {
+func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shared.Node) {
 	shared.LogLevel("info", "TEST: Secrets-Encryption: %s starts.", action)
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error getting secret-encryption status before action")
@@ -49,11 +49,11 @@ func secretsEncryptOps(action, product, primaryEtcdIp, cpIP string, nodes []shar
 	}
 
 	// Restart Primary Etcd Node First
-	restartServerAndWait(primaryEtcdIp, product)
+	restartServerAndWait(primaryNodeIp, product)
 
 	// Restart all other server nodes - etcd and control plane
 	for _, node := range nodes {
-		if node.ExternalIP == primaryEtcdIp {
+		if node.ExternalIP == primaryNodeIp {
 			continue
 		}
 		restartServerAndWait(node.ExternalIP, product)
