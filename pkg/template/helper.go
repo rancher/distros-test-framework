@@ -97,7 +97,7 @@ func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]t
 			testcase.TestCertRotate(cluster)
 		},
 		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSecretsEncryption()
+			testcase.TestSecretsEncryption(cluster)
 		},
 		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)

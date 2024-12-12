@@ -51,6 +51,7 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 	}
 
 	for _, ip := range ips {
+		LogLevel("debug", "Performing systemctl %s on %s", action, ip)
 		cmd, getError := SystemCtlCmd(product, action, nodeType)
 		if getError != nil {
 			return ip, getError
