@@ -11,7 +11,7 @@ import (
 // SetupAirgapRegistry sets bastion node for airgap registry.
 func SetupAirgapRegistry(cluster *Cluster, flags *customflag.FlagConfig, airgapMethod string) error {
 	LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
-	_, err := getArtifacts(cluster, flags)
+	_, err := GetArtifacts(cluster, flags.AirgapFlag.TarballType)
 	if err != nil {
 		return fmt.Errorf("error downloading artifacts: %w", err)
 	}
@@ -83,7 +83,7 @@ func dockerActions(cluster *Cluster, flags *customflag.FlagConfig) (err error) {
 }
 
 // CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
+func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string, tarballType *string) error {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 
@@ -96,7 +96,7 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 		go func(nodeIP string) {
 			defer wg.Done()
 			LogLevel("debug", "Copy %v assets on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
-			err = copyAssets(cluster, nodeIP)
+			err = copyAssets(cluster, airgapMethod, nodeIP)
 			if err != nil {
 				errChan <- ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
@@ -112,11 +112,18 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 				LogLevel("debug", "Copy registry.yaml on node IP: %s -> Complete!", nodeIP)
 			case "system_default_registry":
 				LogLevel("debug", "Trust CA Certs on node IP: %s -> Starting...", nodeIP)
-				err = trustCerts(cluster, nodeIP)
+				err = trustCert(cluster, nodeIP)
 				if err != nil {
 					errChan <- ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
 				}
 				LogLevel("debug", "Trust CA Certs on node IP: %s -> Complete!", nodeIP)
+			case "tarball":
+				LogLevel("debug", "Copying tarball on node IP: %s -> Starting...", nodeIP)
+				err = copyTarball(cluster, nodeIP, *tarballType)
+				if err != nil {
+					errChan <- ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
+				}
+				LogLevel("debug", "Copying tarball on node IP: %s -> Complete!", nodeIP)
 			}
 
 			LogLevel("debug", "Make %s executable on node IP: %s -> Starting...", cluster.Config.Product, nodeIP)
@@ -140,8 +147,21 @@ func CopyAssetsOnNodes(cluster *Cluster, airgapMethod string) error {
 	return nil
 }
 
-// trustCerts copied certs from bastion and updates ca certs.
-func trustCerts(cluster *Cluster, ip string) (err error) {
+func copyTarball(cluster *Cluster, ip, tarballType string) (err error) {
+	imgDir := "/var/lib/rancher/" + cluster.Config.Product + "/agent/images"
+	cmd := "sudo mkdir -p " + imgDir + "; "
+	if cluster.Config.Product == "rke2" {
+		cmd += fmt.Sprintf("sudo cp artifacts/*.%v %v", tarballType, imgDir)
+	} else {
+		cmd += fmt.Sprintf("sudo cp *.%v %v", tarballType, imgDir)
+	}
+	_, err = CmdForPrivateNode(cluster, cmd, ip)
+
+	return err
+}
+
+// trustCert copied certs from bastion and updates ca certs.
+func trustCert(cluster *Cluster, ip string) (err error) {
 	// TODO: Implement for rhel, sles
 	cmd := "sudo cp domain.crt /usr/local/share/ca-certificates/domain.crt && " +
 		"sudo update-ca-certificates"
@@ -151,9 +171,10 @@ func trustCerts(cluster *Cluster, ip string) (err error) {
 }
 
 // copyAssets copies assets from bastion to private node.
-func copyAssets(cluster *Cluster, ip string) (err error) {
+func copyAssets(cluster *Cluster, airgapMethod, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.AwsEc2.KeyName)
+
 	switch cluster.Config.Product {
 	case "rke2":
 		cmd += fmt.Sprintf(
@@ -167,8 +188,16 @@ func copyAssets(cluster *Cluster, ip string) (err error) {
 			cluster.Config.Product,
 			cluster.AwsEc2.AwsUser, ip)
 	}
+
+	if airgapMethod != "tarball" {
+		cmd += fmt.Sprintf(
+			"sudo %v certs/* %v@%v:~/ && ",
+			ssPrefix("scp", cluster.AwsEc2.KeyName),
+			cluster.AwsEc2.AwsUser, ip)
+	}
+
 	cmd += fmt.Sprintf(
-		"sudo %v certs/* install_product.sh %v-install.sh %v@%v:~/",
+		"sudo %v install_product.sh %v-install.sh %v@%v:~/",
 		ssPrefix("scp", cluster.AwsEc2.KeyName),
 		cluster.Config.Product,
 		cluster.AwsEc2.AwsUser, ip)
@@ -209,14 +238,14 @@ func CmdForPrivateNode(cluster *Cluster, cmd, ip string) (res string, err error)
 	return res, err
 }
 
-// getArtifacts executes get_artifacts.sh script.
-func getArtifacts(cluster *Cluster, flags *customflag.FlagConfig) (res string, err error) {
+// GetArtifacts executes get_artifacts.sh script.
+func GetArtifacts(cluster *Cluster, tarballType string) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version,
-		cluster.Config.Arch, serverFlags, flags.AirgapFlag.TarballType)
+		cluster.Config.Arch, serverFlags, tarballType)
 	res, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
