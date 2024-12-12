@@ -51,10 +51,10 @@ func upgradeProduct(k8sClient k8s.Client, product, nodeType, installType string,
 		go func(ip, upgradeCommand string) {
 			defer wg.Done()
 
-			shared.LogLevel("info", fmt.Sprintf("Upgrading %s %s: %s", ip, nodeType, upgradeCommand))
+			shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 
 			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				shared.LogLevel("warn", fmt.Sprintf("upgrading %s %s: %v", nodeType, ip, err))
+				shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
 				errCh <- err
 				return
 			}
