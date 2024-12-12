@@ -13,7 +13,7 @@ func TestSnapshotWebhook(applyWorkload bool) error {
 		workloadErr := shared.ManageWorkload("apply", "snapshot-webhook.yaml")
 		if workloadErr != nil {
 			if strings.Contains(workloadErr.Error(), assert) {
-				shared.LogLevel("error", workloadErr.Error())
+				shared.LogLevel("error", "%v", workloadErr.Error())
 				shared.LogLevel("info", "Snapshot Webhook manifest not deployed, "+
 					"as expected related to empty string")
 
