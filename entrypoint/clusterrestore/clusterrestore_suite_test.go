@@ -33,6 +33,9 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
+	// checkUnsupportedFlags validates the hardening flags are not passed as they are not supported for now.
+	checkUnsupportedFlags()
+
 	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
@@ -84,4 +87,13 @@ var _ = ReportAfterSuite("Cluster Reset Restore Test Suite", func(report Report)
 
 func FailWithReport(message string, callerSkip ...int) {
 	Fail(message, callerSkip[0]+1)
+}
+
+func checkUnsupportedFlags() {
+	serverFlags := os.Getenv("server_flags")
+	if strings.Contains(serverFlags, "profile") || strings.Contains(serverFlags, "selinux") ||
+		strings.Contains(serverFlags, "protect-kernel-defaults") {
+		shared.LogLevel("error", "hardening flags are not supported for now")
+		os.Exit(1)
+	}
 }
