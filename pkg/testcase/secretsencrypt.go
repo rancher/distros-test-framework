@@ -96,7 +96,7 @@ func waitForHashMatch(cpIP, product string) (string, error) {
 	times := 6 * 3
 	var secretEncryptStatus string
 	var errGetStatus error
-	for i := 1; i <= times; i++ {
+	for i := 0; i < times; i++ {
 		secretEncryptStatus, errGetStatus = shared.SecretEncryptOps("status", cpIP, product)
 		if errGetStatus != nil {
 			shared.LogLevel("debug", "error getting secret-encryption status. Retry.")
