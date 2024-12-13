@@ -31,7 +31,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Secrets Encryption", func() {
-		testcase.TestSecretsEncryption()
+		testcase.TestSecretsEncryption(cluster)
 	})
 
 	It("Validate Nodes", func() {
