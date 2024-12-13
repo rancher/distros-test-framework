@@ -699,3 +699,22 @@ func AddProductCfg() *config.Env {
 
 	return cfg
 }
+func ExtractKubeImageVersion() string {
+	_, serverVersion, err := Product()
+	if err != nil {
+		LogLevel("warn", "error from RunCommandHost: %v\nwith res: Retrying...", err)
+		return "error"
+
+	}
+	re := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
+	fmt.Println("serverVersion: ", strings.Split(serverVersion, "\n"))
+	fmt.Println("re:", re)
+
+	match := re.FindStringSubmatch(serverVersion)
+	fmt.Println("match: ", match)
+	if match == nil {
+		return "garbage result went in so garbage result came out" + serverVersion
+	}
+	fmt.Println("serverVersionReturnValue : ", re.FindStringSubmatch(serverVersion)[0])
+	return re.FindStringSubmatch(serverVersion)[0]
+}
