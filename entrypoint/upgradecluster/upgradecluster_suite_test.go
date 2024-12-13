@@ -11,6 +11,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -20,6 +21,7 @@ var (
 	kubeconfig string
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
+	k8sClient  *k8s.Client
 	err        error
 )
 
@@ -46,6 +48,12 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
+	k8sClient, err = k8s.AddClient()
+	if err != nil {
+		shared.LogLevel("error", "error adding k8s client: %w\n", err)
+		os.Exit(1)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -55,7 +63,7 @@ func TestClusterUpgradeSuite(t *testing.T) {
 }
 
 var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
-	// Add Qase reporting capabilities.
+	// AddClient Qase reporting capabilities.
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")

@@ -30,14 +30,8 @@ spec:
   version: $UPGRADEVERSION
   nodeSelector:
     matchExpressions:
-        - key: "rke.cattle.io/etcd-role"
-          operator: Exists
-        - key: node-role.kubernetes.io/etcd
-          operator: In
-          values: [ "true" ]
-        - key: node-role.kubernetes.io/control-plane
-          operator: NotIn
-          values: [ "true" ]
+      - {key: node-role.kubernetes.io/etcd, operator: In, values: ["true"]}
+      - {key: node-role.kubernetes.io/control-plane, operator: NotIn, values: ["true"]}
   tolerations:
     - operator: Exists
   serviceAccountName: system-upgrade

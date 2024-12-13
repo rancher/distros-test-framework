@@ -46,14 +46,13 @@ node {
               userRemoteConfigs: repo
             ])
           }
-           stage('Export QASE Filtered Jenkins Environment Variables') {
+           stage('Create QASE Environment Variables') {
              script {
                  def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
                              'QASE_PROJECT_ID=' + env.QASE_PROJECT_ID + '\n' +
                              'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
                              'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
                              'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
-                 println(qase)
                 writeFile file: qaseEnvFile, text: qase
               }
             }

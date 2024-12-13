@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -27,7 +29,6 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	resourceName := os.Getenv("resource_name")
-	fmt.Println("resource-name: ", resourceName)
 	awsDependencies, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
@@ -42,7 +43,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 		awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
-	shared.LogLevel("info", "Created server public ips: %s and ids: %s\n",
+	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
 		newExternalServerIps, instanceServerIds)
 
 	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
@@ -53,12 +54,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	serverErr := nodeReplaceServers(
-		cluster,
-		awsDependencies,
-		resourceName,
-		serverLeaderIP,
-		token,
+	serverErr := nodeReplaceServers(cluster, awsDependencies, resourceName, serverLeaderIP, token,
 		version,
 		channel,
 		newExternalServerIps,
@@ -74,41 +70,12 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	// delete the last remaining server = leader.
 	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
-	shared.LogLevel("info", "Last Server deleted ip: %s\n", serverLeaderIP)
-}
+	shared.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
-func nodeReplaceAgents(
-	cluster *shared.Cluster,
-	awsDependencies *aws.Client,
-	version,
-	channel,
-	resourceName,
-	serverLeaderIp,
-	token string,
-) {
-	// create agent names.
-	var agentNames []string
-	for i := 0; i < len(cluster.AgentIPs); i++ {
-		agentNames = append(agentNames, fmt.Sprintf("%s-worker-replace%d", resourceName, i+1))
+	clusterErr := validateClusterHealth()
+	if clusterErr != nil {
+		shared.LogLevel("error", "error validating cluster health: %w\n", clusterErr)
 	}
-
-	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
-		awsDependencies.CreateInstances(agentNames...)
-	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
-
-	shared.LogLevel("info", "created worker ips: %s and worker ids: %s\n",
-		newExternalAgentIps, instanceAgentIds)
-
-	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new worker nodes done\n")
-
-	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, channel, newExternalAgentIps,
-		newPrivateAgentIps,
-	)
-	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
-
-	shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 }
 
 func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string) error {
@@ -263,7 +230,7 @@ func nodeReplaceServers(
 	if kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
-	shared.LogLevel("info", "Updated local kubeconfig with ip: %s", newFirstServerIP)
+	shared.LogLevel("debug", "Updated local kubeconfig with ip: %s", newFirstServerIP)
 
 	nodeErr := validateNodeJoin(newFirstServerIP)
 	if nodeErr != nil {
@@ -280,186 +247,6 @@ func nodeReplaceServers(
 	}
 
 	shared.LogLevel("info", "Updated kubeconfig base64 string:\n%s\n", kubeConfigUpdated)
-
-	return nil
-}
-
-func joinRemainServers(
-	cluster *shared.Cluster,
-	a *aws.Client,
-	newExternalServerIps,
-	newPrivateServerIps,
-	oldServerIPs []string,
-	serverLeaderIp,
-	token,
-	version,
-	channel string,
-) error {
-	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
-		privateIp := newPrivateServerIps[i]
-		externalIp := newExternalServerIps[i]
-
-		if i < len(oldServerIPs[1:]) {
-			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
-				shared.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldServerIPs[i])
-
-				return delErr
-			}
-		}
-
-		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp); joinErr != nil {
-			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
-
-			return joinErr
-		}
-
-		joinErr := validateNodeJoin(externalIp)
-		if joinErr != nil {
-			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
-
-			return joinErr
-		}
-	}
-
-	return nil
-}
-
-func validateNodeJoin(ip string) error {
-	node, err := shared.GetNodeNameByIP(ip)
-	if err != nil {
-		return shared.ReturnLogError("error getting node name by ip:%s %w\n", ip, err)
-	}
-	if node == "" {
-		return shared.ReturnLogError("node not found\n")
-	}
-	node = strings.TrimSpace(node)
-
-	shared.LogLevel("info", "Node joined: %s with ip: %s", node, ip)
-
-	return nil
-}
-
-func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
-	if parseErr != nil {
-		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
-	}
-
-	if joinErr := joinNode(joinCmd, newExternalIP); joinErr != nil {
-		return shared.ReturnLogError("error joining node: %w\n", joinErr)
-	}
-
-	return nil
-}
-
-func deleteRemainServer(ip string, a *aws.Client) error {
-	if ip == "" {
-		return shared.ReturnLogError("ip not sent\n")
-	}
-
-	if delNodeErr := shared.DeleteNode(ip); delNodeErr != nil {
-		shared.LogLevel("error", "error deleting server: %w\n", delNodeErr)
-
-		return delNodeErr
-	}
-	shared.LogLevel("info", "Node IP deleted from the cluster: %s\n", ip)
-
-	err := a.DeleteInstance(ip)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func replaceAgents(
-	cluster *shared.Cluster,
-	a *aws.Client,
-	serverLeaderIp, token, version, channel string,
-	newExternalAgentIps, newPrivateAgentIps []string,
-) error {
-	if token == "" {
-		return shared.ReturnLogError("token not sent\n")
-	}
-
-	if len(newExternalAgentIps) == 0 || len(newPrivateAgentIps) == 0 {
-		return shared.ReturnLogError("externalIps or privateIps empty\n")
-	}
-
-	if err := deleteAgents(a, cluster); err != nil {
-		shared.LogLevel("error", "error deleting agent: %w\n", err)
-
-		return err
-	}
-
-	for i, externalIp := range newExternalAgentIps {
-		privateIp := newPrivateAgentIps[i]
-
-		joinErr := joinAgent(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp)
-		if joinErr != nil {
-			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
-
-			return joinErr
-		}
-	}
-
-	return nil
-}
-
-func deleteAgents(a *aws.Client, c *shared.Cluster) error {
-	for _, i := range c.AgentIPs {
-		if deleteNodeErr := shared.DeleteNode(i); deleteNodeErr != nil {
-			shared.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
-
-			return deleteNodeErr
-		}
-		shared.LogLevel("info", "Node IP deleted from the cluster: %s\n", i)
-
-		err := a.DeleteInstance(i)
-		if err != nil {
-			return err
-		}
-		shared.LogLevel("info", "Instance IP deleted from cloud provider: %s\n", i)
-	}
-
-	return nil
-}
-
-func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
-	if parseErr != nil {
-		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
-	}
-
-	if joinErr := joinNode(cmd, selfExternalIp); joinErr != nil {
-		return shared.ReturnLogError("error joining node: %w\n", joinErr)
-	}
-
-	return nil
-}
-
-func joinNode(cmd, ip string) error {
-	if cmd == "" {
-		return shared.ReturnLogError("cmd not sent\n")
-	}
-	if ip == "" {
-		return shared.ReturnLogError("server IP not sent\n")
-	}
-
-	res, err := shared.RunCommandOnNode(cmd, ip)
-	if err != nil {
-		return shared.ReturnLogError("error joining node: %w\n", err)
-	}
-	res = strings.TrimSpace(res)
-	if strings.Contains(res, "service failed") {
-		shared.LogLevel("error", "join node response: %s\n", res)
-
-		return shared.ReturnLogError("error joining node: %s\n", res)
-	}
-
-	delay := time.After(40 * time.Second)
-	// delay not meant to wait if node is joined, but rather to give time for all join process to complete under the hood
-	<-delay
 
 	return nil
 }
@@ -597,4 +384,234 @@ func buildRke2Cmd(
 	}
 
 	return cmd, nil
+}
+
+func joinRemainServers(
+	cluster *shared.Cluster,
+	a *aws.Client,
+	newExternalServerIps,
+	newPrivateServerIps,
+	oldServerIPs []string,
+	serverLeaderIp,
+	token,
+	version,
+	channel string,
+) error {
+	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
+		privateIp := newPrivateServerIps[i]
+		externalIp := newExternalServerIps[i]
+
+		if i < len(oldServerIPs[1:]) {
+			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
+				shared.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldServerIPs[i])
+
+				return delErr
+			}
+		}
+
+		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp); joinErr != nil {
+			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
+
+			return joinErr
+		}
+
+		joinErr := validateNodeJoin(externalIp)
+		if joinErr != nil {
+			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
+
+			return joinErr
+		}
+	}
+
+	return nil
+}
+
+func validateNodeJoin(ip string) error {
+	node, err := shared.GetNodeNameByIP(ip)
+	if err != nil {
+		return shared.ReturnLogError("error getting node name by ip:%s %w\n", ip, err)
+	}
+	if node == "" {
+		return shared.ReturnLogError("node not found\n")
+	}
+	node = strings.TrimSpace(node)
+
+	shared.LogLevel("info", "Node joined: %s with ip: %s", node, ip)
+
+	return nil
+}
+
+func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
+	}
+
+	if joinErr := joinNode(joinCmd, newExternalIP); joinErr != nil {
+		return shared.ReturnLogError("error joining node: %w\n", joinErr)
+	}
+
+	return nil
+}
+
+func deleteRemainServer(ip string, a *aws.Client) error {
+	if ip == "" {
+		return shared.ReturnLogError("ip not sent\n")
+	}
+
+	if delNodeErr := shared.DeleteNode(ip); delNodeErr != nil {
+		shared.LogLevel("error", "error deleting server: %w\n", delNodeErr)
+
+		return delNodeErr
+	}
+	shared.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
+
+	err := a.DeleteInstance(ip)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func nodeReplaceAgents(
+	cluster *shared.Cluster,
+	awsDependencies *aws.Client,
+	version,
+	channel,
+	resourceName,
+	serverLeaderIp,
+	token string,
+) {
+	// create agent names.
+	var agentNames []string
+	for i := 0; i < len(cluster.AgentIPs); i++ {
+		agentNames = append(agentNames, fmt.Sprintf("%s-worker-replace%d", resourceName, i+1))
+	}
+
+	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
+		awsDependencies.CreateInstances(agentNames...)
+	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
+
+	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",
+		newExternalAgentIps, instanceAgentIds)
+
+	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new worker nodes done\n")
+
+	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, channel, newExternalAgentIps,
+		newPrivateAgentIps,
+	)
+	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
+
+	shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
+}
+
+func replaceAgents(
+	cluster *shared.Cluster,
+	a *aws.Client,
+	serverLeaderIp, token, version, channel string,
+	newExternalAgentIps, newPrivateAgentIps []string,
+) error {
+	if token == "" {
+		return shared.ReturnLogError("token not sent\n")
+	}
+
+	if len(newExternalAgentIps) == 0 || len(newPrivateAgentIps) == 0 {
+		return shared.ReturnLogError("externalIps or privateIps empty\n")
+	}
+
+	if err := deleteAgents(a, cluster); err != nil {
+		shared.LogLevel("error", "error deleting agent: %w\n", err)
+
+		return err
+	}
+
+	for i, externalIp := range newExternalAgentIps {
+		privateIp := newPrivateAgentIps[i]
+
+		joinErr := joinAgent(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp)
+		if joinErr != nil {
+			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
+
+			return joinErr
+		}
+	}
+
+	return nil
+}
+
+func deleteAgents(a *aws.Client, c *shared.Cluster) error {
+	for _, i := range c.AgentIPs {
+		if deleteNodeErr := shared.DeleteNode(i); deleteNodeErr != nil {
+			shared.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
+
+			return deleteNodeErr
+		}
+
+		err := a.DeleteInstance(i)
+		if err != nil {
+			return err
+		}
+		shared.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", i)
+	}
+
+	return nil
+}
+
+func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
+	}
+
+	if joinErr := joinNode(cmd, selfExternalIp); joinErr != nil {
+		return shared.ReturnLogError("error joining node: %w\n", joinErr)
+	}
+
+	return nil
+}
+
+func joinNode(cmd, ip string) error {
+	if cmd == "" {
+		return shared.ReturnLogError("cmd not sent\n")
+	}
+	if ip == "" {
+		return shared.ReturnLogError("server IP not sent\n")
+	}
+
+	res, err := shared.RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return shared.ReturnLogError("error joining node: %w\n", err)
+	}
+	res = strings.TrimSpace(res)
+	if strings.Contains(res, "service failed") {
+		shared.LogLevel("error", "join node response: %s\n", res)
+
+		return shared.ReturnLogError("error joining node: %s\n", res)
+	}
+
+	delay := time.After(40 * time.Second)
+	// delay not meant to wait if node is joined, but rather to give time for all join process to complete under the hood
+	<-delay
+
+	return nil
+}
+
+func validateClusterHealth() error {
+	k8sC, err := k8s.AddClient()
+	if err != nil {
+		return fmt.Errorf("error adding k8s client: %w", err)
+	}
+
+	ok, err := k8sC.CheckClusterHealth(0)
+	if err != nil {
+		return fmt.Errorf("error checking cluster health: %w", err)
+	}
+	if !ok {
+		return errors.New("cluster is not healthy")
+	}
+
+	return nil
 }
