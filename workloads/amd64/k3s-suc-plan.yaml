@@ -10,7 +10,6 @@ spec:
   version: $UPGRADEVERSION
   nodeSelector:
     matchExpressions:
-      - {key: node-role.kubernetes.io/etcd, operator: In, values: ["true"]}
       - {key: node-role.kubernetes.io/control-plane, operator: In, values: ["true"]}
   tolerations:
     - operator: Exists
