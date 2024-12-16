@@ -3,7 +3,7 @@
 # that is readable by rke2 or k3s
 
 if [ $# != 9 ]; then
-  echo "Usage: node_roles.sh node_index role_order all_role_nodes etcd_only_nodes etcd_cp_nodes etcd_worker_nodes cp_only_nodes cp_worker_nodes product"
+  echo "Usage: node_roles.sh node_index role_order all_role_nodes etcd_only_nodes etcd_cp_nodes etcd_worker_nodes cp_only_nodes cp_worker_nodes product datastore_type"
   exit 1
 fi
 
@@ -16,6 +16,12 @@ etcd_worker_nodes=$6
 cp_only_nodes=$7
 cp_worker_nodes=$8
 product=$9
+if [ -z $10 ]; then
+  datastore_type="etcd"
+else
+  datastore_type=$10
+fi
+echo "Datastore type: $datastore_type"
 
 role_config_yaml_path="/etc/rancher/${product}/config.yaml.d/role_config.yaml"
 # Set the desired role into an array based on the index
@@ -113,9 +119,17 @@ true
 EOF
 
 else
-cat << EOF > "${role_config_yaml_path}"
+  if [[ "$datastore_type" == "etcd" ]]
+  then
+  cat << EOF > "${role_config_yaml_path}"
 node-label:
   - role-etcd=true
+  - role-control-plane=true
+  - role-worker=true
+EOF
+  else
+  cat << EOF > "${role_config_yaml_path}"
+node-label:
   - role-control-plane=true
   - role-worker=true
 EOF
