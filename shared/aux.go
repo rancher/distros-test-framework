@@ -480,8 +480,8 @@ func FindPath(name, ip string) (string, error) {
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
-			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",
-				expectedFileList[i]))
+			return ReturnLogError("FAIL: Expected file: %s NOT found in actual list",
+				expectedFileList[i])
 		}
 		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
 	}

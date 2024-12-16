@@ -49,7 +49,7 @@ func privateRegistry(cluster *Cluster, flags *customflag.FlagConfig) (err error)
 		cluster.BastionConfig.PublicDNS)
 	res, err := RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
-		LogLevel("error", "failed execution of private_registry.sh: "+res)
+		LogLevel("error", "failed execution of private_registry.sh: %v", res)
 	}
 
 	return err
@@ -203,7 +203,7 @@ func CmdForPrivateNode(cluster *Cluster, cmd, ip string) (res string, err error)
 		"%v %v@%v '%v'",
 		ssPrefix("ssh", cluster.Aws.KeyName),
 		cluster.Aws.AwsUser, ip, cmd)
-	LogLevel("debug", "Cmd on bastion node: "+serverCmd)
+	LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
 	res, err = RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
@@ -281,12 +281,12 @@ func DisplayAirgapClusterDetails(cluster *Cluster) {
 		cluster.Config.Product)
 	cmd += "kubectl get nodes,pods -A -o wide"
 
-	LogLevel("info", "Display cluster details from airgap server-1: "+cmd)
+	LogLevel("info", "Display cluster details from airgap server-1: %v", cmd)
 	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	if err != nil {
 		LogLevel("error", "Error getting airgap cluster details: %v", err)
 	}
-	LogLevel("info", "\n"+clusterInfo)
+	LogLevel("info", "\n%v", clusterInfo)
 }
 
 // ssPrefix adds prefix to shell commands.

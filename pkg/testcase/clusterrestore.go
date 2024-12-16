@@ -19,7 +19,6 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
 	onDemandPath := s3Snapshot(cluster, awsClient, flags)
-
 	stopInstances(cluster, awsClient)
 
 	serverName, newServerIP := newInstance(awsClient)
@@ -96,7 +95,7 @@ func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
 	}
 }
 
-func newInstance(awsClient *aws.Client) (string, string) {
+func newInstance(awsClient *aws.Client) (newServerName, newExternalIP string) {
 	resourceName := os.Getenv("resource_name")
 	var serverName []string
 	serverName = append(serverName, fmt.Sprintf("%s-server-fresh", resourceName))

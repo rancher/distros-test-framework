@@ -103,7 +103,7 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 			testcase.TestCertRotate(cluster)
 		},
 		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSecretsEncryption()
+			testcase.TestSecretsEncryption(cluster)
 		},
 		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)
