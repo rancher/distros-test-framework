@@ -59,6 +59,10 @@ node {
                 actual_testdir_name = "validatecluster"
               }
 
+              if test_name.contains("restartservice"){
+                actual_testdir_name = "restartservice"
+              }
+
               def install_params = [
                 string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
                 string(name: 'REPO', value: "${REPO}"), 
