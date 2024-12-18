@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -108,4 +109,66 @@ func testCrossNodeService(services, ports, expected []string) error {
 	}
 
 	return nil
+}
+
+func TestEndpointReadiness(cluster *shared.Cluster) {
+	var err error
+	var wg sync.WaitGroup
+	commands := []string{
+		"sudo curl -sk http://127.0.0.1:10248/healthz",  // kubelet
+		"sudo curl -sk http://127.0.0.1:10249/healthz",  // kube-proxy
+		"sudo curl -sk https://127.0.0.1:10257/healthz", // kube-controller
+		"sudo curl -sk https://127.0.0.1:10258/healthz", // cloud-controller
+		"sudo curl -sk https://127.0.0.1:10259/healthz", // kube-scheduler
+		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
+			cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
+			cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
+	}
+
+	servers, err := shared.GetNodesByRoles("control-plane")
+	if err != nil {
+		// handle the error, e.g. log or return an error
+		fmt.Println("Error getting nodes by roles:", err)
+		return
+	}
+	// I want the external IPs of the shared.GetNodesByRoles("control-plane") nodes
+	fmt.Println("Servers:", servers)
+
+	for _, serverIP := range servers {
+		for _, endpoint := range commands {
+			wg.Add(1)
+			go func(serverIP, endpoint string) {
+				defer wg.Done()
+				fmt.Println("Checking endpoint", endpoint, "on server", serverIP)
+				err = assert.CheckComponentCmdNode(endpoint, serverIP, "ok")
+				if err != nil {
+					fmt.Printf("Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
+				}
+			}(serverIP.ExternalIP, endpoint)
+		}
+	}
+	wg.Wait()
+	Expect(err).NotTo(HaveOccurred(), err)
+}
+
+func Testk8sAPIReady(cluster *shared.Cluster) {
+	for _, serverIP := range cluster.ServerIPs {
+		err := assert.CheckComponentCmdNode(
+			"kubectl get --raw='http://127.0.0.1/readyz?verbose'",
+			serverIP,
+			"readyz check passed",
+		)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
+}
+
+func Testk8sAPILive(cluster *shared.Cluster) {
+	for _, serverIP := range cluster.ServerIPs {
+		err := assert.CheckComponentCmdNode(
+			"kubectl get --raw='http://127.0.0.1/livez?verbose'",
+			serverIP,
+			"livez check passed",
+		)
+		Expect(err).NotTo(HaveOccurred(), err)
+	}
 }
