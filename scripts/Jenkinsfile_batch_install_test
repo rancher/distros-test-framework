@@ -111,6 +111,9 @@ node {
                 case "clusterreset":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params }
                   break
+                case "clusterrestore":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_restore", parameters: install_params }
+                  break
                 case "mixedoscluster":
                   jobs[test_name] = { build job: "rke2_windows_agent", parameters: install_params }
                   break                                                         
