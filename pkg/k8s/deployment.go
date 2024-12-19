@@ -29,21 +29,14 @@ func (k *Client) ListDeployments(namespace, labelSelector string) ([]string, err
 			return nil, fmt.Errorf("failed to convert to Deployment: %w", convertErr)
 		}
 
-		isDeploymentAvailable(&deployment)
+		if !isDeploymentAvailable(&deployment) {
+			return nil, fmt.Errorf("deployment %s is not available", deployment.Name)
+		}
 
 		deployments = append(deployments, deployment)
 	}
 
 	return getDeploymentNames(deployments), nil
-}
-
-func getDeploymentNames(deployments []apps.Deployment) []string {
-	var names []string
-	for i := range deployments {
-		names = append(names, deployments[i].Name)
-	}
-
-	return names
 }
 
 func isDeploymentAvailable(deployment *apps.Deployment) bool {
@@ -60,4 +53,13 @@ func isDeploymentAvailable(deployment *apps.Deployment) bool {
 	default:
 		return false
 	}
+}
+
+func getDeploymentNames(deployments []apps.Deployment) []string {
+	var names []string
+	for i := range deployments {
+		names = append(names, deployments[i].Name)
+	}
+
+	return names
 }
