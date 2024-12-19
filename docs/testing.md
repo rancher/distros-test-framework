@@ -176,7 +176,6 @@ enable_ipv6          = false
 no_of_bastion_nodes  = 1
 bastion_subnets      = "<ipv4-subnet>"
 ```
-
 #### For local/docker
 
 - Required vars in `.env` file: `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
@@ -198,6 +197,39 @@ REGISTRY_PASSWORD=testpass432
 - `MODULE` **should be** `airgap`
 - `TEST_DIR` **should** be `airgap`
 - `TEST_TAGS` **should** include `-tags=systemdefaultregistry` and **as optional**, include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
+
+### Not supported/implemented currently for airgap:
+- RPM installs for rke2
+- ExternalDB setup
+- Split roles
+- ARM Architecture
+
+### Using Tarball
+
+- Required vars in `*.tfvars` file:
+```
+enable_public_ip     = false
+enable_ipv6          = false
+no_of_bastion_nodes  = 1
+bastion_subnets      = "<ipv4-subnet>"
+```
+#### For local/docker
+
+- Required vars in `.env` file: `ENV_MODULE` stores the terraform module dir under /modules that will be used to create the airgapped clusters
+
+```
+ENV_MODULE=airgap
+TEST_DIR=airgap
+TEST_TAG=tarball
+TARBALL_TYPE=tar.zst
+```
+Note: `TARBALL_TYPE` can be either `tar.zst` (Recommended for speed) or `tar.gz`
+
+#### For Jenkins
+
+- `MODULE` **should be** `airgap`
+- `TEST_DIR` **should** be `airgap`
+- `TEST_TAGS` **should** include `-tags=tarball`
 
 ### Not supported/implemented currently for airgap:
 - RPM installs for rke2
