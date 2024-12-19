@@ -337,7 +337,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 	return nodes, nil
 }
 
-// ParseNodes parses the nodes from the kubeclt get nodes command.
+// ParseNodes returns nodes parsed from kubectl get nodes.
 func ParseNodes(res string) []Node {
 	nodes := make([]Node, 0, 10)
 	nodeList := strings.Split(strings.TrimSpace(res), "\n")
