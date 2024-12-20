@@ -35,7 +35,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 		sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
-		err = shared.SonobuoyMixedOS("delete", sonobuoyVersion)
+		err = shared.InstallSonobuoy("delete", sonobuoyVersion)
 		if err != nil {
 			GinkgoT().Errorf("error: %v", err)
 			return
@@ -66,7 +66,7 @@ func verifyClusterNodes(cluster *shared.Cluster) bool {
 
 func installConformanceBinary() {
 	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
-	err := shared.SonobuoyMixedOS("install", sonobuoyVersion)
+	err := shared.InstallSonobuoy("install", sonobuoyVersion)
 	Expect(err).NotTo(HaveOccurred())
 }
 
