@@ -60,6 +60,7 @@ func verifyClusterNodes(cluster *shared.Cluster) bool {
 		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements to run conformance tests")
 		return false
 	}
+
 	return true
 }
 
@@ -104,6 +105,7 @@ func checkStatusGetResults(cluster *shared.Cluster) string {
 	Expect(err).NotTo(HaveOccurred())
 	_, err = shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	Expect(err).NotTo(HaveOccurred())
+
 	return res
 }
 
