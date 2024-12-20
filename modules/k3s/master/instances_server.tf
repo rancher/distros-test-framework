@@ -3,7 +3,7 @@ resource "aws_db_instance" "db" {
   identifier             = "${var.resource_name}-${local.resource_tag}-db"
   storage_type           = "gp2"
   allocated_storage      = 20
-  engine                 = var.
+  engine                 = var.external_db
   engine_version         = var.external_db_version
   instance_class         = var.instance_class
   db_name                = "mydb"
