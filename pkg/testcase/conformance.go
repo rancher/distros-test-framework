@@ -60,9 +60,8 @@ func verifyClusterNodes(cluster *shared.Cluster) bool {
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
 		fmt.Println("cluster does not meet the minimum requirements to run conformance tests")
 		return false
-	} else {
-		return true
 	}
+	return true
 }
 
 func installConformanceBinary() {
@@ -72,7 +71,7 @@ func installConformanceBinary() {
 }
 
 func launchSonobuoyTests(testMode string) {
-	//not doing anything different yet if the status is running from the previous attempts
+	// not doing anything different yet if the status is running from the previous attempts
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
 	if strings.Contains(res, "Active") {
@@ -104,7 +103,8 @@ func checkStatusGetResults(cluster *shared.Cluster) string {
 	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
-	shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+	_, err = shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+	Expect(err).NotTo(HaveOccurred())
 	return res
 }
 
@@ -123,11 +123,10 @@ func parseResults(testResultTar string) {
 	fmt.Println("sonobuoy results: ", res)
 }
 
-func exportResultsToS3() {
-	// export results to s3
-	// if destroy is false keep results in s3 bucket
-	// send results to s3 bucket with deletion rules
-}
+// func exportResultsToS3() {}
+// export results to s3
+// if destroy is false keep results in s3 bucket
+// send results to s3 bucket with deletion rules}
 
 func cleanupTests() {
 	cmd := "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
