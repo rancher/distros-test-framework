@@ -15,9 +15,9 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
 	if strings.Contains(cluster.Config.DataStore, "etcd") {
-		shared.LogLevel("info", "Backend: "+cluster.Config.DataStore)
+		shared.LogLevel("info", "\nBackend: %v\n", cluster.Config.DataStore)
 	} else {
-		shared.LogLevel("info", "Backend: "+cluster.Config.ExternalDb)
+		shared.LogLevel("info", "\nBackend: %v\n", cluster.Config.ExternalDb)
 	}
 
 	if cluster.Config.ExternalDb != "" && cluster.Config.DataStore == "external" {

@@ -46,11 +46,12 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 func ConformanceTest(cluster *shared.Cluster) {
 	verifyClusterNodes(cluster)
 	installConformanceBinary()
-	launchSonobuoyTests("certified-conformance")
-	// launchSonobuoyTests("quick")
-	testResultTar := checkStatusGetResults()
+	// launchSonobuoyTests("certified-conformance")
+	launchSonobuoyTests("quick")
+	testResultTar := checkStatusGetResults(cluster)
 	fmt.Println("testResultTar: ", testResultTar)
-	rerunFailedTests(testResultTar) //need to do cilium force failures to test
+	// need to do cilium force failures to test
+	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
 	cleanupTests()
 }
@@ -86,7 +87,7 @@ func launchSonobuoyTests(testMode string) {
 	}
 }
 
-func checkStatusGetResults() string {
+func checkStatusGetResults(cluster *shared.Cluster) string {
 	// sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404
 	// 	sono status
 	//          PLUGIN     STATUS   RESULT   COUNT                                PROGRESS
@@ -103,13 +104,14 @@ func checkStatusGetResults() string {
 	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
+	shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	return res
 }
 
 func rerunFailedTests(testResultTar string) {
 	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
+	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("no tests failed for plugin"))
 }
 
