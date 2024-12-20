@@ -48,15 +48,15 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies ClusterIP Service after Restore if we can apply, work and delete workloads", func() {
+	It("Verifies ClusterIP Service after Restore with new deployment", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})
 
-	It("Verifies NodePort Service after Restore if service is still there and we can access it", func() {
+	It("Verifies NodePort Service after Restore on existing deployment", func() {
 		testcase.TestServiceNodePort(false, false)
 	})
 
-	It("Verifies Ingress after Restore if still there and we can access it", func() {
+	It("Verifies Ingress after Restore on existing deployment", func() {
 		testcase.TestIngress(false, false)
 	})
 })

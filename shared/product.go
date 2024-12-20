@@ -8,6 +8,7 @@ import (
 	"github.com/avast/retry-go"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 // Product returns the distro product and its current version.
@@ -110,7 +111,7 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | statuss | enable")
+		return "", ReturnLogError("action value should be: start | stop | restart | status | enable | restart-systemd")
 	}
 
 	name, err := serviceName(product, nodeType)
@@ -179,4 +180,32 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
+}
+
+func GetInstallCmd(product, installType, nodeType string) string {
+	var installFlag string
+	var installCmd string
+
+	var channel = getChannel(product)
+
+	if strings.HasPrefix(installType, "v") {
+		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
+	} else {
+		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+
+	return fmt.Sprintf(installCmd, installFlag, channel)
+}
+
+func getChannel(product string) string {
+	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+
+	if customflag.ServiceFlag.Channel.String() != "" {
+		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
+			customflag.ServiceFlag.Channel.String())
+	}
+
+	return defaultChannel
 }
