@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -49,7 +48,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 	launchSonobuoyTests("certified-conformance")
 	// launchSonobuoyTests("quick")
 	testResultTar := checkStatusGetResults(cluster)
-	fmt.Println("testResultTar: ", testResultTar)
+	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 	// need to do cilium force failures to test
 	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
@@ -58,7 +57,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 
 func verifyClusterNodes(cluster *shared.Cluster) bool {
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
-		fmt.Println("cluster does not meet the minimum requirements to run conformance tests")
+		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements to run conformance tests")
 		return false
 	}
 	return true
@@ -75,7 +74,7 @@ func launchSonobuoyTests(testMode string) {
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
 	if strings.Contains(res, "Active") {
-		fmt.Println("sonobuoy namespace already exists, it is either still running, failed, or completed")
+		shared.LogLevel("info", "%s", "sonobuoy namespace is active, waiting for it to complete")
 		return
 	}
 	if strings.Contains(res, "Error from server (NotFound): namespaces \"sonobuoy\" not found") {
@@ -120,7 +119,7 @@ func parseResults(testResultTar string) {
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("Status: passed"))
-	fmt.Println("sonobuoy results: ", res)
+	shared.LogLevel("info", "%s", "sonobuoy results: "+res)
 }
 
 // func exportResultsToS3() {}
