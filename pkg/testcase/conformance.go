@@ -46,8 +46,8 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 func ConformanceTest(cluster *shared.Cluster) {
 	verifyClusterNodes(cluster)
 	installConformanceBinary()
-	// launchSonobuoyTests("certified-conformance")
-	launchSonobuoyTests("quick")
+	launchSonobuoyTests("certified-conformance")
+	// launchSonobuoyTests("quick")
 	testResultTar := checkStatusGetResults(cluster)
 	fmt.Println("testResultTar: ", testResultTar)
 	// need to do cilium force failures to test
