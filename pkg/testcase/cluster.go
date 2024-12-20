@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -49,6 +47,7 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	}
 }
 
+<<<<<<< HEAD
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
 func TestSonobuoyMixedOS(deleteWorkload bool) {
 	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
@@ -80,6 +79,15 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			return
 		}
 	}
+=======
+// TestDisplayClusterDetails used to display cluster details.
+func TestDisplayClusterDetails() {
+	_, err := shared.GetNodes(true)
+	Expect(err).NotTo(HaveOccurred())
+
+	_, err = shared.GetPods(true)
+	Expect(err).NotTo(HaveOccurred())
+>>>>>>> sonobuoy
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
