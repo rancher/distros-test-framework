@@ -55,7 +55,6 @@ func handleWorkload(action, resourceDir, workload string) error {
 
 func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
-
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	fmt.Println(out)
@@ -63,7 +62,6 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
-
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -250,15 +248,15 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script.
+// SonobuoyMixedOS Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.
-func SonobuoyMixedOS(action, version string) error {
+func InstallSonobuoy(action, version string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
-	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
+	scriptsDir := BasePath() + "/scripts/install_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0o755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
@@ -687,4 +685,22 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
+}
+func ExtractKubeImageVersion() string {
+	_, serverVersion, err := Product()
+	if err != nil {
+		LogLevel("warn", "error from RunCommandHost: %v\nwith res: Retrying...", err)
+		return "error"
+	}
+	re := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
+	fmt.Println("serverVersion: ", strings.Split(serverVersion, "\n"))
+	fmt.Println("re:", re)
+	match := re.FindStringSubmatch(serverVersion)
+	fmt.Println("match: ", match)
+	if match == nil {
+		return "garbage result went in so garbage result came out" + serverVersion
+	}
+	fmt.Println("serverVersionReturnValue : ", re.FindStringSubmatch(serverVersion)[0])
+
+	return re.FindStringSubmatch(serverVersion)[0]
 }
