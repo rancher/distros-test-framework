@@ -3,8 +3,12 @@ package shared
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/avast/retry-go"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 // Product returns the distro product and its current version.
@@ -45,6 +49,8 @@ func productVersion(product string) (string, error) {
 }
 
 // ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server.
+//
+// status action actually returns the status response space trimmed.
 func ManageService(product, action, nodeType string, ips []string) (string, error) {
 	if len(ips) == 0 {
 		return "", ReturnLogError("ips string array cannot be empty")
@@ -56,12 +62,37 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 		if getError != nil {
 			return ip, getError
 		}
-		manageServiceOut, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return ip, err
+
+		var manageServiceOut string
+		var err error
+
+		retryErr := retry.Do(
+			func() error {
+				manageServiceOut, err = RunCommandOnNode(cmd, ip)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			},
+			retry.Attempts(20),
+			retry.Delay(5*time.Second),
+			retry.OnRetry(func(n uint, err error) {
+				if n == 0 || n == 19 {
+					LogLevel("warn", "Failed to run command: %s on node %s: Attempt-%v\nError: %v", cmd, ip, n+1, err)
+				}
+			}),
+		)
+		if retryErr != nil {
+			return ip, fmt.Errorf("failed to run command: %s on node %s: %w", cmd, ip, retryErr)
 		}
+
 		if manageServiceOut != "" {
 			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
+
+			if action == "status" {
+				return strings.TrimSpace(manageServiceOut), nil
+			}
 		}
 	}
 
@@ -75,11 +106,12 @@ func SystemCtlCmd(product, action, nodeType string) (string, error) {
 		"restart":         "sudo systemctl --no-block restart",
 		"status":          "sudo systemctl --no-block status",
 		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
+		"enable":          "sudo systemctl --no-block enable",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status")
+		return "", ReturnLogError("action value should be: start | stop | restart | status | enable | restart-systemd")
 	}
 
 	name, err := serviceName(product, nodeType)
@@ -148,4 +180,32 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
+}
+
+func GetInstallCmd(product, installType, nodeType string) string {
+	var installFlag string
+	var installCmd string
+
+	var channel = getChannel(product)
+
+	if strings.HasPrefix(installType, "v") {
+		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
+	} else {
+		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+
+	return fmt.Sprintf(installCmd, installFlag, channel)
+}
+
+func getChannel(product string) string {
+	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+
+	if customflag.ServiceFlag.Channel.String() != "" {
+		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
+			customflag.ServiceFlag.Channel.String())
+	}
+
+	return defaultChannel
 }

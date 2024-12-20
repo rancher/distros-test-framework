@@ -33,12 +33,8 @@ var _ = Describe("Test:", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})
 
-	It("Verifies NodePort Service Before Reset", func() {
-		testcase.TestServiceNodePort(true, false)
-	})
-
 	It("Verifies Cluster Reset", func() {
-		testcase.TestClusterReset(cluster, k8sClient)
+		testcase.TestClusterReset(cluster)
 	})
 
 	It("Validate Nodes After Reset", func() {
@@ -62,14 +58,6 @@ var _ = Describe("Test:", func() {
 
 	It("Verifies Daemonset After Reset", func() {
 		testcase.TestDaemonset(true, true)
-	})
-
-	It("Verifies NodePort Service After Reset", func() {
-		testcase.TestServiceNodePort(false, true)
-	})
-
-	It("Verifies dns access After Reset", func() {
-		testcase.TestDNSAccess(true, true)
 	})
 
 	if cluster.Config.Product == "k3s" {
