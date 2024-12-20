@@ -40,7 +40,7 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 
 // s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
 func s3Snapshot(cluster *shared.Cluster, awsClient *aws.Client, flags *customflag.FlagConfig) string {
-	workloadErr := shared.ManageWorkload("apply", cluster.Config.Product+"-extra-metadata.yaml")
+	workloadErr := shared.ManageWorkload("apply", "extra-metadata.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
 
 	takeS3Snapshot(cluster, flags)

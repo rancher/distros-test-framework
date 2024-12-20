@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: k3s-etcd-snapshot-extra-metadata
+  name: etcd-snapshot-extra-metadata
   namespace: kube-system
 data:
   lorem_ipsum: |-

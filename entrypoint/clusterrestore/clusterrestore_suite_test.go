@@ -2,6 +2,7 @@ package clusterrestore
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -33,14 +34,14 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
-	// checkUnsupportedFlags validates the hardening flags are not passed as they are not supported for now.
-	checkUnsupportedFlags()
-
 	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	// checkUnsupportedFlags validates the hardening flags are not passed as they are not supported for now.
+	checkUnsupportedFlags()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
@@ -91,8 +92,12 @@ func FailWithReport(message string, callerSkip ...int) {
 
 func checkUnsupportedFlags() {
 	serverFlags := os.Getenv("server_flags")
-	if strings.Contains(serverFlags, "profile") || strings.Contains(serverFlags, "selinux") ||
-		strings.Contains(serverFlags, "protect-kernel-defaults") {
+	fmt.Printf("server flags: %s\n", serverFlags)
+
+	if strings.Contains(serverFlags, "profile") ||
+		strings.Contains(serverFlags, "selinux") ||
+		strings.Contains(serverFlags, "protect-kernel-defaults") ||
+		strings.Contains(serverFlags, "/etc/rancher/rke2/custom-psa.yaml") {
 		shared.LogLevel("error", "hardening flags are not supported for now")
 		os.Exit(1)
 	}

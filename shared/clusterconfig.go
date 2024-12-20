@@ -147,10 +147,9 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		Aws: AwsConfig{
 			Region: os.Getenv("region"),
 			EC2: EC2{
-				AccessKey: os.Getenv("access_key"),
-				AwsUser:   os.Getenv("aws_user"),
-				Ami:       os.Getenv("aws_ami"),
-
+				AccessKey:        os.Getenv("access_key"),
+				AwsUser:          os.Getenv("aws_user"),
+				Ami:              os.Getenv("aws_ami"),
 				VolumeSize:       os.Getenv("volume_size"),
 				InstanceClass:    os.Getenv("ec2_instance_class"),
 				Subnets:          os.Getenv("subnets"),
