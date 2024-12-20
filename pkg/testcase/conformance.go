@@ -46,8 +46,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 	verifyClusterNodes(cluster)
 	installConformanceBinary()
 	launchSonobuoyTests("certified-conformance")
-	// nolint: commentedOutCode
-	// launchSonobuoyTests("quick")
+	// refactor later to accept quick or certified-conformance
 	testResultTar := checkStatusGetResults(cluster)
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 	// need to do cilium force failures to test
