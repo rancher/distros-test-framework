@@ -87,7 +87,7 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/node_role.sh",
-      "sudo /tmp/node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
+      "sudo /tmp/node_role.sh -1 \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product} ${var.datastore_type}",
     ]
   }
   provisioner "file" {
@@ -234,7 +234,7 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /tmp/node_role.sh",
-      "sudo /tmp/node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
+      "sudo /tmp/node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product} ${var.datastore_type}",
     ]
   }
   provisioner "file" {
