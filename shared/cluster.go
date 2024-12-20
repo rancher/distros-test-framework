@@ -55,7 +55,6 @@ func handleWorkload(action, resourceDir, workload string) error {
 
 func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
-
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	fmt.Println(out)
