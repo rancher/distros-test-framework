@@ -54,6 +54,7 @@ func TestDisplayClusterDetails() {
 
 	_, err = shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
+
 }
 
 // checkAndPrintAgentNodeIPs Prints out the Agent node IPs.

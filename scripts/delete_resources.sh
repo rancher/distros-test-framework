@@ -8,8 +8,8 @@ delete_ec2_instances () {
     if [ "${EC2_INSTANCE_IDS}" = "" ];then
       echo "No ec2 instances found with prefix: $1. Nothing to delete."
     else
-      echo "Terminating ec2 instances for $1 if still up and running:
-      INSTANCE IDs: ${EC2_INSTANCE_IDS}"
+      echo "Terminating ec2 instances for $1 if still up and running"
+      echo "INSTANCE IDs: ${EC2_INSTANCE_IDS}"
       for INSTANCE_ID in ${EC2_INSTANCE_IDS}
       do
         echo "Deleting instance id: ${INSTANCE_ID}"
@@ -19,7 +19,7 @@ delete_ec2_instances () {
   else
     echo "EC2 instances matching tag name for the prefix provided $1:"
     EC2_TAG_NAMES=$(aws ec2 describe-instances \
-    --filters "Name=tag:Name,Values=archk3s*" "Name=instance-state-name,Values=running" \
+    --filters "Name=tag:Name,Values=$1*" "Name=instance-state-name,Values=running" \
     --query 'Reservations[].Instances[].Tags' --output text)
     echo "${EC2_TAG_NAMES}"
     echo "Instance ID List: ${EC2_INSTANCE_IDS}"
@@ -161,7 +161,7 @@ delete_route53 () {
     if [ -z "${DRY_RUN}" ]; then
       for i in $(echo $RECORD_VALUE | xargs -n1 echo)
       do 
-          NAME="$(echo "$i" | cut -d "-" -f1)-r53.qa.rancher.space."
+          NAME="$(echo "$i" | cut -d "-" -f1)-distros-qa-r53.qa.rancher.space."
           VALUE=$i
           echo "
 {\"Changes\": [
@@ -263,13 +263,13 @@ if [ "${RESOURCES}" = "" ]; then
     fi
 
     #Validate path to the tfvars file
-    if [[ ! -f "${$CONFIG_DIR}"/"$PRODUCT_NAME".tfvars ]]; then
+    if [[ ! -f "${CONFIG_DIR}"/"$PRODUCT_NAME".tfvars ]]; then
       echo "No $PRODUCT_NAME.tfvars file found in config directory"
       exit 1
     fi
 
     #Get resource name from tfvars file and validate
-    RESOURCE_NAME=$(cat "${$CONFIG_DIR}"/"$PRODUCT_NAME".tfvars | grep resource_name | grep -v "#" | cut -d= -f2 | tr -d ' "')
+    RESOURCE_NAME=$(cat "${CONFIG_DIR}"/"$PRODUCT_NAME".tfvars | grep resource_name | grep -v "#" | cut -d= -f2 | tr -d ' "')
     if [[ -z "$RESOURCE_NAME" ]]; then
       echo "No resource name found for: $PRODUCT_NAME.tfvars file"
       exit 1

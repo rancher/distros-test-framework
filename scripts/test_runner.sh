@@ -18,7 +18,7 @@ function validate_dir(){
        certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
-            case "$TEST_TAG"  in
+            case "$TEST_TAG" in
                 upgrademanual|upgradesuc|upgradereplacement)
                 ;;
                 *)
@@ -29,8 +29,8 @@ function validate_dir(){
        fi
        if [[ "$TEST_DIR" == "airgap" ]];
         then
-            case "$TEST_TAG"  in
-                privateregistry)
+            case "$TEST_TAG" in
+                privateregistry|systemdefaultregistry)
                 ;;
                 *)
                 printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
@@ -90,8 +90,7 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")
             [ -n "${CHARTS_REPO_URL}" ] && OPTS+=(-chartsRepoUrl "${CHARTS_REPO_URL}")
             [ -n "${CHARTS_ARGS}" ] && OPTS+=(-chartsArgs "${CHARTS_ARGS}")
-            [ -n "${RANCHER_VERSION}" ] && OPTS+=(-rancherVersion "${RANCHER_VERSION}")
-      go test "${OPTS[@]}"
+        go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
@@ -103,7 +102,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "certrotate" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/certrotate/...
     elif [ "${TEST_DIR}" = "secretsencrypt" ]; then
-        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...     
+        go test -timeout=45m -v -count=1 ./entrypoint/secretsencrypt/...
     elif [ "${TEST_DIR}" = "restartservice" ]; then
         go test -timeout=45m -v -count=1 ./entrypoint/restartservice/...
     elif [ "${TEST_DIR}" = "clusterreset" ]; then
@@ -112,8 +111,9 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/rebootinstances/...
     elif [ "${TEST_DIR}" = "airgap" ]; then
         declare -a OPTS
-        if [ "${TEST_TAG}" = "privateregistry" ]; then
+        if [[ "${TEST_TAG}" == "privateregistry" ]] || [[ "${TEST_TAG}" == "systemdefaultregistry" ]]; then
           OPTS=(-timeout=60m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy "${DESTROY}")
+            [ -n "${IMAGE_REGISTRY_URL}" ] && OPTS+=(-imageRegistryUrl "${IMAGE_REGISTRY_URL}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
             # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")

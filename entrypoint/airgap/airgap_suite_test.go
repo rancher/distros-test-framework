@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,15 +16,17 @@ import (
 )
 
 var (
-	flags   *customflag.FlagConfig
-	cluster *shared.Cluster
-	cfg     *config.Product
-	err     error
+	qaseReport = os.Getenv("REPORT_TO_QASE")
+	flags      *customflag.FlagConfig
+	cluster    *shared.Cluster
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.AirgapFlag.ImageRegistryUrl, "imageRegistryUrl", "", "image registry url to get the images from")
 	flag.StringVar(&flags.AirgapFlag.RegistryUsername, "registryUsername", "testuser", "private registry username")
 	flag.StringVar(&flags.AirgapFlag.RegistryPassword, "registryPassword", "testpass765", "private registry password")
 	flag.StringVar(&flags.AirgapFlag.TarballType, "tarballType", "", "artifact tarball type")
@@ -35,7 +38,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Validate the right module is set.
 	validateAirgap()
 
 	// TODO: Implement using kubeconfig for airgap setup
@@ -44,6 +46,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// validateAirgap pre-validation for airgap tests.
 func validateAirgap() {
 	if os.Getenv("ENV_MODULE") == "" {
 		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
@@ -72,10 +75,22 @@ func validateAirgap() {
 	}
 }
 
-func TestAirgapSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+func TestAirgapClusterSuite(t *testing.T) {
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Create Airgap Cluster Test Suite")
 }
+
+var _ = ReportAfterSuite("Create Airgap Cluster Test Suite", func(report Report) {
+	// Add Qase reporting capabilities.
+	if strings.ToLower(qaseReport) == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
+
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+	} else {
+		shared.LogLevel("info", "Qase reporting is not enabled")
+	}
+})
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
@@ -84,3 +99,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}

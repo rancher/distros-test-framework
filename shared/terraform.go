@@ -69,7 +69,7 @@ func loadTFconfig(
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
 
-	// check for airgap
+	// TODO: Remove after standardizing to install_version
 	if module != "" && module == "airgap" {
 		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
 	}

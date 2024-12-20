@@ -51,6 +51,7 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 	}
 
 	for _, ip := range ips {
+		LogLevel("debug", "Performing systemctl %s on %s", action, ip)
 		cmd, getError := SystemCtlCmd(product, action, nodeType)
 		if getError != nil {
 			return ip, getError
@@ -69,10 +70,11 @@ func ManageService(product, action, nodeType string, ips []string) (string, erro
 
 func SystemCtlCmd(product, action, nodeType string) (string, error) {
 	systemctlCmdMap := map[string]string{
-		"stop":    "sudo systemctl --no-block stop",
-		"start":   "sudo systemctl --no-block start",
-		"restart": "sudo systemctl --no-block restart",
-		"status":  "sudo systemctl --no-block status",
+		"stop":            "sudo systemctl --no-block stop",
+		"start":           "sudo systemctl --no-block start",
+		"restart":         "sudo systemctl --no-block restart",
+		"status":          "sudo systemctl --no-block status",
+		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
@@ -141,7 +143,7 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action), err)
 	}
 	if strings.Contains(secretsEncryptStdOut, "fatal") {
-		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action))
+		return "", ReturnLogError("secrets-encryption %s action failed", action)
 	}
 	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
 

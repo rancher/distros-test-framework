@@ -19,9 +19,9 @@ type FlagConfig struct {
 	Destroy            destroyFlag
 	SUCUpgradeVersion  sucUpgradeVersionFlag
 	Channel            channelFlag
-	External           externalConfigFlag
-	RancherConfig      rancherConfigFlag
-	HelmCharts         helmChartsFlag
+	External           externalFlag
+	CertManager        certManagerFlag
+	Charts             helmChartsFlag
 	AirgapFlag         airgapFlag
 }
 
@@ -34,6 +34,7 @@ type testMapConfigFlag struct {
 	ExpectedValue        string
 	ExpectedValueUpgrade string
 }
+
 type templateConfigFlag struct {
 	TestFuncNames  []string
 	TestFuncs      []TestCaseFlag
@@ -54,6 +55,7 @@ func (t *templateConfigFlag) Set(value string) error {
 }
 
 type airgapFlag struct {
+	ImageRegistryUrl string
 	RegistryUsername string
 	RegistryPassword string
 	TarballType      string
@@ -154,15 +156,15 @@ func (d *destroyFlag) Set(value string) error {
 	return nil
 }
 
-type externalConfigFlag struct {
+type externalFlag struct {
 	SonobuoyVersion string
 }
 
-func (e *externalConfigFlag) String() string {
+func (e *externalFlag) String() string {
 	return e.SonobuoyVersion
 }
 
-func (e *externalConfigFlag) Set(value string) error {
+func (e *externalFlag) Set(value string) error {
 	e.SonobuoyVersion = value
 
 	return nil
@@ -175,7 +177,6 @@ type helmChartsFlag struct {
 	RepoUrl  string
 }
 
-type rancherConfigFlag struct {
-	CertManagerVersion string
-	RancherVersion     string
+type certManagerFlag struct {
+	Version string
 }

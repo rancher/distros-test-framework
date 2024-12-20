@@ -2,14 +2,14 @@ package testcase
 
 import (
 	"fmt"
-	"time"
 
+	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterReset(cluster *shared.Cluster) {
+func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
 	killall(cluster)
 	shared.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
@@ -19,33 +19,44 @@ func TestClusterReset(cluster *shared.Cluster) {
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 	resetCmd := fmt.Sprintf("sudo %s server --cluster-reset", productLocationCmd)
+
 	shared.LogLevel("info", "running cluster reset on server %s\n", cluster.ServerIPs[0])
 
-	if cluster.Config.Product == "k3s" {
-		// k3s cluster reset output returns stdout channel
-		resetRes, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
-		Expect(resetCmdErr).NotTo(HaveOccurred())
-		Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
-		Expect(resetRes).To(ContainSubstring("has been reset"))
-	} else if cluster.Config.Product == "rke2" {
-		// rke2 cluster reset output returns stderr channel
-		_, resetCmdErr := shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
-		Expect(resetCmdErr).To(HaveOccurred())
-		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
-		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
-	}
-	shared.LogLevel("info", "cluster reset successful. Waiting 60 seconds for cluster "+
-		"to complete background processes after reset.")
-	time.Sleep(60 * time.Second)
+	clusterReset(cluster, resetCmd)
+	shared.LogLevel("info", "cluster reset successful. Waiting cluster to sync after reset")
 
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
 
-	startServer(cluster)
-	shared.LogLevel("info", "%s-service started. Waiting 60 seconds for nodes "+
-		"and pods to sync after reset.", cluster.Config.Product)
+	restartServer(cluster)
+	shared.LogLevel("info", "%s-service restarted", cluster.Config.Product)
 
-	time.Sleep(60 * time.Second)
+	ok, err := k8sClient.CheckClusterHealth(0)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(ok).To(BeTrue())
+}
+
+func clusterReset(cluster *shared.Cluster, resetCmd string) {
+	var (
+		resetRes    string
+		resetCmdErr error
+	)
+
+	resetRes, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
+	switch cluster.Config.Product {
+	case "rke2":
+		// rke2 cluster reset output returns stderr channel
+		Expect(resetRes).To(BeEmpty())
+		Expect(resetCmdErr).To(HaveOccurred())
+		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
+		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
+
+	case "k3s":
+		// k3s cluster reset output returns stdout channel
+		Expect(resetCmdErr).NotTo(HaveOccurred())
+		Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
+		Expect(resetRes).To(ContainSubstring("has been reset"))
+	}
 }
 
 func killall(cluster *shared.Cluster) {
@@ -71,9 +82,10 @@ func stopServer(cluster *shared.Cluster) {
 	Expect(statusRes).To(SatisfyAny(ContainSubstring("failed"), ContainSubstring("inactive")))
 }
 
-func startServer(cluster *shared.Cluster) {
+func restartServer(cluster *shared.Cluster) {
 	var startFirst []string
 	var startLast []string
+
 	for _, serverIP := range cluster.ServerIPs {
 		if serverIP == cluster.ServerIPs[0] {
 			startFirst = append(startFirst, serverIP)
@@ -83,11 +95,10 @@ func startServer(cluster *shared.Cluster) {
 		startLast = append(startLast, serverIP)
 	}
 
-	_, startErr := shared.ManageService(cluster.Config.Product, "start", "server", startFirst)
+	_, startErr := shared.ManageService(cluster.Config.Product, "restart", "server", startFirst)
 	Expect(startErr).NotTo(HaveOccurred())
-	time.Sleep(10 * time.Second)
 
-	_, startLastErr := shared.ManageService(cluster.Config.Product, "start", "server", startLast)
+	_, startLastErr := shared.ManageService(cluster.Config.Product, "restart", "server", startLast)
 	Expect(startLastErr).NotTo(HaveOccurred())
 }
 

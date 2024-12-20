@@ -12,7 +12,7 @@ import (
 
 type NodeAssertFunc func(g Gomega, node shared.Node)
 
-// NodeAssertVersionTypeUpgrade  custom assertion func that asserts that node version is as expected.
+// NodeAssertVersionTypeUpgrade custom assertion func that asserts that node version is as expected.
 func NodeAssertVersionTypeUpgrade(c *customflag.FlagConfig) NodeAssertFunc {
 	if c.InstallMode.Version != "" {
 		return assertVersion(c)
@@ -66,6 +66,8 @@ func NodeAssertReadyStatus() NodeAssertFunc {
 	return func(g Gomega, node shared.Node) {
 		g.Expect(node.Status).Should(Equal("Ready"),
 			"Nodes should all be in Ready state")
+
+		g.Expect(node.Status).ShouldNot(ContainSubstring("SchedulingDisabled"))
 	}
 }
 

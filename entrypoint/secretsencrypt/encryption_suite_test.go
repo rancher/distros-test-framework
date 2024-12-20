@@ -2,7 +2,6 @@ package secretsencrypt
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -12,23 +11,29 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
 var (
+	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
+	cfg        *config.Product
+	err        error
 )
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	_, err := config.AddEnv()
+	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	validateSecretsEncryptFlag()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
@@ -43,28 +48,28 @@ func TestMain(m *testing.M) {
 }
 
 func TestSecretsEncryptionSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(FailWithReport)
 	RunSpecs(t, "Secrets Encryption Test Suite")
 }
 
-var _ = BeforeSuite(func() {
-	// if err := config.SetEnv(shared.BasePath() + fmt.Sprintf("/config/%s.tfvars", cluster.Config.Product)); err != nil {
-	// 	Expect(err).To(BeNil(), fmt.Sprintf("error loading tf vars: %v\n", err))
-	// }
-	if cluster.Config.Product == "k3s" {
-		Expect(os.Getenv("server_flags")).To(ContainSubstring("secrets-encryption:"),
-			"ERROR: Add secrets-encryption:true to server_flags for this test")
+func validateSecretsEncryptFlag() {
+	if cfg.Product == "k3s" {
+		if !strings.Contains(os.Getenv("server_flags"), "secrets-encryption:") {
+			shared.LogLevel("error", "Add secrets-encryption:true to server_flags for this test")
+			os.Exit(1)
+		}
 	}
+}
 
-	version := os.Getenv(fmt.Sprintf("%s_version", cluster.Config.Product))
+var _ = ReportAfterSuite("Secrets Encryption Test Suite", func(report Report) {
+	// Add Qase reporting capabilities.
+	if strings.ToLower(qaseReport) == "true" {
+		qaseClient, err := qase.AddQase()
+		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-	var envErr error
-	if strings.Contains(version, "1.27") || strings.Contains(version, "1.26") {
-		envErr = os.Setenv("TEST_TYPE", "classic")
-		Expect(envErr).To(BeNil(), fmt.Sprintf("error setting env var: %v\n", envErr))
+		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
 	} else {
-		envErr = os.Setenv("TEST_TYPE", "both")
-		Expect(envErr).To(BeNil(), fmt.Sprintf("error setting env var: %v\n", envErr))
+		shared.LogLevel("info", "Qase reporting is not enabled")
 	}
 })
 
@@ -75,3 +80,7 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}
