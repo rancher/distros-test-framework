@@ -62,7 +62,6 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
-
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
