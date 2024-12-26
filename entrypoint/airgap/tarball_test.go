@@ -1,4 +1,4 @@
-//go:build privateregistry
+//go:build tarball
 
 package airgap
 
@@ -12,13 +12,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
+var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 	It("Creates bastion and airgapped nodes", func() {
 		testcase.TestBuildAirgapCluster(cluster)
 	})
 
 	It("Installs product on airgapped nodes", func() {
-		testcase.TestPrivateRegistry(cluster, flags)
+		testcase.TestTarball(cluster, flags)
 	})
 
 	It("Validates Nodes", func() {

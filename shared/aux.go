@@ -478,8 +478,8 @@ func FindPath(name, ip string) (string, error) {
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
 		if !stringInSlice(expectedFileList[i], actualFileList) {
-			return ReturnLogError(fmt.Sprintf("FAIL: Expected file: %s NOT found in actual list",
-				expectedFileList[i]))
+			return ReturnLogError("FAIL: Expected file: %s NOT found in actual list",
+				expectedFileList[i])
 		}
 		LogLevel("info", "PASS: Expected file %s found", expectedFileList[i])
 	}
@@ -489,6 +489,21 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 			LogLevel("info", "Actual file %s found as well which was not in the expected list",
 				actualFileList[i])
 		}
+	}
+
+	return nil
+}
+
+// CopyFileContents reads file from path and copies them locally.
+func CopyFileContents(srcPath, destPath string) error {
+	contents, err := os.ReadFile(srcPath)
+	if err != nil {
+		return ReturnLogError("File does not exist: %v", srcPath)
+	}
+
+	err = os.WriteFile(destPath, contents, 0o666)
+	if err != nil {
+		return ReturnLogError("Write to File failed: %v", destPath)
 	}
 
 	return nil

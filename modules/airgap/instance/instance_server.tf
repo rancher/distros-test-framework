@@ -48,6 +48,10 @@ resource "aws_instance" "worker" {
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
+
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}" 
+  }
 }
 
 resource "aws_instance" "bastion" {
@@ -106,6 +110,11 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
+    source = "setup/system_default_registry.sh"
+    destination = "/tmp/system_default_registry.sh"
+  }
+
+  provisioner "file" {
     source = "setup/basic-registry"
     destination = "/tmp"
   }
@@ -122,8 +131,7 @@ resource "null_resource" "prepare_bastion" {
 
   provisioner "remote-exec" {
     inline = [<<-EOT
-      echo ${aws_instance.bastion[0].public_ip} > /tmp/${var.resource_name}_bastion_ip
-      sudo cp /tmp/${var.key_name}.pem /tmp/bastion_prepare.sh /tmp/docker_ops.sh /tmp/get_artifacts.sh /tmp/install_product.sh /tmp/private_registry.sh ~/
+      sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh
       sudo ./bastion_prepare.sh

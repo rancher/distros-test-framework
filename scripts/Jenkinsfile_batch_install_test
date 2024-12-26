@@ -55,8 +55,12 @@ node {
                 job_aws_ssh_pem_key = ""
               }
 
-              if (test_name == "docker_cri" || test_name == "validatecluster_arm"){
+              if (test_name == "docker_cri" || test_name == "validatecluster_arm") {
                 actual_testdir_name = "validatecluster"
+              }
+
+              if (test_name.contains("restartservice")) {
+                actual_testdir_name = "restartservice"
               }
 
               def install_params = [
@@ -88,6 +92,9 @@ node {
                   break             
                 case "restartservice":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
+                  break
+                case "restartservice_splitroles":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
                   break
                 case "rebootinstances":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances", parameters: install_params }
