@@ -13,7 +13,7 @@ func TestSystemDefaultRegistry(cluster *shared.Cluster, flags *customflag.FlagCo
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster, SystemDefaultRegistry)
+	err = shared.CopyAssetsOnNodes(cluster, SystemDefaultRegistry, nil)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)

@@ -30,7 +30,7 @@ function validate_dir(){
        if [[ "$TEST_DIR" == "airgap" ]];
         then
             case "$TEST_TAG" in
-                privateregistry|systemdefaultregistry)
+                privateregistry|systemdefaultregistry|tarball)
                 ;;
                 *)
                 printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
@@ -116,7 +116,9 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${IMAGE_REGISTRY_URL}" ] && OPTS+=(-imageRegistryUrl "${IMAGE_REGISTRY_URL}")
             [ -n "${REGISTRY_USERNAME}" ] && OPTS+=(-registryUsername "${REGISTRY_USERNAME}")
             [ -n "${REGISTRY_PASSWORD}" ] && OPTS+=(-registryPassword "${REGISTRY_PASSWORD}")
-            # [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
+        elif [[ "${TEST_TAG}" == "tarball" ]]; then
+          OPTS=(-timeout=60m -v -count=1 ./entrypoint/airgap/... -tags="${TEST_TAG}" -destroy "${DESTROY}")
+            [ -n "${TARBALL_TYPE}" ] && OPTS+=(-tarballType "${TARBALL_TYPE}")
         fi
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "clusterrestore" ]; then

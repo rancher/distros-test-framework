@@ -48,6 +48,10 @@ resource "aws_instance" "worker" {
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
+
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}" 
+  }
 }
 
 resource "aws_instance" "bastion" {

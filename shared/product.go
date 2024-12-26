@@ -3,9 +3,6 @@ package shared
 import (
 	"fmt"
 	"strings"
-	"time"
-
-	"github.com/avast/retry-go"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -48,82 +45,8 @@ func productVersion(product string) (string, error) {
 	return v, nil
 }
 
-// ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server.
-//
-// status action actually returns the status response space trimmed.
-func ManageService(product, action, nodeType string, ips []string) (string, error) {
-	if len(ips) == 0 {
-		return "", ReturnLogError("ips string array cannot be empty")
-	}
-
-	for _, ip := range ips {
-		LogLevel("debug", "Performing systemctl %s on %s", action, ip)
-		cmd, getError := SystemCtlCmd(product, action, nodeType)
-		if getError != nil {
-			return ip, getError
-		}
-
-		var manageServiceOut string
-		var err error
-
-		retryErr := retry.Do(
-			func() error {
-				manageServiceOut, err = RunCommandOnNode(cmd, ip)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			},
-			retry.Attempts(20),
-			retry.Delay(5*time.Second),
-			retry.OnRetry(func(n uint, err error) {
-				if n == 0 || n == 19 {
-					LogLevel("warn", "Failed to run command: %s on node %s: Attempt-%v\nError: %v", cmd, ip, n+1, err)
-				}
-			}),
-		)
-		if retryErr != nil {
-			return ip, fmt.Errorf("failed to run command: %s on node %s: %w", cmd, ip, retryErr)
-		}
-
-		if manageServiceOut != "" {
-			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
-
-			if action == "status" {
-				return strings.TrimSpace(manageServiceOut), nil
-			}
-		}
-	}
-
-	return "", nil
-}
-
-func SystemCtlCmd(product, action, nodeType string) (string, error) {
-	systemctlCmdMap := map[string]string{
-		"stop":            "sudo systemctl --no-block stop",
-		"start":           "sudo systemctl --no-block start",
-		"restart":         "sudo systemctl --no-block restart",
-		"status":          "sudo systemctl --no-block status",
-		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
-		"enable":          "sudo systemctl --no-block enable",
-	}
-
-	sysctlPrefix, ok := systemctlCmdMap[action]
-	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status | enable | restart-systemd")
-	}
-
-	name, err := serviceName(product, nodeType)
-	if err != nil {
-		return "", ReturnLogError("error getting service name: %w\n", err)
-	}
-
-	return fmt.Sprintf("%s %s", sysctlPrefix, name), nil
-}
-
-// serviceName Get service name. Used to work with stop/start k3s/rke2 services.
-func serviceName(product, nodeType string) (string, error) {
+// productService gets the service name for a specific distro product and nodeType.
+func productService(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
 		"k3s-agent":   "k3s-agent",
