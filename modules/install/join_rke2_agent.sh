@@ -85,12 +85,34 @@ disable_cloud_setup() {
 
     workaround="[keyfile]\nunmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:flannel*"
     if [ ! -e /etc/NetworkManager/conf.d/canal.conf ]; then
-      echo -e "$workaround" >/etc/NetworkManager/conf.d/canal.conf
+          if [[ "$node_os" = *"open"* ]]; then
+            change_wicked_unmanaged
+          else
+            echo -e "$workaround" >/etc/NetworkManager/conf.d/canal.conf
+          fi
     else
       echo -e "$workaround" >>/etc/NetworkManager/conf.d/canal.conf
     fi
     sudo systemctl reload NetworkManager
   fi
+}
+
+change_wicked_unmanaged() {
+ WICKED_CONFIG="/etc/sysconfig/network/config"
+  if [ ! -f "$WICKED_CONFIG" ]; then
+    sudo tee "$WICKED_CONFIG" >/dev/null <<EOF
+UNMANAGED_IFACES="cali* tunl* vxlan.calico flannel*"
+EOF
+  else
+    if grep -q '^UNMANAGED_IFACES' "$WICKED_CONFIG"; then
+      sudo sed -i 's|^UNMANAGED_IFACES=.*|UNMANAGED_IFACES="cali* tunl* vxlan.calico flannel*"|' "$WICKED_CONFIG"
+    else
+      echo 'UNMANAGED_IFACES="cali* tunl* vxlan.calico flannel*"' | sudo tee -a "$WICKED_CONFIG"
+    fi
+  fi
+
+  sudo systemctl restart wicked
+  echo "Wicked network manager configured to ignore cali*, tunl*, vxlan.calico, flannel*"
 }
 
 install_rke2() {
