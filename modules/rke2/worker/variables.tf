@@ -17,10 +17,10 @@ variable "password" {
 }
 variable "region" {}
 variable "resource_name" {}
-variable "rke2_version" {}
+variable "install_version" {}
 variable "install_mode" {}
 variable "install_method" {}
-variable "rke2_channel" {}
+variable "install_channel" {}
 variable "sg_id" {}
 variable "subnets" {}
 variable "username" {
@@ -28,12 +28,6 @@ variable "username" {
 }
 variable "vpc_id" {}
 variable "worker_flags" {}
-variable "enable_public_ip" {
-  default = true
-}
-variable "enable_ipv6" {
-  default = false
-}
 variable "create_eip" {
   default = false
 }

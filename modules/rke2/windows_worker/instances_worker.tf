@@ -7,7 +7,7 @@ resource "aws_instance" "windows_worker" {
   count                  = var.no_of_worker_nodes
   iam_instance_profile   = "${var.iam_role}"
   get_password_data      = true
-  user_data              = templatefile("../install/join_rke2_windows_agent.tftpl", {serverIP: "${local.master_ip}", token: "${local.node_token}", install_mode: "${var.install_mode}", rke2_version: "${var.rke2_version}"})
+  user_data              = templatefile("../install/join_rke2_windows_agent.tftpl", {serverIP: "${local.master_ip}", token: "${local.node_token}", install_mode: "${var.install_mode}", install_version: "${var.install_version}"})
   subnet_id              = var.subnets
   availability_zone      = var.availability_zone
   vpc_security_group_ids = ["${var.sg_id}"]

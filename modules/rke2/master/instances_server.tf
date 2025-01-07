@@ -70,8 +70,6 @@ resource "aws_eip_association" "master_eip_association" {
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   iam_instance_profile        = var.iam_role
   connection {
     type        = "ssh"
@@ -118,7 +116,7 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/rke2_master.sh
-      sudo /tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "" ${var.install_mode} ${var.install_version} "${var.install_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
@@ -191,8 +189,6 @@ resource "aws_eip_association" "master2_eip_association" {
 resource "aws_instance" "master2-ha" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   iam_instance_profile        = var.iam_role
   count                       = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes - 1
   connection {
@@ -241,7 +237,7 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_master.sh
-      sudo /tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      sudo /tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "" ${var.install_mode} ${var.install_version} "${var.install_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
     EOT
     ]
   }

@@ -17,6 +17,7 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", product))
+	LogLevel("info", "Using tfvars in: %v",varDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
@@ -27,6 +28,7 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 	}
 
 	tfDir, err := filepath.Abs(dir + "/modules/" + module)
+	LogLevel("info", "Using module dir: %v", tfDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("no module found: %s", module)
 	}
@@ -69,16 +71,13 @@ func loadTFconfig(
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
-
-	// TODO: Remove after standardizing to install_version
-	if module != "" && module == "airgap" {
-		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+	
+	if module == "airgap" || module == "dualstack" {
+		LogLevel("info", "Loading bastion configs....")
+		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
+		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 	}
-
-	// TODO: Figure out logic to suppress for non-bastion clusters
-	LogLevel("info", "Loading bastion configs....")
-	c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
-	c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
 
 	return c, nil
 }

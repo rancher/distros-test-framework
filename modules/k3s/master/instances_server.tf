@@ -60,8 +60,6 @@ resource "aws_eip_association" "master_eip_association" {
 resource "aws_instance" "master" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
 
   connection {
     type                 = "ssh"
@@ -115,9 +113,10 @@ resource "aws_instance" "master" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/k3s_master.sh",
-      "sudo /tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password}"
+    inline = [<<-EOT
+      chmod +x /tmp/k3s_master.sh
+      sudo /tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"\" ${var.install_mode} ${var.install_version} \"${var.install_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password}
+    EOT
     ]
   }
   //update master_ip file with either eip or public ip
@@ -205,8 +204,6 @@ resource "aws_eip_association" "master2_eip_association" {
 resource "aws_instance" "master2-ha" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count = local.secondary_masters
   connection {
     type                 = "ssh"
@@ -232,9 +229,10 @@ resource "aws_instance" "master2-ha" {
     destination = "/tmp/node_role.sh"
   }
   provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/node_role.sh",
-      "sudo /tmp/node_role.sh ${count.index} \"${var.role_order}\" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}",
+    inline = [<<-EOT
+      chmod +x /tmp/node_role.sh
+      sudo /tmp/node_role.sh ${count.index} "${var.role_order}" ${var.all_role_nodes} ${var.etcd_only_nodes} ${var.etcd_cp_nodes} ${var.etcd_worker_nodes} ${var.cp_only_nodes} ${var.cp_worker_nodes} ${var.product}
+    EOT
     ]
   }
   provisioner "file" {
@@ -262,9 +260,9 @@ resource "aws_instance" "master2-ha" {
     destination = "/tmp/ingresspolicy.yaml"
   }
   provisioner "remote-exec" {
-    inline = [ <<-EOT
+    inline = [<<-EOT
       chmod +x /tmp/join_k3s_master.sh
-      sudo /tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} > /tmp/join_k3s_master.log 2>&1
+      sudo /tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "" ${var.install_mode} ${var.install_version} "${var.install_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} > /tmp/join_k3s_master.log 2>&1
     EOT
     ]
   }
@@ -281,9 +279,10 @@ resource "null_resource" "master2_eip" {
   }
   // Replace nodes public ip with elastic ip in the config
   provisioner "remote-exec" {
-    inline = [
-      "sudo sed -i s/${aws_instance.master2-ha[count.index].public_ip}/${aws_eip.master2_with_eip[count.index].public_ip}/g /etc/rancher/k3s/config.yaml",
-      "sudo systemctl restart --no-block k3s"
+    inline = [<<-EOT
+      sudo sed -i s/${aws_instance.master2-ha[count.index].public_ip}/${aws_eip.master2_with_eip[count.index].public_ip}/g /etc/rancher/k3s/config.yaml
+      sudo systemctl restart --no-block k3s
+    EOT
     ]
   }
   provisioner "local-exec" {
@@ -294,9 +293,10 @@ resource "null_resource" "master2_eip" {
     command = "echo ${aws_eip.master_with_eip[0].public_ip} > /tmp/${var.resource_name}_master_ip"
   }
   provisioner "remote-exec" {
-    inline = [
-    "echo 'Waiting for eip update to complete'",
-    "cloud-init status --wait > /dev/null"
+    inline = [<<-EOT
+      echo "Waiting for eip update to complete"
+      cloud-init status --wait > /dev/null
+    EOT
     ]
   }
    depends_on = [aws_eip.master_with_eip,
@@ -482,5 +482,5 @@ locals {
 
   fqdn                    = var.create_lb ? aws_route53_record.aws_route53[0].fqdn : var.create_eip ? aws_eip.master_with_eip[0].public_ip : "fake.fqdn.value"
   node_token              = trimspace(data.local_file.token.content)
-  resource_tag            =  "distros-qa"
+  resource_tag            = "distros-qa"
  }

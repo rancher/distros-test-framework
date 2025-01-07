@@ -4,8 +4,6 @@ resource "aws_instance" "worker" {
   ]
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_worker_nodes
   connection {
     type                 = "ssh"
@@ -35,7 +33,7 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_k3s_agent.sh
-      sudo /tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" "${var.worker_flags}" ${var.username} ${var.password}
+      sudo /tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "" ${var.install_mode} ${var.install_version} "${var.install_channel}" "${var.worker_flags}" ${var.username} ${var.password}
     EOT
     ]
   }
@@ -51,7 +49,7 @@ resource "aws_eip" "worker_with_eip" {
   count              = var.create_eip ? length(aws_instance.worker) : 0
   domain             = "vpc"
   tags = {
-    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Name             = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
 }
 

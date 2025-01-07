@@ -18,8 +18,6 @@ resource "aws_instance" "worker" {
   ]
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class
-  associate_public_ip_address = var.enable_public_ip
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_worker_nodes
   iam_instance_profile        = var.iam_role
   connection {
@@ -49,7 +47,7 @@ resource "aws_instance" "worker" {
   provisioner "remote-exec" {
     inline = [<<-EOT
       chmod +x /tmp/join_rke2_agent.sh
-      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} 
+      sudo /tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "" ${var.install_mode} ${var.install_version} "${var.install_channel}" "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} 
     EOT
     ]
   }

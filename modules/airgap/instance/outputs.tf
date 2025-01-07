@@ -11,14 +11,14 @@ output "bastion_dns" {
 }
 
 output "master_ips" {
-  value = var.enable_ipv6 ? join("," ,aws_instance.master.*.ipv6_addresses[0]) : join("," ,aws_instance.master.*.private_ip)
-  description = "The private IP or IPv6 IP of the AWS private master node"
+  value = join("," ,aws_instance.master.*.private_ip)
+  description = "The private IP of the AWS private master node"
   depends_on = [ aws_instance.master ]
 }
 
 output "worker_ips" {
-  value = var.enable_ipv6 ? join("," ,aws_instance.worker.*.ipv6_addresses[0]) : join("," ,aws_instance.worker.*.private_ip)
-  description = "The private IP or IPv6 IP of the AWS private worker node"
+  value = join("," ,aws_instance.worker.*.private_ip)
+  description = "The private IP of the AWS private worker node"
   depends_on = [ aws_instance.worker ]
 }
 
