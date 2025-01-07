@@ -1,28 +1,46 @@
 #!/bin/bash
 
-# Usage: sh mixedos_sonobuoy.sh runs with default values
-# Usage: sh mixedos_sonobouy.sh install 0.56.17 arm64
-# Usage: sh mixedos_sonobouy.sh delete
+# Usage: sh install_sonobuoy.sh runs with default values
+# Usage: sh install_sonobouy.sh install 0.56.17 arm64
+# Usage: sh install_sonobouy.sh delete
 
 action=${1:-install}
 version=${2:-0.57.2}
 arch=${3:-amd64}
-
+mixed_plugins_url="git clone https://github.com/phillipsj/my-sonobuoy-plugins.git"
+sonobuoy_url="https://github.com/vmware-tanzu/sonobuoy/releases/download/v"${version}"/sonobuoy_"${version}"_linux_"${arch}".tar.gz"
+max_retries=5
+retry_delay=11
 # adopt golang error handling in bash check variables are passed in appropriately - if not return appropriate error message
+
+download_retry(){
+  i=1
+ 
+  until $1 || [ $i -gt $max_retries ]; do
+    echo "Retry $i failed. Waiting $retry_delay seconds before retrying..."
+    sleep $retry_delay
+    ((i++))
+  done
+
+  if [ $i -gt $max_retries ]; then
+    echo "Download failed after $max_retries attempts."
+    exit 1
+  fi
+}
 
 installation(){
     echo "Installing sonobuoy version ${version} for mixedos validation"
     if [ ! -d "my-sonobuoy-plugins" ]; 
     then
         echo "Cloning repo: https://github.com/phillipsj/my-sonobuoy-plugins.git"
-        git clone https://github.com/phillipsj/my-sonobuoy-plugins.git
+        download_retry "${mixed_plugins_url}"
     fi
     wait
     echo "Downloading sonobouy installer..."
     if [[ $(command -v wget) ]]; then
-        wget -q https://github.com/vmware-tanzu/sonobuoy/releases/download/v"${version}"/sonobuoy_"${version}"_linux_"${arch}".tar.gz -O sonobuoy.tar.gz
+        download_retry "wget -q ${sonobuoy_url} -O sonobuoy.tar.gz"
     elif [[ $(command -v curl) ]]; then
-        curl -s https://github.com/vmware-tanzu/sonobuoy/releases/download/v"${version}"/sonobuoy_"${version}"_linux_"${arch}".tar.gz --output sonobuoy.tar.gz
+        download_retry "curl -s ${sonobuoy_url} --output sonobuoy.tar.gz"
         wait
         sleep 10
     else

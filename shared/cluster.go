@@ -253,7 +253,7 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 // SonobuoyMixedOS Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.
-func InstallSonobuoy(action, version string) error {
+func InstallSonobuoy(action string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
@@ -264,7 +264,7 @@ func InstallSonobuoy(action, version string) error {
 		return ReturnLogError("failed to change script permissions: %w", err)
 	}
 
-	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
+	cmd := exec.Command("/bin/sh", scriptsDir, action)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ReturnLogError("failed to execute %s action sonobuoy: %w\nOutput: %s", action, err, output)

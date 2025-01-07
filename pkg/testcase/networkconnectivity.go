@@ -114,35 +114,35 @@ func testCrossNodeService(services, ports, expected []string) error {
 func TestEndpointReadiness(cluster *shared.Cluster) {
 	var err error
 	var wg sync.WaitGroup
-	commands := []string{
+	var listenPort = fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
+		cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
+		cluster.Config.Product)
+
+	endpoints := []string{
 		"sudo curl -sk http://127.0.0.1:10248/healthz",  // kubelet
 		"sudo curl -sk http://127.0.0.1:10249/healthz",  // kube-proxy
 		"sudo curl -sk https://127.0.0.1:10257/healthz", // kube-controller
 		"sudo curl -sk https://127.0.0.1:10258/healthz", // cloud-controller
 		"sudo curl -sk https://127.0.0.1:10259/healthz", // kube-scheduler
-		"sudo curl -sk  " + fmt.Sprintf("--cert /var/lib/rancher/%s/server/tls/client-ca.crt",
-			cluster.Config.Product) + fmt.Sprintf(" --key  /var/lib/rancher/%s/server/tls/client-ca.key",
-			cluster.Config.Product) + " https://127.0.0.1:6443/healthz",
+		"sudo curl -sk  " + listenPort + " https://127.0.0.1:6443/healthz",
 	}
 
-	servers, err := shared.GetNodesByRoles("control-plane")
+	controlPlaneNodes, err := shared.GetNodesByRoles("control-plane")
 	if err != nil {
 		// handle the error, e.g. log or return an error
 		fmt.Println("Error getting nodes by roles:", err)
 		return
 	}
-	// I want the external IPs of the shared.GetNodesByRoles("control-plane") nodes
-	fmt.Println("Servers:", servers)
 
-	for _, serverIP := range servers {
-		for _, endpoint := range commands {
+	for _, serverIP := range controlPlaneNodes {
+		for _, endpoint := range endpoints {
 			wg.Add(1)
 			go func(serverIP, endpoint string) {
 				defer wg.Done()
-				fmt.Println("Checking endpoint", endpoint, "on server", serverIP)
+				shared.LogLevel("info", "Checking endpoint %s on server %s", endpoint, serverIP)
 				err = assert.CheckComponentCmdNode(endpoint, serverIP, "ok")
 				if err != nil {
-					fmt.Printf("Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
+					shared.LogLevel("error", "Error checking endpoint %s on server %s: %v\n", endpoint, serverIP, err)
 				}
 			}(serverIP.ExternalIP, endpoint)
 		}

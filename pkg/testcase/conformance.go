@@ -3,7 +3,6 @@ package testcase
 import (
 	"strings"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,8 +32,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 		cmd = "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
-		sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
-		err = shared.InstallSonobuoy("delete", sonobuoyVersion)
+		err = shared.InstallSonobuoy("delete")
 		if err != nil {
 			GinkgoT().Errorf("error: %v", err)
 			return
@@ -47,8 +45,10 @@ func ConformanceTest(cluster *shared.Cluster) {
 	installConformanceBinary()
 	launchSonobuoyTests("certified-conformance")
 	// refactor later to accept quick or certified-conformance
-	testResultTar := checkStatusGetResults(cluster)
+	checkStatus()
+	testResultTar := getResults(cluster)
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
+	// TODO
 	// need to do cilium force failures to test
 	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
@@ -56,8 +56,9 @@ func ConformanceTest(cluster *shared.Cluster) {
 }
 
 func verifyClusterNodes(cluster *shared.Cluster) bool {
+
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
-		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements to run conformance tests")
+		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements for conformance tests and must at least consist of 1 server and 1 agent")
 		return false
 	}
 
@@ -65,8 +66,8 @@ func verifyClusterNodes(cluster *shared.Cluster) bool {
 }
 
 func installConformanceBinary() {
-	sonobuoyVersion := customflag.ServiceFlag.External.SonobuoyVersion
-	err := shared.InstallSonobuoy("install", sonobuoyVersion)
+
+	err := shared.InstallSonobuoy("install")
 	Expect(err).NotTo(HaveOccurred())
 }
 
@@ -86,13 +87,7 @@ func launchSonobuoyTests(testMode string) {
 	}
 }
 
-func checkStatusGetResults(cluster *shared.Cluster) string {
-	// sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404
-	// 	sono status
-	//          PLUGIN     STATUS   RESULT   COUNT                                PROGRESS
-	//             e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
-	//    systemd-logs   complete   passed       2
-	// Sonobuoy has completed. Use `sonobuoy retrieve` to get results
+func checkStatus() string {
 	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() string {
 		res, err := shared.RunCommandHost(cmd)
@@ -100,11 +95,21 @@ func checkStatusGetResults(cluster *shared.Cluster) string {
 		return res
 	}, "170m", "45s").Should(ContainSubstring("Sonobuoy has completed"))
 
-	cmd = "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
+	return "timed out waiting for sonobuoy to complete after 170 minutes nearly 3 hours"
+}
+
+func getResults(cluster *shared.Cluster) string {
+	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
 	_, err = shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	Expect(err).NotTo(HaveOccurred())
+	// sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404
+	// 	sono status
+	//          PLUGIN     STATUS   RESULT   COUNT                                PROGRESS
+	//             e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
+	//    systemd-logs   complete   passed       2
+	// Sonobuoy has completed. Use `sonobuoy retrieve` to get results
 
 	return res
 }
@@ -124,10 +129,11 @@ func parseResults(testResultTar string) {
 	shared.LogLevel("info", "%s", "sonobuoy results: "+res)
 }
 
+// TODO
 // func exportResultsToS3() {}
 // export results to s3
 // if destroy is false keep results in s3 bucket
-// send results to s3 bucket with deletion rules}
+// send results to s3 bucket with deletion rules
 
 func cleanupTests() {
 	cmd := "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
