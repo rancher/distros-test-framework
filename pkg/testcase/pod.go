@@ -23,6 +23,8 @@ func TestPodStatus(
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
+	cmd := "kubectl get pods -A --field-selector=status.phase!=Running | " + 
+		"kubectl get pods -A --field-selector=status.phase=Pending"
 	Eventually(func(g Gomega) {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -31,7 +33,10 @@ func TestPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
+		shared.LogLevel("info", "Waiting on the pods below to stablize...")
+		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
+		shared.LogLevel("info", "\n%s",res)
+	}, "900s", "10s").Should(Succeed(), "failed to process pods status")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
@@ -52,7 +57,7 @@ func TestAirgapClusterPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2400s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
+	}, "900s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
 }
 
 func getPrivatePods(cluster *shared.Cluster) (podDetails string) {

@@ -3,7 +3,9 @@ package testcase
 import (
 	"errors"
 	"fmt"
-	"sync"
+	"time"
+
+	//"sync"
 
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
@@ -23,13 +25,13 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	}
 
 	if cluster.NumServers > 0 {
-		if err := upgradeProduct(k8sClient, cluster, "server", version); err != nil {
+		if err := upgradeProduct(k8sClient, cluster.Config.Product, "server", version, cluster.ServerIPs); err != nil {
 			return err
 		}
 	}
 
 	if cluster.NumAgents > 0 {
-		if err := upgradeProduct(k8sClient, cluster, "agent", version); err != nil {
+		if err := upgradeProduct(k8sClient, cluster.Config.Product, "agent", version, cluster.AgentIPs); err != nil {
 			return err
 		}
 	}
@@ -38,43 +40,63 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(k8sClient *k8s.Client, cluster *shared.Cluster, nodeType, installType string) error {
-	var wg sync.WaitGroup
+func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string, ips []string) error {
+	// var wg sync.WaitGroup
+	// errCh := make(chan error, len(ips))
 
-	var ips []string
-	if nodeType == "server" {
-		ips = cluster.ServerIPs
-	} else {
-		ips = cluster.AgentIPs
-	}
-
-	errCh := make(chan error, len(ips))
-
-	upgradeCommand := shared.GetInstallCmd(cluster.Config.Product, installType, nodeType)
+	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
 
 	for _, ip := range ips {
-		wg.Add(1)
-		go func(ip, upgradeCommand string) {
-			defer wg.Done()
+		// wg.Add(1)
+		// go func(ip, upgradeCommand string) {
+		// 	defer wg.Done()
 
-			shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
+		// 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 
-			if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-				shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
-				errCh <- err
-				return
-			}
+		// 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
+		// 		shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
+		// 		errCh <- err
+		// 		return
+		// 	}
 
-			shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
-			err := shared.RestartCluster(cluster.Config.Product, ip)
+		// 	shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
+		// 	err := shared.RestartCluster(product, ip)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// }(ip, upgradeCommand)
+
+		shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
+		if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
+			shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
+			//errCh <- err
+			return err
+		}
+
+		shared.LogLevel("info", "Waiting 60s after installing upgrade...")
+		time.Sleep(60 * time.Second)
+
+		if product == "rke2" {
+			shared.LogLevel("info", "Restarting %s service on %s: %s", product, nodeType, ip)
+			_, err := shared.ManageService(product, "restart", nodeType, []string{ip})
 			if err != nil {
-				return
+				return err
 			}
-		}(ip, upgradeCommand)
+		}
+
+		shared.LogLevel("info", "Waiting 90s for node to stablize after restarting service...")
+		time.Sleep(90 * time.Second)
+
+		// err := k8sClient.WaitForNodeReady(ip)
+		// if err != nil {
+		// 	shared.LogLevel("warn", "error waiting for node with IP: %v to be ready: %w", ip, err)
+		// 	return err
+		// } 
+
 	}
 
-	wg.Wait()
-	close(errCh)
+	//wg.Wait()
+	//close(errCh)
 
 	ok, err := k8sClient.CheckClusterHealth(0)
 	if err != nil {
