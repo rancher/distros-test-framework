@@ -48,7 +48,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 	checkStatus()
 	testResultTar := getResults(cluster)
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
-	// TODO
+	// TODO(VestigeJ): 2021-08-26
 	// need to do cilium force failures to test
 	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
@@ -58,7 +58,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 func verifyClusterNodes(cluster *shared.Cluster) bool {
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
-		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements for conformance tests and must at least consist of 1 server and 1 agent")
+		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
 		return false
 	}
 
