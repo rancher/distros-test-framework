@@ -134,7 +134,7 @@ func parseResults(testResultTar string) {
 	shared.LogLevel("info", "%s", "sonobuoy results: "+res)
 }
 
-// TODO
+// TODO(VestigeJ): 2021-08-26
 // func exportResultsToS3() {}
 // export results to s3
 // if destroy is false keep results in s3 bucket
