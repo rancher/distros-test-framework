@@ -43,8 +43,8 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 func ConformanceTest(cluster *shared.Cluster) {
 	verifyClusterNodes(cluster)
 	installConformanceBinary()
-	launchSonobuoyTests("certified-conformance")
 	// refactor later to accept quick or certified-conformance
+	launchSonobuoyTests("certified-conformance")
 	checkStatus()
 	testResultTar := getResults(cluster)
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
@@ -56,7 +56,7 @@ func ConformanceTest(cluster *shared.Cluster) {
 }
 
 func verifyClusterNodes(cluster *shared.Cluster) bool {
-
+	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
 		shared.LogLevel("error", "%s", "cluster does not meet the minimum requirements for conformance tests and must at least consist of 1 server and 1 agent")
 		return false
@@ -66,12 +66,13 @@ func verifyClusterNodes(cluster *shared.Cluster) bool {
 }
 
 func installConformanceBinary() {
-
+	shared.LogLevel("info", "installing sonobuoy binary")
 	err := shared.InstallSonobuoy("install")
 	Expect(err).NotTo(HaveOccurred())
 }
 
 func launchSonobuoyTests(testMode string) {
+	shared.LogLevel("info", "checking namespace existence")
 	// not doing anything different yet if the status is running from the previous attempts
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
@@ -88,6 +89,7 @@ func launchSonobuoyTests(testMode string) {
 }
 
 func checkStatus() string {
+	shared.LogLevel("info", "checking status of running tests")
 	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() string {
 		res, err := shared.RunCommandHost(cmd)
@@ -99,6 +101,7 @@ func checkStatus() string {
 }
 
 func getResults(cluster *shared.Cluster) string {
+	shared.LogLevel("info", "getting sonobuoy results")
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
@@ -115,6 +118,7 @@ func getResults(cluster *shared.Cluster) string {
 }
 
 func rerunFailedTests(testResultTar string) {
+	shared.LogLevel("info", "re-running tests that failed from previous run")
 	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)
@@ -122,6 +126,7 @@ func rerunFailedTests(testResultTar string) {
 }
 
 func parseResults(testResultTar string) {
+	shared.LogLevel("info", "parsing sonobuoy results")
 	cmd := "sonobuoy results  " + testResultTar
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
@@ -136,6 +141,7 @@ func parseResults(testResultTar string) {
 // send results to s3 bucket with deletion rules
 
 func cleanupTests() {
+	shared.LogLevel("info", "cleaning up cluster conformance tests and deleting sonobuoy namespace")
 	cmd := "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
