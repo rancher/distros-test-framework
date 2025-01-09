@@ -12,4 +12,4 @@ workloads/*/dynamic-ingressroute.yaml
 /config/*.tfvars
 tmp/
 entrypoint/sonobuoyconformance/my-sonobuoy-plugins
-entrypoint/conformance/sonobuoy.tar.gz
+entrypoint/conformance/*.tar.gz

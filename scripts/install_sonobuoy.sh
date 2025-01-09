@@ -8,7 +8,7 @@ action=${1:-install}
 version=${2:-0.57.2}
 arch=${3:-amd64}
 mixed_plugins_url="git clone https://github.com/phillipsj/my-sonobuoy-plugins.git"
-sonobuoy_url="https://github.com/vmware-tanzu/sonobuoy/releases/download/v"${version}"/sonobuoy_"${version}"_linux_"${arch}".tar.gz"
+sonobuoy_url="https://github.com/vmware-tanzu/sonobuoy/releases/download/v${version}/sonobuoy_${version}_linux_${arch}.tar.gz"
 max_retries=5
 retry_delay=11
 # adopt golang error handling in bash check variables are passed in appropriately - if not return appropriate error message

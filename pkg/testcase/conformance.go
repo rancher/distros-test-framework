@@ -40,11 +40,10 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-func ConformanceTest(cluster *shared.Cluster) {
-	verifyClusterNodes(cluster)
+func ConformanceTest(cluster *shared.Cluster, testName string) {
 	installConformanceBinary()
 	// refactor later to accept quick or certified-conformance
-	launchSonobuoyTests("certified-conformance")
+	launchSonobuoyTests(testName)
 	checkStatus()
 	testResultTar := getResults(cluster)
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
@@ -53,16 +52,6 @@ func ConformanceTest(cluster *shared.Cluster) {
 	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
 	cleanupTests()
-}
-
-func verifyClusterNodes(cluster *shared.Cluster) bool {
-	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
-	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
-		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
-		return false
-	}
-
-	return true
 }
 
 func installConformanceBinary() {
@@ -104,8 +93,6 @@ func getResults(cluster *shared.Cluster) string {
 	shared.LogLevel("info", "getting sonobuoy results")
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred())
-	_, err = shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	Expect(err).NotTo(HaveOccurred())
 	// sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404
 	// 	sono status

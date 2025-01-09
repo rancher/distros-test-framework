@@ -38,6 +38,8 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
+	verifyClusterNodes(cluster)
+
 	os.Exit(m.Run())
 }
 
@@ -54,3 +56,13 @@ var _ = AfterSuite(func() {
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func verifyClusterNodes(cluster *shared.Cluster) bool {
+	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
+	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
+		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
+		return false
+	}
+
+	return true
+}
