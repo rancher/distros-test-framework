@@ -3,12 +3,18 @@ package testcase
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	//"sync"
-
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
+
+	//. "github.com/onsi/gomega"
+)
+
+const (
+	server = "server"
 )
 
 // TestUpgradeClusterManual upgrades the cluster "manually".
@@ -25,78 +31,24 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	}
 
 	if cluster.NumServers > 0 {
-		if err := upgradeProduct(k8sClient, cluster.Config.Product, "server", version, cluster.ServerIPs); err != nil {
-			return err
+		for _, ip := range cluster.ServerIPs {
+			if err := upgradeProduct(k8sClient, cluster.Config.Product, server, version, ip); err != nil {
+				return err
+			}
+			shared.LogLevel("info", "Checking pod status after restarting %v node: %v", server, ip)
+			CheckPodStatus(cluster)
 		}
 	}
 
 	if cluster.NumAgents > 0 {
-		if err := upgradeProduct(k8sClient, cluster.Config.Product, "agent", version, cluster.AgentIPs); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string, ips []string) error {
-	// var wg sync.WaitGroup
-	// errCh := make(chan error, len(ips))
-
-	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
-
-	for _, ip := range ips {
-		// wg.Add(1)
-		// go func(ip, upgradeCommand string) {
-		// 	defer wg.Done()
-
-		// 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
-
-		// 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-		// 		shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
-		// 		errCh <- err
-		// 		return
-		// 	}
-
-		// 	shared.LogLevel("info", "Restarting %s: %s", nodeType, ip)
-		// 	err := shared.RestartCluster(product, ip)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// }(ip, upgradeCommand)
-
-		shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
-		if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-			shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
-			//errCh <- err
-			return err
-		}
-
-		shared.LogLevel("info", "Waiting 60s after installing upgrade...")
-		time.Sleep(60 * time.Second)
-
-		if product == "rke2" {
-			shared.LogLevel("info", "Restarting %s service on %s: %s", product, nodeType, ip)
-			_, err := shared.ManageService(product, "restart", nodeType, []string{ip})
-			if err != nil {
+		for _, ip := range cluster.AgentIPs {
+			if err := upgradeProduct(k8sClient, cluster.Config.Product, agent, version, ip); err != nil {
 				return err
 			}
+			shared.LogLevel("info", "Checking pod status after restarting %v node: %v", agent, ip)
+			CheckPodStatus(cluster)
 		}
-
-		shared.LogLevel("info", "Waiting 90s for node to stablize after restarting service...")
-		time.Sleep(90 * time.Second)
-
-		// err := k8sClient.WaitForNodeReady(ip)
-		// if err != nil {
-		// 	shared.LogLevel("warn", "error waiting for node with IP: %v to be ready: %w", ip, err)
-		// 	return err
-		// } 
-
 	}
-
-	//wg.Wait()
-	//close(errCh)
 
 	ok, err := k8sClient.CheckClusterHealth(0)
 	if err != nil {
@@ -108,3 +60,83 @@ func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string
 
 	return nil
 }
+
+// upgradeProduct upgrades a node server or agent type to the specified version.
+func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string, ip string) error {
+	upgradeCommand := getInstallCmd(product, installType, nodeType)
+	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
+	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
+		shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
+		return err
+	}
+	shared.LogLevel("info", "Waiting 30s after installing upgrade...")
+	time.Sleep(30 * time.Second)
+	if product == "rke2" {
+		shared.LogLevel("info", "Restarting %s service on %s node: %s", product, nodeType, ip)
+		_, err := shared.ManageService(product, "restart", nodeType, []string{ip})
+		if err != nil {
+			return err
+		}
+		shared.LogLevel("info", "Waiting for 180s after restarting service")
+		time.Sleep(180 * time.Second)
+		shared.LogLevel("info", "Waiting for %v node to be ready: %v", nodeType, ip)
+		err = k8sClient.WaitForNodeReady(ip)
+		if err != nil {
+			return err
+		}
+
+		// Eventually(func(g Gomega) bool{
+		// 	shared.LogLevel("info", "Checking %s service status -> %s node: %s", product, nodeType, ip)
+		// 	res, err := shared.ManageService(product, "status", nodeType, []string{ip})
+		// 	if err != nil {
+		// 		shared.LogLevel("info", "Error checking service status: \n%v", err)
+		// 	}
+		// 	if nodeType == "agent" {
+		// 		return strings.Contains(res, "Updated load balancer rke2-agent-load-balancer")
+		// 	} else {
+		// 		return strings.Contains(res, "Labels and annotations have been set successfully on node")
+		// 	}	
+		// }, "600s", "30s").Should(BeTrue(), "failed to check service status")
+
+		// shared.LogLevel("info", "Waiting 60s for node to stablize after restarting service...")
+		// time.Sleep(60 * time.Second)
+	}
+
+	return nil
+}
+
+func getInstallCmd(product, installType, nodeType string) string {
+	var installFlag string
+	var installCmd string
+
+	var channel = getChannel(product)
+
+	if strings.HasPrefix(installType, "v") {
+		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
+	} else {
+		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+
+	return fmt.Sprintf(installCmd, installFlag, channel)
+}
+
+func getChannel(product string) string {
+	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+
+	if customflag.ServiceFlag.Channel.String() != "" {
+		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
+			customflag.ServiceFlag.Channel.String())
+	}
+
+	return defaultChannel
+}
+
+// func upgradeServer(k8sClient *k8s.Client,product, installType string, serverIPs []string) error {
+// 	return upgradeProduct(k8sClient, product, "server", installType, serverIPs)
+// }
+
+// func upgradeAgent(k8sClient *k8s.Client, product, installType string, agentIPs []string) error {
+// 	return upgradeProduct(k8sClient, product, "agent", installType, agentIPs)
+// }

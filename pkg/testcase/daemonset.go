@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,6 +18,12 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		workloadErr = shared.ManageWorkload("apply", "daemonset.yaml")
 		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
 	}
+
+	getDeamonset := "kubectl get pods -n test-daemonset" +
+		" --field-selector=status.phase=Running --kubeconfig="
+	err := assert.ValidateOnHost(getDeamonset+shared.KubeConfigFile, statusRunning)
+	Expect(err).NotTo(HaveOccurred(), err)
+
 	pods, _ := shared.GetPods(false)
 
 	cmd := "kubectl get pods -n test-daemonset" +
