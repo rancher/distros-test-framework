@@ -19,7 +19,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 

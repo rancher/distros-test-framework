@@ -19,7 +19,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 

@@ -596,7 +596,7 @@ func ManageService(service, action, nodeType string, ips []string) (string, erro
 	for _, ip := range ips {
 		LogLevel("debug", "Performing systemctl %s %s on %s", service, action, ip)
 
-		cmd, getError := SystemCtlCmd(action, service)
+		cmd, getError := SystemCtlCmd(service, action)
 		if getError != nil {
 			return ip, getError
 		}
@@ -639,19 +639,20 @@ func ManageService(service, action, nodeType string, ips []string) (string, erro
 
 // SystemCtlCmd returns the systemctl command based on the action and service.
 // it can be used alone to create the command and be ran by another function caller.
-func SystemCtlCmd(action, service string) (string, error) {
+//
+// Action can be: start | stop | restart | status | enable.
+func SystemCtlCmd(service, action string) (string, error) {
 	systemctlCmdMap := map[string]string{
-		"stop":            "sudo systemctl --no-block stop",
-		"start":           "sudo systemctl --no-block start",
-		"restart":         "sudo systemctl --no-block restart",
-		"status":          "sudo systemctl --no-block status",
-		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
-		"enable":          "sudo systemctl --no-block enable",
+		"stop":    "sudo systemctl --no-block stop",
+		"start":   "sudo systemctl --no-block start",
+		"restart": "sudo systemctl --no-block restart",
+		"status":  "sudo systemctl --no-block status",
+		"enable":  "sudo systemctl --no-block enable",
 	}
 
 	sysctlPrefix, ok := systemctlCmdMap[action]
 	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status | enable | restart-systemd")
+		return "", ReturnLogError("action value should be: start | stop | restart | status | enable")
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil

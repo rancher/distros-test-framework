@@ -90,15 +90,15 @@ type Pod struct {
 }
 
 // ClusterConfig returns a singleton cluster with all terraform config and vars.
-func ClusterConfig(cfg *config.Product) *Cluster {
+func ClusterConfig(envCfg *config.Env) *Cluster {
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster(cfg.Product, cfg.Module)
+		cluster, err = newCluster(envCfg.Product, envCfg.Module)
 		if err != nil {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
 				LogLevel("info", "\nmoving to start destroy operation\n")
-				status, destroyErr := DestroyCluster(cfg)
+				status, destroyErr := DestroyCluster(envCfg)
 				if destroyErr != nil {
 					LogLevel("error", "error destroying cluster: %w\n", destroyErr)
 					os.Exit(1)
@@ -227,7 +227,7 @@ func newCluster(product, module string) (*Cluster, error) {
 }
 
 // DestroyCluster destroys the cluster and returns it.
-func DestroyCluster(cfg *config.Product) (string, error) {
+func DestroyCluster(cfg *config.Env) (string, error) {
 	terraformOptions, _, err := setTerraformOptions(cfg.Product, cfg.Module)
 	if err != nil {
 		return "", err

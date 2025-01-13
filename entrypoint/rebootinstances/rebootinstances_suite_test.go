@@ -20,7 +20,7 @@ import (
 var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	cluster    *shared.Cluster
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 

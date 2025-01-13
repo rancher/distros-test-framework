@@ -20,7 +20,7 @@ var (
 	cluster    *shared.Cluster
 	flags      *customflag.FlagConfig
 	kubeconfig string
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 

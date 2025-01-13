@@ -22,7 +22,7 @@ var (
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
 	k8sClient  *k8s.Client
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 

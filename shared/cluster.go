@@ -691,7 +691,7 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 }
 
 // AddProductCfg its a helper function to add env config on this pkg.
-func AddProductCfg() *config.Product {
+func AddProductCfg() *config.Env {
 	cfg, err := config.AddEnv()
 	if err != nil {
 		LogLevel("error", "error adding env vars: %w\n", err)

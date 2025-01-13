@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *config.Product, flags *customflag.FlagConfig) {
+func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *config.Env, flags *customflag.FlagConfig) {
 	clusterToken, clusterTokenErr := shared.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(clusterTokenErr).NotTo(HaveOccurred())
 

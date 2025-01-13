@@ -15,7 +15,7 @@ import (
 
 var (
 	cluster *shared.Cluster
-	cfg     *config.Product
+	cfg     *config.Env
 	err     error
 )
 

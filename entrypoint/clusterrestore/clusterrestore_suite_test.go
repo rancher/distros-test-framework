@@ -21,7 +21,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	flags      *customflag.FlagConfig
 	kubeconfig string
-	cfg        *config.Product
+	cfg        *config.Env
 	cluster    *shared.Cluster
 	awsClient  *aws.Client
 )
