@@ -51,11 +51,9 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if (test_name == "private_registry") {
-                job_test_args = job_test_args + " -tags=privateregistry"
-              } else if ((test_name == "system_default_registry")) {
-                job_test_args = job_test_args + " -tags=systemdefaultregistry"
-              } else if ((test_name == "tarball")) {
+              if ((test_name == "privateregistry") || (test_name == "systemdefaultregistry")) {
+                job_test_args = job_test_args + " -tags=${test_name}"
+              } else if (test_name == "tarball") {
                 job_test_args = job_test_args + " -tags=tarball -tarballType tar.zst"
               }
 
@@ -76,7 +74,17 @@ node {
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
 
-              jobs[test_name] = { build job: "${env.PRODUCT_NAME}_${test_name}", parameters: install_params }
+              switch (test_name) {
+                case "privateregistry":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_private_registry", parameters: install_params }
+                  break
+                case "systemdefaultregistry":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_system_default_registry", parameters: install_params }
+                  break
+                case "tarball":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_${test_name}", parameters: install_params }
+                  break
+                } // switch case
             } // for each test_dir loop
             
             parallel jobs
