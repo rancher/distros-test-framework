@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/shared"
@@ -45,7 +46,7 @@ func ConformanceTest(cluster *shared.Cluster, testName string) {
 	// refactor later to accept quick or certified-conformance
 	launchSonobuoyTests(testName)
 	checkStatus()
-	testResultTar := getResults(cluster)
+	testResultTar := getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 	// TODO(VestigeJ): 2021-08-26
 	// need to do cilium force failures to test
@@ -89,7 +90,7 @@ func checkStatus() string {
 	return "timed out waiting for sonobuoy to complete after 170 minutes nearly 3 hours"
 }
 
-func getResults(cluster *shared.Cluster) string {
+func getResults() string {
 	shared.LogLevel("info", "getting sonobuoy results")
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
@@ -105,6 +106,15 @@ func getResults(cluster *shared.Cluster) string {
 }
 
 func rerunFailedTests(testResultTar string) {
+	ciliumExpectedFailures := `[sig-network][Conformance] Services should serve endpoints on same port and different protocols
+	 	Services should be able to switch session affinity for service with type clusterIP
+		Services should have session affinity work for service with type clusterIP`
+	if !strings.Contains(os.Getenv("cni"), "cilium") {
+		shared.LogLevel("info", "Cilium has known issues with conformance tests, skipping re-run")
+		shared.LogLevel("info", "ciliumExpectedFailures: %s", ciliumExpectedFailures)
+
+		return
+	}
 	shared.LogLevel("info", "re-running tests that failed from previous run")
 	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
@@ -134,3 +144,9 @@ func cleanupTests() {
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("deleted"))
 }
+
+// check if cni is cilium if true add skip flag to re-run tests and just return the results without trying to re-run
+// Failed tests:
+//  [sig-network] Services should serve endpoints on same port and different protocols [Conformance]
+//  [sig-network] Services should be able to switch session affinity for service with type clusterIP [LinuxOnly] [Conformance]
+//  [sig-network] Services should have session affinity work for service with type clusterIP [LinuxOnly] [Conformance]
