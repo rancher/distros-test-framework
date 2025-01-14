@@ -41,7 +41,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-func ConformanceTest(cluster *shared.Cluster, testName string) {
+func ConformanceTest(_ *shared.Cluster, testName string) {
 	installConformanceBinary()
 	// refactor later to accept quick or certified-conformance
 	launchSonobuoyTests(testName)
@@ -106,7 +106,8 @@ func getResults() string {
 }
 
 func rerunFailedTests(testResultTar string) {
-	ciliumExpectedFailures := `[sig-network][Conformance] Services should serve endpoints on same port and different protocols
+	ciliumExpectedFailures := `
+		[sig-network] Services should serve endpoints on same port and different protocols
 	 	Services should be able to switch session affinity for service with type clusterIP
 		Services should have session affinity work for service with type clusterIP`
 	if !strings.Contains(os.Getenv("cni"), "cilium") {
