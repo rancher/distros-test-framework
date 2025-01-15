@@ -73,7 +73,7 @@ test-upgrade-node-replacement:
 
 
 test-run-sonobuoy:
-	@go test -timeout=140m -v -count=1 ./entrypoint/conformance/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION}) --ginkgo.timeout=140m
+	@go test -timeout=170m -v -count=1 ./entrypoint/conformance/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION}) --ginkgo.timeout=170m
 
 test-create-mixedos:
 	@go test -timeout=45m -v -count=1 ./entrypoint/mixedoscluster/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION})

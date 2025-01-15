@@ -250,7 +250,7 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/install_sonobuoy.sh script.
+// InstallSonobuoy Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.
 func InstallSonobuoy(action string) error {
@@ -697,11 +697,12 @@ func AddProductCfg() *config.Env {
 
 	return cfg
 }
+
 func ExtractKubeImageVersion() string {
 	_, serverVersion, err := Product()
 	if err != nil {
-		LogLevel("warn", "error from RunCommandHost: %v\nwith res: Retrying...", err)
-		return "error"
+		LogLevel("error", "error from RunCommandHost: %v\nwith res: Retrying...", err)
+		return err
 	}
 	re := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
 	fmt.Println("serverVersion: ", strings.Split(serverVersion, "\n"))
@@ -709,7 +710,8 @@ func ExtractKubeImageVersion() string {
 	match := re.FindStringSubmatch(serverVersion)
 	fmt.Println("match: ", match)
 	if match == nil {
-		return "garbage result went in so garbage result came out" + serverVersion
+		LogLevel("error", "%s failed to resolve to server version string", serverVersion, err)
+		os.Exit(1)
 	}
 	fmt.Println("serverVersionReturnValue : ", re.FindStringSubmatch(serverVersion)[0])
 

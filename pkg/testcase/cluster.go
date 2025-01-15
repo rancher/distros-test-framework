@@ -47,14 +47,6 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	}
 }
 
-func TestDisplayClusterDetails() {
-	_, err := shared.GetNodes(true)
-	Expect(err).NotTo(HaveOccurred())
-
-	_, err = shared.GetPods(true)
-	Expect(err).NotTo(HaveOccurred())
-}
-
 func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	info := "Agent Node IPs:"
 

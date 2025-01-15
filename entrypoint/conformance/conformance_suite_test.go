@@ -29,6 +29,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	verifyClusterNodes(cluster)
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
@@ -37,8 +38,6 @@ func TestMain(m *testing.M) {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
-
-	verifyClusterNodes(cluster)
 
 	os.Exit(m.Run())
 }
@@ -57,12 +56,10 @@ var _ = AfterSuite(func() {
 	}
 })
 
-func verifyClusterNodes(cluster *shared.Cluster) bool {
+func verifyClusterNodes(cluster *shared.Cluster) {
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
 	if cluster.NumAgents < 1 && cluster.NumServers < 1 {
 		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
-		return false
+		os.Exit(1)
 	}
-
-	return true
 }

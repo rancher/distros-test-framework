@@ -61,7 +61,6 @@ func installConformanceBinary() {
 
 func launchSonobuoyTests(testMode string) {
 	shared.LogLevel("info", "checking namespace existence")
-	// not doing anything different yet if the status is running from the previous attempts
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
 	if strings.Contains(res, "Active") {
@@ -76,16 +75,15 @@ func launchSonobuoyTests(testMode string) {
 	}
 }
 
-func checkStatus() string {
+func checkStatus() {
 	shared.LogLevel("info", "checking status of running tests")
 	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() string {
 		res, err := shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return res
-	}, "170m", "45s").Should(ContainSubstring("Sonobuoy has completed"))
+	}, "170m", "10m").Should(ContainSubstring("Sonobuoy has completed"), "timed out waiting for sonobuoy to complete after 170 minutes nearly 3 hours")
 
-	return "timed out waiting for sonobuoy to complete after 170 minutes nearly 3 hours"
 }
 
 func getResults() string {
@@ -93,12 +91,6 @@ func getResults() string {
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
-	// sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404
-	// 	sono status
-	//          PLUGIN     STATUS   RESULT   COUNT                                PROGRESS
-	//             e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
-	//    systemd-logs   complete   passed       2
-	// Sonobuoy has completed. Use `sonobuoy retrieve` to get results
 
 	return res
 }

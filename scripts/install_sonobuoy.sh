@@ -29,7 +29,7 @@ download_retry(){
 }
 
 installation(){
-    echo "Installing sonobuoy version ${version} for mixedos validation"
+    echo "Installing sonobuoy version ${version}"
     if [ ! -d "my-sonobuoy-plugins" ]; 
     then
         echo "Cloning repo: https://github.com/phillipsj/my-sonobuoy-plugins.git"
@@ -39,14 +39,12 @@ installation(){
     echo "Downloading sonobouy installer..."
     if [[ $(command -v wget) ]]; then
         download_retry "wget -q ${sonobuoy_url} -O sonobuoy.tar.gz"
+        wait
     elif [[ $(command -v curl) ]]; then
         download_retry "curl -s ${sonobuoy_url} --output sonobuoy.tar.gz"
         wait
-        sleep 10
     else
         echo "Unable to use wget or curl to download sonobuoy installer, consider a networking error or an under configured OS if this error persists"
-        wait
-        sleep 10
     fi
     wait
     tar -xvf sonobuoy.tar.gz
