@@ -48,8 +48,6 @@ func ConformanceTest(_ *shared.Cluster, testName string) {
 	checkStatus()
 	testResultTar := getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
-	// TODO(VestigeJ): 2021-08-26
-	// need to do cilium force failures to test
 	rerunFailedTests(testResultTar)
 	parseResults(testResultTar)
 	cleanupTests()
@@ -145,9 +143,3 @@ func cleanupTests() {
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("deleted"))
 }
-
-// check if cni is cilium if true add skip flag to re-run tests and just return the results without trying to re-run
-// Failed tests:
-//  [sig-network] Services should serve endpoints on same port and different protocols [Conformance]
-//  [sig-network] Services should be able to switch session affinity for service with type clusterIP [LinuxOnly] [Conformance]
-//  [sig-network] Services should have session affinity work for service with type clusterIP [LinuxOnly] [Conformance]
