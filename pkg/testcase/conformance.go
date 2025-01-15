@@ -82,8 +82,7 @@ func checkStatus() {
 		res, err := shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred())
 		return res
-	}, "170m", "10m").Should(ContainSubstring("Sonobuoy has completed"), "timed out waiting for sonobuoy to complete after 170 minutes nearly 3 hours")
-
+	}, "170m", "10m").Should(ContainSubstring("Sonobuoy has completed"), "timed out waiting for sonobuoy")
 }
 
 func getResults() string {
