@@ -69,7 +69,7 @@ func takeS3Snapshot(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 }
 
 func validateS3snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, onDemandPath string) {
-	s3List, s3ListErr := awsClient.GetObjects(flags)
+	s3List, s3ListErr := awsClient.GetObjects(flags.S3Flags.Bucket)
 	Expect(s3ListErr).NotTo(HaveOccurred())
 	for _, listObject := range s3List {
 		if strings.Contains(*listObject.Key, onDemandPath) {

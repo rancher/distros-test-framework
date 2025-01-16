@@ -72,6 +72,8 @@ var _ = AfterSuite(func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
+
+	cleanS3Snapshot()
 })
 
 var _ = ReportAfterSuite("Cluster Reset Restore Test Suite", func(report Report) {
@@ -100,5 +102,14 @@ func checkUnsupportedFlags() {
 		strings.Contains(serverFlags, "/etc/rancher/rke2/custom-psa.yaml") {
 		shared.LogLevel("error", "hardening flags are not supported for now")
 		os.Exit(1)
+	}
+}
+
+func cleanS3Snapshot() {
+	shared.LogLevel("info", "cleaning s3 snapshots")
+
+	err := awsClient.DeleteS3Object(customflag.ServiceFlag.S3Flags.Bucket, "on-demand-ip")
+	if err != nil {
+		shared.LogLevel("error", "error deleting object: %s", err)
 	}
 }
