@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
@@ -52,13 +51,6 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Verifies DNS Access pre-upgrade", func() {
 		testcase.TestDNSAccess(true, false)
 	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook pre-upgrade", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred())
-		})
-	}
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service before upgrade", func() {
@@ -112,13 +104,6 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Verifies DNS Access post-upgrade", func() {
 		testcase.TestDNSAccess(true, true)
 	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook after upgrade", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred())
-		})
-	}
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {

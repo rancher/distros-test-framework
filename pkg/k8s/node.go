@@ -53,7 +53,6 @@ func (k *Client) WaitForNodeReady(ip string) error {
 
 	return nil
 
-
 }
 
 // checkInitialNodesReady receive the amount of minReadyNodes.

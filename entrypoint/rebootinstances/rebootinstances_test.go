@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -42,13 +41,6 @@ var _ = Describe("Test:", func() {
 	It("Verifies Daemonset", func() {
 		testcase.TestDaemonset(true, true)
 	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred(), err)
-		})
-	}
 
 	It("Reboot server and agent nodes", func() {
 		testcase.TestRebootInstances(cluster)

@@ -13,8 +13,8 @@ import (
 const statusCompleted = "Completed"
 
 var (
-	ciliumPodsRunning    = 0
-	ciliumPodsNotRunning = 0
+	ciliumPodsRunning                 = 0
+	ciliumPodsNotRunning              = 0
 	podAssertRestarts, podAssertReady assert.PodAssertFunc
 )
 
@@ -24,7 +24,7 @@ func TestPodStatus(
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
-	cmd := "kubectl get pods -A --field-selector=status.phase!=Running | " + 
+	cmd := "kubectl get pods -A --field-selector=status.phase!=Running | " +
 		"kubectl get pods -A --field-selector=status.phase=Pending"
 	Eventually(func(g Gomega) bool {
 		pods, err := shared.GetPods(false)
@@ -35,13 +35,12 @@ func TestPodStatus(
 		if res != "" {
 			shared.LogLevel("info", "Pods not Running or Pending: \n%s", res)
 			return false
-		} else {
-			for i := range pods {
-				processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
-			}
-			return true
+		}
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
 
+		return true
 	}, "300s", "30s").Should(BeTrue(), "failed to process pods status")
 
 	_, err := shared.GetPods(true)
@@ -77,10 +76,9 @@ func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
 }
 
 func CheckPodStatus(cluster *shared.Cluster) {
-	// cmd := "kubectl get pods -A --field-selector=status.phase!=Running | " + 
-	// 	"kubectl get pods -A --field-selector=status.phase=Pending"
-	cmd := `kubectl get pods -A ` + 
-		`-o jsonpath='{range .items[?(@.status.containerStatuses[-1:].state.waiting)]}{.metadata.namee}: {@.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}'`
+	cmd := `kubectl get pods -A ` +
+		`-o jsonpath='{range .items[?(@.status.containerStatuses[-1:].state.waiting)]}{.metadata.name}: ` +
+		`{@.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}'`
 	Eventually(func(g Gomega) bool {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
@@ -90,13 +88,11 @@ func CheckPodStatus(cluster *shared.Cluster) {
 		if res != "" {
 			shared.LogLevel("info", "Waiting for pods: \n%s", res)
 			return false
-		} else {
-			for i := range pods {
-				processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
-			}
-			return true
+		} 
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-
+		return true
 	}, "600s", "10s").Should(BeTrue(), "failed to process pods status")
 }
 

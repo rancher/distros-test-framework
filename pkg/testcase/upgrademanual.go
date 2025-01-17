@@ -9,8 +9,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
-
-	//. "github.com/onsi/gomega"
 )
 
 const (
@@ -62,7 +60,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string, ip string) error {
+func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType, ip string) error {
 	upgradeCommand := getInstallCmd(product, installType, nodeType)
 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
@@ -84,22 +82,6 @@ func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType string
 		if err != nil {
 			return err
 		}
-
-		// Eventually(func(g Gomega) bool{
-		// 	shared.LogLevel("info", "Checking %s service status -> %s node: %s", product, nodeType, ip)
-		// 	res, err := shared.ManageService(product, "status", nodeType, []string{ip})
-		// 	if err != nil {
-		// 		shared.LogLevel("info", "Error checking service status: \n%v", err)
-		// 	}
-		// 	if nodeType == "agent" {
-		// 		return strings.Contains(res, "Updated load balancer rke2-agent-load-balancer")
-		// 	} else {
-		// 		return strings.Contains(res, "Labels and annotations have been set successfully on node")
-		// 	}	
-		// }, "600s", "30s").Should(BeTrue(), "failed to check service status")
-
-		// shared.LogLevel("info", "Waiting 60s for node to stablize after restarting service...")
-		// time.Sleep(60 * time.Second)
 	}
 
 	return nil
@@ -132,11 +114,3 @@ func getChannel(product string) string {
 
 	return defaultChannel
 }
-
-// func upgradeServer(k8sClient *k8s.Client,product, installType string, serverIPs []string) error {
-// 	return upgradeProduct(k8sClient, product, "server", installType, serverIPs)
-// }
-
-// func upgradeAgent(k8sClient *k8s.Client, product, installType string, agentIPs []string) error {
-// 	return upgradeProduct(k8sClient, product, "agent", installType, agentIPs)
-// }
