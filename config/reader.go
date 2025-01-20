@@ -13,32 +13,32 @@ import (
 )
 
 var (
-	product *Product
-	once    sync.Once
-	log     = logger.AddLogger()
+	envConfig *Env
+	once      sync.Once
+	log       = logger.AddLogger()
 )
 
-type Product struct {
+type Env struct {
 	TFVars         string
 	Product        string
 	InstallVersion string
 	Module         string
 }
 
-// AddEnv sets environment variables from the .env file,tf vars and returns the Product configuration.
-func AddEnv() (*Product, error) {
+// AddEnv sets environment variables from the .env file,tf vars and returns the environment configuration.
+func AddEnv() (*Env, error) {
 	var err error
 	once.Do(func() {
-		product, err = loadEnv()
+		envConfig, err = loadEnv()
 		if err != nil {
 			os.Exit(1)
 		}
 	})
 
-	return product, nil
+	return envConfig, nil
 }
 
-func loadEnv() (*Product, error) {
+func loadEnv() (*Env, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
@@ -49,38 +49,38 @@ func loadEnv() (*Product, error) {
 		return nil, err
 	}
 
-	productConfig := &Product{
+	env := &Env{
 		TFVars:         os.Getenv("ENV_TFVARS"),
 		Product:        os.Getenv("ENV_PRODUCT"),
 		InstallVersion: os.Getenv("INSTALL_VERSION"),
 		Module:         os.Getenv("ENV_MODULE"),
 	}
 
-	validateInitVars(productConfig)
+	validateInitVars(env)
 
 	// set the environment variables from the tfvars file.
-	tfPath := fmt.Sprintf("%s/config/%s", dir, productConfig.TFVars)
+	tfPath := fmt.Sprintf("%s/config/%s", dir, env.TFVars)
 	if err := setEnv(tfPath); err != nil {
 		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err
 	}
 
-	return productConfig, nil
+	return env, nil
 }
 
-func validateInitVars(productConfig *Product) {
-	if productConfig.InstallVersion == "" {
-		log.Errorf("install version for %s is not set\n", productConfig.Product)
+func validateInitVars(env *Env) {
+	if env.InstallVersion == "" {
+		log.Errorf("install version for %s is not set\n", env.Product)
 		os.Exit(1)
 	}
 
-	if productConfig.TFVars == "" || (productConfig.TFVars != "k3s.tfvars" && productConfig.TFVars != "rke2.tfvars") {
-		log.Errorf("unknown tfvars: %s\n", productConfig.TFVars)
+	if env.TFVars == "" || (env.TFVars != "k3s.tfvars" && env.TFVars != "rke2.tfvars") {
+		log.Errorf("unknown tfvars: %s\n", env.TFVars)
 		os.Exit(1)
 	}
 
-	if productConfig.Product == "" || (productConfig.Product != "k3s" && productConfig.Product != "rke2") {
-		log.Errorf("unknown product: %s\n", productConfig.Product)
+	if env.Product == "" || (env.Product != "k3s" && env.Product != "rke2") {
+		log.Errorf("unknown product: %s\n", env.Product)
 		os.Exit(1)
 	}
 }

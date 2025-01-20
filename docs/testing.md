@@ -236,3 +236,35 @@ Note: `TARBALL_TYPE` can be either `tar.zst` (Recommended for speed) or `tar.gz`
 - ExternalDB setup
 - Split roles
 - ARM Architecture
+
+## Validating Cluster Reset Restore Path
+
+For patch validation test runs, we need an HA Setup and a single fresh instance:
+3 servers
+1 agent
+1 fresh instance
+
+- Required vars in `*.tfvars` file:
+
+```
+server_flags    = "" (unless using a cni)
+worker_flags    = "" (unless using a cni)
+```
+
+#### For Local/Docker
+
+- Required vars that should be exported anywhere locally:
+```
+AWS_ACCESS_KEY_ID=<KEY_ID>
+AWS_SECRET_ACCESS_KEY=<KEY>
+```
+- Optional vars in `.env` file: these can be user configured, default will be used if not provided.
+```
+S3_BUCKET=distros_qa
+S3_FOLDER=snapshots
+```
+
+### Not supported/implemented currently for cluster restore:
+- Hardened Cluster Setup
+- ExternalDB Setup
+- Selinux Setup

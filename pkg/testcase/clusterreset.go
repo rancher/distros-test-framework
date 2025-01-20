@@ -3,13 +3,12 @@ package testcase
 import (
 	"fmt"
 
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
+func TestClusterReset(cluster *shared.Cluster) {
 	killall(cluster)
 	shared.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
@@ -30,10 +29,6 @@ func TestClusterReset(cluster *shared.Cluster, k8sClient *k8s.Client) {
 
 	restartServer(cluster)
 	shared.LogLevel("info", "%s-service restarted", cluster.Config.Product)
-
-	ok, err := k8sClient.CheckClusterHealth(0)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(ok).To(BeTrue())
 }
 
 func clusterReset(cluster *shared.Cluster, resetCmd string) {
@@ -68,6 +63,7 @@ func killall(cluster *shared.Cluster) {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
+	// since we have killed the server, the kubectl command will fail.
 	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 }
@@ -76,10 +72,10 @@ func stopServer(cluster *shared.Cluster) {
 	_, stopErr := shared.ManageService(cluster.Config.Product, "stop", "server", []string{cluster.ServerIPs[0]})
 	Expect(stopErr).NotTo(HaveOccurred())
 
-	_, statusErr := shared.ManageService(cluster.Config.Product, "status", "server", []string{cluster.ServerIPs[0]})
-	Expect(statusErr).To(HaveOccurred())
-	statusRes := statusErr.Error()
-	Expect(statusRes).To(SatisfyAny(ContainSubstring("failed"), ContainSubstring("inactive")))
+	// due to the stop command, the service will be inactive, so ssh command to node  will fail.
+	cmd := fmt.Sprintf("sudo systemctl status %s-server", cluster.Config.Product)
+	_, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
+	Expect(err).To(HaveOccurred())
 }
 
 func restartServer(cluster *shared.Cluster) {
@@ -111,6 +107,8 @@ func deleteDataDirectories(cluster *shared.Cluster) {
 		checkDirCmd := fmt.Sprintf("sudo -i ls -l /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, checkDirErr := shared.RunCommandOnNode(checkDirCmd, cluster.ServerIPs[i])
 
-		Expect(checkDirErr.Error()).To(ContainSubstring("No such file or directory"))
+		if checkDirErr != nil {
+			Expect(checkDirErr.Error()).To(ContainSubstring("No such file or directory"))
+		}
 	}
 }

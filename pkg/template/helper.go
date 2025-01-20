@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
@@ -12,7 +13,12 @@ import (
 
 // upgradeVersion upgrades the product version.
 func upgradeVersion(template TestTemplate, k8sClient *k8s.Client, version string) error {
-	cluster := shared.ClusterConfig()
+	cfg, cfgErr := config.AddEnv()
+	if cfgErr != nil {
+		return fmt.Errorf("error adding env vars: %w", cfgErr)
+	}
+
+	cluster := shared.ClusterConfig(cfg)
 	err := testcase.TestUpgradeClusterManual(cluster, k8sClient, version)
 	if err != nil {
 		return err
@@ -53,15 +59,15 @@ func executeTestCombination(template TestTemplate) error {
 }
 
 // AddTestCases returns the test case based on the name to be used as customflag.
-func AddTestCases(cluster *shared.Cluster, k8sClient *k8s.Client, names []string) ([]testCase, error) {
-	tcs := addTestCaseMap(cluster, k8sClient)
+func AddTestCases(cluster *shared.Cluster, names []string) ([]testCase, error) {
+	tcs := addTestCaseMap(cluster)
 	return processTestCaseNames(tcs, names)
 }
 
 // addTestCaseMap initializes and returns the map of test cases.
 //
 //nolint:revive // we want to keep the argument for visibility.
-func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]testCase {
+func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 	return map[string]testCase{
 		"TestDaemonset":        testcase.TestDaemonset,
 		"TestIngress":          testcase.TestIngress,
@@ -103,7 +109,7 @@ func addTestCaseMap(cluster *shared.Cluster, k8sClient *k8s.Client) map[string]t
 			testcase.TestRestartService(cluster)
 		},
 		"TestClusterReset": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestClusterReset(cluster, k8sClient)
+			testcase.TestClusterReset(cluster)
 		},
 	}
 }

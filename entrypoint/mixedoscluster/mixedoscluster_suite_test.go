@@ -19,7 +19,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 
@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
+		cluster = shared.ClusterConfig(cfg)
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
@@ -70,7 +70,7 @@ var _ = ReportAfterSuite("Create Mixed OS Cluster Test Suite", func(report Repor
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

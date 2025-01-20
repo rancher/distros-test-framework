@@ -19,7 +19,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 
@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	validateAirgap()
 
 	// TODO: Implement using kubeconfig for airgap setup
-	cluster = shared.ClusterConfig()
+	cluster = shared.ClusterConfig(cfg)
 
 	os.Exit(m.Run())
 }
@@ -94,7 +94,7 @@ var _ = ReportAfterSuite("Create Airgap Cluster Test Suite", func(report Report)
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

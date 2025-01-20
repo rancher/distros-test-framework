@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+
+	"github.com/rancher/distros-test-framework/config"
 )
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
@@ -327,6 +329,7 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		matchedNodes = append(matchedNodes, ParseNodes(res)...)
 	}
 
@@ -591,9 +594,7 @@ func GetNodeNameByIP(ip string) (string, error) {
 				continue
 			}
 
-			name := strings.TrimSpace(nodeName)
-
-			return name, nil
+			return strings.TrimSpace(nodeName), nil
 		}
 	}
 }
@@ -687,4 +688,14 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
+}
+
+// AddProductCfg its a helper function to add env config on this pkg.
+func AddProductCfg() *config.Env {
+	cfg, err := config.AddEnv()
+	if err != nil {
+		LogLevel("error", "error adding env vars: %w\n", err)
+	}
+
+	return cfg
 }

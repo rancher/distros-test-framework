@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 // Product returns the distro product and its current version.
@@ -44,54 +45,8 @@ func productVersion(product string) (string, error) {
 	return v, nil
 }
 
-// ManageService action:stop/start/restart/status product:rke2/k3s ips:ips array for nodeType:agent/server.
-func ManageService(product, action, nodeType string, ips []string) (string, error) {
-	if len(ips) == 0 {
-		return "", ReturnLogError("ips string array cannot be empty")
-	}
-
-	for _, ip := range ips {
-		LogLevel("debug", "Performing systemctl %s on %s", action, ip)
-		cmd, getError := SystemCtlCmd(product, action, nodeType)
-		if getError != nil {
-			return ip, getError
-		}
-		manageServiceOut, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return ip, err
-		}
-		if manageServiceOut != "" {
-			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
-		}
-	}
-
-	return "", nil
-}
-
-func SystemCtlCmd(product, action, nodeType string) (string, error) {
-	systemctlCmdMap := map[string]string{
-		"stop":            "sudo systemctl --no-block stop",
-		"start":           "sudo systemctl --no-block start",
-		"restart":         "sudo systemctl --no-block restart",
-		"status":          "sudo systemctl --no-block status",
-		"restart-systemd": "sudo systemctl  --no-block restart systemd-sysctl",
-	}
-
-	sysctlPrefix, ok := systemctlCmdMap[action]
-	if !ok {
-		return "", ReturnLogError("action value should be: start | stop | restart | status")
-	}
-
-	name, err := serviceName(product, nodeType)
-	if err != nil {
-		return "", ReturnLogError("error getting service name: %w\n", err)
-	}
-
-	return fmt.Sprintf("%s %s", sysctlPrefix, name), nil
-}
-
-// serviceName Get service name. Used to work with stop/start k3s/rke2 services.
-func serviceName(product, nodeType string) (string, error) {
+// productService gets the service name for a specific distro product and nodeType.
+func productService(product, nodeType string) (string, error) {
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
 		"k3s-agent":   "k3s-agent",
@@ -148,4 +103,32 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
+}
+
+func GetInstallCmd(product, installType, nodeType string) string {
+	var installFlag string
+	var installCmd string
+
+	var channel = getChannel(product)
+
+	if strings.HasPrefix(installType, "v") {
+		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
+	} else {
+		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+
+	return fmt.Sprintf(installCmd, installFlag, channel)
+}
+
+func getChannel(product string) string {
+	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+
+	if customflag.ServiceFlag.Channel.String() != "" {
+		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
+			customflag.ServiceFlag.Channel.String())
+	}
+
+	return defaultChannel
 }

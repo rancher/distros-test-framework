@@ -8,7 +8,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -20,8 +19,7 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
-	k8sClient  *k8s.Client
-	cfg        *config.Product
+	cfg        *config.Env
 	err        error
 )
 
@@ -38,16 +36,10 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig()
+		cluster = shared.ClusterConfig(cfg)
 	} else {
 		// gets a cluster from kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
-
-	k8sClient, err = k8s.AddClient()
-	if err != nil {
-		shared.LogLevel("error", "error adding k8s client: %w\n", err)
-		os.Exit(1)
 	}
 
 	os.Exit(m.Run())
@@ -72,7 +64,7 @@ var _ = ReportAfterSuite("Cluster Reset Test Suite", func(report Report) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyCluster()
+		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

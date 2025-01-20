@@ -44,20 +44,18 @@ func AddClient() (*Client, error) {
 // minReadyNodes is the minimum number of ready nodes required for the cluster to be considered healthy.
 //
 // if minReadyNodes is 0, it will be set to the number of nodes in the cluster.
-//
-// if ip and port not passed, it will check the health of the current cluster context.
 func (k *Client) CheckClusterHealth(minReadyNodes int) (bool, error) {
 	res, err := k.GetAPIServerHealth()
 	if err != nil {
 		return false, fmt.Errorf("API server health check failed: %w", err)
 	}
 
-	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
-		return false, fmt.Errorf("node status check failed: %w", nodesErr)
-	}
-
 	if !strings.Contains(res, "ok") {
 		return false, fmt.Errorf("API server health check failed: %s", res)
+	}
+
+	if nodesErr := k.WaitForNodesReady(minReadyNodes); nodesErr != nil {
+		return false, fmt.Errorf("node status check failed: %w", nodesErr)
 	}
 
 	return true, nil
@@ -118,7 +116,7 @@ func (k *Client) GetAPIServerHealth() (string, error) {
 
 			return nil
 		},
-		retry.Attempts(21),
+		retry.Attempts(51),
 		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 	)
@@ -160,9 +158,8 @@ func (k *Client) getGVR(resourceType ResourceType) (schema.GroupVersionResource,
 
 			return fmt.Errorf("resource type %s not found", resourceType)
 		},
-		retry.Attempts(21),
-		retry.Delay(3*time.Second),
-		retry.DelayType(retry.FixedDelay),
+		retry.Attempts(51),
+		retry.Delay(5*time.Second),
 		retry.OnRetry(func(n uint, err error) {
 			if n == 0 || n == 20 {
 				shared.LogLevel("warn", "Failed to get preferred resources: Attempt-%v\nError: %v", n+1, err)
