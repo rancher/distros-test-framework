@@ -43,7 +43,6 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 
 func ConformanceTest(_ *shared.Cluster, testName string) {
 	installConformanceBinary()
-	// refactor later to accept quick or certified-conformance
 	launchSonobuoyTests(testName)
 	checkStatus()
 	testResultTar := getResults()
@@ -99,6 +98,7 @@ func rerunFailedTests(testResultTar string) {
 		[sig-network] Services should serve endpoints on same port and different protocols
 	 	Services should be able to switch session affinity for service with type clusterIP
 		Services should have session affinity work for service with type clusterIP`
+
 	if !strings.Contains(os.Getenv("cni"), "cilium") {
 		shared.LogLevel("info", "Cilium has known issues with conformance tests, skipping re-run")
 		shared.LogLevel("info", "ciliumExpectedFailures: %s", ciliumExpectedFailures)
@@ -120,12 +120,6 @@ func parseResults(testResultTar string) {
 	Expect(res).Should(ContainSubstring("Status: passed"))
 	shared.LogLevel("info", "%s", "sonobuoy results: "+res)
 }
-
-// TODO(VestigeJ): 2021-08-26
-// func exportResultsToS3() {}
-// export results to s3
-// if destroy is false keep results in s3 bucket
-// send results to s3 bucket with deletion rules
 
 func cleanupTests() {
 	shared.LogLevel("info", "cleaning up cluster conformance tests and deleting sonobuoy namespace")
