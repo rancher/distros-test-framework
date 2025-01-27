@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
-	verifyClusterNodes(cluster)
+	verifyClusterNodes()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
