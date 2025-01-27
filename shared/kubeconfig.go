@@ -146,6 +146,7 @@ func NewLocalKubeconfigFile(newServerIP, resourceName, product, localPath string
 	}
 
 	KubeConfigFile = localPath
+	LogLevel("info", "kubeconfig var updated: %s\n", KubeConfigFile)
 
 	return nil
 }

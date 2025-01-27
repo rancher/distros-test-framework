@@ -47,6 +47,10 @@ func productVersion(product string) (string, error) {
 
 // productService gets the service name for a specific distro product and nodeType.
 func productService(product, nodeType string) (string, error) {
+	if nodeType == "" {
+		return "", fmt.Errorf("nodeType required for %s service", product)
+	}
+
 	serviceNameMap := map[string]string{
 		"k3s-server":  "k3s",
 		"k3s-agent":   "k3s-agent",
@@ -63,22 +67,21 @@ func productService(product, nodeType string) (string, error) {
 }
 
 // CertRotate certificate rotate for k3s or rke2.
-func CertRotate(product string, ips []string) (string, error) {
+func CertRotate(product, ip string) error {
 	product = "-E env \"PATH=$PATH:/usr/local/bin:/usr/bin\"  " + product
-	if len(ips) == 0 {
-		return "", ReturnLogError("ips string array cannot be empty")
+	if ip == "" {
+		return ReturnLogError("IP address is required")
 	}
 
-	for _, ip := range ips {
-		cmd := fmt.Sprintf("sudo %s certificate rotate", product)
-		certRotateOut, err := RunCommandOnNode(cmd, ip)
-		if err != nil {
-			return ip, err
-		}
-		LogLevel("debug", "On %s, cert rotate output:\n %s", ip, certRotateOut)
+	cmd := fmt.Sprintf("sudo %s certificate rotate", product)
+	certRotateOut, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return ReturnLogError("certificate rotate failed on %s", ip)
 	}
 
-	return "", nil
+	LogLevel("debug", "On %s, cert rotate output:\n %s", ip, certRotateOut)
+
+	return nil
 }
 
 func SecretEncryptOps(action, ip, product string) (string, error) {
