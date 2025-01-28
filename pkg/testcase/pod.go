@@ -88,10 +88,11 @@ func CheckPodStatus(cluster *shared.Cluster) {
 		if res != "" {
 			shared.LogLevel("info", "Waiting for pods: \n%s", res)
 			return false
-		} 
+		}
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
+
 		return true
 	}, "600s", "10s").Should(BeTrue(), "failed to process pods status")
 }

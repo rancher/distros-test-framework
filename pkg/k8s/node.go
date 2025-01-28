@@ -45,16 +45,6 @@ func (k *Client) WaitForNodesReady(minReadyNodes int) error {
 	return nil
 }
 
-func (k *Client) WaitForNodeReady(ip string) error {
-	// nodeList, err := k.ListResources(ResourceTypeNode, "", "")
-	// if err != nil {
-	// 	return fmt.Errorf("failed to list nodes: %w", err)
-	// }
-
-	return nil
-
-}
-
 // checkInitialNodesReady receive the amount of minReadyNodes.
 // checks the initial state of the nodes and returns:
 // - nodeMap: a map of node names to their readiness status.

@@ -37,7 +37,7 @@ func NewManageService(maxRetries uint, retryDelay time.Duration) *ManageService 
 // If action is "status", it will return the status of the service.
 func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (string, error) {
 	for _, act := range actions {
-		LogLevel("debug", "Starting %s on %s@%s", act.Action, act.Service, ip)
+		LogLevel("debug", "Performing %s %s service on node: %s", act.Action, act.Service, ip)
 		switch act.Action {
 		case "rotate":
 			rotateErr := CertRotate(act.Service, ip)
@@ -76,7 +76,7 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 				return strings.TrimSpace(output), nil
 			}
 
-			LogLevel("debug", "Completed %s on %s@%s\nOutput: %s", act.Action, svcName, ip, strings.TrimSpace(output))
+			LogLevel("debug", "Completed performing %s %s service on node: %s\nOutput: %s", act.Action, svcName, ip, strings.TrimSpace(output))
 		}
 	}
 

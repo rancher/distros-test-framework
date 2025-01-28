@@ -3,12 +3,12 @@ package testcase
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -28,23 +28,23 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 		return shared.ReturnLogError("no nodes found to upgrade")
 	}
 
+	// Upgrades server nodes sequentially
 	if cluster.NumServers > 0 {
 		for _, ip := range cluster.ServerIPs {
-			if err := upgradeProduct(k8sClient, cluster.Config.Product, server, version, ip); err != nil {
+			if err := upgradeProduct(cluster.Config.Product, server, version, ip); err != nil {
+				shared.LogLevel("error", "error upgrading %s %s: %v", server, ip, err)
 				return err
 			}
-			shared.LogLevel("info", "Checking pod status after restarting %v node: %v", server, ip)
-			CheckPodStatus(cluster)
 		}
 	}
 
+	// Upgrades agent nodes sequentially
 	if cluster.NumAgents > 0 {
 		for _, ip := range cluster.AgentIPs {
-			if err := upgradeProduct(k8sClient, cluster.Config.Product, agent, version, ip); err != nil {
+			if err := upgradeProduct(cluster.Config.Product, agent, version, ip); err != nil {
+				shared.LogLevel("error", "error upgrading %s %s: %v", agent, ip, err)
 				return err
 			}
-			shared.LogLevel("info", "Checking pod status after restarting %v node: %v", agent, ip)
-			CheckPodStatus(cluster)
 		}
 	}
 
@@ -60,57 +60,61 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(k8sClient *k8s.Client, product, nodeType, installType, ip string) error {
-	upgradeCommand := getInstallCmd(product, installType, nodeType)
+func upgradeProduct(product, nodeType, installType, ip string) error {
+	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-		shared.LogLevel("warn", "upgrading %s %s: %v", nodeType, ip, err)
+		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
 		return err
 	}
-	shared.LogLevel("info", "Waiting 30s after installing upgrade...")
-	time.Sleep(30 * time.Second)
+	status := []shared.ServiceAction{
+		{
+			Service:  product,
+			Action:   "status",
+			NodeType: nodeType,
+		},
+	}
+
 	if product == "rke2" {
-		shared.LogLevel("info", "Restarting %s service on %s node: %s", product, nodeType, ip)
-		_, err := shared.ManageService(product, "restart", nodeType, []string{ip})
-		if err != nil {
-			return err
+		shared.LogLevel("info", "Waiting for 2 mins after installing upgrade...")
+		time.Sleep(2 * time.Minute)
+		ms := shared.NewManageService(3, 3)
+		restart := []shared.ServiceAction{
+			{
+				Service:  product,
+				Action:   "restart",
+				NodeType: nodeType,
+			},
 		}
-		shared.LogLevel("info", "Waiting for 180s after restarting service")
-		time.Sleep(180 * time.Second)
-		shared.LogLevel("info", "Waiting for %v node to be ready: %v", nodeType, ip)
-		err = k8sClient.WaitForNodeReady(ip)
-		if err != nil {
-			return err
+		output, err := ms.ManageService(ip, restart)
+		if output != "" {
+			Expect(output).To(ContainSubstring("active "),
+				fmt.Sprintf("error starting %s service for %s node ip: %s", product, nodeType, ip))
 		}
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", product, ip))
+
+		shared.LogLevel("info", "Waiting for 3 mins after restarting service...")
+		time.Sleep(3 * time.Minute)
+
+		output, err = ms.ManageService(ip, status)
+		if output != "" {
+			Expect(output).To(ContainSubstring("active "),
+				fmt.Sprintf("error checking status %s service for %s node ip: %s", product, nodeType, ip))
+		}
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error checking status %s service on %s", product, ip))
+	}
+
+	if product == "k3s" {
+		shared.LogLevel("info", "Waiting for 1 mins after installing upgrade...")
+		time.Sleep(1 * time.Minute)
+		ms := shared.NewManageService(3, 1)
+		output, err := ms.ManageService(ip, status)
+		if output != "" {
+			Expect(output).To(ContainSubstring("active "),
+				fmt.Sprintf("error starting %s service for %s node ip: %s", product, nodeType, ip))
+		}
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", product, ip))
 	}
 
 	return nil
-}
-
-func getInstallCmd(product, installType, nodeType string) string {
-	var installFlag string
-	var installCmd string
-
-	var channel = getChannel(product)
-
-	if strings.HasPrefix(installType, "v") {
-		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
-	} else {
-		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
-	}
-
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
-
-	return fmt.Sprintf(installCmd, installFlag, channel)
-}
-
-func getChannel(product string) string {
-	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
-
-	if customflag.ServiceFlag.Channel.String() != "" {
-		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
-			customflag.ServiceFlag.Channel.String())
-	}
-
-	return defaultChannel
 }
