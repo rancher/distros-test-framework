@@ -69,7 +69,7 @@ var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, &report, flags.InstallMode.String())
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, flags.InstallMode.String())
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

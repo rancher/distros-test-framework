@@ -3,8 +3,10 @@ package qase
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
@@ -15,12 +17,13 @@ import (
 const (
 	failStatus = "failed"
 	passStatus = "passed"
+	skipStatus = "skipped"
 )
 
 var (
 	qaseRunID = os.Getenv("QASE_RUN_ID")
 	caseID    = os.Getenv("QASE_TEST_CASE_ID")
-	projectID = os.Getenv("QASE_PROJECT_ID")
+	projectID = "K3SRKE2"
 )
 
 // TestCase is the struct used for sending the appropriate API call to Qase.
@@ -50,12 +53,47 @@ type createResultRequest struct {
 	comment   qaseclient.NullableString
 }
 
-// ReportTestResults receives the report from ginkgo and sends the test results to Qase.
-func (c Client) ReportTestResults(ctx context.Context, report *Report, version string) {
+func (c Client) ReportRun(fileName, product string) error {
+	pd, processTestDataErr := processTestData(fileName, product)
+	if processTestDataErr != nil {
+		return fmt.Errorf("error processing test data: %w", processTestDataErr)
+	}
+
+	id, createErr := c.createRun(pd, "e2e", product)
+	if createErr != nil {
+		return fmt.Errorf("error creating run: %w", createErr)
+	}
+
+	// Checking if the runID is within the int32 bounds to avoid integer overflow.
+	if *id < int64(math.MinInt32) || *id > int64(math.MaxInt32) {
+		return fmt.Errorf("runID %d out of int32 bounds", *id)
+	}
+	runID := int32(*id)
+
+	tcs := testSuiteDetailsToTestCase(pd.testSummary)
+
+	latestMasterCommit := "https://github.com/rancher/rke2/commits/master/"
+	if product == "k3s" {
+		latestMasterCommit = "https://github.com/k3s-io/k3s/commits/master/"
+	}
+
+	resultReq := parseBulkResults(tcs, runID, latestMasterCommit)
+	if err := c.createBulkTestResult(resultReq); err != nil {
+		return fmt.Errorf("error creating bulk test result: %w", err)
+	}
+
+	if completeErr := c.completeRun(runID); completeErr != nil {
+		return fmt.Errorf("error completing run: %w", completeErr)
+	}
+
+	return nil
+}
+
+// SpecReportTestResults receives the report from ginkgo and sends the test results to Qase.
+func (c Client) SpecReportTestResults(ctx context.Context, report *Report, version string) {
 	shared.LogLevel("info", "Start publishing test results to Qase\n")
 
 	runID, tcID := validateQaseIDs()
-
 	req := createResultRequest{
 		projectID: projectID,
 		status:    "",
@@ -65,8 +103,7 @@ func (c Client) ReportTestResults(ctx context.Context, report *Report, version s
 		comment:   newNullString(),
 	}
 
-	tcs, _ := reportToTestCase(report)
-
+	tcs, _ := specReportToTestCase(report)
 	request := parseResults(tcs, version, &req)
 
 	if err := c.createTestResult(ctx, request); err != nil {
@@ -98,10 +135,10 @@ func validateQaseIDs() (runID int, tcID *int64) {
 	return runID, tcID
 }
 
-// reportToTestCase receives the test results report and unpacks them into a slice of TestCase type.
+// specReportToTestCase receives the test results report from ginkgo and unpacks them into a slice of TestCase type.
 //
 // returns the slice of TestCase and a boolean indicating if the suite succeeded.
-func reportToTestCase(report *Report) ([]TestCase, bool) {
+func specReportToTestCase(report *Report) ([]TestCase, bool) {
 	var tcs []TestCase
 
 	for i := range report.SpecReports {
@@ -161,22 +198,80 @@ func parseResults(testCases []TestCase, version string, req *createResultRequest
 	return req
 }
 
-// createTestResult receives the the createResultRequest and sends the request to create a test result in Qase.
-func (c Client) createTestResult(ctx context.Context, req *createResultRequest) error {
-	qaseRequest := qaseclient.ResultCreate{
-		CaseId:  req.caseID,
-		Status:  req.status,
-		Time:    req.time,
-		Comment: req.comment,
+func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
+	var testCases []TestCase
+
+	for _, overview := range testOverview {
+		for _, td := range overview.testCases {
+			var stackTrace Failures
+			if td.status == failStatus {
+				stackTrace = Failures{
+					Message: td.errorLog,
+				}
+			}
+
+			tc := TestCase{
+				Name:       td.testSuiteName + " " + td.testCaseName,
+				Status:     td.status,
+				StackTrace: stackTrace,
+				Elapsed:    int64(td.elapsedTime),
+				CaseID:     td.caseID,
+			}
+
+			testCases = append(testCases, tc)
+		}
 	}
 
-	create := c.QaseAPI.ResultsAPI.CreateResult(ctx, req.projectID, req.runID).ResultCreate(qaseRequest)
-	res, httpRes, err := create.Execute()
-	if err != nil {
-		return fmt.Errorf("failed to create test result: %w, response: %v", err, httpRes)
+	return testCases
+}
+
+func parseBulkResults(testCases []TestCase, runID int32, version string) []createResultRequest {
+	caseGroups := make(map[int64][]TestCase)
+	for _, tc := range testCases {
+		if tc.CaseID <= 0 {
+			continue
+		}
+		caseGroups[tc.CaseID] = append(caseGroups[tc.CaseID], tc)
 	}
 
-	shared.LogLevel("info", "Test result created: %v\n", &res.Status)
+	var reqs []createResultRequest
 
-	return nil
+	for cid, group := range caseGroups {
+		// here we default finalStatus to passStatus and update it to failStatus if any of the sub-tests fail.
+		finalStatus := passStatus
+		var totalElapsed int64
+		var commentBuilder strings.Builder
+
+		commentBuilder.WriteString(fmt.Sprintf("Version Tested: Latest master commit %s\n", version)) // nolint:revive // it is builder string only.
+
+		for _, tc := range group {
+			totalElapsed += tc.Elapsed
+
+			if tc.Status == failStatus {
+				finalStatus = failStatus
+				commentBuilder.WriteString(fmt.Sprintf( // nolint:revive // it is builder string only.
+					"\nFailed sub-test: %s\nMessage: %s\n\n",
+					tc.Name, tc.StackTrace.Message,
+				))
+			} else {
+				commentBuilder.WriteString(fmt.Sprintf( // nolint:revive // it is builder string only.
+					"Passed sub-test: %s\n",
+					tc.Name,
+				))
+			}
+		}
+
+		req := createResultRequest{
+			projectID: projectID,
+			runID:     runID,
+			caseID:    newInt64(cid),
+			time:      newNullableInt64(totalElapsed),
+			status:    finalStatus,
+			comment:   newNullableString(commentBuilder.String()),
+		}
+
+		reqs = append(reqs, req)
+	}
+
+	return reqs
 }

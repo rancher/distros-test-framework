@@ -126,6 +126,7 @@ if [ -n "${TEST_DIR}" ]; then
           OPTS=(-timeout=45m -v -count=1 ./entrypoint/clusterrestore/... )
            [ -n "${S3_BUCKET}" ] && OPTS+=(-s3Bucket "${S3_BUCKET}")
            [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
+           [ -n "${CHANNEL}"   ] && OPTS+=(-channel "${CHANNEL}")
         go test "${OPTS[@]}"
     fi
 fi

@@ -10,27 +10,64 @@ import (
 )
 
 func TestCertRotate(cluster *shared.Cluster) {
-	certRotate(cluster.Config.Product, cluster.ServerIPs)
+	ms := shared.NewManageService(5, 5)
+	certRotate(ms, cluster.Config.Product, cluster.ServerIPs)
 
-	ip, manageError := shared.ManageService(cluster.Config.Product, "restart", "agent", cluster.AgentIPs)
-	Expect(manageError).NotTo(HaveOccurred(), "error restarting agent node ip"+ip)
+	actions := []shared.ServiceAction{
+		{Service: cluster.Config.Product,
+			Action:   "restart",
+			NodeType: "agent",
+		},
+		{
+			Service:  cluster.Config.Product,
+			Action:   "status",
+			NodeType: "agent",
+		},
+	}
+	for _, agentIP := range cluster.AgentIPs {
+		output, err := ms.ManageService(agentIP, actions)
+		if output != "" {
+			Expect(output).To(ContainSubstring("active "), fmt.Sprintf("error restarting %s agent service for node ip: %s",
+				cluster.Config.Product, agentIP))
+		}
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error restarting %s service on %s", cluster.Config.Product, agentIP))
+	}
 
 	verifyTLSDirContent(cluster.Config.Product, cluster.ServerIPs)
 }
 
 // certRotate Rotate certificate for etcd only and cp only nodes.
-func certRotate(product string, ips []string) {
-	ip, stopError := shared.ManageService(product, "stop", "server", ips)
-	Expect(stopError).NotTo(HaveOccurred(),
-		fmt.Sprintf("error stopping %s service for node ip: %s", product, ip))
+func certRotate(ms *shared.ManageService, product string, ips []string) {
+	for _, ip := range ips {
+		actions := []shared.ServiceAction{
+			{
+				Service:  product,
+				Action:   "stop",
+				NodeType: "server",
+			},
+			{
+				Service: product,
+				Action:  "rotate",
+			},
+			{
+				Service:  product,
+				Action:   "start",
+				NodeType: "server",
+			},
+			{
+				Service:  product,
+				Action:   "status",
+				NodeType: "server",
+			},
+		}
 
-	ip, rotateError := shared.CertRotate(product, ips)
-	Expect(rotateError).NotTo(HaveOccurred(),
-		fmt.Sprintf("error running certificate rotate for %s service on %s", product, ip))
-
-	ip, startError := shared.ManageService(product, "start", "server", ips)
-	Expect(startError).NotTo(HaveOccurred(),
-		fmt.Sprintf("error starting %s service for node ip: %s", product, ip))
+		output, err := ms.ManageService(ip, actions)
+		if output != "" {
+			Expect(output).To(ContainSubstring("active "),
+				fmt.Sprintf("error restarting %s service for node ip: %s", product, ip))
+		}
+		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error rotating certificate for %s service on %s", product, ip))
+	}
 }
 
 // verifyIdenticalFiles Verify the actual and expected identical file lists match.

@@ -9,9 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
-	"github.com/avast/retry-go"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/pkg/logger"
@@ -573,74 +571,10 @@ func CleanSliceStrings(stringsSlice []string) []string {
 	return stringsSlice
 }
 
-// ManageService action:stop/start/restart/status/enable
-//
-// service:rke2/k3s/systemd/any other service.
-// using rk2/k3s needs to also send nodeType:server or agent.
-//
-// status action actually returns the status response.
-func ManageService(service, action, nodeType string, ips []string) (string, error) {
-	if len(ips) == 0 {
-		return "", ReturnLogError("ips string array cannot be empty")
-	}
-
-	var err error
-	if strings.Contains(service, "rke2") || strings.Contains(service, "k3s") && nodeType != "" {
-		service, err = productService(service, nodeType)
-		if err != nil {
-			return "", ReturnLogError("failed to get service name: %w", err)
-		}
-	}
-
-	// todo: should we add concurrency here? Maybe we need action on nodes to be in a specific order.
-	for _, ip := range ips {
-		LogLevel("debug", "Performing systemctl %s %s on %s", service, action, ip)
-
-		cmd, getError := SystemCtlCmd(service, action)
-		if getError != nil {
-			return ip, getError
-		}
-
-		var manageServiceOut string
-		var runErr error
-
-		retryErr := retry.Do(
-			func() error {
-				manageServiceOut, runErr = RunCommandOnNode(cmd, ip)
-				if runErr != nil {
-					return runErr
-				}
-
-				return nil
-			},
-			retry.Attempts(20),
-			retry.Delay(5*time.Second),
-			retry.OnRetry(func(n uint, err error) {
-				if n == 0 || n == 19 {
-					LogLevel("warn", "Failed to run command: %s on node %s: Attempt-%v\nError: %v", cmd, ip, n+1, runErr)
-				}
-			}),
-		)
-		if retryErr != nil {
-			return ip, fmt.Errorf("failed to run command: %s on node %s: %w", cmd, ip, retryErr)
-		}
-
-		if manageServiceOut != "" {
-			LogLevel("debug", "service %s output: \n %s", action, manageServiceOut)
-
-			if action == "status" {
-				return strings.TrimSpace(manageServiceOut), nil
-			}
-		}
-	}
-
-	return "", nil
-}
-
 // SystemCtlCmd returns the systemctl command based on the action and service.
 // it can be used alone to create the command and be ran by another function caller.
 //
-// Action can be: start | stop | restart | status | enable.
+// action can be: start | stop | restart | status | enable.
 func SystemCtlCmd(service, action string) (string, error) {
 	systemctlCmdMap := map[string]string{
 		"stop":    "sudo systemctl --no-block stop",

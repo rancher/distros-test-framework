@@ -35,7 +35,9 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 	k8sClient, k8sErr := k8s.AddClient()
 	Expect(k8sErr).NotTo(HaveOccurred())
 
-	postValidationRestore(cluster, k8sClient, newServerIP)
+	deleteOldNodes(cluster)
+	postValidationRestore(k8sClient)
+	updateClusterIPs(cluster, newServerIP)
 }
 
 // s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
@@ -201,51 +203,38 @@ func restoreS3Snapshot(
 }
 
 func enableAndStartService(cluster *shared.Cluster, newClusterIP string) {
-	_, enableServiceCmdErr := shared.ManageService(cluster.Config.Product, "enable", "server",
-		[]string{newClusterIP})
-	Expect(enableServiceCmdErr).NotTo(HaveOccurred())
+	ms := shared.NewManageService(5, 5)
+	actions := []shared.ServiceAction{
+		{
+			Service:  cluster.Config.Product,
+			Action:   "enable",
+			NodeType: "server",
+		},
+		{
+			Service:  cluster.Config.Product,
+			Action:   "start",
+			NodeType: "server",
+		},
+		{
+			Service:  cluster.Config.Product,
+			Action:   "status",
+			NodeType: "server",
+		},
+	}
 
-	_, startServiceCmdErr := shared.ManageService(cluster.Config.Product, "start", "server",
-		[]string{newClusterIP})
-	Expect(startServiceCmdErr).NotTo(HaveOccurred())
-
-	shared.LogLevel("info", "Starting service, waiting for service to complete background processes.")
-
-	status, statusServiceCmdErr := shared.ManageService(cluster.Config.Product, "status", "server",
-		[]string{newClusterIP})
-	Expect(statusServiceCmdErr).NotTo(HaveOccurred())
-	Expect(status).To(ContainSubstring("active "))
+	output, err := ms.ManageService(newClusterIP, actions)
+	if output != "" {
+		Expect(output).To(ContainSubstring("active "), fmt.Sprintf("error starting %s server service for node ip: %s",
+			cluster.Config.Product, newClusterIP))
+	}
+	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", cluster.Config.Product, newClusterIP))
 
 	shared.LogLevel("info", "%s service successfully enabled", cluster.Config.Product)
 }
 
-func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newServerIP string) {
-	kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
-	kubeconfigFlagRemote := "--kubeconfig=" + kubeconfigFlagRemotePath
-
-	exportKubeConfigCmd := fmt.Sprintf("export KUBECONFIG=/etc/rancher/%s/%s.yaml",
-		cluster.Config.Product, cluster.Config.Product)
-
-	var pathCmd string
-	var kubectlCmd string
-	var kubectlCmdErr error
-
-	if cluster.Config.Product == "rke2" {
-		pathCmd = fmt.Sprintf("PATH=$PATH:/var/lib/rancher/%s/bin", cluster.Config.Product)
-		kubectlCmd = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", cluster.Config.Product)
-		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
-	} else {
-		pathCmd = "PATH=$PATH:/usr/local/bin"
-		kubectlCmd, kubectlCmdErr = shared.RunCommandOnNode("which kubectl", newServerIP)
-		Expect(kubectlCmdErr).NotTo(HaveOccurred())
-		kubectlCmd = exportKubeConfigCmd + " && " + pathCmd + " && " + kubectlCmd
-	}
-
-	getNodesPodsCmd := kubectlCmd + fmt.Sprintf(" get nodes,pods -A -o wide %s", kubeconfigFlagRemote)
-	_, nodesPodsErr := shared.RunCommandOnNode(getNodesPodsCmd, newServerIP)
-	Expect(nodesPodsErr).NotTo(HaveOccurred())
-
+func deleteOldNodes(cluster *shared.Cluster) {
 	shared.LogLevel("debug", "deleting old nodes")
+
 	var oldNodeIPs []string
 	oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
 	oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
@@ -253,11 +242,22 @@ func postValidationRestore(cluster *shared.Cluster, k8sClient *k8s.Client, newSe
 		err := shared.DeleteNode(ip)
 		Expect(err).NotTo(HaveOccurred())
 	}
+}
 
-	// validate overall cluster health after restore, one node (new one) should be in Ready state.
+// postValidationRestore validate overall cluster health after restore, one node (new one) should be in Ready state.
+func postValidationRestore(k8sClient *k8s.Client) {
 	ok, err := k8sClient.CheckClusterHealth(1)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(ok).To(BeTrue())
 
 	shared.PrintClusterState()
+}
+
+func updateClusterIPs(cluster *shared.Cluster, newServerIP string) {
+	shared.LogLevel("info", "Updating cluster IPs with new server IP: %s", newServerIP)
+
+	cluster.ServerIPs = []string{newServerIP}
+	cluster.NumServers = 1
+	cluster.NumAgents = 0
+	cluster.AgentIPs = []string{}
 }
