@@ -105,7 +105,9 @@ func rerunFailedTests(testResultTar string) {
 
 		return
 	}
+
 	shared.LogLevel("info", "re-running tests that failed from previous run")
+
 	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)

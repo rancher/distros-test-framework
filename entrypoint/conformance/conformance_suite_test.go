@@ -34,9 +34,11 @@ func TestMain(m *testing.M) {
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		cluster = shared.ClusterConfig()
+	} else {
+		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
+
 	os.Exit(m.Run())
-	shared.LogLevel("error", "cluster must at least consist of 1 server and 1 agent")
 	os.Exit(1)
 }
 
