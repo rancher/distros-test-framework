@@ -702,18 +702,16 @@ func ExtractKubeImageVersion() string {
 	_, serverVersion, err := Product()
 	if err != nil {
 		LogLevel("error", "error from RunCommandHost: %v\nwith res: Retrying...", err)
-		os.Exit(1)
 	}
 	re := regexp.MustCompile(`v(\d+\.\d+\.\d+)`)
-	fmt.Println("serverVersion: ", strings.Split(serverVersion, "\n"))
-	fmt.Println("re:", re)
+	LogLevel("info", "serverVersion: %s", serverVersion)
 	match := re.FindStringSubmatch(serverVersion)
-	fmt.Println("match: ", match)
+	LogLevel("info", "match: %s", match)
 	if match == nil {
 		LogLevel("error", "%s failed to resolve to server version string: %s", serverVersion, err)
 		os.Exit(1)
 	}
-	fmt.Println("serverVersionReturnValue : ", re.FindStringSubmatch(serverVersion)[0])
+	LogLevel("info", "serverVersionReturnValue : %s", re.FindStringSubmatch(serverVersion)[0])
 
 	return re.FindStringSubmatch(serverVersion)[0]
 }

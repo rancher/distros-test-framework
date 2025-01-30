@@ -32,7 +32,6 @@ var _ = Describe("Sonobuoy Conformance Tests...", func() {
 
 	It("Validates the releases conformance with upstream requirements", func() {
 		testcase.ConformanceTest(cluster, "certified-conformance")
-		// testcase.ConformanceTest(cluster, "quick")
 	})
 })
 
