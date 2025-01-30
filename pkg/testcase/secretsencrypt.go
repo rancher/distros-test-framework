@@ -83,9 +83,16 @@ func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shar
 }
 
 func restartServerAndWait(ip, product string) {
-	nodearr := []string{ip}
-	nodeIP, errRestart := shared.ManageService(product, "restart", "server", nodearr)
-	Expect(errRestart).NotTo(HaveOccurred(), "error restart service for node: "+nodeIP)
+	ms := shared.NewManageService(5, 5)
+
+	action := shared.ServiceAction{
+		Service:  product,
+		Action:   "restart",
+		NodeType: "server",
+	}
+	_, err := ms.ManageService(ip, []shared.ServiceAction{action})
+	Expect(err).NotTo(HaveOccurred(), "error restarting %s server service on %s", product, ip)
+
 	// Little lag needed between node restarts to avoid issues.
 	shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
 	time.Sleep(30 * time.Second)

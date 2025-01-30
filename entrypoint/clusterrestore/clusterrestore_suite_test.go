@@ -2,7 +2,6 @@ package clusterrestore
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -30,7 +29,8 @@ func TestMain(m *testing.M) {
 	var err error
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.S3Flags.Bucket, "s3Bucket", "distros_qa", "s3 bucket to store snapshots")
+	flag.Var(&flags.Channel, "channel", "channel to use on install")
+	flag.StringVar(&flags.S3Flags.Bucket, "s3Bucket", "distrosqa", "s3 bucket to store snapshots")
 	flag.StringVar(&flags.S3Flags.Folder, "s3Folder", "snapshots", "s3 folder to store snapshots")
 	flag.Parse()
 
@@ -94,7 +94,6 @@ func FailWithReport(message string, callerSkip ...int) {
 
 func checkUnsupportedFlags() {
 	serverFlags := os.Getenv("server_flags")
-	fmt.Printf("server flags: %s\n", serverFlags)
 
 	if strings.Contains(serverFlags, "profile") ||
 		strings.Contains(serverFlags, "selinux") ||
@@ -108,8 +107,8 @@ func checkUnsupportedFlags() {
 func cleanS3Snapshot() {
 	shared.LogLevel("info", "cleaning s3 snapshots")
 
-	err := awsClient.DeleteS3Object(customflag.ServiceFlag.S3Flags.Bucket, "on-demand-ip")
+	err := awsClient.DeleteS3Object(customflag.ServiceFlag.S3Flags.Bucket, customflag.ServiceFlag.S3Flags.Folder)
 	if err != nil {
-		shared.LogLevel("error", "error deleting object: %s", err)
+		shared.LogLevel("error", "error deleting object: %v", err)
 	}
 }

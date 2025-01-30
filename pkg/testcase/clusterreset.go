@@ -12,7 +12,8 @@ func TestClusterReset(cluster *shared.Cluster) {
 	killall(cluster)
 	shared.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
-	stopServer(cluster)
+	ms := shared.NewManageService(5, 5)
+	stopServer(cluster, ms)
 	shared.LogLevel("info", "%s-service stopped", cluster.Config.Product)
 
 	productLocationCmd, findErr := shared.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
@@ -27,7 +28,7 @@ func TestClusterReset(cluster *shared.Cluster) {
 	deleteDataDirectories(cluster)
 	shared.LogLevel("info", "data directories deleted")
 
-	restartServer(cluster)
+	restartServer(cluster, ms)
 	shared.LogLevel("info", "%s-service restarted", cluster.Config.Product)
 }
 
@@ -68,17 +69,22 @@ func killall(cluster *shared.Cluster) {
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 }
 
-func stopServer(cluster *shared.Cluster) {
-	_, stopErr := shared.ManageService(cluster.Config.Product, "stop", "server", []string{cluster.ServerIPs[0]})
+func stopServer(cluster *shared.Cluster, ms *shared.ManageService) {
+	action := shared.ServiceAction{
+		Service:  cluster.Config.Product,
+		Action:   "stop",
+		NodeType: "server",
+	}
+	_, stopErr := ms.ManageService(cluster.ServerIPs[0], []shared.ServiceAction{action})
 	Expect(stopErr).NotTo(HaveOccurred())
 
-	// due to the stop command, the service will be inactive, so ssh command to node  will fail.
+	// due to the stop command, this should fail.
 	cmd := fmt.Sprintf("sudo systemctl status %s-server", cluster.Config.Product)
 	_, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	Expect(err).To(HaveOccurred())
 }
 
-func restartServer(cluster *shared.Cluster) {
+func restartServer(cluster *shared.Cluster, ms *shared.ManageService) {
 	var startFirst []string
 	var startLast []string
 
@@ -91,11 +97,20 @@ func restartServer(cluster *shared.Cluster) {
 		startLast = append(startLast, serverIP)
 	}
 
-	_, startErr := shared.ManageService(cluster.Config.Product, "restart", "server", startFirst)
-	Expect(startErr).NotTo(HaveOccurred())
+	action := shared.ServiceAction{
+		Service:  cluster.Config.Product,
+		Action:   "restart",
+		NodeType: "server",
+	}
+	for _, ip := range startFirst {
+		_, startErr := ms.ManageService(ip, []shared.ServiceAction{action})
+		Expect(startErr).NotTo(HaveOccurred())
+	}
 
-	_, startLastErr := shared.ManageService(cluster.Config.Product, "restart", "server", startLast)
-	Expect(startLastErr).NotTo(HaveOccurred())
+	for _, ip := range startLast {
+		_, startLastErr := ms.ManageService(ip, []shared.ServiceAction{action})
+		Expect(startLastErr).NotTo(HaveOccurred())
+	}
 }
 
 func deleteDataDirectories(cluster *shared.Cluster) {

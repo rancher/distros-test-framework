@@ -7,11 +7,26 @@ import (
 )
 
 func TestRestartService(cluster *shared.Cluster) {
-	ip, err := shared.ManageService(cluster.Config.Product, "restart", "server", cluster.ServerIPs)
-	Expect(err).NotTo(HaveOccurred(), "failed restart server for ip %s", ip)
+	ms := shared.NewManageService(5, 5)
+	serverAction := shared.ServiceAction{
+		Service:  cluster.Config.Product,
+		Action:   "restart",
+		NodeType: "server",
+	}
+	for _, ip := range cluster.ServerIPs {
+		_, err := ms.ManageService(ip, []shared.ServiceAction{serverAction})
+		Expect(err).NotTo(HaveOccurred(), "error restarting %s server service on %s", cluster.Config.Product, ip)
+	}
 
 	if cluster.NumAgents > 0 {
-		ip, err = shared.ManageService(cluster.Config.Product, "restart", "agent", cluster.AgentIPs)
-		Expect(err).NotTo(HaveOccurred(), "failed to restart agent for ip %s", ip)
+		agentAction := shared.ServiceAction{
+			Service:  cluster.Config.Product,
+			Action:   "restart",
+			NodeType: "agent",
+		}
+		for _, ip := range cluster.AgentIPs {
+			_, err := ms.ManageService(ip, []shared.ServiceAction{agentAction})
+			Expect(err).NotTo(HaveOccurred(), "error restarting %s agent service on %s", cluster.Config.Product, ip)
+		}
 	}
 }

@@ -23,10 +23,10 @@ func (c Client) GetObjects(bucket string) ([]*s3.Object, error) {
 	return output.Contents, nil
 }
 
-func (c Client) DeleteS3Object(bucket, prefix string) error {
+func (c Client) DeleteS3Object(bucket, folder string) error {
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(prefix),
+		Prefix: aws.String(folder),
 	}
 
 	objList, err := c.s3.ListObjectsV2(input)
@@ -35,14 +35,14 @@ func (c Client) DeleteS3Object(bucket, prefix string) error {
 	}
 
 	if len(objList.Contents) == 0 {
-		return fmt.Errorf("no objects found with prefix %s", prefix)
+		return fmt.Errorf("no objects found with prefix %s", *input.Prefix)
 	}
 
 	sort.Slice(objList.Contents, func(i, j int) bool {
 		return objList.Contents[i].LastModified.After(*objList.Contents[j].LastModified)
 	})
-	key := *objList.Contents[0].Key
 
+	key := aws.StringValue(objList.Contents[0].Key)
 	delInput := &s3.DeleteObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
