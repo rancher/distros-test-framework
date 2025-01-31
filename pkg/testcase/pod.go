@@ -33,7 +33,7 @@ func TestPodStatus(
 
 		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
 		if res != "" {
-			shared.LogLevel("info", "Pods not Running or Pending: \n%s", res)
+			shared.LogLevel("info", "Waiting for pod status to be Running or Compeleted... \n%s", res)
 			return false
 		}
 		for i := range pods {
@@ -41,7 +41,7 @@ func TestPodStatus(
 		}
 
 		return true
-	}, "300s", "30s").Should(BeTrue(), "failed to process pods status")
+	}, "600s", "10s").Should(BeTrue(), "Pods are not in desired state")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
@@ -62,7 +62,7 @@ func TestAirgapClusterPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "900s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
+	}, "600s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
 }
 
 func getPrivatePods(cluster *shared.Cluster) (podDetails string) {

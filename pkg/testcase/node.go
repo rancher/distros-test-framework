@@ -81,7 +81,7 @@ func TestAirgapClusterNodeStatus(
 		}
 
 		return true
-	}, "2400s", "10s").Should(BeTrue())
+	}, "600s", "10s").Should(BeTrue())
 }
 
 func getPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {

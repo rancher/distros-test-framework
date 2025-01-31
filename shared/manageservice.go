@@ -9,19 +9,22 @@ import (
 )
 
 type ManageService struct {
-	MaxRetries uint
-	RetryDelay time.Duration
+	MaxRetries    uint
+	RetryDelay    time.Duration
+	ExplicitDelay time.Duration
 }
 
 // ServiceAction represents a service operation to perform on a given node type.
 type ServiceAction struct {
-	Service  string
-	Action   string
-	NodeType string
+	Service       string
+	Action        string
+	NodeType      string
+	ExplicitDelay time.Duration
 }
 
 // NewManageService creates a ManageService instance with the given maxRetries and retryDelay parameters.
-// maxRetries/retryDelay are used in order to retry the service operation in case of failure or delays.
+// maxRetries number of maximum retries on failed command response.
+// retryDelay time duration after which the failed command will be retried.
 func NewManageService(maxRetries uint, retryDelay time.Duration) *ManageService {
 	return &ManageService{
 		MaxRetries: maxRetries,
@@ -35,9 +38,12 @@ func NewManageService(maxRetries uint, retryDelay time.Duration) *ManageService 
 //
 // If action is "rotate", it will rotate the certificate for the given service.
 // If action is "status", it will return the status of the service.
+//
+// ip IP of the node where the systemctl service call is performed.
+// actions slice of ServiceAction struct contains all the service actions.
 func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (string, error) {
 	for _, act := range actions {
-		LogLevel("debug", "Performing %s %s service on node: %s", act.Action, act.Service, ip)
+		LogLevel("info", "Running %s %s service on node: %s", act.Action, act.Service, ip)
 		switch act.Action {
 		case "rotate":
 			rotateErr := CertRotate(act.Service, ip)
@@ -65,7 +71,14 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 				return "", fmt.Errorf("command build failed for %s: %w", ip, err)
 			}
 
-			LogLevel("debug", "Command: %s on %s@%s", cmd, svcName, ip)
+			if act.ExplicitDelay > 0 {
+				delay := act.ExplicitDelay * time.Second
+				LogLevel("info", "Waiting for %v before running systemctl %s %s on node: %s",
+					delay, act.Action, svcName, ip)
+				<-time.After(delay)
+			}
+
+			LogLevel("debug", "Command: %s on node: %s", cmd, ip)
 			output, err := ms.execute(cmd, ip)
 			if err != nil {
 				return "", fmt.Errorf("action %s failed on %s: %w", act.Action, ip, err)
@@ -75,8 +88,10 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 				LogLevel("debug", "service %s output: \n %s", act.Action, output)
 				return strings.TrimSpace(output), nil
 			}
-
-			LogLevel("debug", "Completed performing %s %s service on node: %s\nOutput: %s", act.Action, svcName, ip, strings.TrimSpace(output))
+			LogLevel("info", "Finished running systemctl %s %s on node: %s\n", act.Action, svcName, ip)
+			if output != "" {
+				LogLevel("debug", "Output: %s", strings.TrimSpace(output))
+			}
 		}
 	}
 

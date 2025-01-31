@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	server = "server"
+	server  = "server"
+	status  = "status"
+	restart = "restart"
 )
 
 // TestUpgradeClusterManual upgrades the cluster "manually".
@@ -67,53 +69,36 @@ func upgradeProduct(product, nodeType, installType, ip string) error {
 		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
 		return err
 	}
-	status := []shared.ServiceAction{
-		{
-			Service:  product,
-			Action:   "status",
-			NodeType: nodeType,
-		},
+
+	actions := []shared.ServiceAction{
+		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 180},
+		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 60},
 	}
 
 	if product == "rke2" {
 		shared.LogLevel("info", "Waiting for 2 mins after installing upgrade...")
 		time.Sleep(2 * time.Minute)
-		ms := shared.NewManageService(3, 3)
-		restart := []shared.ServiceAction{
-			{
-				Service:  product,
-				Action:   "restart",
-				NodeType: nodeType,
-			},
-		}
-		output, err := ms.ManageService(ip, restart)
+		ms := shared.NewManageService(3, 30)
+		output, err := ms.ManageService(ip, actions)
 		if output != "" {
 			Expect(output).To(ContainSubstring("active "),
-				fmt.Sprintf("error starting %s service for %s node ip: %s", product, nodeType, ip))
+				fmt.Sprintf("error running %s service %s on %s node: %s", product, restart, nodeType, ip))
 		}
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", product, ip))
-
-		shared.LogLevel("info", "Waiting for 3 mins after restarting service...")
-		time.Sleep(3 * time.Minute)
-
-		output, err = ms.ManageService(ip, status)
-		if output != "" {
-			Expect(output).To(ContainSubstring("active "),
-				fmt.Sprintf("error checking status %s service for %s node ip: %s", product, nodeType, ip))
+		if err != nil {
+			return err
 		}
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error checking status %s service on %s", product, ip))
 	}
 
 	if product == "k3s" {
-		shared.LogLevel("info", "Waiting for 1 mins after installing upgrade...")
-		time.Sleep(1 * time.Minute)
-		ms := shared.NewManageService(3, 1)
-		output, err := ms.ManageService(ip, status)
+		ms := shared.NewManageService(3, 10)
+		output, err := ms.ManageService(ip, []shared.ServiceAction{actions[1]})
 		if output != "" {
 			Expect(output).To(ContainSubstring("active "),
-				fmt.Sprintf("error starting %s service for %s node ip: %s", product, nodeType, ip))
+				fmt.Sprintf("error running %s service %s on %s node: %s", product, status, nodeType, ip))
 		}
-		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", product, ip))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
