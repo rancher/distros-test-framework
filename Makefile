@@ -71,7 +71,6 @@ test-upgrade-manual:
 test-upgrade-node-replacement:
 	@go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT} -channel ${CHANNEL}
 
-
 test-run-sonobuoy:
 	@go test -timeout=170m -v -count=1 ./entrypoint/conformance/... $(if ${SONOBUOY_VERSION},-sonobuoyVersion ${SONOBUOY_VERSION}) --ginkgo.timeout=170m
 

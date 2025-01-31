@@ -48,6 +48,8 @@ func ConformanceTest(_ *shared.Cluster, testName string) {
 	testResultTar := getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 	rerunFailedTests(testResultTar)
+	testResultTar = getResults()
+	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 	parseResults(testResultTar)
 	cleanupTests()
 }
@@ -62,10 +64,12 @@ func launchSonobuoyTests(testMode string) {
 	shared.LogLevel("info", "checking namespace existence")
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
+
 	if strings.Contains(res, "Active") {
 		shared.LogLevel("info", "%s", "sonobuoy namespace is active, waiting for it to complete")
 		return
 	}
+
 	if strings.Contains(res, "Error from server (NotFound): namespaces \"sonobuoy\" not found") {
 		cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 			" --mode=" + testMode + " --kubernetes-version=" + shared.ExtractKubeImageVersion()
@@ -99,7 +103,7 @@ func rerunFailedTests(testResultTar string) {
 	 	Services should be able to switch session affinity for service with type clusterIP
 		Services should have session affinity work for service with type clusterIP`
 
-	if !strings.Contains(os.Getenv("cni"), "cilium") {
+	if strings.Contains(os.Getenv("cni"), "cilium") {
 		shared.LogLevel("info", "Cilium has known issues with conformance tests, skipping re-run")
 		shared.LogLevel("info", "ciliumExpectedFailures: %s", ciliumExpectedFailures)
 
@@ -108,7 +112,9 @@ func rerunFailedTests(testResultTar string) {
 
 	shared.LogLevel("info", "re-running tests that failed from previous run")
 
-	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile
+	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile +
+		"--kubernetes-version=" + shared.ExtractKubeImageVersion()
+
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("no tests failed for plugin"))
