@@ -76,7 +76,7 @@ var _ = AfterSuite(func() {
 	}
 })
 
-func verifyClusterNodes() bool {
+func verifyClusterNodes() {
 	// if re-running locally the env variables are not set after cleanup
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
 	serverNum, err := strconv.Atoi(os.Getenv("no_of_server_nodes"))
@@ -96,5 +96,4 @@ func verifyClusterNodes() bool {
 		os.Exit(1)
 	}
 
-	return true
 }
