@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -93,6 +93,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
+    elif [ "${TEST_DIR}" = "ipv6only" ]; then
+        go test -timeout=65m -v -count=1 ./entrypoint/ipv6only/...
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then

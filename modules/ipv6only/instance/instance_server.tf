@@ -54,7 +54,6 @@ resource "aws_instance" "bastion" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_bastion_nodes == 0 ? 0 : 1
   
   connection {
@@ -75,9 +74,18 @@ resource "aws_instance" "bastion" {
     Name                 = "${var.resource_name}-${local.resource_tag}-bastion"
   }
 
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.bastion[count.index].id}" 
+  }
+
   provisioner "file" {
     source = "../../config/.ssh/aws_key.pem"
     destination = "/tmp/${var.key_name}.pem"
+  }
+
+  provisioner "file" {
+    source = "scripts/configure.sh"
+    destination = "/tmp/configure.sh"
   }
 
   provisioner "file" {
