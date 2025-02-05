@@ -1,6 +1,4 @@
-//go:build ipv6only
-
-package dualstack
+package ipv6only
 
 import (
 	"fmt"
@@ -14,6 +12,14 @@ var _ = Describe("Test ipv6 only cluster:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildIPv6OnlyCluster(cluster)
 	})
+
+	It("Install product on ipv6 only nodes", func() {
+		testcase.TestIPv6Only(cluster)
+	})
+
+	// TODO: validates
+
+
 })
 
 var _ = AfterEach(func() {

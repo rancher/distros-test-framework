@@ -16,8 +16,12 @@ variable "volume_size" {}
 variable "key_name" {}
 variable "access_key" {}
 variable "no_of_bastion_nodes" {}
-variable "enable_public_ip" {}
-variable "enable_ipv6" {}
+variable "enable_public_ip" {
+  default = false
+}
+variable "enable_ipv6" {
+  default = true
+}
 variable "no_of_worker_nodes" {}
 variable "no_of_server_nodes" {}
 variable "product" {}

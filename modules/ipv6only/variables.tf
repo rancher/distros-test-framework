@@ -38,5 +38,4 @@ variable "bastion_id" {
 variable "arch" {
   default = "amd64"
 }
-
 variable "product" {}
