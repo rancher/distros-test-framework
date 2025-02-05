@@ -3,7 +3,6 @@ package testcase
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
@@ -72,12 +71,10 @@ func upgradeProduct(product, nodeType, installType, ip string) error {
 
 	actions := []shared.ServiceAction{
 		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 180},
-		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 60},
+		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 30},
 	}
 
 	if product == "rke2" {
-		shared.LogLevel("info", "Waiting for 2 mins after installing upgrade...")
-		time.Sleep(2 * time.Minute)
 		ms := shared.NewManageService(3, 30)
 		output, err := ms.ManageService(ip, actions)
 		if output != "" {

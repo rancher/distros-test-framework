@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -19,14 +18,13 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "Daemonset manifest not deployed")
 	}
 
-	getDeamonset := "kubectl get pods -n test-daemonset" +
-		" --field-selector=status.phase=Running --kubeconfig="
-	err := assert.ValidateOnHost(getDeamonset+shared.KubeConfigFile, statusRunning)
+	cmd := "kubectl get pods -n test-daemonset" +
+		" --field-selector=status.phase=Running " +
+		" --kubeconfig=" + shared.KubeConfigFile
+	err := assert.ValidateOnHost(cmd, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	pods, _ := shared.GetPods(false)
-
-	cmd := "kubectl get pods -n test-daemonset" +
+	cmd = "kubectl get pods -n test-daemonset" +
 		` -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}'` +
 		" --kubeconfig=" + shared.KubeConfigFile
 
@@ -43,12 +41,8 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		}
 	}
 
-	cmd = fmt.Sprintf(`
-		kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints \
-		--kubeconfig="%s" | grep '<none>'
-		`,
-		shared.KubeConfigFile,
-	)
+	cmd = "kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints" +
+		" --kubeconfig=" + shared.KubeConfigFile + ` | grep '<none>'`
 	taints, err := shared.RunCommandHost(cmd)
 	if err != nil {
 		return
@@ -56,6 +50,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 	Expect(taints).To(ContainSubstring("<none>"))
 	Expect(validateNodesEqual(strings.TrimSpace(taints), strings.TrimSpace(nodeNames))).To(BeTrue())
 
+	pods, _ := shared.GetPods(false)
 	Eventually(func(_ Gomega) int {
 		return shared.CountOfStringInSlice("test-daemonset", pods)
 	}, "10s", "5s").Should(Equal(len(nodes)),
