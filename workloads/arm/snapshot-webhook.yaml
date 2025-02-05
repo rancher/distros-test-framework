@@ -1,9 +1,0 @@
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshot
-metadata:
-  name: bad-snapshot-demo
-  namespace: default
-spec:
-  source:
-    persistentVolumeClaimName: csi-pvc
-  volumeSnapshotClassName: ""
