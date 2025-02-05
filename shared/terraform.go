@@ -17,7 +17,7 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 
 	varDir, err := filepath.Abs(dir +
 		fmt.Sprintf("/config/%s.tfvars", product))
-	LogLevel("info", "Using tfvars in: %v",varDir)
+	LogLevel("info", "Using tfvars in: %v", varDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid product: %s", product)
 	}
@@ -51,7 +51,6 @@ func loadTFconfig(
 	LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
 	LogLevel("info", "Loading tfvars in to aws config....")
-
 	loadAws(t, varDir, c)
 	loadEC2(t, varDir, c)
 
@@ -72,17 +71,6 @@ func loadTFconfig(
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
 	c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
-	
-	if module == "airgap" || module == "dualstack" || module == "ipv6only" {
-		LogLevel("info", "Loading bastion configs....")
-		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
-		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
-		c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ipv6"), ",")
-		rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ipv6")
-		if rawAgentIPs != "" {
-			c.AgentIPs = strings.Split(rawAgentIPs, ",")
-		}
-	}
 
 	return c, nil
 }
@@ -107,15 +95,22 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	if module == "" {
 		KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
 		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
-	}
-	if module == "" {
 		c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
 		rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
 		if rawAgentIPs != "" {
 			c.AgentIPs = strings.Split(rawAgentIPs, ",")
 		}
 	}
-	
+	if module == "airgap" || module == "dualstack" || module == "ipv6only" {
+		LogLevel("info", "Loading bastion configs....")
+		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
+		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
+		c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ipv6"), ",")
+		rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ipv6")
+		if rawAgentIPs != "" {
+			c.AgentIPs = strings.Split(rawAgentIPs, ",")
+		}
+	}
 }
 
 func loadWinTFCfg(t *testing.T, numWinAgents int, tfOptions *terraform.Options, c *Cluster) {
