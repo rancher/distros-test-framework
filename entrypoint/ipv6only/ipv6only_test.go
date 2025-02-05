@@ -14,11 +14,10 @@ var _ = Describe("Test ipv6 only cluster:", func() {
 	})
 
 	It("Install product on ipv6 only nodes", func() {
-		testcase.TestIPv6Only(cluster)
+		testcase.TestIPv6Only(cluster, awsClient)
 	})
 
 	// TODO: validates
-
 
 })
 
