@@ -80,6 +80,18 @@ resource "aws_instance" "master" {
   tags                   = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server1"
   }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo reboot || exit 0",
+    ]
+  }
+
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && sleep 60"
+  }
+
   provisioner "file" {
     source      = "../install/node_role.sh"
     destination = "/tmp/node_role.sh"
@@ -138,6 +150,15 @@ resource "aws_instance" "master" {
   }
   provisioner "local-exec" {
     command = "sed s/127.0.0.1/${var.create_lb ? aws_route53_record.aws_route53[0].fqdn : aws_instance.master.public_ip}/g /tmp/${var.resource_name}_config >/tmp/${var.resource_name}_kubeconfig"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo reboot || exit 0",
+    ]
+  }
+
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && sleep 60"
   }
 }
 
@@ -460,7 +481,7 @@ depends_on = [aws_instance.master, aws_instance.master2-ha]
     command = "ssh-keyscan ${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip} >> /root/.ssh/known_hosts"
   }
   provisioner "local-exec" {
-    command    = "scp -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
+    command    = "scp -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/var/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
     on_failure = continue
   }
   provisioner "local-exec" {
