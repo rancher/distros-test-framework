@@ -95,23 +95,11 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux",
-      # "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo reboot || exit 0",
     ]
   }
-
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\""
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
   }
-  # provisioner "local-exec" {
-  #   command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && ssh-keyscan -H \"${self.public_ip}\" >> ~/.ssh/known_hosts && ssh -i \"${var.access_key}\" \"${var.aws_user}\"@\"${self.public_ip}\" 'sudo reboot || exit 0'"
-  # }
-  # provisioner "local-exec" {
-  #   command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && ssh -i \"${var.access_key}\" \"${var.aws_user}\"@\"${self.public_ip}\" 'sudo reboot || exit 0'"
-  # }
-  provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && sleep 90"
-  }
-
   provisioner "file" {
     source      = "../install/optional_write_files.sh"
     destination = "/tmp/optional_write_files.sh"

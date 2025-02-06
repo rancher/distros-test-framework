@@ -50,9 +50,6 @@ resource "aws_instance" "worker" {
   provisioner "local-exec" {
     command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
   }
-  # provisioner "local-exec" {
-  #   command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && sleep 90"
-  # }
   provisioner "file" {
     source = "../install/join_rke2_agent.sh"
     destination = "/var/tmp/join_rke2_agent.sh"
@@ -68,9 +65,6 @@ resource "aws_instance" "worker" {
   provisioner "local-exec" {
     command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
   }
-  # provisioner "local-exec" {
-  #   command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && sleep 90"
-  # }
   provisioner "remote-exec" {
     inline = [<<-EOT
       echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo /var/tmp/join_rke2_agent.sh ${var.node_os} ${local.master_ip} "${local.node_token}" ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.worker_flags}" ${var.username} ${var.password} "enable"
