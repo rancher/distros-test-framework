@@ -20,6 +20,7 @@ install_method=${10}
 worker_flags=${11}
 rhel_username=${12}
 rhel_password=${13}
+install_or_enable=${14}  # Values install, enable, both
 
 create_config() {
   hostname=$(hostname -f)
@@ -55,6 +56,15 @@ cis_setup() {
   if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]; then
     if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
       cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+    elif [[ "$node_os" == *"slemicro"* ]]; then
+      cat <<EOF >> ~/60-rke2-cis.conf
+on_oovm.panic_on_oom=0
+vm.overcommit_memory=1
+kernel.panic=10
+kernel.panic_ps=1
+kernel.panic_on_oops=1
+EOF
+      cp ~/60-rke2-cis.conf /etc/sysctl.d/;
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     fi
@@ -106,7 +116,7 @@ install_rke2() {
   fi
 
   install_cmd="curl -sfL $url | $params sh -"
-
+  echo "$install_cmd"
   if ! eval "$install_cmd"; then
     echo "Failed to install rke2-agent on joining node ip: $public_ip"
     exit 1
@@ -141,14 +151,21 @@ install() {
   install_rke2
   sleep 10
   cis_setup
-  enable_service
 }
 
 main() {
-  create_config
-  update_config
-  subscription_manager
-  disable_cloud_setup
-  install
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "${install_or_enable}" == *"install"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    echo "Executing INSTALL Block"
+    create_config
+    update_config
+    subscription_manager
+    disable_cloud_setup
+    install
+  fi
+  if [[ "${install_or_enable}" == *"enable"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    echo "Executing ENABLE Block"
+    enable_service
+  fi
 }
 main "$@"
