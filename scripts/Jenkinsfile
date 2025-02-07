@@ -75,7 +75,7 @@ node {
                     if (env.MODULE) {
                        data += "ENV_MODULE=${env.MODULE}\n"
                        version_param_name = "install_version"
-                       channel_param_name = "channel"
+                       channel_param_name = "install_channel"
                     }
                     //adding data to .env file
                     writeFile(file: '.env', text: data)

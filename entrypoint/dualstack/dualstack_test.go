@@ -1,5 +1,3 @@
-//go:build dualstack
-
 package dualstack
 
 import (

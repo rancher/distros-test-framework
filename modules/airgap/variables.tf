@@ -47,4 +47,4 @@ variable "no_of_worker_nodes" {
 variable "arch" {
   default = "amd64"
 }
-variable "product" {}
+

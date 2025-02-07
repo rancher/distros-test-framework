@@ -10,12 +10,12 @@ output "bastion_dns" {
   description = "The public DNS of the bastion node"
 }
 
-output "master_ipv6" {
+output "master_ips" {
   value       = module.instance.master_ips
   description = "The IPv6 IP of the AWS node"
 }
 
-output "worker_ipv6" {
+output "worker_ips" {
   value       = module.instance.worker_ips
   description = "The IPv6 IP of the AWS node"
 }
