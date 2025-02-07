@@ -574,7 +574,7 @@ func CleanSliceStrings(stringsSlice []string) []string {
 // SystemCtlCmd returns the systemctl command based on the action and service.
 // it can be used alone to create the command and be ran by another function caller.
 //
-// action can be: start | stop | restart | status | enable.
+// Action can be: start | stop | restart | status | enable.
 func SystemCtlCmd(service, action string) (string, error) {
 	systemctlCmdMap := map[string]string{
 		"stop":    "sudo systemctl --no-block stop",

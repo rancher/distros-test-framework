@@ -14,7 +14,6 @@ import (
 func (c Client) createRun(pd *processedTestdata, titleName, product string) (*int64, error) {
 	description, planID := buildRun(pd)
 
-	// create the test run title.
 	runTitle := titleName + " " + product + " test run - " + pd.testDate
 	createRunReq := c.QaseAPI.RunsAPI.CreateRun(c.Ctx, projectID).RunCreate(qaseclient.RunCreate{
 		Title:           runTitle,
@@ -47,7 +46,7 @@ func buildRun(pd *processedTestdata) (desc string, planID int64) {
 			suite.passedTests,
 			suite.skippedTests,
 		)
-		// If the suite has failures, add details of failed test cases.
+
 		if suite.failedTests > 0 {
 			var failedTestNames string
 			for _, overview := range pd.testSummary {
@@ -67,9 +66,9 @@ func buildRun(pd *processedTestdata) (desc string, planID int64) {
 		}
 		suiteSummaries = append(suiteSummaries, summary)
 	}
-	// Join all suite summaries.
+
 	testSuiteSummary := strings.Join(suiteSummaries, "\n")
-	// Build test run description.
+
 	description := fmt.Sprintf(
 		"Total Test time: %s\nTest Date: %s\nFAILED: %d\nPASSED: %d\nSKIPPED: %d\n\n"+
 			"Test Suite Summary:\n%s\nGH Actions: %s\n",
@@ -82,7 +81,7 @@ func buildRun(pd *processedTestdata) (desc string, planID int64) {
 		os.Getenv("COMMENT_LINK"),
 	)
 
-	// Update the planID according to the product that has uptated the the planID field on testSuiteSummary/testSuiteDetails.
+	// get the planID according to the product that has updated the field previously testSuiteSummary/testSuiteDetails.
 	var id int64
 	for _, suite := range pd.testSuiteSummary {
 		id = suite.planID

@@ -76,7 +76,7 @@ const (
 
 // processTestData reads the log file and processes the data updating the test details and test suite details.
 func processTestData(fileName, product string) (*processedTestdata, error) {
-	data, readErr := readLogsFromFile(fileName)
+	data, readErr := parseLogsFromFile(fileName)
 	if readErr != nil {
 		return nil, fmt.Errorf("error reading log file: %w", readErr)
 	}
@@ -382,7 +382,7 @@ func extractIDs(suiteName, product string) (int64, error) {
 			}
 		}
 	} else {
-		// TODO: Add k3s test cases
+		// TODO: Add all correct k3s test cases.
 		k3sTcs := map[string]int64{
 			"dualstack":         231,
 			"clustervalidation": 232,

@@ -137,7 +137,7 @@ func NewLocalKubeconfigFile(newServerIP, resourceName, product, localPath string
 	}
 
 	serverIPRgx := regexp.MustCompile(`server: https://\d+\.\d+\.\d+\.\d+`)
-	replace := fmt.Sprintf("server: https://%s", newServerIP)
+	replace := "server: https://" + newServerIP
 	updated := serverIPRgx.ReplaceAllString(kubeconfigContent, replace)
 
 	writeErr := os.WriteFile(localPath, []byte(updated), 0o644)

@@ -19,12 +19,12 @@ func main() {
 	flag.Parse()
 
 	if product == "" {
-		shared.LogLevel("error", "--product flag is required")
+		shared.LogLevel("error", "-p flag is required")
 		os.Exit(1)
 	}
 
 	if fileName == "" {
-		shared.LogLevel("error", "--file flag is required")
+		shared.LogLevel("error", "-f flag is required")
 		os.Exit(1)
 	}
 

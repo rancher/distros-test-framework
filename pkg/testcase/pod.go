@@ -13,8 +13,9 @@ import (
 const statusCompleted = "Completed"
 
 var (
-	ciliumPodsRunning    = 0
-	ciliumPodsNotRunning = 0
+	ciliumPodsRunning                 = 0
+	ciliumPodsNotRunning              = 0
+	podAssertRestarts, podAssertReady assert.PodAssertFunc
 )
 
 // TestPodStatus test the status of the pods in the cluster using custom assert functions.
@@ -23,15 +24,24 @@ func TestPodStatus(
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
-	Eventually(func(g Gomega) {
+	cmd := "kubectl get pods -A --field-selector=status.phase!=Running | " +
+		"kubectl get pods -A --field-selector=status.phase=Pending"
+	Eventually(func(g Gomega) bool {
 		pods, err := shared.GetPods(false)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(pods).NotTo(BeEmpty())
 
+		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
+		if res != "" {
+			shared.LogLevel("info", "Waiting for pod status to be Running or Compeleted... \n%s", res)
+			return false
+		}
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2400s", "10s").Should(Succeed(), "failed to process pods status")
+
+		return true
+	}, "600s", "10s").Should(BeTrue(), "Pods are not in desired state")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
@@ -52,7 +62,7 @@ func TestAirgapClusterPodStatus(
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
-	}, "2400s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
+	}, "600s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
 }
 
 func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
@@ -63,6 +73,28 @@ func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
 	podDetails, _ = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 
 	return podDetails
+}
+
+func CheckPodStatus(cluster *shared.Cluster) {
+	cmd := `kubectl get pods -A ` +
+		`-o jsonpath='{range .items[?(@.status.containerStatuses[-1:].state.waiting)]}{.metadata.name}: ` +
+		`{@.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}'`
+	Eventually(func(g Gomega) bool {
+		pods, err := shared.GetPods(false)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(pods).NotTo(BeEmpty())
+
+		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
+		if res != "" {
+			shared.LogLevel("info", "Waiting for pods: \n%s", res)
+			return false
+		}
+		for i := range pods {
+			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
+		}
+
+		return true
+	}, "600s", "10s").Should(BeTrue(), "failed to process pods status")
 }
 
 func processPodStatus(

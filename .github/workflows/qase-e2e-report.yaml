@@ -48,36 +48,32 @@ jobs:
         id: get-latest-log
         run: |
           # Get the latest {product}.log file from the bucket.
-          LATEST_LOG=$(aws s3api list-objects-v2 \
-            --bucket e2e-results-log \
-            --query 'Contents[?ends_with(Key, `.log`)] | sort_by(@, &LastModified)[-1].Key' \
-            --output text)
+            LATEST_LOG=$(aws s3api list-objects-v2 \
+              --bucket e2e-results-log \
+              --query 'Contents[?ends_with(Key, `.log`)] | sort_by(@, &LastModified)[-1].Key' \
+              --output text)
           
-          if [ -z "$LATEST_LOG" ]; then
-              echo "No log files found."
-              exit 1
-          fi
-          
-          # Print the latest log file and determine product.
-            PRODUCT=""
-            if [[ $LATEST_LOG =~ rke2 ]]; then
-              PRODUCT="rke2"
-            elif [[ $LATEST_LOG =~ k3s ]]; then
-              PRODUCT="k3s"
+            if [ -z "$LATEST_LOG" ]; then
+                echo "No log files found."
+                exit 1
             fi
           
-            echo "product=PRODUCT" >> $GITHUB_OUTPUT
+          # Print the latest log 
             echo "Latest log file: $LATEST_LOG"
           
+          # Set the product name on the output 
+          #TODO: add k3s
+            echo "product=rke2" >> $GITHUB_OUTPUT
+         
           # Download the file
             aws s3 cp s3://e2e-results-log/$LATEST_LOG ./latest_e2e.log
           
           # Log path as an output
             echo "log_path=latest_e2e.log" >> $GITHUB_OUTPUT
           
-          GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          COMMENT_LINK="In case of failure in GitHub Actions run. See details here: $GITHUB_RUN_URL"
-          echo "comment_link=$COMMENT_LINK" >> $GITHUB_OUTPUT
+            GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            COMMENT_LINK="In case of failure in GitHub Actions run. See details here: $GITHUB_RUN_URL"
+            echo "comment_link=$COMMENT_LINK" >> $GITHUB_OUTPUT
 
       - name: Run report processor
         env:

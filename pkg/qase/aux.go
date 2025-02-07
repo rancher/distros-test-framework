@@ -90,7 +90,7 @@ func readFullLogFile(fileName string) (string, error) {
 	return string(logs), nil
 }
 
-func readLogsFromFile(fileName string) ([]goTestData, error) {
+func parseLogsFromFile(fileName string) ([]goTestData, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)

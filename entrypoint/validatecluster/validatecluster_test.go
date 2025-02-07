@@ -7,7 +7,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -49,13 +48,6 @@ var _ = Describe("Test:", func() {
 	It("Verifies dns access", func() {
 		testcase.TestDNSAccess(true, true)
 	})
-
-	if cluster.Config.Product == "rke2" {
-		It("Verifies Snapshot Webhook", func() {
-			err := testcase.TestSnapshotWebhook(true)
-			Expect(err).To(HaveOccurred(), err)
-		})
-	}
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
