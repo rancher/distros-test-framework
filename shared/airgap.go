@@ -289,8 +289,8 @@ func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err err
 	return nil
 }
 
-// DisplayAirgapClusterDetails executes and prints kubectl get nodes,pods on bastion.
-func DisplayAirgapClusterDetails(cluster *Cluster) {
+// LogClusterDetailsViaProxy executes and prints kubectl get nodes,pods on bastion.
+func LogClusterDetailsViaProxy(cluster *Cluster) {
 	LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
 		cluster.Aws.KeyName, cluster.Aws.AwsUser,
 		cluster.BastionConfig.PublicIPv4Addr)
