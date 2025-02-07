@@ -301,7 +301,7 @@ func LogClusterDetailsViaProxy(cluster *Cluster) {
 		cluster.Config.Product)
 	cmd += "kubectl get nodes,pods -A -o wide"
 
-	LogLevel("info", "Display cluster details from airgap server-1: %v", cmd)
+	LogLevel("info", "Display cluster details server-1: %v", cmd)
 	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	if err != nil {
 		LogLevel("error", "Error getting airgap cluster details: %v", err)

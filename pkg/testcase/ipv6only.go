@@ -1,7 +1,6 @@
 package testcase
 
 import (
-
 	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
@@ -16,5 +15,3 @@ func TestIPv6Only(cluster *shared.Cluster, awsClient *aws.Client) {
 	support.InstallOnIPv6Servers(cluster)
 	support.InstallOnIPv6Agents(cluster)
 }
-
-

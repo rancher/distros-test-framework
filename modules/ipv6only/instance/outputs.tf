@@ -8,12 +8,12 @@ output "public_dns" {
   description = "The public DNS of the AWS node"
 }
 
-output "master_ipv6" {
+output "master_ips" {
   value = join("," ,aws_instance.master.*.ipv6_addresses[0])
   description = "The IPv6 IP of the AWS master node"
 }
 
-output "worker_ipv6" {
+output "worker_ips" {
   value = (var.no_of_worker_nodes > 0) ? join("," ,aws_instance.worker.*.ipv6_addresses[0]) : ""
   description = "The IPv6 IP of the AWS worker node"
 }
