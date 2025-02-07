@@ -1,10 +1,6 @@
 package testcase
 
 import (
-	"fmt"
-	"slices"
-	"strings"
-	"sync"
 
 	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/pkg/aws"
@@ -12,15 +8,13 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-
-
 func TestIPv6Only(cluster *shared.Cluster, awsClient *aws.Client) {
 	shared.LogLevel("info", "Setting up %s cluster on ipv6 only nodes...", cluster.Config.Product)
 	err := support.ConfigureIPv6OnlyNodes(cluster, awsClient)
 	Expect(err).NotTo(HaveOccurred(), err)
 	shared.LogLevel("info", "Installing %s on ipv6 only nodes...", cluster.Config.Product)
-	support.InstallOnIPv6OnlyServers(cluster)
-	support.InstallOnIpv6OnlyAgents(cluster)
+	support.InstallOnIPv6Servers(cluster)
+	support.InstallOnIPv6Agents(cluster)
 }
 
 

@@ -22,7 +22,7 @@ var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, f
 	})
 
 	It("Validates Nodes", func() {
-		testcase.TestAirgapClusterNodeStatus(
+		testcase.TestNodeStatusViaProxy(
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
@@ -30,14 +30,14 @@ var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, f
 	})
 
 	It("Validates Pods", func() {
-		testcase.TestAirgapClusterPodStatus(
+		testcase.TestPodStatusViaProxy(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
 	AfterAll(func() {
-		shared.DisplayAirgapClusterDetails(cluster)
+		shared.LogClusterDetailsViaProxy(cluster)
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip

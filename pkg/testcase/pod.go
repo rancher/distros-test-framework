@@ -47,8 +47,8 @@ func TestPodStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestAirgapClusterPodStatus test the status of the pods in the private cluster using custom assert functions.
-func TestAirgapClusterPodStatus(
+// TestPodStatusViaProxy test the status of the pods in the private cluster using custom assert functions.
+func TestPodStatusViaProxy(
 	cluster *shared.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,

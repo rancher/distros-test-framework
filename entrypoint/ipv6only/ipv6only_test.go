@@ -21,7 +21,7 @@ var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
 	})
 
 	It("Validates Nodes", func() {
-		testcase.TestAirgapClusterNodeStatus(
+		testcase.TestNodeStatusViaProxy(
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
@@ -29,14 +29,14 @@ var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
 	})
 
 	It("Validates Pods", func() {
-		testcase.TestAirgapClusterPodStatus(
+		testcase.TestPodStatusViaProxy(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
-	AfterAll(func()  {
-		shared.DisplayAirgapClusterDetails(cluster)
+	AfterAll(func() {
+		shared.LogClusterDetailsViaProxy(cluster)
 	})
 })
 
