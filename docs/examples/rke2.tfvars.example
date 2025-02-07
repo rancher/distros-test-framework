@@ -1,7 +1,7 @@
 ## RKE2 variables -- Fill these in with your desired values.
 
-install_version="v1.27.4+rke2r1"
-install_channel="testing"
+rke2_version="v1.27.4+rke2r1"
+rke2_channel="testing"
 server_flags   = "profile: cis\n"
 worker_flags   = "profile: cis\n"
 # For hardened on v1.23 or v1.24, set the server and worker flags to be: "selinux: true\nprofile: cis-1.6". 
