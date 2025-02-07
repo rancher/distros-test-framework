@@ -23,6 +23,18 @@ output "Route53_info" {
   description = "List of DNS records"
 }
 
+output "bastion_ip" {
+  depends_on = [ module.bastion ]
+  value       = module.bastion.public_ip
+  description = "The public IP of the bastion node"
+}
+
+output "bastion_dns" {
+  depends_on = [ module.bastion ]
+  value       = module.bastion.public_dns
+  description = "The public DNS of the bastion node"
+}
+
 output "rendered_template" {
   value = module.master.rendered_template
 }

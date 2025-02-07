@@ -6,8 +6,9 @@ variable "aws_ami" {}
 variable "aws_user" {}
 variable "region" {}
 variable "vpc_id" {}
-variable "subnets" {}
-variable "bastion_subnets" {}
+variable "bastion_subnets" {
+  default = ""
+}
 variable "availability_zone" {}
 variable "sg_id" {}
 variable "ec2_instance_class" {}
@@ -15,9 +16,12 @@ variable "resource_name" {}
 variable "volume_size" {}
 variable "key_name" {}
 variable "access_key" {}
-variable "no_of_bastion_nodes" {}
-variable "enable_public_ip" {}
-variable "enable_ipv6" {}
-variable "no_of_worker_nodes" {}
-variable "no_of_server_nodes" {}
-variable "product" {}
+variable "no_of_bastion_nodes" {
+  default = 0
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}

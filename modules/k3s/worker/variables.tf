@@ -9,7 +9,7 @@ variable "vpc_id" {}
 variable "subnets" {}
 variable "resource_name" {}
 variable "access_key" {}
-variable "install_version" {}
+variable "k3s_version" {}
 variable "no_of_worker_nodes" {}
 variable "worker_flags" {}
 variable "ec2_instance_class" {}
@@ -21,7 +21,7 @@ variable "password" {}
 variable "node_os" {}
 variable "install_mode" {}
 variable "key_name" {}
-variable "install_channel" {
+variable "k3s_channel" {
   default = "testing"
 }
 variable "enable_public_ip" {

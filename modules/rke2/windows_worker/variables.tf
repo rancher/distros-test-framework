@@ -16,7 +16,7 @@ variable "password" {
 variable "region" {}
 variable "resource_name" {}
 variable "install_mode" {}
-variable "install_version" {}
+variable "rke2_version" {}
 variable "sg_id" {}
 variable "subnets" {}
 variable "username" {

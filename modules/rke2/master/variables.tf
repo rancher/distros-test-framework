@@ -14,10 +14,10 @@ variable "password" {
 variable "hosted_zone" {}
 variable "region" {}
 variable "resource_name" {}
-variable "install_version" {}
+variable "rke2_version" {}
 variable "install_mode" {}
 variable "install_method" {}
-variable "install_channel" {}
+variable "rke2_channel" {}
 variable "server_flags" {}
 variable "sg_id" {}
 variable "subnets" {}
@@ -57,6 +57,12 @@ variable "cp_worker_nodes" {
 variable "optional_files" {}
 variable product {
   default = "rke2"
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
 }
 variable "datastore_type" {}
 variable "external_db" {}

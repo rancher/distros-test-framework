@@ -17,7 +17,7 @@ variable "username" {}
 variable "password" {
   default = "password"
 }
-variable "install_version" {}
+variable "k3s_version" {}
 variable "no_of_server_nodes" {}
 variable "server_flags" {}
 variable "worker_flags" {}
@@ -31,7 +31,7 @@ variable "db_password" {}
 variable "environment" {}
 variable "engine_mode" {}
 variable "install_mode" {}
-variable "install_channel" {}
+variable "k3s_channel" {}
 variable "create_lb" {
   description = "Create Network Load Balancer if set to true"
   type = bool
@@ -63,6 +63,22 @@ variable "cp_worker_nodes" {
 }
 variable product {
   default = "k3s"
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}
+variable "no_of_bastion_nodes" {
+  default = 0
+}
+variable "bastion_subnets" {
+  default = ""
+}
+variable "bastion_id" {
+  type    = any
+  default = null
 }
 variable "create_eip" {
   default = false
