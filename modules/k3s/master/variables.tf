@@ -19,9 +19,10 @@ variable "username" {}
 variable "password" {
   default = "password"
 }
-variable "install_version" {}
+variable "k3s_version" {}
 variable "no_of_server_nodes" {}
 variable "server_flags" {}
+
 variable "datastore_type" {}
 variable "node_os" {}
 variable "db_username" {}
@@ -29,7 +30,7 @@ variable "db_password" {}
 variable "environment" {}
 variable "engine_mode" {}
 variable "install_mode" {}
-variable "install_channel" {}
+variable "k3s_channel" {}
 variable "create_lb" {
   description = "Create Network Load Balancer if set to true"
   type = bool
@@ -50,6 +51,12 @@ variable "cp_only_nodes" {}
 variable "cp_worker_nodes" {}
 variable product {
   default = "k3s"
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
 }
 variable "create_eip" {
   default = false

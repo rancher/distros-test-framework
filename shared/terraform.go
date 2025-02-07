@@ -101,7 +101,7 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 			c.AgentIPs = strings.Split(rawAgentIPs, ",")
 		}
 	}
-	if module == "airgap" || module == "dualstack" || module == "ipv6only" {
+	if module == "airgap" || module == "ipv6only" {
 		LogLevel("info", "Loading bastion configs....")
 		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
 		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")

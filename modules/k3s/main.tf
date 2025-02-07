@@ -4,7 +4,7 @@ module "master" {
    aws_user             = var.aws_user
    key_name             = var.key_name
    no_of_server_nodes   = var.no_of_server_nodes
-   install_version      = var.install_version
+   k3s_version          = var.k3s_version
    install_mode         = var.install_mode
    region               = var.region
    vpc_id               = var.vpc_id
@@ -30,7 +30,9 @@ module "master" {
    engine_mode          = var.engine_mode
    environment          = var.environment
    create_lb            = var.create_lb
-   install_channel      = var.install_channel
+   k3s_channel          = var.k3s_channel
+   enable_public_ip     = var.enable_public_ip
+   enable_ipv6          = var.enable_ipv6
 
    # Split roles
    all_role_nodes       = var.no_of_server_nodes
@@ -41,7 +43,7 @@ module "master" {
    cp_worker_nodes      = var.cp_worker_nodes
    split_roles          = var.split_roles
    role_order           = var.role_order
-   create_eip           = var.create_eip
+   create_eip            = var.create_eip
 }
 module "worker" {
    source               = "./worker"
@@ -50,7 +52,7 @@ module "worker" {
    aws_user             = var.aws_user
    key_name             = var.key_name
    no_of_worker_nodes   = var.no_of_worker_nodes
-   install_version      = var.install_version
+   k3s_version          = var.k3s_version
    install_mode         = var.install_mode
    region               = var.region
    vpc_id               = var.vpc_id
@@ -65,7 +67,27 @@ module "worker" {
    node_os              = var.node_os
    username             = var.username
    password             = var.password
-   install_channel      = var.install_channel
-   create_eip           = var.create_eip
+   k3s_channel          = var.k3s_channel
+   enable_public_ip     = var.enable_public_ip
+   enable_ipv6          = var.enable_ipv6
+   create_eip            = var.create_eip
 }
 
+module "bastion" {
+   source               = "../bastion"
+   aws_ami              = var.aws_ami
+   aws_user             = var.aws_user
+   ec2_instance_class   = var.ec2_instance_class
+   region               = var.region
+   vpc_id               = var.vpc_id
+   bastion_subnets      = var.bastion_subnets
+   availability_zone    = var.availability_zone
+   sg_id                = var.sg_id
+   volume_size          = var.volume_size
+   enable_public_ip     = var.enable_public_ip
+   enable_ipv6          = var.enable_ipv6
+   key_name             = var.key_name
+   access_key           = var.access_key
+   resource_name        = var.resource_name
+   no_of_bastion_nodes  = var.no_of_bastion_nodes
+}

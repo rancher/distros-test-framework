@@ -39,14 +39,14 @@ variable "windows_ec2_instance_class" {}
 variable product {
   default = "rke2"
 }
-variable "install_version" {}
+variable "rke2_version" {}
 variable "install_mode" {
   default = "INSTALL_RKE2_VERSION"
 }
 variable "install_method" {
   default = null
 }
-variable "install_channel" {
+variable "rke2_channel" {
   default = "latest"
 }
 variable "server_flags" {}
@@ -78,6 +78,22 @@ variable "cp_worker_nodes" {
 }
 variable "optional_files" {
   description = "File location and raw data url separate by commas, with a space for other pairs. E.g. file1,url1 file2,url2"
+}
+variable "enable_public_ip" {
+  default = true
+}
+variable "enable_ipv6" {
+  default = false
+}
+variable "no_of_bastion_nodes" {
+  default = 0
+}
+variable "bastion_subnets" {
+  default = ""
+}
+variable "bastion_id" {
+  type    = any
+  default = null
 }
 variable "datastore_type" {}
 variable "external_db" {}

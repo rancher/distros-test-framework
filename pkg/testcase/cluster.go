@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -42,10 +43,10 @@ func TestBuildCluster(cluster *shared.Cluster) {
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
-	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
+	support.LogAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
 	if cluster.Config.Product == "rke2" {
-		checkAndPrintAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
+		support.LogAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
 }
 
@@ -79,21 +80,5 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 			GinkgoT().Errorf("error: %v", err)
 			return
 		}
-	}
-}
-
-// checkAndPrintAgentNodeIPs Prints out the Agent node IPs.
-func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
-	info := "Agent Node IPs:"
-
-	if isWindows {
-		info = "Windows " + info
-	}
-
-	if agentNum > 0 {
-		Expect(agentIPs).ShouldNot(BeEmpty())
-		shared.LogLevel("info", info+"  %v", agentIPs)
-	} else {
-		Expect(agentIPs).Should(BeEmpty())
 	}
 }

@@ -53,12 +53,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestDualStackSuite(t *testing.T) {
+func TestIPv6OnlySuite(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Create Dual-Stack Cluster Test Suite")
+	RunSpecs(t, "Create IPv6 Only Cluster Test Suite")
 }
 
-var _ = ReportAfterSuite("Create Dual-Stack Cluster Test Suite", func(report Report) {
+var _ = ReportAfterSuite("Create IPv6 Only Cluster Test Suite", func(report Report) {
 	// Add Qase reporting capabilities.
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
