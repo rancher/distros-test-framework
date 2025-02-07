@@ -95,21 +95,17 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	if module == "" {
 		KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
 		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
-		c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
-		rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ips")
-		if rawAgentIPs != "" {
-			c.AgentIPs = strings.Split(rawAgentIPs, ",")
-		}
 	}
+
 	if module == "airgap" || module == "ipv6only" {
 		LogLevel("info", "Loading bastion configs....")
 		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
 		c.BastionConfig.PublicDNS = terraform.Output(t, terraformOptions, "bastion_dns")
-		c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ipv6"), ",")
-		rawAgentIPs := terraform.Output(t, terraformOptions, "worker_ipv6")
-		if rawAgentIPs != "" {
-			c.AgentIPs = strings.Split(rawAgentIPs, ",")
-		}
+	}
+
+	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
+	if c.NumAgents > 0 {
+		c.AgentIPs = strings.Split(terraform.Output(t, terraformOptions, "worker_ips"), ",")
 	}
 }
 

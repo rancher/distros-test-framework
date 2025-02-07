@@ -28,9 +28,7 @@ create_config() {
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
-server: https://${server_ip}:6443
 token: "${token}"
-node-name: $hostname
 EOF
 }
 
@@ -45,12 +43,15 @@ update_config() {
       echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
     elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
+      server_ip="[$server_ip]"
+      hostname="${hostname}-srv$RANDOM"
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
+  echo -e server: https://${server_ip}:6443 >>/etc/rancher/k3s/config.yaml
+  echo -e node-name: "${hostname}" >>/etc/rancher/k3s/config.yaml
 
   if [ "$datastore_type" = "external" ]; then
     echo -e "datastore-endpoint: $datastore_endpoint" >>/etc/rancher/k3s/config.yaml

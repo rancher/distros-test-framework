@@ -31,9 +31,7 @@ create_config() {
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
-server: https://${server_ip}:9345
 token:  "${token}"
-node-name: "${hostname}"
 EOF
 }
 
@@ -46,14 +44,17 @@ update_config() {
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/rke2/config.yaml
-    elif [ -n "$ipv6_ip" ]; then
+    elif [ -n "$ipv6_ip" ] && [ -z "$public_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
-      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/rke2/config.yaml
+      server_ip="[$server_ip]"
+      hostname="${hostname}-srv$RANDOM"
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/rke2/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
   fi
+  echo -e server: https://${server_ip}:9345 >>/etc/rancher/rke2/config.yaml
+  echo -e node-name: "${hostname}" >>/etc/rancher/rke2/config.yaml
 
   if [ "$datastore_type" = "external" ]; then
     echo -e "datastore-endpoint: $datastore_endpoint" >>/etc/rancher/rke2/config.yaml

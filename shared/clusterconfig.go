@@ -174,13 +174,13 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster(product, module string) (*Cluster, error) {
 	c := &Cluster{}
+	t := &testing.T{}
 
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
 	}
 
-	t := &testing.T{}
 	numServers, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t, varDir, "no_of_server_nodes"))
 	if err != nil {
@@ -210,16 +210,17 @@ func newCluster(product, module string) (*Cluster, error) {
 		}
 	}
 
+	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	c.NumServers = numServers
+	c.NumAgents = numAgents
+
 	LogLevel("debug", "Loading TF Configs...")
 	c, err = loadTFconfig(t, c, product, module, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
-	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
-	c.NumServers = numServers
-	c.NumAgents = numAgents
 	c.Status = "cluster created"
 	LogLevel("debug", "Cluster has been created successfully...")
 

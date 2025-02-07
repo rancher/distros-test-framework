@@ -10,5 +10,5 @@ func LogAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	}
 	if agentNum > 0 {
 		shared.LogLevel("info", info+"  %v", agentIPs)
-	} 
+	}
 }
