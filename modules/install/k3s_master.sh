@@ -19,6 +19,23 @@ datastore_endpoint=${11}
 server_flags=${12}
 rhel_username=${13}
 rhel_password=${14}
+install_or_enable=${15}  # Values install, enable, both
+
+echo "node_os=${node_os}
+fqdn=${fqdn}
+public_ip=${public_ip}
+private_ip=${private_ip}
+ipv6_ip=${ipv6_ip}
+install_mode=${install_mode}
+version=${version}
+channel=${channel}
+etcd_only_node=${etcd_only_node}
+datastore_type=${datastore_type}
+datastore_endpoint=${datastore_endpoint}
+server_flags=${server_flags}
+rhel_username=${rhel_username}
+rhel_password=${rhel_password}
+install_or_enable=${install_or_enable}"
 
 create_config() {
   hostname=$(hostname -f)
@@ -104,11 +121,31 @@ install_k3s() {
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
+  if [[ "$install_or_enable" == *"install"* ]]; then
+    params="$params INSTALL_K3S_SKIP_ENABLE=true"
+  fi
+
   install_cmd="curl -sfL $url | $params sh -"
-  
+  echo "$install_cmd"
+
   if ! eval "$install_cmd"; then
     echo "Failed to install k3s-server on node: $public_ip"
     exit 1
+  fi
+}
+
+enable_service() {
+  if ! sudo systemctl enable k3s --now; then
+    echo "k3s server to start on node: $public_ip, Waiting for 10s for retry..."
+    sleep 10
+
+    if ! sudo systemctl is-active --quiet k3s; then
+      echo "k3s server exiting after failed retry to start on node: $public_ip"
+      sudo journalctl -xeu k3s.service --no-pager | grep -i "failed\|fatal"
+      exit 1
+    else
+      echo "k3s server started successfully on node: $public_ip"
+    fi
   fi
 }
 
@@ -125,7 +162,6 @@ check_service() {
 install() {
   install_k3s
   sleep 10
-  check_service
 }
 
 wait_nodes() {
@@ -205,23 +241,33 @@ config_files() {
 }
 
 main() {
-  create_config
-  update_config
-  policy_files
-  subscription_manager
-  disable_cloud_setup
-  install
-  if [ "$etcd_only_node" -eq 0 ]; then
-    # If etcd only node count is 0, then wait for nodes/pods to come up.
-    # etcd only node needs api server to come up fully, which is in control plane node.
-    # and hence we cannot wait for node/pod status in this case.
-    wait_nodes
-    wait_ready_nodes
-    wait_pods
-  else
-    # add sleep to make sure install finished and the node token file is present on the node for a copy
-    sleep 30
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "${install_or_enable}" == *"install"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    create_config
+    update_config
+    policy_files
+    subscription_manager
+    disable_cloud_setup
+    install
   fi
-  config_files
+  if [[ "${install_or_enable}" == *"enable"* ]]; then
+    enable_service
+    sleep 10
+  fi
+  if [[ "${install_or_enable}" == *"enable"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    check_service
+    if [ "$etcd_only_node" -eq 0 ]; then
+      # If etcd only node count is 0, then wait for nodes/pods to come up.
+      # etcd only node needs api server to come up fully, which is in control plane node.
+      # and hence we cannot wait for node/pod status in this case.
+      wait_nodes
+      wait_ready_nodes
+      wait_pods
+    else
+      # add sleep to make sure install finished and the node token file is present on the node for a copy
+      sleep 30
+    fi
+    config_files
+  fi
 }
 main "$@"
