@@ -41,7 +41,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-func ConformanceTest(_ *shared.Cluster, testName string) {
+func ConformanceTest(testName string) {
 	installConformanceBinary()
 	launchSonobuoyTests(testName)
 	checkStatus()
