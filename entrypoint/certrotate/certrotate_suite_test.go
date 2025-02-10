@@ -56,7 +56,7 @@ var _ = ReportAfterSuite("Certificate Rotate Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.ReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

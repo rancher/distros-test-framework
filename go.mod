@@ -1,8 +1,8 @@
 module github.com/rancher/distros-test-framework
 
-go 1.22
+go 1.23
 
-toolchain go1.22.4
+toolchain go1.23.6
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible

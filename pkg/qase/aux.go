@@ -1,8 +1,12 @@
 package qase
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
 )
@@ -48,4 +52,73 @@ func makeClickableLinks(input string) string {
 	}
 
 	return strings.Join(updatedLines, "\n")
+}
+
+func newString(s string) *string {
+	return &s
+}
+
+func newBool(b bool) *bool {
+	return &b
+}
+
+func newInt64(i int64) *int64 {
+	return &i
+}
+
+func normalizeSuiteName(name string) string {
+	name = strings.TrimPrefix(name, "Test_")
+	name = strings.TrimPrefix(name, "E2E")
+
+	return strings.ToLower(name)
+}
+
+func isValidTestState(state string) bool {
+	return state == "failed" || state == "passed" || state == "skipped"
+}
+
+func isCompletionAction(action string) bool {
+	return action == "fail" || action == "pass" || action == "skip"
+}
+
+func readFullLogFile(fileName string) (string, error) {
+	logs, err := os.ReadFile(fileName)
+	if err != nil {
+		return "", fmt.Errorf("error reading file: %w", err)
+	}
+
+	return string(logs), nil
+}
+
+func parseLogsFromFile(fileName string) ([]goTestData, error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	rowData := make([]goTestData, 0)
+
+	for decoder.More() {
+		var row goTestData
+		if err := decoder.Decode(&row); err != nil {
+			return nil, fmt.Errorf("error decoding json: %w", err)
+		}
+		rowData = append(rowData, row)
+	}
+
+	return rowData, nil
+}
+
+func formatTotalTime(start, end time.Time) string {
+	duration := end.Sub(start)
+	if duration.Seconds() < secondsPerMinute {
+		return fmt.Sprintf("%.2f s", duration.Seconds())
+	}
+
+	minutes := int(duration.Minutes())
+	seconds := int(duration.Seconds()) % secondsPerMinute
+
+	return fmt.Sprintf("%dm:%ds", minutes, seconds)
 }
