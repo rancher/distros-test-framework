@@ -153,7 +153,7 @@ func NewLocalKubeconfigFile(newServerIP, resourceName, product, localPath string
 
 // decodeKubeConfig decodes the kubeconfig and writes it to a local /tmp file.
 func decodeKubeConfig(kubeConfig string) (string, error) {
-	dec, err := base64.StdEncoding.DecodeString(kubeConfig)
+	dec, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(kubeConfig, " ", ""))
 	if err != nil {
 		return "", ReturnLogError("failed to decode kubeconfig: %v\n", err)
 	}

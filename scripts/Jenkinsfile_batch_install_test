@@ -50,7 +50,7 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if (test_name == "dualstack") {
+              if (test_name == "dualstack" || test_name == "ipv6only") {
                 job_aws_ssh_key_name = "jenkins-elliptic-validation"
                 job_aws_ssh_pem_key = ""
               }
@@ -101,6 +101,9 @@ node {
                   break               
                 case "dualstack":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: install_params }
+                  break
+                case "ipv6only":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_ipv6_only", parameters: install_params }
                   break
                 case "certrotate": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params }

@@ -27,7 +27,6 @@ create_config() {
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
-node-name: $hostname
 EOF
 }
 
@@ -40,9 +39,8 @@ update_config() {
     if [ -n "$ipv6_ip" ] && [ -n "$public_ip" ] && [ -n "$private_ip" ]; then
       echo -e "node-external-ip: $public_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
-    elif [ -n "$ipv6_ip" ]; then
+    elif [ -n "$ipv6_ip" ] && [ -z "$public_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml

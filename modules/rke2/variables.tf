@@ -107,3 +107,6 @@ variable "engine_mode" {}
 variable "create_eip" {
   default = false
 }
+variable "product" {
+  default = "rke2"
+}

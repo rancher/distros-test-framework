@@ -34,7 +34,7 @@ variable "enable_ipv6" {
 }
 variable "install_mode" {}
 variable "install_version" {}
-variable "channel" {}
+variable "install_channel" {}
 variable "install_method" {
   default = ""
 }
@@ -47,3 +47,4 @@ variable "no_of_worker_nodes" {
 variable "arch" {
   default = "amd64"
 }
+

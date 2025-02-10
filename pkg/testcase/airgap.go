@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -28,10 +29,10 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
-	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
+	support.LogAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
 	if cluster.Config.Product == "rke2" {
-		checkAndPrintAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
+		support.LogAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,10 +135,15 @@ func (c Client) GetInstanceIDByIP(ipAddress string) (string, error) {
 		return "", shared.ReturnLogError("calling GetInstanceIDByIP with empty ip address, must send a valid ip address")
 	}
 
+	ipAddrType := "ip-address"
+	if strings.Contains(ipAddress, ":") {
+		ipAddrType = "ipv6-address"
+	}
+
 	input := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
-				Name:   aws.String("ip-address"),
+				Name:   aws.String(ipAddrType),
 				Values: []*string{aws.String(ipAddress)},
 			},
 		},

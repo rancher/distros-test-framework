@@ -83,3 +83,6 @@ variable "bastion_id" {
 variable "create_eip" {
   default = false
 }
+variable "product" {
+  default = "k3s"
+}
