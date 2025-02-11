@@ -124,7 +124,7 @@ func InstallOnIPv6Agents(cluster *shared.Cluster) {
 		cmd := fmt.Sprintf(
 			"sudo chmod +x join_%[1]v_agent.sh; "+
 				`sudo ./join_%[1]v_agent.sh "%[2]v" "%[3]v" "%[4]v" "" "" "%[5]v" `+
-				`"%[6]v" "%[7]v" "%[8]v" "%[9]v" "%[10]v"`,
+				`"%[6]v" "%[7]v" "%[8]v" "%[9]v" "%[10]v" "%[11]v"`,
 			cluster.Config.Product, os.Getenv("node_os"),
 			cluster.ServerIPs[0], token, agentIP,
 			os.Getenv("install_mode"), os.Getenv("install_version"),

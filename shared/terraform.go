@@ -70,7 +70,7 @@ func loadTFconfig(
 		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
 	}
-	if module != "" {
+	if module == "airgap" || module == "ipv6only" {
 		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
 	}
 

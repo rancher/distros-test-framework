@@ -176,6 +176,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 func newCluster(product, module string) (*Cluster, error) {
 	c := &Cluster{}
 	t := &testing.T{}
+
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
@@ -184,20 +185,18 @@ func newCluster(product, module string) (*Cluster, error) {
 	numServers, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t, varDir, "no_of_server_nodes"))
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error getting no_of_server_nodes from var file: %w", err)
+		return nil, fmt.Errorf("error getting no_of_server_nodes from var file: %w", err)
 	}
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t, varDir, "no_of_worker_nodes"))
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error getting no_of_worker_nodes from var file: %w", err)
+		return nil, fmt.Errorf("error getting no_of_worker_nodes from var file: %w", err)
 	}
-	numBastion, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t, varDir, "no_of_bastion_nodes"))
+	numBastion, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_bastion_nodes")
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error getting no_of_bastion_nodes from var file: %w", err)
+		LogLevel("debug", "no_of_bastion_nodes not found in tfvars")
+	} else {
+		c.NumBastion, _ = strconv.Atoi(numBastion)
 	}
 
 	LogLevel("debug", "Applying Terraform config and Creating cluster\n")
@@ -216,7 +215,6 @@ func newCluster(product, module string) (*Cluster, error) {
 	}
 	c.NumServers = numServers
 	c.NumAgents = numAgents
-	c.NumBastion = numBastion
 
 	LogLevel("debug", "Loading TF Configs...")
 	c, err = loadTFconfig(t, c, product, module, varDir, terraformOptions)

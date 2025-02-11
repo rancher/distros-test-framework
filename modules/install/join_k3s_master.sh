@@ -44,7 +44,7 @@ update_config() {
     elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
       server_ip="[$server_ip]"
-      hostname="${hostname}-srv$RANDOM"
+      hostname="$hostname-srv$RANDOM"
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml

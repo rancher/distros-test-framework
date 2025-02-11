@@ -11,6 +11,7 @@ func TestIPv6Only(cluster *shared.Cluster, awsClient *aws.Client) {
 	shared.LogLevel("info", "Setting up %s cluster on ipv6 only nodes...", cluster.Config.Product)
 	err := support.ConfigureIPv6OnlyNodes(cluster, awsClient)
 	Expect(err).NotTo(HaveOccurred(), err)
+
 	shared.LogLevel("info", "Installing %s on ipv6 only nodes...", cluster.Config.Product)
 	support.InstallOnIPv6Servers(cluster)
 	support.InstallOnIPv6Agents(cluster)

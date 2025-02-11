@@ -27,6 +27,7 @@ create_config() {
 write-kubeconfig-mode: "0644"
 tls-san:
   - ${fqdn}
+node-name: ${hostname}
 EOF
 }
 
