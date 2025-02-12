@@ -83,11 +83,11 @@ resource "aws_instance" "master" {
 
   provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -126,16 +126,15 @@ resource "aws_instance" "master" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /var/tmp/k3s_master.sh",
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo /var/tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} \"install\"",
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" || sudo /var/tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} \"both\""
+      "sudo /var/tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} \"${local.install_or_both}\""
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo /var/tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} \"enable\"",
+      "sudo /var/tmp/k3s_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" ${var.etcd_only_nodes} ${var.datastore_type} \"${data.template_file.test.rendered}\" \"${var.server_flags}\" ${var.username} ${var.password} \"${local.enable_service}\"",
     ]
   }
   //update master_ip file with either eip or public ip
@@ -245,13 +244,13 @@ resource "aws_instance" "master2-ha" {
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
   }
-    provisioner "remote-exec" {
+  provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -290,17 +289,16 @@ resource "aws_instance" "master2-ha" {
   provisioner "remote-exec" {
     inline = [ <<-EOT
       chmod +x /var/tmp/join_k3s_master.sh
-      echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo /var/tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "install" > /tmp/join_k3s_master.log 2>&1
-      echo \"${var.node_os}\" | grep -q \"slemicro\" || sudo /var/tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "both" > /tmp/join_k3s_master.log 2>&1
+      sudo /var/tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.install_or_both}" > /tmp/join_k3s_master.log 2>&1
     EOT
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [ <<-EOT
-      echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo /var/tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "enable" > /tmp/join_k3s_master.log 2>&1
+      sudo /var/tmp/join_k3s_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" ${var.datastore_type} "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.enable_service}" > /tmp/join_k3s_master.log 2>&1
     EOT
     ]
   }
