@@ -15,8 +15,24 @@ install_mode=${7}
 version=${8}
 channel=${9}
 worker_flags=${10}
-rhel_username=${12}
-rhel_password=${13}
+rhel_username=${11}
+rhel_password=${12}
+install_or_enable=${13}  # Values install, enable, both
+
+echo "
+node_os=${node_os}
+server_ip=${server_ip}
+token=${token}
+public_ip=${public_ip}
+private_ip=${private_ip}
+ipv6_ip=${ipv6_ip}
+install_mode=${install_mode}
+version=${version}
+channel=${channel}
+worker_flags=${worker_flags}
+rhel_username=${rhel_username}
+rhel_password=${rhel_password}
+install_or_enable=${install_or_enable}"  # Values install, enable, both
 
 create_config() {
   hostname=$(hostname -f)
@@ -87,14 +103,35 @@ install_k3s() {
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
+  if [[ "$install_or_enable" == *"install"* ]]; then
+    params="$params INSTALL_K3S_SKIP_ENABLE=true"
+  fi
+
   install_cmd="curl -sfL $url | $params sh -s - agent"
-  
+  echo "$install_cmd"
+
   if ! eval "$install_cmd"; then
     echo "Failed to install k3s-agent on node: $public_ip"
     exit 1
   fi
 
 }
+
+enable_service() {
+  if ! sudo systemctl enable k3s-agent --now; then
+    echo "k3s agent to start on node: $public_ip, Waiting for 10s for retry..."
+    sleep 10
+
+    if ! sudo systemctl is-active --quiet k3s-agent; then
+      echo "k3s agent exiting after failed retry to start on node: $public_ip"
+      sudo journalctl -xeu k3s-agent.service --no-pager | grep -i "failed\|fatal"
+      exit 1
+    else
+      echo "k3s agent started successfully on node: $public_ip"
+    fi
+  fi
+}
+
 
 check_service() {
   if systemctl is-active --quiet k3s-agent; then
@@ -109,14 +146,24 @@ check_service() {
 install() {
   install_k3s
   sleep 10
-  check_service
+
 }
 
 main() {
-  create_config
-  update_config
-  subscription_manager
-  disable_cloud_setup
-  install
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "$install_or_enable" == *"install"* ]] || [[ "$install_or_enable" == *"both"* ]]; then
+    create_config
+    update_config
+    subscription_manager
+    disable_cloud_setup
+    install
+  fi
+  if [[ "$install_or_enable" == *"enable"* ]]; then
+    enable_service
+    sleep 10
+  fi
+  if [[ "$install_or_enable" == *"enable"* ]] || [[ "$install_or_enable" == *"both"* ]]; then
+    check_service
+  fi
 }
 main "$@"
