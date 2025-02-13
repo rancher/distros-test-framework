@@ -51,8 +51,8 @@ func TestNodeStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestAirgapClusterNodeStatus test the status of the nodes in the private cluster using 2 custom assert functions.
-func TestAirgapClusterNodeStatus(
+// TestNodeStatusUsingBastion test the status of the nodes in the private cluster using 2 custom assert functions.
+func TestNodeStatusUsingBastion(
 	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,

@@ -1,24 +1,23 @@
-//go:build tarball
-
-package airgap
+package ipv6only
 
 import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
-	It("Creates bastion and airgapped nodes", func() {
-		testcase.TestBuildAirgapCluster(cluster)
+var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
+	BeforeAll(func() {
+		support.BuildIPv6OnlyCluster(cluster)
 	})
 
-	It("Installs product on airgapped nodes", func() {
-		testcase.TestTarball(cluster, flags)
+	It("Install product on ipv6 only nodes", func() {
+		testcase.TestIPv6Only(cluster, awsClient)
 	})
 
 	It("Validates Nodes", func() {
@@ -39,14 +38,12 @@ var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 	AfterAll(func() {
 		shared.LogClusterInfoUsingBastion(cluster)
 	})
-
-	// TODO: Validate deployment, eg: cluster-ip
 })
 
 var _ = AfterEach(func() {
 	if CurrentSpecReport().Failed() {
-		fmt.Printf("\nFAILED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nFAILED! %s\n\n", CurrentSpecReport().FullText())
 	} else {
-		fmt.Printf("\nPASSED! %s\n", CurrentSpecReport().FullText())
+		fmt.Printf("\nPASSED! %s\n\n", CurrentSpecReport().FullText())
 	}
 })

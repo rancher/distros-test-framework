@@ -33,7 +33,7 @@ module "master" {
    k3s_channel          = var.k3s_channel
    enable_public_ip     = var.enable_public_ip
    enable_ipv6          = var.enable_ipv6
-
+   
    # Split roles
    all_role_nodes       = var.no_of_server_nodes
    etcd_only_nodes      = var.etcd_only_nodes

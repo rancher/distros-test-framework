@@ -26,6 +26,7 @@ type Cluster struct {
 	NumWinAgents  int
 	NumServers    int
 	NumAgents     int
+	NumBastion    int
 	FQDN          string
 	Config        clusterConfig
 	Aws           AwsConfig
@@ -174,25 +175,28 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster(product, module string) (*Cluster, error) {
 	c := &Cluster{}
+	t := &testing.T{}
 
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
 	if err != nil {
 		return nil, err
 	}
 
-	t := &testing.T{}
 	numServers, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t, varDir, "no_of_server_nodes"))
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error getting no_of_server_nodes from var file: %w", err)
+		return nil, fmt.Errorf("error getting no_of_server_nodes from var file: %w", err)
 	}
-
 	numAgents, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t, varDir, "no_of_worker_nodes"))
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error getting no_of_worker_nodes from var file: %w", err)
+		return nil, fmt.Errorf("error getting no_of_worker_nodes from var file: %w", err)
+	}
+	numBastion, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_bastion_nodes")
+	if err != nil {
+		LogLevel("debug", "no_of_bastion_nodes not found in tfvars")
+	} else {
+		c.NumBastion, _ = strconv.Atoi(numBastion)
 	}
 
 	LogLevel("debug", "Applying Terraform config and Creating cluster\n")
@@ -209,17 +213,14 @@ func newCluster(product, module string) (*Cluster, error) {
 			return nil, err
 		}
 	}
+	c.NumServers = numServers
+	c.NumAgents = numAgents
 
 	LogLevel("debug", "Loading TF Configs...")
 	c, err = loadTFconfig(t, c, product, module, varDir, terraformOptions)
 	if err != nil {
 		return nil, err
 	}
-
-	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
-	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
-	c.NumServers = numServers
-	c.NumAgents = numAgents
 	c.Status = "cluster created"
 	LogLevel("debug", "Cluster has been created successfully...")
 

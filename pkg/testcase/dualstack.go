@@ -23,7 +23,6 @@ func TestIngressDualStack(cluster *shared.Cluster, deleteWorkload bool) {
 	td := testData{
 		Namespace: "default",
 		Label:     "app=dualstack-ing",
-		SVC:       "dualstack-ing-svc",
 		Expected:  "dualstack-ing-ds",
 	}
 

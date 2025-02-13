@@ -1,13 +1,5 @@
-data "template_file" "is_airgap" {
-    template = (var.enable_public_ip == false && var.enable_ipv6 == false) ? true : false
-}
-
-data "template_file" "is_ipv6only" {
-    template = (var.enable_public_ip == false && var.enable_ipv6 == true) ? true : false
-}
-
 resource "aws_instance" "master" {
-  depends_on = [ null_resource.prepare_bastion ]
+  depends_on = [ aws_instance.bastion ]
 
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
@@ -25,7 +17,7 @@ resource "aws_instance" "master" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 1}"
-  } 
+  }
 
   provisioner "local-exec" { 
     command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.master[count.index].id}" 
@@ -33,7 +25,7 @@ resource "aws_instance" "master" {
 }
 
 resource "aws_instance" "worker" {
-  depends_on = [ null_resource.prepare_bastion, aws_instance.master ]
+  depends_on = [ aws_instance.master ]
 
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
@@ -62,7 +54,6 @@ resource "aws_instance" "bastion" {
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = true
-  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_bastion_nodes == 0 ? 0 : 1
   
   connection {
@@ -82,63 +73,39 @@ resource "aws_instance" "bastion" {
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-bastion"
   }
-  
+
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.bastion[count.index].id}" 
+  }
+
   provisioner "file" {
     source = "../../config/.ssh/aws_key.pem"
     destination = "/tmp/${var.key_name}.pem"
   }
 
   provisioner "file" {
-    source = "setup/get_artifacts.sh"
-    destination = "/tmp/get_artifacts.sh"
+    source = "scripts/configure.sh"
+    destination = "/tmp/configure.sh"
   }
 
   provisioner "file" {
-    source = "setup/install_product.sh"
-    destination = "/tmp/install_product.sh"
+    source = "../install/${var.product}_master.sh"
+    destination = "/tmp/${var.product}_master.sh"
   }
 
   provisioner "file" {
-    source = "setup/bastion_prepare.sh"
-    destination = "/tmp/bastion_prepare.sh"
+    source = "../install/join_${var.product}_master.sh"
+    destination = "/tmp/join_${var.product}_master.sh"
   }
 
   provisioner "file" {
-    source = "setup/docker_ops.sh"
-    destination = "/tmp/docker_ops.sh"
-  }
-
-  provisioner "file" {
-    source = "setup/private_registry.sh"
-    destination = "/tmp/private_registry.sh"
-  }
-
-  provisioner "file" {
-    source = "setup/system_default_registry.sh"
-    destination = "/tmp/system_default_registry.sh"
-  }
-
-  provisioner "file" {
-    source = "setup/basic-registry"
-    destination = "/tmp"
-  }
-}
-
-resource "null_resource" "prepare_bastion" {
-  depends_on = [ aws_instance.bastion[0] ]
-  connection {
-    type          = "ssh"
-    user          = var.aws_user
-    host          = aws_instance.bastion[0].public_ip
-    private_key   = file(var.access_key)
+    source = "../install/join_${var.product}_agent.sh"
+    destination = "/tmp/join_${var.product}_agent.sh"
   }
 
   provisioner "remote-exec" {
     inline = [<<-EOT
       sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
-      sudo cp -r /tmp/basic-registry ~/
-      sudo chmod +x bastion_prepare.sh
-      sudo ./bastion_prepare.sh
     EOT
     ]
   }
