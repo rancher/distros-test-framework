@@ -57,8 +57,16 @@ func loadTFconfig(
 	loadEC2(t, varDir, c)
 
 	if product == "rke2" {
-		LogLevel("info", "Loading Windows tf outputs...")
-		loadWinTFOutput(t, terraformOptions, cluster, varDir)
+		numWinAgents, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_windows_worker_nodes")
+		if err != nil {
+			LogLevel("debug", "no_of_windows_worker_nodes is absent from tfvars.")
+		} else {
+			c.NumWinAgents, _ = strconv.Atoi(numWinAgents)
+			if c.NumWinAgents > 0 {
+				LogLevel("info", "Loading Windows tf outputs...")
+				c.WinAgentIPs = strings.Split(terraform.Output(t, terraformOptions, "windows_worker_ips"), ",")
+			}
+		}
 	}
 
 	LogLevel("info", "Loading other tfvars in to config....")
@@ -110,16 +118,6 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
 	if c.NumAgents > 0 {
 		c.AgentIPs = strings.Split(terraform.Output(t, terraformOptions, "worker_ips"), ",")
-	}
-}
-
-func loadWinTFOutput(t *testing.T, tfOpts *terraform.Options, c *Cluster, varDir string) {
-	numWinAgents, _ := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t, varDir, "no_of_windows_worker_nodes"))
-	c.NumWinAgents = numWinAgents
-	if c.NumWinAgents > 0 {
-		LogLevel("info", "Loading windows TF Config...")
-		c.WinAgentIPs = strings.Split(terraform.Output(t, tfOpts, "windows_worker_ips"), ",")
 	}
 }
 
