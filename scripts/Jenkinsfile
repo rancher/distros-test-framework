@@ -75,7 +75,7 @@ node {
                     if (env.MODULE) {
                        data += "ENV_MODULE=${env.MODULE}\n"
                        version_param_name = "install_version"
-                       channel_param_name = "channel"
+                       channel_param_name = "install_channel"
                     }
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
@@ -89,7 +89,8 @@ node {
                        '\npassword = \"' + RKE2_RHEL_PASSWORD + '\"' +
                        '\nkey_name = \"' + AWS_SSH_KEY_NAME + '\"' +
                        '\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"' +
-                       '\nresource_name = \"' + HOSTNAME_PREFIX + '\"'
+                       '\nresource_name = \"' + HOSTNAME_PREFIX + '\"' +
+                       "\nproduct = \"${env.PRODUCT_NAME}\""
                   def testdata = readFile(file: filename)
                   println('\n\nTFVARS TEST DATA')
                   println(testdata)
