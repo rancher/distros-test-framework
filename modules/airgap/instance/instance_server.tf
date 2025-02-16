@@ -1,11 +1,3 @@
-data "template_file" "is_airgap" {
-    template = (var.enable_public_ip == false && var.enable_ipv6 == false) ? true : false
-}
-
-data "template_file" "is_ipv6only" {
-    template = (var.enable_public_ip == false && var.enable_ipv6 == true) ? true : false
-}
-
 resource "aws_instance" "master" {
   depends_on = [ null_resource.prepare_bastion ]
 
@@ -14,7 +6,6 @@ resource "aws_instance" "master" {
   associate_public_ip_address = false
   ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_server_nodes
-  
   root_block_device {
     volume_size          = var.volume_size
     volume_type          = "standard"
@@ -40,7 +31,6 @@ resource "aws_instance" "worker" {
   associate_public_ip_address = false
   ipv6_address_count          = var.enable_ipv6 ? 1 : 0
   count                       = var.no_of_worker_nodes
-  
   root_block_device {
     volume_size          = var.volume_size
     volume_type          = "standard"
@@ -55,6 +45,32 @@ resource "aws_instance" "worker" {
 
   provisioner "local-exec" { 
     command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}" 
+  }
+}
+
+resource "aws_instance" "windows_worker" {
+  depends_on = [ null_resource.prepare_bastion, aws_instance.master ]
+
+  ami                         = var.windows_aws_ami
+  instance_type               = var.windows_ec2_instance_class  
+  associate_public_ip_address = false
+  ipv6_address_count          = var.enable_ipv6 ? 1 : 0
+  count                       = var.no_of_windows_worker_nodes
+  
+  root_block_device {
+    volume_size          = 50
+    volume_type          = "standard"
+  }
+  subnet_id              = var.subnets
+  availability_zone      = var.availability_zone
+  vpc_security_group_ids = [var.sg_id]
+  key_name               = var.key_name
+  tags = {
+    Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker${count.index + 1}"
+  }
+
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.windows_worker[count.index].id}" 
   }
 }
 
