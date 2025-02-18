@@ -285,3 +285,20 @@ S3_FOLDER=snapshots
 - Hardened Cluster Setup
 - ExternalDB Setup
 - Selinux Setup
+
+## Validating Conformance Tests with Sonobuoy
+ - Please note that the sonobuoy version has not been updated for a year and the functionality of sonobuoy is degrading with minor versions of k8s.
+ - Full conformance tests done for patch validations should be 3 servers 1 agent minimum.
+ - You can use the make file command `make test-run-sonobuoy` to run the conformance tests.
+ - Additionally you can use `go test -timeout=140m -v -count=1 ./entrypoint/conformance/... --ginkgo.timeout=140m` you must extend the ginkgo timeout in addition to the go test timeout 
+ - Required vars in `*.tfvars` file minimum conformance configuration: 
+```
+no_of_server_nodes = 1
+no_of_worker_nodes = 1
+```
+- sonobuoy's output is becoming unreliable for status checks observe remaining count incorrect at 404.
+ 	sono status
+          PLUGIN     STATUS   RESULT   COUNT                                PROGRESS
+             e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
+    systemd-logs   complete   passed       2
+ Sonobuoy has completed. Use `sonobuoy retrieve` to get results
