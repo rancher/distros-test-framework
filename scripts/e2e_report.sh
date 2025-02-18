@@ -5,18 +5,26 @@ set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 create_binary() {
-  go build -o processreport ./cmd/qase/main.go
+if ! command -v go &> /dev/null; then
+  echo "Error: golang is not installed"
+  exit 1
+fi
+
+  echo "Building process report binary..."
+  go build -o ./processreport ./cmd/qase/main.go
 }
 
 run_qase() {
+  echo "Processing $latest_log for $PRODUCT..."
   ./processreport -f "$latest_log" -p "$PRODUCT"
 }
 
+# Init variables.
 PRODUCT=
 latest_log=$(find  ./report -type f -name "rke2_*.log" -o -name "k3s_*.log" | sort -r | head -n 1)
 
 if [[ ! "$latest_log" =~ ^./report/(rke2|k3s)_.*\.log$ ]]; then
-  echo "Invalid log file name: $latest_log"
+  echo "Error: Invalid log file name: $latest_log"
   exit 1
 fi
 
@@ -27,17 +35,12 @@ else
 fi
 
 if [ -f "$latest_log" ]; then
-  echo "Uploading $latest_log to Qase"
+  echo "Found log file: $latest_log"
   create_binary
   run_qase
+  echo "Upload complete"
+  rm -f processreport
 else
-  echo "No log file found for $PRODUCT"
+  echo "Error: No log file found for $PRODUCT"
   exit 1
 fi
-
-cd ../report
-rm -f processreport
-
-
-
-
