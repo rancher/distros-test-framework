@@ -5,7 +5,6 @@ linters:
     - revive
     - gosec
     - misspell
-    - exportloopref
     - dupl
     - gosimple
     - staticcheck
@@ -30,10 +29,11 @@ linters-settings:
     locale: "US"
   gofmt:
     simplify: true
-  govet:
-    check-shadowing: true
   gci:
-    local-prefixes: github.com/rancher/distros-test-framework
+    sections:
+      - standard
+      - default
+      - prefix("github.com/rancher/distros-test-framework")
   nlreturn:
     block-size: 4
   revive:
@@ -77,12 +77,10 @@ linters-settings:
       - name: unused-parameter
       - name: unused-receiver
 
-run:
-  skip-files:
-    - "pkg/testcase/selinux.go"
-    -  ".*_suite_test.go"
-
 issues:
+  exclude-files:
+    - "pkg/testcase/selinux.go"
+    - ".*_suite_test.go"
   exclude-rules:
     - linters: [typecheck]
       text: "command-line-arguments"
