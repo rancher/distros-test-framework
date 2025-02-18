@@ -17,8 +17,8 @@ func TestSystemDefaultRegistry(cluster *shared.Cluster, flags *customflag.FlagCo
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster)
+	installOnServers(cluster, SystemDefaultRegistry)
 	shared.LogLevel("info", "Installation of %v on airgap servers: Completed!", cluster.Config.Product)
-	installOnAgents(cluster)
+	installOnAgents(cluster, SystemDefaultRegistry)
 	shared.LogLevel("info", "Installation of %v on airgap agents: Completed!", cluster.Config.Product)
 }
