@@ -317,7 +317,20 @@ func GetArtifacts(cluster *shared.Cluster, tarballType string) (res string, err 
 	serverFlags := os.Getenv("server_flags")
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v"`,
+			`sudo ./get_artifacts.sh "%v" "%v" "linux" "%v" "%v" "%v"`,
+		cluster.Config.Product, cluster.Config.Version,
+		cluster.Config.Arch, serverFlags, tarballType)
+	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+
+	return res, err
+}
+
+// GetWindowsArtifacts executes get_artifacts.sh script for windows agent.
+func GetWindowsArtifacts(cluster *shared.Cluster, tarballType string) (res string, err error) {
+	serverFlags := os.Getenv("server_flags")
+	cmd := fmt.Sprintf(
+		"sudo chmod +x get_artifacts.sh && "+
+			`sudo ./get_artifacts.sh "%v" "%v" "windows" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version,
 		cluster.Config.Arch, serverFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)

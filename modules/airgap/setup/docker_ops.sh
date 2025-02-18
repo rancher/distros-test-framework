@@ -36,8 +36,8 @@ for image_file in $image_files; do
     fi
     echo "Tagging image: $img"
     docker image tag "$line" "$hostdns"/"$img"
-    echo "$password" | docker login "$hostdns" -u "$username" --password-stdin && \
     echo "Pushing image: $img"
+    echo "$password" | docker login "$hostdns" -u "$username" --password-stdin && \
     docker push "$hostdns"/"$img"
     echo "Docker pull/tag/push completed for image: $img"
   done < "$image_file"
