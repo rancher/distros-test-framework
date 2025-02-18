@@ -65,6 +65,7 @@ resource "aws_instance" "windows_worker" {
   availability_zone      = var.availability_zone
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
+  get_password_data      = true
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker${count.index + 1}"
   }
