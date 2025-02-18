@@ -21,6 +21,7 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster)
-	installOnAgents(cluster)
+	installOnServers(cluster, PrivateRegistry)
+	shared.LogLevel("info", "Installation of %v on airgap servers: Completed!", cluster.Config.Product)
+	installOnAgents(cluster, PrivateRegistry)
 }

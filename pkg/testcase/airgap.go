@@ -36,9 +36,9 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	}
 }
 
-func installOnServers(cluster *shared.Cluster) {
+func installOnServers(cluster *shared.Cluster, airgapMethod string) {
 	serverFlags := os.Getenv("server_flags")
-	if !strings.Contains(serverFlags, "system-default-registry") {
+	if airgapMethod == SystemDefaultRegistry && !strings.Contains(serverFlags, "system-default-registry") {
 		serverFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 	}
 
@@ -73,10 +73,12 @@ func installOnServers(cluster *shared.Cluster) {
 	}
 }
 
-func installOnAgents(cluster *shared.Cluster) {
+func installOnAgents(cluster *shared.Cluster, airgapMethod string) {
 	agentFlags := os.Getenv("worker_flags")
-	if cluster.Config.Product == "rke2" && !strings.Contains(agentFlags, "system-default-registry") {
-		agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+	if cluster.Config.Product == "rke2" {
+		if airgapMethod == SystemDefaultRegistry && !strings.Contains(agentFlags, "system-default-registry") {
+			agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+		}
 	}
 
 	for idx, agentIP := range cluster.AgentIPs {

@@ -24,5 +24,5 @@ module "instance" {
    install_method      = var.install_method
    no_of_server_nodes  = var.no_of_server_nodes
    no_of_worker_nodes  = var.no_of_worker_nodes
-   channel             = var.install_channel
+   install_channel     = var.install_channel
 }
