@@ -121,10 +121,9 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = "setup/docker_ops.sh"
-    destination = "/tmp/docker_ops.sh"
+    source = "setup/images_ptpv.sh"
+    destination = "/tmp/images_ptpv.sh"
   }
-
   provisioner "file" {
     source = "setup/private_registry.sh"
     destination = "/tmp/private_registry.sh"
@@ -135,6 +134,15 @@ resource "aws_instance" "bastion" {
     destination = "/tmp/system_default_registry.sh"
   }
 
+   provisioner "file" {
+    source = "setup/windows_prepare.ps1"
+    destination = "/tmp/windows_prepare.ps1"
+  }
+
+  provisioner "file" {
+    source = "setup/windows_install.ps1"
+    destination = "/tmp/windows_install.ps1"
+  }
   provisioner "file" {
     source = "setup/basic-registry"
     destination = "/tmp"
@@ -152,10 +160,10 @@ resource "null_resource" "prepare_bastion" {
 
   provisioner "remote-exec" {
     inline = [<<-EOT
-      sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
+      sudo cp /tmp/${var.key_name}.pem /tmp/*.sh /tmp/*.ps1 ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh
-      sudo ./bastion_prepare.sh
+      sudo ./bastion_prepare.sh "${var.no_of_windows_worker_nodes}"
     EOT
     ]
   }

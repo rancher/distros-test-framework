@@ -17,7 +17,7 @@ var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
 		support.BuildAirgapCluster(cluster)
 	})
 
-	FIt("Installs product on airgapped nodes", func() {
+	It("Installs product on airgapped nodes", func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 

@@ -19,21 +19,20 @@ func LogAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 
 func GetPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {
 	cmd := fmt.Sprintf(
-		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
 		cluster.Config.Product)
 	cmd += "kubectl get nodes -o wide --no-headers"
-	nodeDetails, err = CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	nodeDetails, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return nodeDetails, err
 }
 
 func GetPrivatePods(cluster *shared.Cluster) (podDetails string) {
 	cmd := fmt.Sprintf(
-		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ", cluster.Config.Product)
+		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
+		cluster.Config.Product)
 	cmd += "kubectl get pods -A -o wide --no-headers"
-	podDetails, _ = CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	podDetails, _ = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return podDetails
 }

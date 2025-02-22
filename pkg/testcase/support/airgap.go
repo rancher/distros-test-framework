@@ -3,6 +3,7 @@ package support
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -70,6 +71,13 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 			Expect(err).To(BeNil(), err)
 		}
 	}
+
+	shared.LogLevel("info", "Process kubeconfig from server node: %v", cluster.ServerIPs[0])
+	err := processKubeconfigOnBastion(cluster)
+	if err != nil {
+		shared.LogLevel("error", "unable to get kubeconfig\n%w", err)
+	}
+	shared.LogLevel("info", "Process kubeconfig: Complete!")
 }
 
 func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
@@ -92,11 +100,17 @@ func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
 }
 
 // SetupAirgapRegistry sets bastion node for airgap registry.
-func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, airgapMethod string) error {
+func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, airgapMethod string) (err error) {
 	shared.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
-	_, err := GetArtifacts(cluster, flags.AirgapFlag.TarballType)
+	_, err = GetArtifacts(cluster, flags.AirgapFlag.TarballType)
 	if err != nil {
-		return fmt.Errorf("error downloading artifacts: %w", err)
+		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
+	}
+	if HasWindowsAgent(cluster) {
+		_, err := GetArtifactsWindows(cluster, flags.AirgapFlag.TarballType)
+		if err != nil {
+			return fmt.Errorf("error downloading %v Windows artifacts: %w", cluster.Config.Product, err)
+		}
 	}
 
 	switch airgapMethod {
@@ -114,8 +128,8 @@ func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 		}
 	}
 
-	shared.LogLevel("info", "Executing Docker pull/tag/push...")
-	err = dockerActions(cluster, flags)
+	shared.LogLevel("info", "Perform image pull/tag/push/inspect...")
+	err = imagesPTPV(cluster, flags)
 	if err != nil {
 		return fmt.Errorf("error performing docker actions: %w", err)
 	}
@@ -149,14 +163,13 @@ func systemDefaultRegistry(cluster *shared.Cluster) (err error) {
 	return err
 }
 
-// dockerActions executes docker_ops.sh script.
-func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
+// imagesPTPV executes images_ptpv.sh script.
+func imagesPTPV(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
 	if flags.AirgapFlag.ImageRegistryUrl != "" {
 		shared.LogLevel("info", "Images will be pulled from registry url: %v", flags.AirgapFlag.ImageRegistryUrl)
 	}
-	cmd := "sudo chmod +x docker_ops.sh && " +
-		fmt.Sprintf(
-			`sudo ./docker_ops.sh "%v" "%v" "%v" "%v" "%v"`,
+	cmd := "sudo chmod +x images_ptpv.sh && " +
+		fmt.Sprintf(`sudo ./images_ptpv.sh "%v" "%v" "%v" "%v" "%v"`,
 			cluster.Config.Product, cluster.BastionConfig.PublicDNS,
 			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
 			flags.AirgapFlag.ImageRegistryUrl)
@@ -166,11 +179,10 @@ func dockerActions(cluster *shared.Cluster, flags *customflag.FlagConfig) (err e
 }
 
 // CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) error {
+func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) (err error) {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 	errChan := make(chan error, len(nodeIPs))
-	var err error
 	var wg sync.WaitGroup
 
 	for _, nodeIP := range nodeIPs {
@@ -197,7 +209,7 @@ func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType
 				}
 			case "tarball":
 				shared.LogLevel("debug", "Copying tarball on node IP: %s", nodeIP)
-				err = copyTarball(cluster, nodeIP, *tarballType)
+				err = copyTarball(cluster, *tarballType, nodeIP)
 				if err != nil {
 					errChan <- shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
 				}
@@ -221,7 +233,7 @@ func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType
 	return nil
 }
 
-func copyTarball(cluster *shared.Cluster, ip, tarballType string) (err error) {
+func copyTarball(cluster *shared.Cluster, tarballType, ip string) (err error) {
 	imgDir := "/var/lib/rancher/" + cluster.Config.Product + "/agent/images"
 	cmd := "sudo mkdir -p " + imgDir + "; "
 	if cluster.Config.Product == "rke2" {
@@ -302,10 +314,16 @@ func copyRegistry(cluster *shared.Cluster, ip string) (err error) {
 
 // CmdForPrivateNode command to run on private node via bastion.
 func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err error) {
+	awsUser := cluster.Aws.AwsUser
+	if HasWindowsAgent(cluster) {
+		if slices.Contains(cluster.WinAgentIPs, ip) {
+			awsUser = "Administrator"
+		}
+	}
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
 		ShCmdPrefix("ssh", cluster.Aws.KeyName),
-		cluster.Aws.AwsUser, ip, cmd)
+		awsUser, ip, cmd)
 	shared.LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
 	res, err = shared.RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
 
@@ -318,19 +336,6 @@ func GetArtifacts(cluster *shared.Cluster, tarballType string) (res string, err 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
 			`sudo ./get_artifacts.sh "%v" "%v" "linux" "%v" "%v" "%v"`,
-		cluster.Config.Product, cluster.Config.Version,
-		cluster.Config.Arch, serverFlags, tarballType)
-	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
-
-	return res, err
-}
-
-// GetWindowsArtifacts executes get_artifacts.sh script for windows agent.
-func GetWindowsArtifacts(cluster *shared.Cluster, tarballType string) (res string, err error) {
-	serverFlags := os.Getenv("server_flags")
-	cmd := fmt.Sprintf(
-		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "windows" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version,
 		cluster.Config.Arch, serverFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
@@ -385,6 +390,36 @@ func UpdateRegistryFile(cluster *shared.Cluster, flags *customflag.FlagConfig) (
 	return nil
 }
 
+func processKubeconfigOnBastion(cluster *shared.Cluster) (err error) {
+	var localNodeIP string
+	kcFileName := cluster.Config.Product + "_kubeconf.yaml"
+	serverIP := cluster.ServerIPs[0]
+	if strings.Contains(serverIP, ":") {
+		localNodeIP = `\[::1\]`
+		serverIP = shared.EncloseSqBraces(serverIP)
+	} else {
+		localNodeIP = "127.0.0.1"
+	}
+
+	cmd := fmt.Sprintf(
+		`sudo %[1]v %[2]v@%[3]v:/etc/rancher/%[4]v/%[4]v.yaml %[5]v && `,
+		ShCmdPrefix("scp", cluster.Aws.KeyName),
+		cluster.Aws.AwsUser, serverIP,
+		cluster.Config.Product, kcFileName,
+	)
+
+	cmd += fmt.Sprintf(`sudo sed 's/%[1]v/%[2]v/g' $HOME/%[3]v > /tmp/%[3]v`,
+		localNodeIP, serverIP, kcFileName,
+	)
+
+	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // LogClusterInfoUsingBastion executes and prints kubectl get nodes,pods on bastion.
 func LogClusterInfoUsingBastion(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
@@ -392,13 +427,10 @@ func LogClusterInfoUsingBastion(cluster *shared.Cluster) {
 		cluster.BastionConfig.PublicIPv4Addr)
 
 	cmd := fmt.Sprintf(
-		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ",
+		"KUBECONFIG=/tmp/%v_kubeconf.yaml kubectl get nodes,pods -A -o wide",
 		cluster.Config.Product)
-	cmd += "kubectl get nodes,pods -A -o wide"
-
-	shared.LogLevel("info", "Display cluster details server-1: %v", cmd)
-	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
+	shared.LogLevel("info", "Display cluster details from bastion: %v", cmd)
+	clusterInfo, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		shared.LogLevel("error", "Error getting airgap cluster details: %v", err)
 	}

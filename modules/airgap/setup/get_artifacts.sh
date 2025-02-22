@@ -9,8 +9,8 @@
 
 product=${1}
 version=${2}
-os_type=${3}
-os_arch=${4}
+platform=${3}
+arch=${4}
 server_flags=${5}
 tarball_type=${6}
 k3s_binary=$product
@@ -122,11 +122,17 @@ get_cni_assets() {
   fi
 }
 
+# TODO: Add function for ingress-controller: traefik
+
 get_windows_assets() {
   url="https://github.com/rancher/rke2/releases/download/$version"
   download_retry "wget $url/rke2-images.windows-amd64.txt"
   download_retry "wget $url/rke2-windows-amd64.exe"
   download_retry "wget $url/rke2.windows-amd64.tar.gz"
+  if [ -n "$tarball_type" ]; then
+     download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
+  fi
+  # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
 }
 
 save_to_directory() {
@@ -135,7 +141,7 @@ save_to_directory() {
     folder="$folder-windows"
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
-    sudo cp -r ./*windows-* "$folder"
+    sudo cp -r ./*windows-amd64* "$folder"
   else
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
@@ -146,7 +152,7 @@ save_to_directory() {
 main() {
   validate_args
   check_arch
-  if [[ "$os_type" == "windows" ]]; then
+  if [[ "$platform" == "windows" ]]; then
     get_windows_assets
     save_to_directory "windows"
   else
