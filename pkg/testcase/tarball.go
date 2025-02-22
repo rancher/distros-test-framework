@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -9,16 +10,16 @@ import (
 
 func TestTarball(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "Downloading tarball artifacts...")
-	_, err := shared.GetArtifacts(cluster, flags.AirgapFlag.TarballType)
+	_, err := support.GetArtifacts(cluster, flags.AirgapFlag.TarballType)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
-	err = shared.CopyAssetsOnNodes(cluster, Tarball, &flags.AirgapFlag.TarballType)
+	err = support.CopyAssetsOnNodes(cluster, support.Tarball, &flags.AirgapFlag.TarballType)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
-	installOnServers(cluster, Tarball)
+	support.InstallOnAirgapServers(cluster, support.Tarball)
 	shared.LogLevel("info", "Installation of %v on airgap servers: Completed!", cluster.Config.Product)
-	installOnAgents(cluster, Tarball)
+	support.InstallOnAirgapAgents(cluster, support.Tarball)
 	shared.LogLevel("info", "Installation of %v on airgap agents: Completed!", cluster.Config.Product)
 }
