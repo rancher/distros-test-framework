@@ -15,7 +15,6 @@ func TestNodeStatus(
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
-
 	if cluster.Config.Product == "rke2" {
 		expectedNodeCount += cluster.NumWinAgents
 	}
@@ -36,9 +35,12 @@ func TestNodeStatus(
 
 		return true
 	}, "600s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\nNodes are not in desired state; gathering journal logs...\n")
+		shared.LogLevel("error", "\nNodes are not in desired state")
+		_, err := shared.GetNodes(true)
+		Expect(err).NotTo(HaveOccurred())
+		shared.LogLevel("info", "Journal logs from server node-1: %v\n", cluster.ServerIPs[0])
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
-
+		shared.LogLevel("info", "Journal logs from agent node-1: %v\n", cluster.AgentIPs[0])
 		if cluster.NumAgents > 0 {
 			logs += shared.GetJournalLogs("error", cluster.AgentIPs[0])
 		}

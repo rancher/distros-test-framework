@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-echo "$@"
+# set -x
+# echo "$@"
 
 arch=$(uname -m)
 
@@ -50,13 +50,22 @@ install_kubectl() {
   mv ./kubectl /usr/local/bin
 }
 
+install_podman() {
+  apt-get -qq update
+  apt-get -y install podman
+}
+
 main() {
+  echo "Install kubectl..."
+  install_kubectl
   has_docker=$(has_bin docker)
   if [[ "$has_docker" =~ "error" ]] || [ -z "$has_docker" ]; then
-    echo "Installing docker..."
+    echo "Install docker..."
     install_docker
   else
     echo "Found docker in path: $has_docker"
   fi
+  echo "Install podman..."
+  install_podman
 }
 main "$@"

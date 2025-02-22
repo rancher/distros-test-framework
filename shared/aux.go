@@ -478,7 +478,7 @@ func FindPath(name, ip string) (string, error) {
 // MatchWithPath verify expected files found in the actual file list.
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
-		if !stringInSlice(expectedFileList[i], actualFileList) {
+		if !StringInSlice(expectedFileList[i], actualFileList) {
 			return ReturnLogError("FAIL: Expected file: %s NOT found in actual list",
 				expectedFileList[i])
 		}
@@ -486,7 +486,7 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	}
 
 	for i := 0; i < len(actualFileList); i++ {
-		if !stringInSlice(actualFileList[i], expectedFileList) {
+		if !StringInSlice(actualFileList[i], expectedFileList) {
 			LogLevel("info", "Actual file %s found as well which was not in the expected list",
 				actualFileList[i])
 		}
@@ -510,7 +510,7 @@ func CopyFileContents(srcPath, destPath string) error {
 	return nil
 }
 
-// ReplaceFileContents reads file from path and replaces them based on key value pair provided.
+// ReplaceFileContents reads file from local path and replaces them based on key value pair provided.
 func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
@@ -531,8 +531,8 @@ func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	return nil
 }
 
-// stringInSlice verify if a string is found in the list of strings.
-func stringInSlice(a string, list []string) bool {
+// StringInSlice verify if a string is found in the list of strings.
+func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
 			return true
