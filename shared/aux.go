@@ -478,7 +478,11 @@ func FindPath(name, ip string) (string, error) {
 // MatchWithPath verify expected files found in the actual file list.
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
+<<<<<<< HEAD
 		if !slices.Contains(actualFileList, expectedFileList[i]) {
+=======
+		if !StringInSlice(expectedFileList[i], actualFileList) {
+>>>>>>> cf481a2 (Add Windows support for airgap private registry)
 			return ReturnLogError("FAIL: Expected file: %s NOT found in actual list",
 				expectedFileList[i])
 		}
@@ -486,7 +490,11 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	}
 
 	for i := 0; i < len(actualFileList); i++ {
+<<<<<<< HEAD
 		if !slices.Contains(expectedFileList, actualFileList[i]) {
+=======
+		if !StringInSlice(actualFileList[i], expectedFileList) {
+>>>>>>> cf481a2 (Add Windows support for airgap private registry)
 			LogLevel("info", "Actual file %s found as well which was not in the expected list",
 				actualFileList[i])
 		}
@@ -510,7 +518,7 @@ func CopyFileContents(srcPath, destPath string) error {
 	return nil
 }
 
-// ReplaceFileContents reads file from path and replaces them based on key value pair provided.
+// ReplaceFileContents reads file from local path and replaces them based on key value pair provided.
 func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {

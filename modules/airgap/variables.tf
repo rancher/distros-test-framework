@@ -34,8 +34,12 @@ variable "enable_ipv6" {
 }
 variable "install_mode" {}
 variable "install_version" {}
-variable "install_channel" {}
-variable "install_method" {}
+variable "install_channel" {
+  default = "testing"
+}
+variable "install_method" {
+  default = ""
+}
 variable "no_of_server_nodes" {}
 variable "no_of_worker_nodes" {}
 variable "server_flags" {}
@@ -43,6 +47,12 @@ variable "worker_flags" {}
 variable "arch" {
   default = "amd64"
 }
-variable "windows_ec2_instance_class" {}
-variable "windows_aws_ami" {}
-variable "no_of_windows_worker_nodes" {}
+variable "windows_ec2_instance_class" {
+  default = ""
+}
+variable "windows_aws_ami" {
+  default = ""
+}
+variable "no_of_windows_worker_nodes" {
+  default = 0
+}

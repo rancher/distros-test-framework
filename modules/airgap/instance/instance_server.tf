@@ -16,15 +16,16 @@ resource "aws_instance" "master" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 1}"
+    Team                 = local.resource_tag
   } 
 
   provisioner "local-exec" { 
-    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.master[count.index].id}" 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
   }
 }
 
 resource "aws_instance" "worker" {
-  depends_on = [ null_resource.prepare_bastion, aws_instance.master ]
+  depends_on = [ aws_instance.master ]
 
   ami                         = var.aws_ami
   instance_type               = var.ec2_instance_class  
@@ -41,15 +42,16 @@ resource "aws_instance" "worker" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team                 = local.resource_tag
   }
 
   provisioner "local-exec" { 
-    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}" 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
   }
 }
 
 resource "aws_instance" "windows_worker" {
-  depends_on = [ null_resource.prepare_bastion, aws_instance.master ]
+  depends_on = [ aws_instance.master ]
 
   ami                         = var.windows_aws_ami
   instance_type               = var.windows_ec2_instance_class  
@@ -68,10 +70,11 @@ resource "aws_instance" "windows_worker" {
   get_password_data      = true
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker${count.index + 1}"
+    Team                 = local.resource_tag
   }
 
   provisioner "local-exec" { 
-    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.windows_worker[count.index].id}" 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
   }
 }
 
@@ -98,6 +101,7 @@ resource "aws_instance" "bastion" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-bastion"
+    Team                 = local.resource_tag
   }
   
   provisioner "file" {
@@ -121,10 +125,9 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = "setup/docker_ops.sh"
-    destination = "/tmp/docker_ops.sh"
+    source = "setup/images_ptpv.sh"
+    destination = "/tmp/images_ptpv.sh"
   }
-
   provisioner "file" {
     source = "setup/private_registry.sh"
     destination = "/tmp/private_registry.sh"
@@ -136,13 +139,17 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
+    source = "setup/windows_install.ps1"
+    destination = "/tmp/windows_install.ps1"
+  }
+  provisioner "file" {
     source = "setup/basic-registry"
     destination = "/tmp"
   }
 }
 
 resource "null_resource" "prepare_bastion" {
-  depends_on = [ aws_instance.bastion[0] ]
+  depends_on = [ aws_instance.bastion ]
   connection {
     type          = "ssh"
     user          = var.aws_user
@@ -152,10 +159,10 @@ resource "null_resource" "prepare_bastion" {
 
   provisioner "remote-exec" {
     inline = [<<-EOT
-      sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
+      sudo cp /tmp/${var.key_name}.pem /tmp/*.sh /tmp/*.ps1 ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh
-      sudo ./bastion_prepare.sh
+      sudo ./bastion_prepare.sh "${var.no_of_windows_worker_nodes}"
     EOT
     ]
   }
