@@ -47,18 +47,3 @@ func TestBuildCluster(cluster *shared.Cluster) {
 		support.LogAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
 }
-
-func checkAndPrintAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
-	info := "Agent Node IPs:"
-
-	if isWindows {
-		info = "Windows " + info
-	}
-
-	if agentNum > 0 {
-		Expect(agentIPs).ShouldNot(BeEmpty())
-		shared.LogLevel("info", info+"  %v", agentIPs)
-	} else {
-		Expect(agentIPs).Should(BeEmpty())
-	}
-}
