@@ -5,13 +5,14 @@
 # echo "$@"
 
 # Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
-# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "amd64" "server_flags" "tar.gz"
+# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "server_flags" "tar.gz"
 
 product=${1}
 version=${2}
-arch=${3}
-server_flags=${4}
-tarball_type=${5}
+platform=${3}
+arch=${4}
+server_flags=${5}
+tarball_type=${6}
 k3s_binary=$product
 
 validate_args() {
@@ -121,20 +122,46 @@ get_cni_assets() {
   fi
 }
 
+# TODO: Add function for ingress-controller: traefik
+
+get_windows_assets() {
+  url="https://github.com/rancher/rke2/releases/download/$version"
+  download_retry "wget $url/rke2-images.windows-amd64.txt"
+  download_retry "wget $url/rke2-windows-amd64.exe"
+  download_retry "wget $url/rke2.windows-amd64.tar.gz"
+  if [ -n "$tarball_type" ]; then
+     download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
+  fi
+  # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
+}
+
 save_to_directory() {
   folder="$(pwd)/artifacts"
-  echo "Saving $product dependencies in directory $folder..."
-  sudo mkdir "$folder"
-  sudo cp -r ./*linux* sha256sum-"$arch".txt "$folder"
+  if [[ "${1}" == "windows" ]]; then
+    folder="$folder-windows"
+    echo "Saving $product dependencies in directory $folder..."
+    sudo mkdir "$folder"
+    sudo cp -r ./*windows-amd64* "$folder"
+  else
+    echo "Saving $product dependencies in directory $folder..."
+    sudo mkdir "$folder"
+    sudo cp -r ./*linux-* sha256sum-"$arch".txt "$folder"
+  fi
 }
 
 main() {
   validate_args
   check_arch
-  get_assets
-  if [[ "$product" == "rke2" ]]; then
-    get_cni_assets
-    save_to_directory
+  if [[ "$platform" == "windows" ]]; then
+    get_windows_assets
+    save_to_directory "windows"
+  else
+    get_assets
+    if [[ "$product" == "rke2" ]]; then
+      get_cni_assets
+      save_to_directory
+    fi
   fi
+  
 }
 main "$@"
