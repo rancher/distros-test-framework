@@ -37,7 +37,7 @@ func TestNodeStatus(
 
 		return true
 	}, "600s", "10s").Should(BeTrue(), func() string {
-		shared.LogLevel("error", "\ntimeout for nodes to be ready; gathering journal logs...\n")
+		shared.LogLevel("error", "\nNodes are not in desired state; gathering journal logs...\n")
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
 
 		if cluster.NumAgents > 0 {
@@ -51,8 +51,8 @@ func TestNodeStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestAirgapClusterNodeStatus test the status of the nodes in the private cluster using 2 custom assert functions.
-func TestAirgapClusterNodeStatus(
+// TestNodeStatusUsingBastion test the status of the nodes in the private cluster using 2 custom assert functions.
+func TestNodeStatusUsingBastion(
 	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,

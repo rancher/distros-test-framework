@@ -1,0 +1,89 @@
+name: Qase.io E2E Test Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '0 21 * * *'
+
+jobs:
+  e2e-qase-report:
+    if: github.repository == 'rancher/distros-test-framework' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: 0
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Go Modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build binary
+        run: |
+          go build -o processreport ./cmd/qase/main.go
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Get latest log file
+        id: get-latest-log
+        run: |
+          # Get the latest {product}.log file from the bucket.
+            LATEST_LOG=$(aws s3api list-objects-v2 \
+              --bucket e2e-results-log \
+              --query 'Contents[?ends_with(Key, `.log`)] | sort_by(@, &LastModified)[-1].Key' \
+              --output text)
+          
+            if [ -z "$LATEST_LOG" ]; then
+                echo "No log files found."
+                exit 1
+            fi
+          
+          # Print the latest log 
+            echo "Latest log file: $LATEST_LOG"
+          
+          # Set the product name on the output 
+          #TODO: add k3s
+            echo "product=rke2" >> $GITHUB_OUTPUT
+         
+          # Download the file
+            aws s3 cp s3://e2e-results-log/$LATEST_LOG ./latest_e2e.log
+          
+          # Log path as an output
+            echo "log_path=latest_e2e.log" >> $GITHUB_OUTPUT
+          
+            GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            COMMENT_LINK="In case of failure in GitHub Actions run. See details here: $GITHUB_RUN_URL"
+            echo "comment_link=$COMMENT_LINK" >> $GITHUB_OUTPUT
+
+      - name: Run report processor
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          QASE_AUTOMATION_TOKEN: ${{ secrets.QASE_AUTOMATION_TOKEN }}
+          QASE_PROJECT_ID:  'K3SRKE2'
+          COMMENT_LINK: ${{ steps.get-latest-log.outputs.comment_link }}
+        run: |
+          ./processreport -f ${{ steps.get-latest-log.outputs.log_path }} -p ${{ steps.get-latest-log.outputs.product }} 
+ 
+ 

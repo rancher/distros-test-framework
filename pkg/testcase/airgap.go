@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -28,16 +29,16 @@ func TestBuildAirgapCluster(cluster *shared.Cluster) {
 	}
 	shared.LogLevel("info", "Server Node IPs: %v", cluster.ServerIPs)
 
-	checkAndPrintAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
+	support.LogAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
 	if cluster.Config.Product == "rke2" {
-		checkAndPrintAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
+		support.LogAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
 }
 
-func installOnServers(cluster *shared.Cluster) {
+func installOnServers(cluster *shared.Cluster, airgapMethod string) {
 	serverFlags := os.Getenv("server_flags")
-	if !strings.Contains(serverFlags, "system-default-registry") {
+	if airgapMethod == SystemDefaultRegistry && !strings.Contains(serverFlags, "system-default-registry") {
 		serverFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 	}
 
@@ -72,10 +73,12 @@ func installOnServers(cluster *shared.Cluster) {
 	}
 }
 
-func installOnAgents(cluster *shared.Cluster) {
+func installOnAgents(cluster *shared.Cluster, airgapMethod string) {
 	agentFlags := os.Getenv("worker_flags")
-	if cluster.Config.Product == "rke2" && !strings.Contains(agentFlags, "system-default-registry") {
-		agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+	if cluster.Config.Product == "rke2" {
+		if airgapMethod == SystemDefaultRegistry && !strings.Contains(agentFlags, "system-default-registry") {
+			agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+		}
 	}
 
 	for idx, agentIP := range cluster.AgentIPs {

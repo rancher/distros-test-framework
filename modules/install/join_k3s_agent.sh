@@ -38,11 +38,9 @@ create_config() {
   hostname=$(hostname -f)
   mkdir -p /etc/rancher/k3s
   cat <<EOF >>/etc/rancher/k3s/config.yaml
-server: https://$server_ip:6443
 token:  "$token"
 node-label:
  - role-worker=true
-node-name: $hostname
 EOF
 }
 
@@ -57,12 +55,15 @@ update_config() {
       echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
     elif [ -n "$ipv6_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
-      echo -e "node-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
+      server_ip="[$server_ip]"
+      hostname="$hostname-ag$RANDOM"
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
+  echo -e server: https://${server_ip}:6443 >>/etc/rancher/k3s/config.yaml
+  echo -e node-name: "${hostname}" >>/etc/rancher/k3s/config.yaml
   cat /etc/rancher/k3s/config.yaml
 
   if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"protect-kernel-defaults"* ]]; then

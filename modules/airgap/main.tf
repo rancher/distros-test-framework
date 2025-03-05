@@ -1,10 +1,6 @@
 module "instance" {
    source     = "./instance"
 
-   # Basic Variables
-   username   = var.username
-   password   = var.password
-
    # AWS Variables
    aws_ami             = var.aws_ami
    aws_user            = var.aws_user
@@ -21,13 +17,12 @@ module "instance" {
    key_name            = var.key_name
    access_key          = var.access_key
    arch                = var.arch
-
    resource_name       = var.resource_name
    no_of_bastion_nodes = var.no_of_bastion_nodes
    install_mode        = var.install_mode
    install_version     = var.install_version
-   channel             = var.channel
    install_method      = var.install_method
    no_of_server_nodes  = var.no_of_server_nodes
    no_of_worker_nodes  = var.no_of_worker_nodes
+   install_channel     = var.install_channel
 }

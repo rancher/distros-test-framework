@@ -33,7 +33,7 @@ func TestPodStatus(
 
 		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
 		if res != "" {
-			shared.LogLevel("info", "Waiting for pod status to be Running or Compeleted... \n%s", res)
+			shared.LogLevel("debug", "Waiting for pod status to be Running or Completed... \n%s", res)
 			return false
 		}
 		for i := range pods {
@@ -47,8 +47,8 @@ func TestPodStatus(
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestAirgapClusterPodStatus test the status of the pods in the private cluster using custom assert functions.
-func TestAirgapClusterPodStatus(
+// TestPodStatusUsingBastion test the status of the pods in the private cluster using custom assert functions.
+func TestPodStatusUsingBastion(
 	cluster *shared.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,

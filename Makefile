@@ -114,9 +114,14 @@ test-system-default-registry:
 	@go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
 #========================= TestCode Static Quality Check =========================#
-pre-commit:
+pre-commit: go-check shell-check
+
+go-check:
 	@gofmt -s -w .
 	@goimports -w .
 	@go vet ./...
 	@golangci-lint run --tests ./...
+
+shell-check:
 	@shellcheck modules/airgap/setup/*.sh
+	@shellcheck modules/ipv6only/scripts/*.sh

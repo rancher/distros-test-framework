@@ -1,12 +1,12 @@
 module github.com/rancher/distros-test-framework
 
-go 1.22
+go 1.23
 
-toolchain go1.22.4
+toolchain go1.23.6
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/aws/aws-sdk-go v1.51.1
+	github.com/aws/aws-sdk-go v1.55.6
 	github.com/gruntwork-io/terratest v0.46.11
 	github.com/onsi/ginkgo/v2 v2.16.0
 	github.com/onsi/gomega v1.31.1

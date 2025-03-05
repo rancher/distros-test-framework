@@ -170,12 +170,12 @@ func copyAssets(cluster *Cluster, airgapMethod, ip string) (err error) {
 	case "rke2":
 		cmd += fmt.Sprintf(
 			"sudo %v -r artifacts %v@%v:~/ && ",
-			ssPrefix("scp", cluster.Aws.KeyName),
+			ShCmdPrefix("scp", cluster.Aws.KeyName),
 			cluster.Aws.AwsUser, ip)
 	case "k3s":
 		cmd += fmt.Sprintf(
 			"sudo %v %v* %v@%v:~/ && ",
-			ssPrefix("scp", cluster.Aws.KeyName),
+			ShCmdPrefix("scp", cluster.Aws.KeyName),
 			cluster.Config.Product,
 			cluster.Aws.AwsUser, ip)
 	}
@@ -183,13 +183,13 @@ func copyAssets(cluster *Cluster, airgapMethod, ip string) (err error) {
 	if airgapMethod != "tarball" {
 		cmd += fmt.Sprintf(
 			"sudo %v certs/* %v@%v:~/ && ",
-			ssPrefix("scp", cluster.Aws.KeyName),
+			ShCmdPrefix("scp", cluster.Aws.KeyName),
 			cluster.Aws.AwsUser, ip)
 	}
 
 	cmd += fmt.Sprintf(
 		"sudo %v install_product.sh %v-install.sh %v@%v:~/",
-		ssPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		cluster.Config.Product,
 		cluster.Aws.AwsUser, ip)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
@@ -201,7 +201,7 @@ func copyAssets(cluster *Cluster, airgapMethod, ip string) (err error) {
 func copyRegistry(cluster *Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
-		ssPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		cluster.Aws.AwsUser, ip)
 	_, err = RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
@@ -221,7 +221,7 @@ func copyRegistry(cluster *Cluster, ip string) (err error) {
 func CmdForPrivateNode(cluster *Cluster, cmd, ip string) (res string, err error) {
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
-		ssPrefix("ssh", cluster.Aws.KeyName),
+		ShCmdPrefix("ssh", cluster.Aws.KeyName),
 		cluster.Aws.AwsUser, ip, cmd)
 	LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
 	res, err = RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
@@ -289,8 +289,8 @@ func UpdateRegistryFile(cluster *Cluster, flags *customflag.FlagConfig) (err err
 	return nil
 }
 
-// DisplayAirgapClusterDetails executes and prints kubectl get nodes,pods on bastion.
-func DisplayAirgapClusterDetails(cluster *Cluster) {
+// LogClusterInfoUsingBastion executes and prints kubectl get nodes,pods on bastion.
+func LogClusterInfoUsingBastion(cluster *Cluster) {
 	LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
 		cluster.Aws.KeyName, cluster.Aws.AwsUser,
 		cluster.BastionConfig.PublicIPv4Addr)
@@ -301,7 +301,7 @@ func DisplayAirgapClusterDetails(cluster *Cluster) {
 		cluster.Config.Product)
 	cmd += "kubectl get nodes,pods -A -o wide"
 
-	LogLevel("info", "Display cluster details from airgap server-1: %v", cmd)
+	LogLevel("info", "Display cluster details server-1: %v", cmd)
 	clusterInfo, err := CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
 	if err != nil {
 		LogLevel("error", "Error getting airgap cluster details: %v", err)
@@ -309,8 +309,8 @@ func DisplayAirgapClusterDetails(cluster *Cluster) {
 	LogLevel("info", "\n%v", clusterInfo)
 }
 
-// ssPrefix adds prefix to shell commands.
-func ssPrefix(cmdType, keyName string) (cmd string) {
+// ShCmdPrefix adds prefix to shell commands.
+func ShCmdPrefix(cmdType, keyName string) (cmd string) {
 	if cmdType != "scp" && cmdType != "ssh" {
 		LogLevel("error", "Invalid shell command type: %v", cmdType)
 	}

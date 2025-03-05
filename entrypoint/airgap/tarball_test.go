@@ -22,7 +22,7 @@ var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 	})
 
 	It("Validates Nodes", func() {
-		testcase.TestAirgapClusterNodeStatus(
+		testcase.TestNodeStatusUsingBastion(
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
@@ -30,14 +30,14 @@ var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 	})
 
 	It("Validates Pods", func() {
-		testcase.TestAirgapClusterPodStatus(
+		testcase.TestPodStatusUsingBastion(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
 	AfterAll(func() {
-		shared.DisplayAirgapClusterDetails(cluster)
+		shared.LogClusterInfoUsingBastion(cluster)
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip
