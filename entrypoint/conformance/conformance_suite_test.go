@@ -47,7 +47,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
-	os.Exit(1)
 }
 
 func TestConformance(t *testing.T) {
@@ -77,7 +76,6 @@ var _ = AfterSuite(func() {
 })
 
 func verifyClusterNodes() {
-	// if re-running locally the env variables are not set after cleanup
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
 	serverNum, err := strconv.Atoi(os.Getenv("no_of_server_nodes"))
 	if err != nil {
