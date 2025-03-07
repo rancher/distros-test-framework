@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 // validateAirgap pre-validation for airgap tests.
 func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
-	cniSlice := []string{"multus", "cilium", "canal", "none", ""}
+	cniSlice := []string{"calico", "flannel"}
 	if os.Getenv("ENV_MODULE") == "" {
 		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
 		os.Exit(1)
@@ -77,7 +77,7 @@ func validateAirgap() {
 	}
 
 	if (cfg.Product == "rke2") && (os.Getenv("no_of_windows_worker_nodes") != "0") &&
-		shared.StringInSlice(serverFlags, cniSlice) {
+		(!shared.SliceContainsString(cniSlice, serverFlags) || strings.Contains(serverFlags, "multus")) {
 		shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
 		shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 		os.Exit(1)

@@ -102,15 +102,9 @@ func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
 // SetupAirgapRegistry sets bastion node for airgap registry.
 func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, airgapMethod string) (err error) {
 	shared.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
-	_, err = GetArtifacts(cluster, flags.AirgapFlag.TarballType)
+	_, err = GetArtifacts(cluster, "linux", flags.AirgapFlag.TarballType)
 	if err != nil {
 		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
-	}
-	if HasWindowsAgent(cluster) {
-		_, err := GetArtifactsWindows(cluster, flags.AirgapFlag.TarballType)
-		if err != nil {
-			return fmt.Errorf("error downloading %v Windows artifacts: %w", cluster.Config.Product, err)
-		}
 	}
 
 	switch airgapMethod {
@@ -129,7 +123,7 @@ func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 	}
 
 	shared.LogLevel("info", "Perform image pull/tag/push/inspect...")
-	err = imagesPTPV(cluster, flags)
+	err = podmanCmds(cluster, "linux", flags)
 	if err != nil {
 		return fmt.Errorf("error performing docker actions: %w", err)
 	}
@@ -163,14 +157,14 @@ func systemDefaultRegistry(cluster *shared.Cluster) (err error) {
 	return err
 }
 
-// imagesPTPV executes images_ptpv.sh script.
-func imagesPTPV(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
+// podmanCmds executes podman_cmds.sh script.
+func podmanCmds(cluster *shared.Cluster, platform string, flags *customflag.FlagConfig) (err error) {
 	if flags.AirgapFlag.ImageRegistryUrl != "" {
 		shared.LogLevel("info", "Images will be pulled from registry url: %v", flags.AirgapFlag.ImageRegistryUrl)
 	}
-	cmd := "sudo chmod +x images_ptpv.sh && " +
-		fmt.Sprintf(`sudo ./images_ptpv.sh "%v" "%v" "%v" "%v" "%v"`,
-			cluster.Config.Product, cluster.BastionConfig.PublicDNS,
+	cmd := "sudo chmod +x podman_cmds.sh && " +
+		fmt.Sprintf(`sudo ./podman_cmds.sh "%v" "%v" "%v" "%v" "%v" "%v"`,
+			cluster.Config.Product, platform, cluster.BastionConfig.PublicDNS,
 			flags.AirgapFlag.RegistryUsername, flags.AirgapFlag.RegistryPassword,
 			flags.AirgapFlag.ImageRegistryUrl)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
@@ -331,12 +325,15 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 }
 
 // GetArtifacts executes get_artifacts.sh script.
-func GetArtifacts(cluster *shared.Cluster, tarballType string) (res string, err error) {
+func GetArtifacts(cluster *shared.Cluster, platform, tarballType string) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
+	if platform == "" {
+		platform = "linux"
+	}
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "linux" "%v" "%v" "%v"`,
-		cluster.Config.Product, cluster.Config.Version,
+			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v"`,
+		cluster.Config.Product, cluster.Config.Version, platform,
 		cluster.Config.Arch, serverFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
