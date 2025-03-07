@@ -52,7 +52,7 @@ install_kubectl() {
 
 install_podman() {
   apt-get -qq update
-  apt-get -y install podman
+  apt-get -yq install podman
 }
 
 main() {

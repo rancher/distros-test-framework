@@ -32,6 +32,23 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 	}
 }
 
+// ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
+func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
+	shared.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
+	_, err = GetArtifacts(cluster, "windows", flags.AirgapFlag.TarballType)
+	if err != nil {
+		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
+	}
+
+	shared.LogLevel("info", "Perform image pull/tag/push/inspect...")
+	err = podmanCmds(cluster, "windows", flags)
+	if err != nil {
+		return fmt.Errorf("error running podman commands: %w", err)
+	}
+
+	return nil
+}
+
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.
 func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) (err error) {
 	nodeIPs := cluster.WinAgentIPs
@@ -47,18 +64,11 @@ func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) (err
 			if err != nil {
 				errChan <- shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
 			}
-			switch airgapMethod {
-			case "private_registry":
+			if airgapMethod == "private_registry" {
 				shared.LogLevel("debug", "Copying registry.yaml on Windows node IP: %s", nodeIP)
 				err = copyRegistryOnWindows(cluster, nodeIP)
 				if err != nil {
 					errChan <- shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "system_default_registry":
-				shared.LogLevel("debug", "Trust CA Certs on Windows node IP: %s", nodeIP)
-				err = trustCertOnWindows(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
 				}
 			}
 		}(nodeIP)
@@ -73,13 +83,6 @@ func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) (err
 	}
 
 	return nil
-}
-
-// TODO: For system-default-registry.
-func trustCertOnWindows(cluster *shared.Cluster, ip string) (err error) {
-	shared.LogLevel("debug", "%v", cluster.Config.Product)
-	shared.LogLevel("debug", "%v", ip)
-	return err
 }
 
 func copyRegistryOnWindows(cluster *shared.Cluster, ip string) (err error) {
@@ -119,19 +122,6 @@ func copyAssetsOnWindows(cluster *shared.Cluster, airgapMethod, ip string) (err 
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return err
-}
-
-// GetArtifactsWindows executes get_artifacts.sh script for Windows.
-func GetArtifactsWindows(cluster *shared.Cluster, tarballType string) (res string, err error) {
-	serverFlags := os.Getenv("server_flags")
-	cmd := fmt.Sprintf(
-		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "windows" "%v" "%v" "%v"`,
-		cluster.Config.Product, cluster.Config.Version,
-		cluster.Config.Arch, serverFlags, tarballType)
-	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
-
-	return res, err
 }
 
 // UpdateRegistryFileWindows updates registries.yaml file and copies to bastion node for Windows.
