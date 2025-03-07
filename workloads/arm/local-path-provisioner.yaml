@@ -43,7 +43,7 @@ spec:
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: volv
-              mountPath: /data
+              mountPath: /opt/data
           ports:
             - containerPort: 80
       volumes:
