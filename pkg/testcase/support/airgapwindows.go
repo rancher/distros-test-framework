@@ -32,6 +32,23 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 	}
 }
 
+// ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
+func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
+	shared.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
+	_, err = GetArtifacts(cluster, "windows", flags.AirgapFlag.TarballType)
+	if err != nil {
+		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
+	}
+
+	shared.LogLevel("info", "Perform image pull/tag/push/inspect...")
+	err = podmanCmds(cluster, "windows", flags)
+	if err != nil {
+		return fmt.Errorf("error running podman commands: %w", err)
+	}
+
+	return nil
+}
+
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.
 func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) (err error) {
 	nodeIPs := cluster.WinAgentIPs
@@ -119,19 +136,6 @@ func copyAssetsOnWindows(cluster *shared.Cluster, airgapMethod, ip string) (err 
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return err
-}
-
-// GetArtifactsWindows executes get_artifacts.sh script for Windows.
-func GetArtifactsWindows(cluster *shared.Cluster, tarballType string) (res string, err error) {
-	serverFlags := os.Getenv("server_flags")
-	cmd := fmt.Sprintf(
-		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "windows" "%v" "%v" "%v"`,
-		cluster.Config.Product, cluster.Config.Version,
-		cluster.Config.Arch, serverFlags, tarballType)
-	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
-
-	return res, err
 }
 
 // UpdateRegistryFileWindows updates registries.yaml file and copies to bastion node for Windows.

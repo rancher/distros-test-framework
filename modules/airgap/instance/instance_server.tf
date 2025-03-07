@@ -125,8 +125,8 @@ resource "aws_instance" "bastion" {
   }
 
   provisioner "file" {
-    source = "setup/images_ptpv.sh"
-    destination = "/tmp/images_ptpv.sh"
+    source = "setup/podman_cmds.sh"
+    destination = "/tmp/podman_cmds.sh"
   }
   provisioner "file" {
     source = "setup/private_registry.sh"
@@ -162,7 +162,7 @@ resource "null_resource" "prepare_bastion" {
       sudo cp /tmp/${var.key_name}.pem /tmp/*.sh /tmp/*.ps1 ~/
       sudo cp -r /tmp/basic-registry ~/
       sudo chmod +x bastion_prepare.sh
-      sudo ./bastion_prepare.sh "${var.no_of_windows_worker_nodes}"
+      sudo ./bastion_prepare.sh
     EOT
     ]
   }

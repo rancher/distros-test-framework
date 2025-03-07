@@ -58,3 +58,38 @@ availability_zone  = "us-east-2a"
 sg_id              = "<sg-id>"
 iam_role           = "<iam_role>"
 volume_size        = "20"
+
+datastore_type       = "etcd"
+
+##############  external db variables  #################
+
+# to use external db set datastore_type to "" 
+
+db_username           = "<db_user>"
+db_password           = "<db_password>"
+
+# mysql
+external_db           = "mysql"
+external_db_version   = "8.0.32"
+instance_class        = "db.t3.micro"
+db_group_name         = "default.mysql8.0"
+
+
+#external_db          = "postgres"
+#external_db_version  = "14.6"
+#db_group_name        = "default.postgres14"
+#instance_class       = "db.t3.micro"
+
+#aurora-mysql
+#external_db          = "aurora-mysql"
+#external_db_version  = "5.7.mysql_aurora.2.11.2"
+#instance_class       = "db.t3.medium"
+#db_group_name        = "default.aurora-mysql5.7"
+environment           = "dev"
+engine_mode           = "provisioned"
+
+## mariadb
+#external_db          = "mariadb"
+#external_db_version  = "10.6.11"
+#instance_class       = "db.t3.medium"
+#db_group_name        = "default.mariadb10.6"

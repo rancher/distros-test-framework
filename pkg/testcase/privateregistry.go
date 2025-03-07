@@ -29,6 +29,10 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 	shared.LogLevel("info", "%v install on airgap agents: Completed!", cluster.Config.Product)
 
 	if support.HasWindowsAgent(cluster) {
+		shared.LogLevel("info", "Configure registry for Windows...")
+		err = support.ConfigureRegistryWindows(cluster, flags)
+		Expect(err).To(BeNil(), err)
+
 		shared.LogLevel("info", "Update and copy registries.yaml for Windows on bastion...")
 		err = support.UpdateRegistryFileWindows(cluster, flags)
 		Expect(err).To(BeNil(), err)

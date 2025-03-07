@@ -10,7 +10,7 @@ import (
 
 func TestTarball(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	shared.LogLevel("info", "Downloading tarball artifacts...")
-	_, err := support.GetArtifacts(cluster, flags.AirgapFlag.TarballType)
+	_, err := support.GetArtifacts(cluster, "linux", flags.AirgapFlag.TarballType)
 	Expect(err).To(BeNil(), err)
 
 	shared.LogLevel("info", "Copying assets on the airgap nodes...")
