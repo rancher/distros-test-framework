@@ -6,7 +6,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -36,7 +35,7 @@ var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
 	})
 
 	AfterAll(func() {
-		shared.LogClusterInfoUsingBastion(cluster)
+		support.LogClusterInfoUsingBastion(cluster)
 	})
 })
 

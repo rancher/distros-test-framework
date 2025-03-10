@@ -1,10 +1,10 @@
 package testcase
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
@@ -55,7 +55,7 @@ func TestPodStatusUsingBastion(
 ) {
 	var podDetails string
 	Eventually(func(g Gomega) {
-		podDetails = getPrivatePods(cluster)
+		podDetails = support.GetPrivatePods(cluster)
 		pods := shared.ParsePods(podDetails)
 		g.Expect(pods).NotTo(BeEmpty())
 
@@ -63,16 +63,6 @@ func TestPodStatusUsingBastion(
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
 	}, "600s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
-}
-
-func getPrivatePods(cluster *shared.Cluster) (podDetails string) {
-	cmd := fmt.Sprintf(
-		"PATH=$PATH:/var/lib/rancher/%[1]v/bin:/opt/%[1]v/bin; "+
-			"KUBECONFIG=/etc/rancher/%[1]v/%[1]v.yaml ", cluster.Config.Product)
-	cmd += "kubectl get pods -A -o wide --no-headers"
-	podDetails, _ = shared.CmdForPrivateNode(cluster, cmd, cluster.ServerIPs[0])
-
-	return podDetails
 }
 
 func CheckPodStatus(cluster *shared.Cluster) {
