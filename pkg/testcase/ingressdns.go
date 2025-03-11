@@ -71,6 +71,14 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 }
 
 func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
+	// TODO: Remove when v1.32 in minimum supported version
+	_, version, _ := shared.Product()
+	if !shared.SliceContainsString([]string{"1.29", "1.30", "1.31"}, version) &&
+		(apiVersion == "traefik.containo.us/v1alpha1") {
+		shared.LogLevel("info", "version: %v not supported for apiVersion: %v", version, apiVersion)
+
+		return
+	}
 	workerNodes, err := shared.GetNodesByRoles("worker")
 	Expect(workerNodes).NotTo(BeEmpty())
 	Expect(err).NotTo(HaveOccurred())

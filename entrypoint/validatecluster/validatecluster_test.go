@@ -58,6 +58,11 @@ var _ = Describe("Test:", func() {
 			testcase.TestServiceLoadBalancer(true, true)
 		})
 
+		// TODO: Remove when v1.32 is the minimum supported version
+		It("Verifies Traefik IngressRoute using old GKV", func() {
+			testcase.TestIngressRoute(cluster, true, true, "traefik.containo.us/v1alpha1")
+		})
+
 		It("Verifies Traefik IngressRoute using new GKV", func() {
 			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
