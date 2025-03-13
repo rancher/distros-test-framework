@@ -64,7 +64,10 @@ var _ = Describe("Test:", func() {
 
 		// TODO: Remove once v1.32 is the minimum version
 		It("Verifies Traefik IngressRoute per-upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
+			res := testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
+			if res != "" {
+				Skip(res)
+			}
 		})
 
 		It("Verifies Traefik IngressRoute pre-upgrade using new GKV", func() {
@@ -122,7 +125,10 @@ var _ = Describe("Test:", func() {
 
 		// TODO: Remove once v1.32 is the minimum version
 		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
+			res := testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
+			if res != "" {
+				Skip(res)
+			}
 		})
 
 		It("Verifies Traefik IngressRoute after upgrade using new GKV", func() {

@@ -81,7 +81,10 @@ var _ = Describe("Test:", func() {
 
 		// TODO: Remove once v1.32 is the minimum version
 		It("Verifies Traefik IngressRoute using old GKV", func() {
-			testcase.TestIngressRoute(cluster, true, true, "traefik.containo.us/v1alpha1")
+			res := testcase.TestIngressRoute(cluster, true, true, "traefik.containo.us/v1alpha1")
+			if res != "" {
+				Skip(res)
+			}
 		})
 
 		It("Verifies Traefik IngressRoute using new GKV", func() {
