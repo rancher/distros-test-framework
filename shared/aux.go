@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -478,7 +479,7 @@ func FindPath(name, ip string) (string, error) {
 // MatchWithPath verify expected files found in the actual file list.
 func MatchWithPath(actualFileList, expectedFileList []string) error {
 	for i := 0; i < len(expectedFileList); i++ {
-		if !stringInSlice(expectedFileList[i], actualFileList) {
+		if !slices.Contains(actualFileList, expectedFileList[i]) {
 			return ReturnLogError("FAIL: Expected file: %s NOT found in actual list",
 				expectedFileList[i])
 		}
@@ -486,7 +487,7 @@ func MatchWithPath(actualFileList, expectedFileList []string) error {
 	}
 
 	for i := 0; i < len(actualFileList); i++ {
-		if !stringInSlice(actualFileList[i], expectedFileList) {
+		if !slices.Contains(expectedFileList, actualFileList[i]) {
 			LogLevel("info", "Actual file %s found as well which was not in the expected list",
 				actualFileList[i])
 		}
@@ -531,10 +532,10 @@ func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	return nil
 }
 
-// stringInSlice verify if a string is found in the list of strings.
-func stringInSlice(a string, list []string) bool {
+// SliceContainsString verify if a string is found in the list of strings.
+func SliceContainsString(list []string, a string) bool {
 	for _, b := range list {
-		if b == a {
+		if strings.Contains(a, b) {
 			return true
 		}
 	}
