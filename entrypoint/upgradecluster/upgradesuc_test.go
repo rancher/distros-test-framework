@@ -67,7 +67,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		})
 
 		It("Verifies Traefik IngressRoute using new GKV pre-upgrade", func() {
-			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
+			testcase.TestIngressRoute(cluster, true, false, "traefik.io/v1alpha1")
 		})
 	}
 
