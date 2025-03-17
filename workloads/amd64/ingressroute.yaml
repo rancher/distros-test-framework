@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: test-ingressroute
+  name: test-ingressroute-$VAR
   labels:
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/enforce-version: v1.25
@@ -14,7 +14,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: traefik
-  namespace: test-ingressroute
+  namespace: test-ingressroute-$VAR
 spec:
   ports:
     - protocol: TCP
@@ -32,41 +32,41 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: whoami
-  namespace: test-ingressroute
+  name: whoami-$VAR
+  namespace: test-ingressroute-$VAR
 spec:
   ports:
     - protocol: TCP
       name: web
       port: 80
   selector:
-    app: whoami
+    app: whoami-$VAR
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  namespace: test-ingressroute
+  namespace: test-ingressroute-$VAR
   name: traefik-ingress-controller
 ---
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  namespace: test-ingressroute
-  name: whoami
+  namespace: test-ingressroute-$VAR
+  name: whoami-$VAR
   labels:
-    app: whoami
+    app: whoami-$VAR
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: whoami
+      app: whoami-$VAR
   template:
     metadata:
       labels:
-        app: whoami
+        app: whoami-$VAR
     spec:
       containers:
-        - name: whoami
+        - name: whoami-$VAR
           image: traefik/whoami
           ports:
             - name: web
@@ -76,7 +76,7 @@ apiVersion: $APIVERSION
 kind: IngressRoute
 metadata:
   name: simpleingressroute
-  namespace: test-ingressroute
+  namespace: test-ingressroute-$VAR
 spec:
   entryPoints:
     - web
@@ -84,14 +84,14 @@ spec:
   - match: Host(`$YOURDNS`) && PathPrefix(`/notls`)
     kind: Rule
     services:
-    - name: whoami
+    - name: whoami-$VAR
       port: 80
 ---
 apiVersion: $APIVERSION
 kind: IngressRoute
 metadata:
   name: ingressroutetls
-  namespace: test-ingressroute
+  namespace: test-ingressroute-$VAR
 spec:
   entryPoints:
     - websecure
@@ -99,7 +99,7 @@ spec:
   - match: Host(`$YOURDNS`) && PathPrefix(`/tls`)
     kind: Rule
     services:
-    - name: whoami
+    - name: whoami-$VAR
       port: 80
   tls:
     certResolver: myresolver
