@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -130,7 +130,15 @@ if [ -n "${TEST_DIR}" ]; then
            [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
            [ -n "${CHANNEL}"   ] && OPTS+=(-channel "${CHANNEL}")
         go test "${OPTS[@]}"
+
+    elif [ "${TEST_DIR}" = "conformance" ]; then
+        declare -a OPTS
+          OPTS=(-timeout=260m -v -count=1 ./entrypoint/conformance/... )
+            [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
+        go test "${OPTS[@]}" --ginkgo.timeout=260m
     fi
+
+
 fi
 }
 

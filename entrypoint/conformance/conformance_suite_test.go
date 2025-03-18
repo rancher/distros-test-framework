@@ -77,21 +77,19 @@ var _ = AfterSuite(func() {
 
 func verifyClusterNodes() {
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
-	serverNum, err := strconv.Atoi(os.Getenv("no_of_server_nodes"))
-	if err != nil {
-		shared.LogLevel("error", "error converting no_of_server_nodes to int: %w", err)
+	serversStr := os.Getenv("no_of_server_nodes")
+	workersStr := os.Getenv("no_of_worker_nodes")
+
+	servers, serverErr := strconv.Atoi(serversStr)
+	workers, workerErr := strconv.Atoi(workersStr)
+
+	if serverErr != nil || workerErr != nil {
+		shared.LogLevel("error", "Failed to convert node counts to integers: %v, %v", serverErr, workerErr)
 		os.Exit(1)
 	}
 
-	agentNum, _ := strconv.Atoi(os.Getenv("no_of_agent_nodes"))
-	if err != nil {
-		shared.LogLevel("error", "error converting no_of_agent_nodes to int: %w", err)
-		os.Exit(1)
-	}
-
-	if serverNum < 1 && agentNum < 1 {
+	if servers < 1 && workers < 1 {
 		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
 		os.Exit(1)
 	}
-
 }
