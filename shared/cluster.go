@@ -699,14 +699,19 @@ func AddProductCfg() *config.Env {
 }
 
 func ExtractKubeImageVersion() string {
-	_, serverVersion, err := Product()
+	prod, serverVersion, err := Product()
 	if err != nil {
 		LogLevel("error", "error retrieving version of product: %s", err)
 		os.Exit(1)
 	}
 
 	version := strings.Split(serverVersion, "+")[0]
+	version = strings.TrimPrefix(version, prod+" version ")
 	version = strings.TrimSpace(version)
+
+	if strings.Contains(version, "-rc") {
+		version = strings.Split(version, "-rc")[0]
+	}
 
 	if version == "" {
 		LogLevel("error", "%s failed to resolve to server version string: %s", serverVersion, err)

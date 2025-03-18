@@ -134,7 +134,7 @@ if [ -n "${TEST_DIR}" ]; then
         declare -a OPTS
           OPTS=(-timeout=260m -v -count=1 ./entrypoint/conformance/... )
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
-        go test -v "${OPTS[@]}" --ginkgo.timeout=260m
+        go test "${OPTS[@]}" --ginkgo.timeout=260m
     fi
 fi
 }
