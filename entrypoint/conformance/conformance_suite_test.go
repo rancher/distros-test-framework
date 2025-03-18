@@ -29,13 +29,13 @@ func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
-	verifyClusterNodes()
-
 	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	verifyClusterNodes()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
@@ -77,18 +77,15 @@ var _ = AfterSuite(func() {
 
 func verifyClusterNodes() {
 	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
-	serversStr := os.Getenv("no_of_server_nodes")
-	workersStr := os.Getenv("no_of_worker_nodes")
-
-	servers, serverErr := strconv.Atoi(serversStr)
-	workers, workerErr := strconv.Atoi(workersStr)
+	s, serverErr := strconv.Atoi(os.Getenv("no_of_server_nodes"))
+	w, workerErr := strconv.Atoi(os.Getenv("no_of_worker_nodes"))
 
 	if serverErr != nil || workerErr != nil {
 		shared.LogLevel("error", "Failed to convert node counts to integers: %v, %v", serverErr, workerErr)
 		os.Exit(1)
 	}
 
-	if servers < 1 && workers < 1 {
+	if s < 1 && w < 1 {
 		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
 		os.Exit(1)
 	}

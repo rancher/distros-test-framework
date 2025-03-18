@@ -41,16 +41,21 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-func ConformanceTest(testName string) {
+func ConformanceTest() {
 	installConformanceBinary()
-	launchSonobuoyTests(testName)
+	launchSonobuoyTests()
+
 	checkStatus()
 	testResultTar := getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
+
 	rerunFailedTests(testResultTar)
+
 	testResultTar = getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
+
 	parseResults(testResultTar)
+
 	cleanupTests()
 }
 
@@ -60,7 +65,7 @@ func installConformanceBinary() {
 	Expect(err).NotTo(HaveOccurred())
 }
 
-func launchSonobuoyTests(testMode string) {
+func launchSonobuoyTests() {
 	shared.LogLevel("info", "checking namespace existence")
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
@@ -72,7 +77,7 @@ func launchSonobuoyTests(testMode string) {
 
 	if strings.Contains(res, "Error from server (NotFound): namespaces \"sonobuoy\" not found") {
 		cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
-			" --mode=" + testMode + " --kubernetes-version=" + shared.ExtractKubeImageVersion()
+			" --mode=certified-conformance --kubernetes-version=" + shared.ExtractKubeImageVersion()
 		_, err := shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred())
 	}

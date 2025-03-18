@@ -61,7 +61,7 @@ if [ -n "${TEST_DIR}" ]; then
             go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradereplacement" ]; then
             go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
-        fi
+    fi
     elif [ "${TEST_DIR}" = "versionbump" ]; then
         declare -a OPTS
           OPTS=(-timeout=65m -v -count=1 ./entrypoint/versionbump/... -tags="${TEST_TAG}")
@@ -130,15 +130,12 @@ if [ -n "${TEST_DIR}" ]; then
            [ -n "${S3_FOLDER}" ] && OPTS+=(-s3Folder "${S3_FOLDER}")
            [ -n "${CHANNEL}"   ] && OPTS+=(-channel "${CHANNEL}")
         go test "${OPTS[@]}"
-
     elif [ "${TEST_DIR}" = "conformance" ]; then
         declare -a OPTS
           OPTS=(-timeout=260m -v -count=1 ./entrypoint/conformance/... )
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
-        go test "${OPTS[@]}" --ginkgo.timeout=260m
+        go test -v "${OPTS[@]}" --ginkgo.timeout=260m
     fi
-
-
 fi
 }
 

@@ -54,7 +54,6 @@ installation(){
 }
 
 deletion(){
-    #has_bin sonobuoy
     echo "Deleting sonobuoy installer"
     rm -rf my-sonobuoy-plugins
     rm -rf sonobuoy_*
