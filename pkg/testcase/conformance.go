@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/shared"
@@ -49,9 +50,11 @@ func ConformanceTest() {
 	testResultTar := getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 
-	rerunFailedTests(testResultTar)
+	if hasFailures(testResultTar) {
+		rerunFailedTests(testResultTar)
+		testResultTar = getResults()
+	}
 
-	testResultTar = getResults()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 
 	parseResults(testResultTar)
@@ -61,15 +64,16 @@ func ConformanceTest() {
 
 func installConformanceBinary() {
 	shared.LogLevel("info", "installing sonobuoy binary")
+
 	err := shared.InstallSonobuoy("install")
 	Expect(err).NotTo(HaveOccurred())
 }
 
 func launchSonobuoyTests() {
 	shared.LogLevel("info", "checking namespace existence")
+
 	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
 	res, _ := shared.RunCommandHost(cmds)
-
 	if strings.Contains(res, "Active") {
 		shared.LogLevel("info", "%s", "sonobuoy namespace is active, waiting for it to complete")
 		return
@@ -85,6 +89,7 @@ func launchSonobuoyTests() {
 
 func checkStatus() {
 	shared.LogLevel("info", "checking status of running tests")
+
 	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
 	Eventually(func() string {
 		res, err := shared.RunCommandHost(cmd)
@@ -95,11 +100,32 @@ func checkStatus() {
 
 func getResults() string {
 	shared.LogLevel("info", "getting sonobuoy results")
+
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred())
 
 	return res
+}
+
+func hasFailures(testResultTar string) bool {
+	shared.LogLevel("info", "checking for failed tests")
+
+	cmd := exec.Command("sonobuoy", "results", testResultTar, "--mode=failed")
+	failedTests, err := cmd.Output()
+	if err != nil {
+		shared.LogLevel("error", "failed to run sonobuoy results: %v", err)
+		return false
+	}
+
+	fails := len(string(failedTests)) > 0 && !strings.Contains(string(failedTests), "No failed tests found")
+	if fails {
+		shared.LogLevel("info", "failed tests: %s", string(failedTests))
+
+		return true
+	}
+
+	return false
 }
 
 func rerunFailedTests(testResultTar string) {
@@ -115,11 +141,8 @@ func rerunFailedTests(testResultTar string) {
 		return
 	}
 
-	shared.LogLevel("info", "re-running tests that failed from previous run")
-
 	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile +
-		"--kubernetes-version=" + shared.ExtractKubeImageVersion()
-
+		" --kubernetes-version=" + shared.ExtractKubeImageVersion()
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("no tests failed for plugin"))
@@ -127,6 +150,7 @@ func rerunFailedTests(testResultTar string) {
 
 func parseResults(testResultTar string) {
 	shared.LogLevel("info", "parsing sonobuoy results")
+
 	cmd := "sonobuoy results  " + testResultTar
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
@@ -136,6 +160,7 @@ func parseResults(testResultTar string) {
 
 func cleanupTests() {
 	shared.LogLevel("info", "cleaning up cluster conformance tests and deleting sonobuoy namespace")
+
 	cmd := "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
