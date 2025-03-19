@@ -73,12 +73,7 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
 	// TODO: Remove when v1.32 in minimum supported version
 	_, version, _ := shared.Product()
-	suf := "new"
-	wl := "dynamic-ingressroute-" + suf + ".yaml"
-	if apiVersion == "traefik.containo.us/v1alpha1" {
-		suf = "old"
-		wl = "dynamic-ingressroute-" + suf + ".yaml"
-	}
+	wl := "dynamic-ingressroute.yaml"
 	if !shared.SliceContainsString([]string{"1.29", "1.30", "1.31"}, version) &&
 		(apiVersion == "traefik.containo.us/v1alpha1") {
 		shared.LogLevel("info", "\n%v\nAbove version is not supported for apiVersion: %v", version, apiVersion)
@@ -101,7 +96,7 @@ func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload boo
 			Expect(errRead).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
 		}
 
-		replacer := strings.NewReplacer("$VAR", suf, "$YOURDNS", publicIp, "$APIVERSION", apiVersion)
+		replacer := strings.NewReplacer("$YOURDNS", publicIp, "$APIVERSION", apiVersion)
 		newContent := replacer.Replace(string(content))
 		errWrite := os.WriteFile(newFilePath, []byte(newContent), 0o644)
 		if errWrite != nil {
@@ -115,7 +110,7 @@ func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload boo
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
 
-	validateIngressRoute("test-ingress-"+suf, "app=whoami-"+suf, publicIp)
+	validateIngressRoute("test-ingressroute", "app=whoami", publicIp)
 
 	if deleteWorkload {
 		shared.LogLevel("debug", "Deleting workload: %s", wl)
