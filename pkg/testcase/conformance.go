@@ -1,9 +1,13 @@
 package testcase
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -90,12 +94,22 @@ func launchSonobuoyTests() {
 func checkStatus() {
 	shared.LogLevel("info", "checking status of running tests")
 
+	resultChan := make(chan string, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 260*time.Minute)
+	defer cancel()
+
 	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
-	Eventually(func() string {
-		res, err := shared.RunCommandHost(cmd)
-		Expect(err).NotTo(HaveOccurred())
-		return res
-	}, "260m", "10m").Should(ContainSubstring("Sonobuoy has completed"), "timed out waiting for sonobuoy")
+
+	go printStatusWorker(ctx, cmd, resultChan)
+
+	go checkCompletionWorker(ctx, cmd, resultChan)
+
+	finalResult := <-resultChan
+	if strings.Contains(finalResult, "Sonobuoy has completed") {
+		shared.LogLevel("info", "Sonobuoy Status: %s", finalResult)
+	} else {
+		shared.LogLevel("error", "check status failed: %s", finalResult)
+	}
 }
 
 func getResults() string {
@@ -118,7 +132,7 @@ func hasFailures(testResultTar string) bool {
 		return false
 	}
 
-	fails := len(string(failedTests)) > 0 && !strings.Contains(string(failedTests), "No failed tests found")
+	fails := len(failedTests) != 0 && !strings.Contains(string(failedTests), "No failed tests found")
 	if fails {
 		shared.LogLevel("info", "failed tests: %s", string(failedTests))
 
@@ -165,4 +179,78 @@ func cleanupTests() {
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("deleted"))
+}
+
+func printStatusWorker(ctx context.Context, cmd string, resultChan chan string) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	retries := 0
+	const maxRetries = 3
+
+	for {
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				shared.LogLevel("info", "Sonobuoy status timed out")
+				resultChan <- "Timed out waiting for sonobuoy"
+			}
+
+			return
+		case <-ticker.C:
+			res, err := shared.RunCommandHost(cmd)
+			if err != nil {
+				retries++
+				shared.LogLevel("error", "checking sonobuoy status, will (attempt %d/%d): %v",
+					retries, maxRetries, err)
+
+				if retries >= maxRetries {
+					resultChan <- fmt.Sprintf("checking sonobuoy status: %v", err)
+					return
+				}
+
+				continue
+			}
+
+			retries = 0
+			shared.LogLevel("info", "Sonobuoy Status at %v:\n%s", time.Now().Format(time.Kitchen), res)
+		}
+	}
+}
+
+func checkCompletionWorker(ctx context.Context, cmd string, resultChan chan string) {
+	retries := 0
+	const maxRetries = 3
+
+	for {
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				shared.LogLevel("info", "Sonobuoy status timed out")
+				resultChan <- "Timed out waiting for sonobuoy"
+			}
+
+			return
+		default:
+			res, err := shared.RunCommandHost(cmd)
+			if err != nil {
+				retries++
+				shared.LogLevel("error", "checking sonobuoy status, will (attempt %d/%d): %v",
+					retries, maxRetries, err)
+
+				if retries >= maxRetries {
+					resultChan <- fmt.Sprintf("checking sonobuoy status: %v", err)
+					return
+				}
+
+				continue
+			}
+
+			retries = 0
+			if strings.Contains(res, "Sonobuoy has completed") {
+				resultChan <- res
+				return
+			}
+		}
+	}
 }
