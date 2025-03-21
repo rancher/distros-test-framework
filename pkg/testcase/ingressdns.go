@@ -73,11 +73,13 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
 	// TODO: Remove when v1.32 in minimum supported version
 	_, version, _ := shared.Product()
+	workloadFile := "dynamic-ingressroute.yaml"
 	if !shared.SliceContainsString([]string{"1.29", "1.30", "1.31"}, version) &&
 		(apiVersion == "traefik.containo.us/v1alpha1") {
 		shared.LogLevel("info", "\n%v\nAbove version is not supported for apiVersion: %v", version, apiVersion)
 		return
 	}
+
 	workerNodes, err := shared.GetNodesByRoles("worker")
 	Expect(workerNodes).NotTo(BeEmpty())
 	Expect(err).NotTo(HaveOccurred())
@@ -88,7 +90,7 @@ func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload boo
 		originalFilePath := shared.BasePath() +
 			fmt.Sprintf("/workloads/%s/ingressroute.yaml", cluster.Config.Arch)
 		newFilePath := shared.BasePath() +
-			fmt.Sprintf("/workloads/%s/dynamic-ingressroute.yaml", cluster.Config.Arch)
+			fmt.Sprintf("/workloads/%s/%s", cluster.Config.Arch, workloadFile)
 		content, errRead := os.ReadFile(originalFilePath)
 		if errRead != nil {
 			Expect(errRead).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")
@@ -103,28 +105,30 @@ func TestIngressRoute(cluster *shared.Cluster, applyWorkload, deleteWorkload boo
 		}
 
 		// Deploy manifest and ensure pods are running.
-		workloadErr := shared.ManageWorkload("apply", "dynamic-ingressroute.yaml")
+		shared.LogLevel("debug", "Applying workload: %s", workloadFile)
+		workloadErr := shared.ManageWorkload("apply", workloadFile)
 		Expect(workloadErr).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deployed")
 	}
 
-	validateIngressRoute(publicIp)
+	validateIngressRoute("test-ingressroute", "app=whoami", publicIp)
 
 	if deleteWorkload {
-		err = shared.ManageWorkload("delete", "dynamic-ingressroute.yaml")
+		shared.LogLevel("debug", "Deleting workload: %s", workloadFile)
+		err = shared.ManageWorkload("delete", workloadFile)
 		Expect(err).NotTo(HaveOccurred(), "IngressRoute manifest not successfully deleted")
 	}
 }
 
-func validateIngressRoute(publicIP string) {
-	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n test-ingressroute -l app=whoami"+
-		" --kubeconfig=%s", shared.KubeConfigFile)
+func validateIngressRoute(namespace, label, publicIP string) {
+	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n %s -l %s"+
+		" --kubeconfig=%s", namespace, label, shared.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	// Query the IngressRoute Host.
 	filters := map[string]string{
-		"namespace": "test-ingressroute",
-		"label":     "app=whoami",
+		"namespace": namespace,
+		"label":     label,
 	}
 
 	var positiveAsserts []string
