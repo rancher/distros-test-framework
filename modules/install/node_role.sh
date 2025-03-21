@@ -72,7 +72,7 @@ node-label:
   - role-etcd=true
   - role-control-plane=true
 EOF
-cat << EOF > /tmp/.control-plane
+cat << EOF > /var/tmp/.control-plane
 true
 EOF
 
@@ -96,7 +96,7 @@ node-taint:
 node-label:
   - role-control-plane=true
 EOF
-cat << EOF > /tmp/.control-plane
+cat << EOF > /var/tmp/.control-plane
 true
 EOF
 
@@ -108,7 +108,7 @@ node-label:
   - role-control-plane=true
   - role-worker=true
 EOF
-cat << EOF > /tmp/.control-plane
+cat << EOF > /var/tmp/.control-plane
 true
 EOF
 
@@ -119,7 +119,7 @@ node-label:
   - role-control-plane=true
   - role-worker=true
 EOF
-cat << EOF > /tmp/.control-plane
+cat << EOF > /var/tmp/.control-plane
 true
 EOF
 fi
