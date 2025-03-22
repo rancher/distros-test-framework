@@ -1,4 +1,4 @@
-package mixedoscluster
+package sonobuoyconformance
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test: Mixed OS Cluster", func() {
+var _ = Describe("Sonobuoy Conformance Tests...", func() {
 
 	It("Starts Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
@@ -30,12 +30,8 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Validates internode connectivity over the vxlan tunnel", func() {
-		testcase.TestInternodeConnectivityMixedOS(cluster, true, true)
-	})
-
-	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS(true, flags.External.SonobuoyVersion)
+	It("Validates the releases conformance with upstream requirements", func() {
+		testcase.TestConformance(flags.External.SonobuoyVersion)
 	})
 })
 
