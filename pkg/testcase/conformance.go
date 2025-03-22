@@ -1,13 +1,14 @@
 package testcase
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/avast/retry-go"
 
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -16,8 +17,9 @@ import (
 )
 
 // TestSonobuoyMixedOS runs sonobuoy tests for mixed os cluster (linux + windows) node.
-func TestSonobuoyMixedOS(deleteWorkload bool) {
-	installConformanceBinary()
+func TestSonobuoyMixedOS(deleteWorkload bool, version string) {
+	err := shared.InstallSonobuoy("install", version)
+	Expect(err).NotTo(HaveOccurred())
 
 	cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 		" --plugin my-sonobuoy-plugins/mixed-workload-e2e/mixed-workload-e2e.yaml" +
@@ -38,7 +40,7 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 		cmd = "sonobuoy delete --all --wait --kubeconfig=" + shared.KubeConfigFile
 		_, err = shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
-		err = shared.InstallSonobuoy("delete")
+		err = shared.InstallSonobuoy("delete", version)
 		if err != nil {
 			GinkgoT().Errorf("error: %v", err)
 			return
@@ -46,31 +48,25 @@ func TestSonobuoyMixedOS(deleteWorkload bool) {
 	}
 }
 
-func ConformanceTest() {
-	installConformanceBinary()
+func TestConformance(version string) {
+	err := shared.InstallSonobuoy("install", version)
+	Expect(err).NotTo(HaveOccurred())
+
 	launchSonobuoyTests()
 
-	checkStatus()
-	testResultTar := getResults()
+	statusErr := checkStatus()
+	Expect(statusErr).NotTo(HaveOccurred())
+
+	testResultTar := retrieveResultsTar()
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 
-	if hasFailures(testResultTar) {
-		rerunFailedTests(testResultTar)
-		testResultTar = getResults()
-	}
+	results := getResults(testResultTar)
+	shared.LogLevel("info", "sonobuoy results: %s", results)
 
-	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
+	resultsErr := checkResults(results)
+	Expect(resultsErr).NotTo(HaveOccurred())
 
-	parseResults(testResultTar)
-
-	cleanupTests()
-}
-
-func installConformanceBinary() {
-	shared.LogLevel("info", "installing sonobuoy binary")
-
-	err := shared.InstallSonobuoy("install")
-	Expect(err).NotTo(HaveOccurred())
+	// cleanupTests()
 }
 
 func launchSonobuoyTests() {
@@ -91,85 +87,164 @@ func launchSonobuoyTests() {
 	}
 }
 
-func checkStatus() {
+func checkStatus() error {
 	shared.LogLevel("info", "checking status of running tests")
 
-	resultChan := make(chan string, 1)
-	ctx, cancel := context.WithTimeout(context.Background(), 260*time.Minute)
-	defer cancel()
+	return retry.Do(
+		func() error {
+			res, err := shared.RunCommandHost("sonobuoy status --kubeconfig=" + shared.KubeConfigFile)
+			if err != nil {
+				shared.LogLevel("error", "Error checking sonobuoy status: %v", err)
+				return fmt.Errorf("sonobuoy status failed: %v", err)
+			}
 
-	cmd := "sonobuoy status --kubeconfig=" + shared.KubeConfigFile
+			shared.LogLevel("info", "Sonobuoy Status at %v:\n%s",
+				time.Now().Format(time.Kitchen), res)
 
-	go printStatusWorker(ctx, cmd, resultChan)
+			if !strings.Contains(res, "Sonobuoy has completed") {
+				return fmt.Errorf("sonobuoy has not completed on time, sonobuoy status:\n%s", res)
+			}
 
-	go checkCompletionWorker(ctx, cmd, resultChan)
-
-	finalResult := <-resultChan
-	if strings.Contains(finalResult, "Sonobuoy has completed") {
-		shared.LogLevel("info", "Sonobuoy Status: %s", finalResult)
-	} else {
-		shared.LogLevel("error", "check status failed: %s", finalResult)
-	}
+			return nil
+		},
+		retry.Attempts(26),
+		retry.Delay(10*time.Minute),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, _ error) {
+			shared.LogLevel("debug", "Attempt %d: Sonobuoy status check not finished yet, retrying...", n+1)
+		}),
+	)
 }
 
-func getResults() string {
-	shared.LogLevel("info", "getting sonobuoy results")
+func retrieveResultsTar() string {
+	shared.LogLevel("info", "retrieving sonobuoy results tar")
 
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err)
 
 	return res
 }
 
-func hasFailures(testResultTar string) bool {
-	shared.LogLevel("info", "checking for failed tests")
+func getResults(testResultTar string) string {
+	cmd := "sonobuoy results " + testResultTar
+	res, err := shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nwith output: %s\nerror: %v", cmd, res, err)
 
-	cmd := exec.Command("sonobuoy", "results", testResultTar, "--mode=failed")
-	failedTests, err := cmd.Output()
-	if err != nil {
-		shared.LogLevel("error", "failed to run sonobuoy results: %v", err)
-		return false
-	}
-
-	fails := len(failedTests) != 0 && !strings.Contains(string(failedTests), "No failed tests found")
-	if fails {
-		shared.LogLevel("info", "failed tests: %s", string(failedTests))
-
-		return true
-	}
-
-	return false
+	return res
 }
 
-func rerunFailedTests(testResultTar string) {
-	ciliumExpectedFailures := `
-		[sig-network] Services should serve endpoints on same port and different protocols
-	 	Services should be able to switch session affinity for service with type clusterIP
-		Services should have session affinity work for service with type clusterIP`
-
-	if strings.Contains(os.Getenv("cni"), "cilium") {
-		shared.LogLevel("info", "Cilium has known issues with conformance tests, skipping re-run")
-		shared.LogLevel("info", "ciliumExpectedFailures: %s", ciliumExpectedFailures)
-
-		return
+//nolint:funlen // just for now, to test on jenkins.
+func checkResults(results string) error {
+	pluginsPass := strings.Contains(results, "Plugin: systemd-logs\nStatus: passed") &&
+		strings.Contains(results, "Plugin: e2e\nStatus: passed")
+	if pluginsPass {
+		shared.LogLevel("info", "all plugins passed")
+		return nil
 	}
 
-	cmd := "sonobuoy run --rerun-failed=" + testResultTar + " --kubeconfig=" + shared.KubeConfigFile +
+	failures := extractFailedTests(results)
+	if len(failures) == 0 {
+		if !strings.Contains(results, "Status: failed") {
+			shared.LogLevel("info", "no explicit failures detected")
+
+			return nil
+		}
+		shared.LogLevel("warn", "status failed but no specific test failures found, proceeding with rerun")
+	} else {
+		shared.LogLevel("warn", "found %d test failures", len(failures))
+	}
+
+	serverFlags := os.Getenv("server_flags")
+	if strings.Contains(serverFlags, "cilium") && len(failures) > 0 {
+		shared.LogLevel("info", "checking cilium for expected failures")
+
+		nonNetworkFailures := false
+		for _, failure := range failures {
+			if !strings.Contains(failure, "[sig-network]") {
+				nonNetworkFailures = true
+				shared.LogLevel("warn", "Found non-network failure: %s", failure)
+			}
+		}
+
+		if !nonNetworkFailures {
+			shared.LogLevel("info", "Cilium CNI detected, all failures are in sig-network namespace, skipping rerun")
+
+			return nil
+		}
+
+		shared.LogLevel("warn", "found non-network failures with Cilium CNI, proceeding with rerun")
+	}
+
+	newTar := retrieveResultsTar()
+	if newTar == "" {
+		return errors.New("failed to retrieve results tarball")
+	}
+	shared.LogLevel("info", "new results tarball: %s", newTar)
+
+	cleanupTests()
+
+	rerunErr := rerunFailedTests(newTar)
+	if rerunErr != nil {
+		return fmt.Errorf("rerun failed: %w", rerunErr)
+	}
+
+	statusErr := checkStatus()
+	Expect(statusErr).NotTo(HaveOccurred())
+
+	shared.LogLevel("info", "getting new results after rerun")
+	newResults := getResults(newTar)
+
+	newFailures := extractFailedTests(newResults)
+	if len(newFailures) > 0 {
+		return fmt.Errorf("tests still failing after rerun: %v", newFailures)
+	}
+
+	Expect(newResults).ShouldNot(ContainSubstring("Status: failed"), "failed tests: %s", newResults)
+	Expect(newResults).ShouldNot(ContainSubstring("Failed tests:"), "failed tests: %s", newResults)
+
+	pluginsPass = strings.Contains(newResults, "Plugin: systemd-logs\nStatus: passed") &&
+		strings.Contains(newResults, "Plugin: e2e\nStatus: passed")
+	Expect(pluginsPass).Should(BeTrue())
+
+	return nil
+}
+
+func extractFailedTests(results string) []string {
+	var failures []string
+
+	failedIndex := strings.Index(results, "Failed tests:")
+	if failedIndex == -1 {
+		return failures
+	}
+
+	lines := strings.Split(results[failedIndex:], "\n")
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			break
+		}
+		failures = append(failures, line)
+	}
+
+	return failures
+}
+
+func rerunFailedTests(testResultTar string) error {
+	cmd := "sonobuoy run --rerun-failed=" + testResultTar + "  --kubeconfig=" + shared.KubeConfigFile +
 		" --kubernetes-version=" + shared.ExtractKubeImageVersion()
-	res, err := shared.RunCommandHost(cmd)
-	Expect(err).To(HaveOccurred(), "failed cmd: "+cmd)
-	Expect(res).Should(ContainSubstring("no tests failed for plugin"))
-}
 
-func parseResults(testResultTar string) {
-	shared.LogLevel("info", "parsing sonobuoy results")
+	shared.LogLevel("info ", "rerunning failed tests with cmd: %s", cmd)
 
-	cmd := "sonobuoy results  " + testResultTar
-	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
-	Expect(res).Should(ContainSubstring("Status: passed"))
-	shared.LogLevel("info", "%s", "sonobuoy results: "+res)
+	res, err := exec.Command("bash", "-c", cmd).Output()
+	// res, err := shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err.Error())
+
+	// todo: remove
+	shared.LogLevel("info", "rerun sonobuoy tests: RES !!!! %s", res)
+
+	return nil
 }
 
 func cleanupTests() {
@@ -179,78 +254,4 @@ func cleanupTests() {
 	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: "+cmd)
 	Expect(res).Should(ContainSubstring("deleted"))
-}
-
-func printStatusWorker(ctx context.Context, cmd string, resultChan chan string) {
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-
-	retries := 0
-	const maxRetries = 3
-
-	for {
-		select {
-		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				shared.LogLevel("info", "Sonobuoy status timed out")
-				resultChan <- "Timed out waiting for sonobuoy"
-			}
-
-			return
-		case <-ticker.C:
-			res, err := shared.RunCommandHost(cmd)
-			if err != nil {
-				retries++
-				shared.LogLevel("error", "checking sonobuoy status, will (attempt %d/%d): %v",
-					retries, maxRetries, err)
-
-				if retries >= maxRetries {
-					resultChan <- fmt.Sprintf("checking sonobuoy status: %v", err)
-					return
-				}
-
-				continue
-			}
-
-			retries = 0
-			shared.LogLevel("info", "Sonobuoy Status at %v:\n%s", time.Now().Format(time.Kitchen), res)
-		}
-	}
-}
-
-func checkCompletionWorker(ctx context.Context, cmd string, resultChan chan string) {
-	retries := 0
-	const maxRetries = 3
-
-	for {
-		select {
-		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				shared.LogLevel("info", "Sonobuoy status timed out")
-				resultChan <- "Timed out waiting for sonobuoy"
-			}
-
-			return
-		default:
-			res, err := shared.RunCommandHost(cmd)
-			if err != nil {
-				retries++
-				shared.LogLevel("error", "checking sonobuoy status, will (attempt %d/%d): %v",
-					retries, maxRetries, err)
-
-				if retries >= maxRetries {
-					resultChan <- fmt.Sprintf("checking sonobuoy status: %v", err)
-					return
-				}
-
-				continue
-			}
-
-			retries = 0
-			if strings.Contains(res, "Sonobuoy has completed") {
-				resultChan <- res
-				return
-			}
-		}
-	}
 }

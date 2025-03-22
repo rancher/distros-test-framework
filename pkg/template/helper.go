@@ -82,7 +82,7 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 			testcase.TestInternodeConnectivityMixedOS(cluster, applyWorkload, deleteWorkload)
 		},
 		"TestSonobuoyMixedOS": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSonobuoyMixedOS(deleteWorkload)
+			testcase.TestSonobuoyMixedOS(deleteWorkload, "0.57.2")
 		},
 		"TestSelinux": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinux(cluster)

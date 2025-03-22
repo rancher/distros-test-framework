@@ -19,13 +19,15 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
+	flags      *customflag.FlagConfig
 	cfg        *config.Env
 	err        error
 )
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flags = &customflag.ServiceFlag
+	flag.StringVar(&flags.External.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()

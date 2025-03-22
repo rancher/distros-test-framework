@@ -20,12 +20,14 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
+	flags      *customflag.FlagConfig
 	cfg        *config.Env
 	err        error
 )
 
 func TestMain(m *testing.M) {
-	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.57.2", "Sonobuoy binary version")
+	flags = &customflag.ServiceFlag
+	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.57.3", "Sonobuoy binary version")
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
@@ -56,7 +58,6 @@ func TestConformance(t *testing.T) {
 }
 
 var _ = ReportAfterSuite("Conformance Suite", func(report Report) {
-
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
