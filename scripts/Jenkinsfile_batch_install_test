@@ -50,11 +50,6 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if (test_name == "dualstack" || test_name == "ipv6only") {
-                job_aws_ssh_key_name = "jenkins-elliptic-validation"
-                job_aws_ssh_pem_key = ""
-              }
-
               if (test_name == "docker_cri" || test_name == "validatecluster_arm") {
                 actual_testdir_name = "validatecluster"
               }

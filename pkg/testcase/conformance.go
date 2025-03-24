@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -63,7 +62,7 @@ func TestConformance(version string) {
 	results := getResults(testResultTar)
 	shared.LogLevel("info", "sonobuoy results: %s", results)
 
-	resultsErr := checkResults(results)
+	resultsErr := validateResults(results)
 	Expect(resultsErr).NotTo(HaveOccurred())
 
 	// cleanupTests()
@@ -135,53 +134,43 @@ func getResults(testResultTar string) string {
 	return res
 }
 
-//nolint:funlen // just for now, to test on jenkins.
-func checkResults(results string) error {
-	pluginsPass := strings.Contains(results, "Plugin: systemd-logs\nStatus: passed") &&
-		strings.Contains(results, "Plugin: e2e\nStatus: passed")
-	if pluginsPass {
+// validateResults validates the results of the sonobuoy tests.
+// if all passed dont rerun the tests.
+// If there are failures, check if the failures are expected with the cilium CNI plugin,if so, skip rerun.
+// if not, rerun the tests and check the results again.
+func validateResults(results string) error {
+	if pluginsPass := strings.Contains(results, "Plugin: systemd-logs\nStatus: passed") &&
+		strings.Contains(results, "Plugin: e2e\nStatus: passed"); pluginsPass {
 		shared.LogLevel("info", "all plugins passed")
+
 		return nil
 	}
 
-	failures := extractFailedTests(results)
-	if len(failures) == 0 {
-		if !strings.Contains(results, "Status: failed") {
-			shared.LogLevel("info", "no explicit failures detected")
-
-			return nil
-		}
-		shared.LogLevel("warn", "status failed but no specific test failures found, proceeding with rerun")
-	} else {
-		shared.LogLevel("warn", "found %d test failures", len(failures))
+	failures, failErr := extractFailedTests(results)
+	if failErr != nil {
+		return fmt.Errorf("failed to extract failed tests: %w", failErr)
 	}
 
-	serverFlags := os.Getenv("server_flags")
-	if strings.Contains(serverFlags, "cilium") && len(failures) > 0 {
-		shared.LogLevel("info", "checking cilium for expected failures")
-
-		nonNetworkFailures := false
-		for _, failure := range failures {
-			if !strings.Contains(failure, "[sig-network]") {
-				nonNetworkFailures = true
-				shared.LogLevel("warn", "Found non-network failure: %s", failure)
-			}
-		}
-
-		if !nonNetworkFailures {
-			shared.LogLevel("info", "Cilium CNI detected, all failures are in sig-network namespace, skipping rerun")
-
-			return nil
-		}
-
-		shared.LogLevel("warn", "found non-network failures with Cilium CNI, proceeding with rerun")
+	shouldRerun, err := skipRerun(results, failures)
+	if err != nil {
+		return fmt.Errorf("failed to run results: %w", err)
 	}
 
+	if !shouldRerun {
+		return nil
+	}
+
+	return execRerun()
+}
+
+func execRerun() error {
 	newTar := retrieveResultsTar()
 	if newTar == "" {
 		return errors.New("failed to retrieve results tarball")
 	}
 	shared.LogLevel("info", "new results tarball: %s", newTar)
+
+	_ = getResults(newTar)
 
 	cleanupTests()
 
@@ -196,7 +185,10 @@ func checkResults(results string) error {
 	shared.LogLevel("info", "getting new results after rerun")
 	newResults := getResults(newTar)
 
-	newFailures := extractFailedTests(newResults)
+	newFailures, failErr := extractFailedTests(newResults)
+	if failErr != nil {
+		return fmt.Errorf("failed to extract failed tests after rerun: %w", failErr)
+	}
 	if len(newFailures) > 0 {
 		return fmt.Errorf("tests still failing after rerun: %v", newFailures)
 	}
@@ -204,31 +196,70 @@ func checkResults(results string) error {
 	Expect(newResults).ShouldNot(ContainSubstring("Status: failed"), "failed tests: %s", newResults)
 	Expect(newResults).ShouldNot(ContainSubstring("Failed tests:"), "failed tests: %s", newResults)
 
-	pluginsPass = strings.Contains(newResults, "Plugin: systemd-logs\nStatus: passed") &&
+	pluginsPass := strings.Contains(newResults, "Plugin: systemd-logs\nStatus: passed") &&
 		strings.Contains(newResults, "Plugin: e2e\nStatus: passed")
 	Expect(pluginsPass).Should(BeTrue())
 
 	return nil
 }
 
-func extractFailedTests(results string) []string {
-	var failures []string
+func skipRerun(results string, failures []string) (bool, error) {
+	if len(failures) == 0 {
+		if !strings.Contains(results, "Status: failed") {
+			shared.LogLevel("info", "no explicit failures detected")
 
-	failedIndex := strings.Index(results, "Failed tests:")
-	if failedIndex == -1 {
-		return failures
+			return false, nil
+		}
+		shared.LogLevel("warn", "status failed but no specific test failures found, proceeding with rerun")
+
+		return true, nil
 	}
 
-	lines := strings.Split(results[failedIndex:], "\n")
-	for i := 1; i < len(lines); i++ {
-		line := strings.TrimSpace(lines[i])
+	shared.LogLevel("warn", "found %d test failures", len(failures))
+
+	serverFlags := os.Getenv("server_flags")
+	if strings.Contains(serverFlags, "cilium") && len(failures) > 0 {
+		shared.LogLevel("info", "checking cilium for expected failures")
+
+		nonNetworkFailures := false
+		for _, failure := range failures {
+			if !strings.Contains(failure, "[sig-network]") {
+				nonNetworkFailures = true
+				shared.LogLevel("warn", "Found non-network failure: %s", failure)
+			}
+		}
+
+		if !nonNetworkFailures {
+			shared.LogLevel("info", "Cilium CNI detected, "+
+				"all failures are in sig-network namespace, skipping rerun")
+
+			return false, nil
+		}
+
+		shared.LogLevel("warn", "found non-network failures with Cilium CNI, proceeding with rerun")
+	}
+
+	return true, nil
+}
+
+func extractFailedTests(results string) ([]string, error) {
+	var failures []string
+
+	fails := strings.Index(results, "Failed tests:")
+	if fails == -1 {
+		return nil, errors.New("no failed tests found")
+	}
+
+	failedTests := strings.Split(results[fails:], "\n")
+	for i := 1; i < len(failedTests); i++ {
+		line := strings.TrimSpace(failedTests[i])
 		if line == "" {
 			break
 		}
 		failures = append(failures, line)
 	}
 
-	return failures
+	return failures, nil
 }
 
 func rerunFailedTests(testResultTar string) error {
@@ -237,8 +268,7 @@ func rerunFailedTests(testResultTar string) error {
 
 	shared.LogLevel("info ", "rerunning failed tests with cmd: %s", cmd)
 
-	res, err := exec.Command("bash", "-c", cmd).Output()
-	// res, err := shared.RunCommandHost(cmd)
+	res, err := shared.RunCommandHost(cmd)
 	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err.Error())
 
 	// todo: remove

@@ -121,6 +121,7 @@ pre-commit: go-check
 
 go-check:
 	@gofmt -s -w .
+	@gofumpt -l -w .
 	@goimports -w .
 	@go vet ./...
 	@golangci-lint run --tests ./...

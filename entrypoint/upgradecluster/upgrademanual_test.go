@@ -62,8 +62,8 @@ var _ = Describe("Test:", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, true, false)
 		})
 
-		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
+		It("Verifies Traefik IngressRoute using new GKV pre-upgrade", func() {
+			testcase.TestIngressRoute(cluster, true, false, "traefik.io/v1alpha1")
 		})
 	}
 
@@ -115,8 +115,8 @@ var _ = Describe("Test:", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
 		})
 
-		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
+		It("Verifies Traefik IngressRoute after upgrade using new GKV", func() {
+			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
 		})
 	}
 })
