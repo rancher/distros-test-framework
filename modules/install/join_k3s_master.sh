@@ -1,4 +1,24 @@
 #!/bin/bash
+# Usage:
+# node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
+# fqdn=${2} # FQDN
+# server_ip=${3} # # Master Server IP to join to. Value will be added to config.yaml file.
+# token=${4} # Token
+# public_ip=${5} # Public IP of the joining server node
+# private_ip=${6} # Privaate IP of the joining server node
+# ipv6_ip=${7} # IPV6 IP of the joining server node
+# install_mode=${8} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${9} # Version or Commit to install
+# channel=${10} # Channel to install from - values can be testing, latest or stable
+# datastore_type=${11} # Datstore type can be etcd or external
+# datastore_endpoint=${12} # Datastore endpoint
+# server_flags=${13} # Server Flags to add in config.yaml
+# rhel_username=${14} # RHEL username
+# rhel_password=${15} # Rhel Password
+# install_or_enable=${16}  # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+# After a node reboot, the second time the script is recalled with 'enable' which enables services.
+# For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 PS4='+(${LINENO}): '
 set -e
@@ -20,24 +40,7 @@ datastore_endpoint=${12}
 server_flags=${13}
 rhel_username=${14}
 rhel_password=${15}
-install_or_enable=${16}  # Values install, enable, both
-
-echo "node_os=${node_os}
-fqdn=${fqdn}
-server_ip=${server_ip}
-token=${token}
-public_ip=${public_ip}
-private_ip=${private_ip}
-ipv6_ip=${ipv6_ip}
-install_mode=${install_mode}
-version=${version}
-channel=${channel}
-datastore_type=${datastore_type}
-datastore_endpoint=${datastore_endpoint}
-server_flags=${server_flags}
-rhel_username=${rhel_username}
-rhel_password=${rhel_password}
-install_or_enable=${install_or_enable}"
+install_or_enable=${16}
 
 create_config() {
   hostname=$(hostname -f)
@@ -130,7 +133,6 @@ install_k3s() {
 
   install_cmd="curl -sfL $url | $params sh -"
   echo "$install_cmd"
-
   if ! eval "$install_cmd"; then
     echo "Failed to install k3s-server on node: $public_ip"
     exit 1

@@ -1,4 +1,21 @@
 #!/bin/bash
+# Usage:
+# node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
+# server_ip=${2} # Master Server IP to join to. Value will be added to config.yaml file.
+# token=${3} # Node Token
+# public_ip=${4} # Public IP of the agent node
+# private_ip=${5} # Private IP of the agent node
+# ipv6_ip=${6} # IPv6 Ip of the agent node
+# install_mode=${7} # # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${8} # Version or Commit to install
+# channel=${9} # Channel to install from - latest, testing, stable.
+# worker_flags=${10} # Worker flags to add in config.yaml
+# rhel_username=${11} # rhel username
+# rhel_password=${12} # rhel password
+# install_or_enable=${13} # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+# After a node reboot, the second time the script is recalled with 'enable' which enables services.
+# For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 PS4='+(${LINENO}): '
 set -e
@@ -17,22 +34,7 @@ channel=${9}
 worker_flags=${10}
 rhel_username=${11}
 rhel_password=${12}
-install_or_enable=${13}  # Values install, enable, both
-
-echo "
-node_os=${node_os}
-server_ip=${server_ip}
-token=${token}
-public_ip=${public_ip}
-private_ip=${private_ip}
-ipv6_ip=${ipv6_ip}
-install_mode=${install_mode}
-version=${version}
-channel=${channel}
-worker_flags=${worker_flags}
-rhel_username=${rhel_username}
-rhel_password=${rhel_password}
-install_or_enable=${install_or_enable}"  # Values install, enable, both
+install_or_enable=${13}
 
 create_config() {
   hostname=$(hostname -f)
@@ -110,12 +112,10 @@ install_k3s() {
 
   install_cmd="curl -sfL $url | $params sh -s - agent"
   echo "$install_cmd"
-
   if ! eval "$install_cmd"; then
     echo "Failed to install k3s-agent on node: $public_ip"
     exit 1
   fi
-
 }
 
 enable_service() {
@@ -132,7 +132,6 @@ enable_service() {
     fi
   fi
 }
-
 
 check_service() {
   if systemctl is-active --quiet k3s-agent; then

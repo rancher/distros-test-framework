@@ -1,6 +1,25 @@
 #!/bin/bash
 # This script installs the first server, ensuring first server is installed
 # and ready before proceeding to install other nodes
+# Usage:
+# node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
+# fqdn=${2} # FQDN Value
+# public_ip=${3} # Public IP of the master server node
+# private_ip=${4} # Private IP of the master server node
+# ipv6_ip=${5} # IPv6 of the master node
+# install_mode=${6} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${7} # Version or Commit to install
+# channel=${8} # Channel to install from - values can be: testing, latest, stable
+# install_method=${9} # Install Method can be rpm or tar
+# datastore_type=${10} # Datastore type: etcd or external
+# datastore_endpoint=${11} # Datastore endpoint
+# server_flags=${12} # Server Flags to add in config.yaml
+# rhel_username=${13} # Rhel Username
+# rhel_password=${14} # Rhel password
+# install_or_enable=${15} # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+# After a node reboot, the second time the script is recalled with 'enable' which enables services.
+# For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 echo "$@"
 
@@ -23,7 +42,7 @@ datastore_endpoint=${11}
 server_flags=${12}
 rhel_username=${13}
 rhel_password=${14}
-install_or_enable=${15}  # Values install, enable, both
+install_or_enable=${15}
 
 create_config() {
   hostname=$(hostname -f)
