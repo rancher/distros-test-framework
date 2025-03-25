@@ -717,7 +717,7 @@ func ExtractKubeImageVersion() string {
 		LogLevel("error", "%s failed to resolve to server version string: %s", serverVersion, err)
 		os.Exit(1)
 	}
-	LogLevel("info", "serverVersionReturnValue : %s", version)
+	LogLevel("info", "serverVersionReturnValue: %s", version)
 
 	return version
 }

@@ -112,7 +112,7 @@ func GetInstallCmd(product, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 
-	var channel = getChannel(product)
+	channel := getChannel(product)
 
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
@@ -126,7 +126,7 @@ func GetInstallCmd(product, installType, nodeType string) string {
 }
 
 func getChannel(product string) string {
-	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+	defaultChannel := fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
 
 	if customflag.ServiceFlag.Channel.String() != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),

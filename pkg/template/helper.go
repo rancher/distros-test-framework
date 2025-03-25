@@ -153,11 +153,15 @@ func ComponentsBumpResults() {
 	var components []string
 	for _, result := range assert.Results {
 		if product == "rke2" {
-			components = []string{"flannel", "calico", "ingressController", "coredns", "metricsServer", "etcd",
-				"containerd", "runc"}
+			components = []string{
+				"flannel", "calico", "ingressController", "coredns", "metricsServer", "etcd",
+				"containerd", "runc",
+			}
 		} else {
-			components = []string{"flannel", "coredns", "metricsServer", "etcd", "cniPlugins", "traefik", "local-path",
-				"containerd", "klipper", "runc"}
+			components = []string{
+				"flannel", "coredns", "metricsServer", "etcd", "cniPlugins", "traefik", "local-path",
+				"containerd", "klipper", "runc",
+			}
 		}
 		for _, component := range components {
 			if strings.Contains(result.Command, component) {

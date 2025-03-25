@@ -10,7 +10,6 @@ import (
 )
 
 var _ = Describe("Test:", func() {
-
 	It("Start Up with no issues on rebootinstances test", func() {
 		testcase.TestBuildCluster(cluster)
 	})

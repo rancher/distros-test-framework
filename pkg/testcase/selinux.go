@@ -36,7 +36,6 @@ func TestSelinuxEnabled(cluster *shared.Cluster) {
 
 // TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version.
 func TestSelinux(cluster *shared.Cluster) {
-
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
 	agentAsserts := []string{"container-selinux", cluster.Config.Product + "-selinux"}

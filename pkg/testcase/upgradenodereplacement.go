@@ -39,8 +39,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	var createErr error
-	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
-		awsDependencies.CreateInstances(serverNames...)
+	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr = awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
@@ -489,8 +488,10 @@ func nodeReplaceAgents(
 		agentNames = append(agentNames, fmt.Sprintf("%s-worker-replace%d", resourceName, i+1))
 	}
 
-	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
-		awsDependencies.CreateInstances(agentNames...)
+	newExternalAgentIps,
+		newPrivateAgentIps,
+		instanceAgentIds,
+		createAgentErr := awsDependencies.CreateInstances(agentNames...)
 	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
 	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",

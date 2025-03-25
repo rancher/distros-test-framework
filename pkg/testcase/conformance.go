@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,7 +57,8 @@ func TestConformance(version string) {
 	statusErr := checkStatus()
 	Expect(statusErr).NotTo(HaveOccurred())
 
-	testResultTar := retrieveResultsTar()
+	testResultTar, err := retrieveResultsTar()
+	Expect(err).NotTo(HaveOccurred())
 	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
 
 	results := getResults(testResultTar)
@@ -65,7 +67,7 @@ func TestConformance(version string) {
 	resultsErr := validateResults(results)
 	Expect(resultsErr).NotTo(HaveOccurred())
 
-	// cleanupTests()
+	cleanupTests()
 }
 
 func launchSonobuoyTests() {
@@ -116,14 +118,26 @@ func checkStatus() error {
 	)
 }
 
-func retrieveResultsTar() string {
+func retrieveResultsTar() (string, error) {
 	shared.LogLevel("info", "retrieving sonobuoy results tar")
 
 	cmd := "sonobuoy retrieve --kubeconfig=" + shared.KubeConfigFile
 	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve sonobuoy results tar: %w\ncmd: %s", err, cmd)
+	}
 
-	return res
+	tarPath := strings.TrimSpace(res)
+	absPath, err := filepath.Abs(tarPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path for tar: %w", err)
+	}
+
+	if _, statErr := os.Stat(absPath); statErr != nil {
+		return "", fmt.Errorf("retrieved tar file does not exist: %w", statErr)
+	}
+
+	return absPath, nil
 }
 
 func getResults(testResultTar string) string {
@@ -164,7 +178,10 @@ func validateResults(results string) error {
 }
 
 func execRerun() error {
-	newTar := retrieveResultsTar()
+	newTar, err := retrieveResultsTar()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve results tarball: %w", err)
+	}
 	if newTar == "" {
 		return errors.New("failed to retrieve results tarball")
 	}
@@ -268,11 +285,8 @@ func rerunFailedTests(testResultTar string) error {
 
 	shared.LogLevel("info ", "rerunning failed tests with cmd: %s", cmd)
 
-	res, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err.Error())
-
-	// todo: remove
-	shared.LogLevel("info", "rerun sonobuoy tests: RES !!!! %s", res)
+	_, err := shared.RunCommandHost(cmd)
+	Expect(err).NotTo(HaveOccurred(), "failed cmd: %s\nerror: %v", cmd, err)
 
 	return nil
 }
