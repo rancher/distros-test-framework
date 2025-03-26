@@ -12,7 +12,6 @@ import (
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
-
 	It("Starts up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})

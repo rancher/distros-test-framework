@@ -310,7 +310,6 @@ func GetJournalLogs(level, ip string) string {
 // ReturnLogError logs the error and returns it.
 func ReturnLogError(format string, args ...interface{}) error {
 	err := formatLogArgs(format, args...)
-
 	if err != nil {
 		pc, file, line, ok := runtime.Caller(1)
 		if ok {
