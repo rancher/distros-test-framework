@@ -24,19 +24,36 @@ resource "aws_instance" "worker" {
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
   }
+  provisioner "remote-exec" {
+    inline = [
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
+    ]
+  }
+
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
   provisioner "file" {
     source               = "../install/join_k3s_agent.sh"
-    destination          = "/tmp/join_k3s_agent.sh"
+    destination          = "/var/tmp/join_k3s_agent.sh"
   }
   provisioner "file" {
     source               = "${path.module}/cis_worker_config.yaml"
     destination          = "/tmp/cis_worker_config.yaml"
   }
   provisioner "remote-exec" {
-    inline = [<<-EOT
-      chmod +x /tmp/join_k3s_agent.sh
-      sudo /tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.k3s_version} "${var.k3s_channel}" "${var.worker_flags}" ${var.username} ${var.password}
-    EOT
+    inline = [
+      "chmod +x /var/tmp/join_k3s_agent.sh",
+      "sudo /var/tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" \"${var.worker_flags}\" ${var.username} ${var.password} \"${local.install_or_both}\"",
+    ]
+  }
+
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo /var/tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} \"${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" \"${var.worker_flags}\" ${var.username} ${var.password} \"${local.enable_service}\"",
     ]
   }
 }

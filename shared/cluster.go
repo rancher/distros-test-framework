@@ -459,7 +459,7 @@ func ReadDataPod(cluster *Cluster, namespace string) (string, error) {
 	}
 
 	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
-		" -- cat /data/test"
+		" -- cat /opt/data/test"
 
 	res, err := RunCommandHost(cmd)
 	if err != nil {
@@ -483,7 +483,7 @@ func WriteDataPod(cluster *Cluster, namespace string) (string, error) {
 	}
 
 	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +
-		" -- sh -c 'echo testing local path > /data/test' "
+		" -- sh -c 'echo testing local path > /opt/data/test' "
 
 	return RunCommandHost(cmd)
 }

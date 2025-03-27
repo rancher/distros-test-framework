@@ -1,5 +1,27 @@
 #!/bin/bash
-# This script is used to join one or more nodes as servers to the first sertver
+# This script is used to join one or more nodes as servers to the first server
+# Usage:
+# node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
+# fqdn=${2} # FQDN
+# server_ip=${3} # Master Server IP to join to. Value will be added to config.yaml file.
+# token=${4} # Token
+# public_ip=${5} # Public IP of the joining server node
+# private_ip=${6} # Private IP of the joining server node
+# ipv6_ip=${7} # IPv6 IP of the joining server node
+# install_mode=${8} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${9} # Version or Commit to Install
+# channel=${10} # Channel to install from - testing latest or stable
+# install_method=${11} # Method of install - rpm or tar
+# datastore_type=${12} # Datastore type - etcd or external
+# datastore_endpoint=${13} # Datastore Endpoint
+# server_flags=${14} # Server Flags to add in config.yaml
+# rhel_username=${15} # Rhel username
+# rhel_password=${16} # Rhel password
+# install_or_enable=${17}  # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+# After a node reboot, the second time the script is recalled with 'enable' which enables services.
+# For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
+
 echo "$@"
 
 PS4='+(${LINENO}): '
@@ -23,6 +45,7 @@ datastore_endpoint=${13}
 server_flags=${14}
 rhel_username=${15}
 rhel_password=${16}
+install_or_enable=${17}
 
 create_config() {
   hostname=$(hostname -f)
@@ -96,11 +119,23 @@ cis_setup() {
   if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]; then
     if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
       cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+    elif [[ "$node_os" == *"slemicro"* ]]; then
+      groupadd --system etcd && useradd -s /sbin/nologin --system -g etcd etcd
+      cat <<EOF >> ~/60-rke2-cis.conf
+on_oovm.panic_on_oom=0
+vm.overcommit_memory=1
+kernel.panic=10
+kernel.panic_ps=1
+kernel.panic_on_oops=1
+EOF
+      cp ~/60-rke2-cis.conf /etc/sysctl.d/;
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     fi
     systemctl restart systemd-sysctl
-    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+    if [[ "$node_os" != *"slemicro"* ]]; then
+      useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+    fi
   fi
 }
 
@@ -117,7 +152,7 @@ install_rke2() {
   fi
 
   install_cmd="curl -sfL $url | $params sh -"
-
+  echo "$install_cmd"
   if ! eval "$install_cmd"; then
     echo "Failed to install rke2-server on joining node ip: $public_ip"
     exit 1
@@ -152,7 +187,6 @@ install() {
   install_rke2
   sleep 10
   cis_setup
-  enable_service
 }
 
 path_setup() {
@@ -164,11 +198,19 @@ EOF
 }
 
 main() {
-  create_config
-  update_config
-  subscription_manager
-  disable_cloud_setup
-  install
-  path_setup
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "${install_or_enable}" == *"install"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    echo "Executing INSTALL Block"
+    create_config
+    update_config
+    subscription_manager
+    disable_cloud_setup
+    install
+    path_setup
+  fi
+  if [[ "${install_or_enable}" == *"enable"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+    echo "Executing ENABLE Block"
+    enable_service
+  fi
 }
 main "$@"
