@@ -207,6 +207,7 @@ config_files() {
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml PATH=$PATH:/var/lib/rancher/rke2/bin:/opt/rke2/bin CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml && \
 alias k=kubectl
 EOF
+  # shellcheck disable=SC1091
   source .bashrc
 }
 

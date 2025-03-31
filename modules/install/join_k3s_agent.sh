@@ -64,7 +64,7 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
-  echo -e server: https://${server_ip}:6443 >>/etc/rancher/k3s/config.yaml
+  echo -e server: https://"${server_ip}":6443 >>/etc/rancher/k3s/config.yaml
   echo -e node-name: "${hostname}" >>/etc/rancher/k3s/config.yaml
   cat /etc/rancher/k3s/config.yaml
 
@@ -146,7 +146,6 @@ check_service() {
 install() {
   install_k3s
   sleep 10
-
 }
 
 main() {

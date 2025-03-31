@@ -67,7 +67,7 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
   fi
-  echo -e server: https://${server_ip}:9345 >>/etc/rancher/rke2/config.yaml
+  echo -e server: https://"${server_ip}":9345 >>/etc/rancher/rke2/config.yaml
   echo -e node-name: "${hostname}" >>/etc/rancher/rke2/config.yaml
   cat /etc/rancher/rke2/config.yaml
 }
