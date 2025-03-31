@@ -220,7 +220,6 @@ main() {
     subscription_manager
     disable_cloud_setup
     install
-    # config_files
   fi
   if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then
     echo "Executing ENABLE Block"
