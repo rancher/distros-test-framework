@@ -448,7 +448,8 @@ func validateNodeJoin(ip string) error {
 
 func serverJoin(cluster *shared.Cluster,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, "both")
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
+		version, channel, newExternalIP, newPrivateIP, "both")
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -569,7 +570,8 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 }
 
 func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, "both")
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, "both")
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
