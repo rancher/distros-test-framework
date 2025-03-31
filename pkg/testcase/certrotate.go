@@ -14,7 +14,8 @@ func TestCertRotate(cluster *shared.Cluster) {
 	certRotate(ms, cluster.Config.Product, cluster.ServerIPs)
 
 	actions := []shared.ServiceAction{
-		{Service: cluster.Config.Product,
+		{
+			Service:  cluster.Config.Product,
 			Action:   "restart",
 			NodeType: "agent",
 		},
@@ -78,7 +79,8 @@ func verifyIdenticalFiles(identicalFileList string) {
 		"server-ca.crt", "server-ca.key",
 		"request-header-ca.crt", "request-header-ca.key",
 		"server-ca.crt", "server-ca.key", "server-ca.nochain.crt",
-		"service.current.key", "service.key"}
+		"service.current.key", "service.key",
+	}
 
 	newFileList := strings.Split(strings.TrimSpace(identicalFileList), "\n")
 	err := shared.MatchWithPath(newFileList[1:], expectedFileList)

@@ -10,7 +10,6 @@ import (
 )
 
 var _ = Describe("Test: Mixed OS Cluster", func() {
-
 	It("Starts Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -35,7 +34,7 @@ var _ = Describe("Test: Mixed OS Cluster", func() {
 	})
 
 	It("Validates cluster by running sonobuoy mixed OS plugin", func() {
-		testcase.TestSonobuoyMixedOS(true)
+		testcase.TestSonobuoyMixedOS(true, flags.External.SonobuoyVersion)
 	})
 })
 

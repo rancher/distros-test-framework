@@ -6,7 +6,7 @@ delete_ec2_instances () {
     --query 'Reservations[].Instances[].InstanceId' --output text)
   if [ -z "${DRY_RUN}" ]; then
     if [ "${EC2_INSTANCE_IDS}" = "" ];then
-      echo "No ec2 instances found with prefix: $1. Nothing to delete."
+      echo "No ec2 instances found with prefix: $1 Nothing to delete."
     else
       echo "Terminating ec2 instances for $1 if still up and running"
       echo "INSTANCE IDs: ${EC2_INSTANCE_IDS}"
@@ -275,7 +275,7 @@ if [ "${RESOURCES}" = "" ]; then
       exit 1
     fi
 
-    printf "This is going to delete all AWS resources with the prefix %s. Continue (yes/no)? " "$RESOURCE_NAME"
+    printf "This is going to delete all AWS resources with the prefix '%s'\nContinue (yes/no)? " "$RESOURCE_NAME"
     read -r REPLY
     if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
       delete_all_resources "${RESOURCE_NAME}"
