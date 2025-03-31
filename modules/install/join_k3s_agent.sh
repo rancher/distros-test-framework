@@ -150,18 +150,18 @@ install() {
 
 main() {
   echo "Install or enable or both? $install_or_enable"
-  if [[ "$install_or_enable" == *"install"* ]] || [[ "$install_or_enable" == *"both"* ]]; then
+  if [[ "$install_or_enable" == "install" ]] || [[ "$install_or_enable" == "both" ]]; then
     create_config
     update_config
     subscription_manager
     disable_cloud_setup
     install
   fi
-  if [[ "$install_or_enable" == *"enable"* ]]; then
+  if [[ "$install_or_enable" == "enable" ]]; then
     enable_service
     sleep 10
   fi
-  if [[ "$install_or_enable" == *"enable"* ]] || [[ "$install_or_enable" == *"both"* ]]; then
+  if [[ "$install_or_enable" == "enable" ]] || [[ "$install_or_enable" == "both" ]]; then
     check_service
   fi
 }

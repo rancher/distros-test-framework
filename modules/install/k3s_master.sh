@@ -243,7 +243,7 @@ config_files() {
 
 main() {
   echo "Install or enable or both? $install_or_enable"
-  if [[ "${install_or_enable}" == *"install"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+  if [[ "${install_or_enable}" == "install" ]] || [[ "${install_or_enable}" == "both" ]]; then
     create_config
     update_config
     policy_files
@@ -251,11 +251,11 @@ main() {
     disable_cloud_setup
     install
   fi
-  if [[ "${install_or_enable}" == *"enable"* ]]; then
+  if [[ "${install_or_enable}" == "enable" ]]; then
     enable_service
     sleep 10
   fi
-  if [[ "${install_or_enable}" == *"enable"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+  if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then
     check_service
     if [ "$etcd_only_node" -eq 0 ]; then
       # If etcd only node count is 0, then wait for nodes/pods to come up.

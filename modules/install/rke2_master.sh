@@ -213,7 +213,7 @@ EOF
 
 main() {
   echo "Install or enable or both? $install_or_enable"
-  if [[ "${install_or_enable}" == *"install"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+  if [[ "${install_or_enable}" == "install" ]] || [[ "${install_or_enable}" == "both" ]]; then
     echo "Executing INSTALL Block"
     create_config
     update_config
@@ -222,7 +222,7 @@ main() {
     install
     # config_files
   fi
-  if [[ "${install_or_enable}" == *"enable"* ]] || [[ "${install_or_enable}" == *"both"* ]]; then
+  if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then
     echo "Executing ENABLE Block"
     enable_service
     config_files
