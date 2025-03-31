@@ -275,10 +275,12 @@ func buildJoinCmd(
 	switch cluster.Config.Product {
 	case "k3s":
 		return buildK3sCmd(
-			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, install_or_enable)
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
+			selfPrivateIP, installMode, flags, install_or_enable)
 	case "rke2":
 		return buildRke2Cmd(
-			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, install_or_enable)
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
+			selfPrivateIP, installMode, flags, install_or_enable)
 	default:
 		return "", shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
@@ -444,7 +446,8 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+func serverJoin(cluster *shared.Cluster,
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
 	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, "both")
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
