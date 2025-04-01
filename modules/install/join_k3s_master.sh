@@ -127,7 +127,7 @@ install_k3s() {
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
-  if [[ "$install_or_enable" == *"install"* ]]; then
+  if [[ "$install_or_enable" == "install" ]]; then
     params="$params INSTALL_K3S_SKIP_ENABLE=true"
   fi
 
