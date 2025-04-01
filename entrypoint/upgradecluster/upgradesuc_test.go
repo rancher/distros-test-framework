@@ -12,7 +12,6 @@ import (
 )
 
 var _ = Describe("SUC Upgrade Tests:", func() {
-
 	It("Starts up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -53,16 +52,16 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	if cluster.Config.Product == "k3s" {
-		It("Verifies LoadBalancer Service before upgrade", func() {
+		It("Verifies LoadBalancer Service pre-upgrade", func() {
 			testcase.TestServiceLoadBalancer(true, false)
 		})
 
-		It("Verifies Local Path Provisioner storage before upgrade", func() {
+		It("Verifies Local Path Provisioner storage pre-upgrade", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, true, false)
 		})
 
-		It("Verifies Traefik IngressRoute before upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, true, false, "traefik.containo.us/v1alpha1")
+		It("Verifies Traefik IngressRoute using new GKV pre-upgrade", func() {
+			testcase.TestIngressRoute(cluster, true, false, "traefik.io/v1alpha1")
 		})
 	}
 
@@ -106,16 +105,16 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	if cluster.Config.Product == "k3s" {
-		It("Verifies LoadBalancer Service after upgrade", func() {
+		It("Verifies LoadBalancer Service post-upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
 		})
 
-		It("Verifies Local Path Provisioner storage after upgrade", func() {
+		It("Verifies Local Path Provisioner storage post-upgrade", func() {
 			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
 		})
 
-		It("Verifies Traefik IngressRoute after upgrade using old GKV", func() {
-			testcase.TestIngressRoute(cluster, false, true, "traefik.containo.us/v1alpha1")
+		It("Verifies Traefik IngressRoute using new GKV post-upgrade", func() {
+			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
 		})
 	}
 })

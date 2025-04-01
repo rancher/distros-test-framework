@@ -1,4 +1,4 @@
-package createcluster
+package sonobuoyconformance
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test:", func() {
-	It("Start Up with no issues", func() {
+var _ = Describe("Sonobuoy Conformance Tests...", func() {
+	It("Starts Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
 
-	It("Validate Nodes", func() {
+	It("Validates Node", func() {
 		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
@@ -27,6 +27,10 @@ var _ = Describe("Test:", func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
+	})
+
+	It("Validates the releases conformance with upstream requirements", func() {
+		testcase.TestConformance(flags.External.SonobuoyVersion)
 	})
 })
 
