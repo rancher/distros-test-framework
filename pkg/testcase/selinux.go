@@ -36,7 +36,6 @@ func TestSelinuxEnabled(cluster *shared.Cluster) {
 
 // TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version.
 func TestSelinux(cluster *shared.Cluster) {
-
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
 	agentAsserts := []string{"container-selinux", cluster.Config.Product + "-selinux"}
@@ -162,7 +161,7 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
 
-		err := shared.UninstallProduct(cluster.Config.Product, "server", serverIP)
+		err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
 		Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
@@ -179,7 +178,7 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	for _, agentIP := range cluster.AgentIPs {
 		fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
 
-		err := shared.UninstallProduct(cluster.Config.Product, "agent", agentIP)
+		err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
 		Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)

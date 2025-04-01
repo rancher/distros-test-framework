@@ -10,7 +10,6 @@ import (
 )
 
 var _ = Describe("Test Deploy Rancher:", func() {
-
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})

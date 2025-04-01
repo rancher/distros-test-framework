@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -112,21 +113,21 @@ func GetInstallCmd(product, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 
-	var channel = getChannel(product)
-
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
 	} else {
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+	channel := getChannel(product)
+	installMethod := fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), os.Getenv("install_method"))
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %s sh -s - %s", product, installMethod, nodeType)
 
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }
 
 func getChannel(product string) string {
-	var defaultChannel = fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+	defaultChannel := fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "testing")
 
 	if customflag.ServiceFlag.Channel.String() != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
@@ -134,4 +135,64 @@ func getChannel(product string) string {
 	}
 
 	return defaultChannel
+}
+
+func ManageProductCleanup(product, nodeType, ip string, actions ...string) error {
+	if product != "k3s" && product != "rke2" {
+		return fmt.Errorf("unsupported product: %s", product)
+	}
+
+	if len(actions) == 0 {
+		return fmt.Errorf("no actions specified for %s cleanup", product)
+	}
+
+	for _, action := range actions {
+		switch action {
+		case "uninstall":
+			uninstallScript := product + "-uninstall.sh"
+			if product == "k3s" && nodeType == "agent" {
+				uninstallScript = "k3s-agent-uninstall.sh"
+			}
+			err := execAction(product, uninstallScript, ip)
+			if err != nil {
+				return fmt.Errorf("%v uninstall failed for %s-%s", err, product, nodeType)
+			}
+
+			LogLevel("info", "%s completed successfully on %s ip:%s", uninstallScript, nodeType, ip)
+
+		case "killall":
+			killAllScript := product + "-killall.sh"
+			err := execAction(product, killAllScript, ip)
+			if err != nil {
+				return fmt.Errorf("killall failed for %s-%s", product, nodeType)
+			}
+
+			LogLevel("info", "%s completed successfully on %s ip:%s", killAllScript, nodeType, ip)
+
+		default:
+			return fmt.Errorf("unsupported action: %s", action)
+		}
+	}
+
+	return nil
+}
+
+func execAction(product, script, ip string) error {
+	execPath, err := FindPath(script, ip)
+	if err != nil {
+		return fmt.Errorf("failed to find %s script for %s: %w", script, product, err)
+	}
+
+	LogLevel("info", "execPath path: %s", execPath)
+
+	cmd := "sudo " + execPath
+	res, execErr := RunCommandOnNode(cmd, ip)
+	if strings.TrimSpace(res) == "" {
+		return fmt.Errorf("failed to run command: %s", execPath)
+	}
+	if execErr != nil {
+		return fmt.Errorf("failed to run command: %s, error: %w", execPath, execErr)
+	}
+
+	return nil
 }

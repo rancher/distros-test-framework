@@ -11,7 +11,6 @@ import (
 )
 
 var _ = Describe("Test:", func() {
-
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -87,7 +86,6 @@ var _ = Describe("Test:", func() {
 	It("Validate uninstall selinux policies", func() {
 		testcase.TestUninstallPolicy(cluster)
 	})
-
 })
 
 var _ = AfterEach(func() {

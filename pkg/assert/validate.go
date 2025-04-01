@@ -71,7 +71,6 @@ func runAssertion(
 		case <-ticker:
 			retry++
 			res, err = exec(cmd)
-
 			if err != nil {
 				if retry == 0 || retry == 4 {
 					shared.LogLevel("warn", "error from exec runAssertion: %v\n"+

@@ -1,4 +1,4 @@
-package killAllUninstall
+package killalluninstall
 
 import (
 	"flag"
@@ -20,6 +20,7 @@ var (
 	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
 	cfg        *config.Env
+	kubeconfig string
 	err        error
 )
 
@@ -34,7 +35,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	cluster = shared.ClusterConfig(cfg)
+	kubeconfig = os.Getenv("KUBE_CONFIG")
+	if kubeconfig == "" {
+		// gets a cluster from terraform.
+		cluster = shared.ClusterConfig(cfg)
+	} else {
+		// gets a cluster from kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+	}
 
 	os.Exit(m.Run())
 }

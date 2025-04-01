@@ -1,4 +1,4 @@
-package killAllUninstall
+package killalluninstall
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test: Kill all and Uninstall", func() {
+var _ = Describe("Test:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -29,12 +29,8 @@ var _ = Describe("Test: Kill all and Uninstall", func() {
 			assert.PodAssertReady())
 	})
 
-	It("TestKillAll", func() {
-		testcase.TestKillAll(cluster)
-	})
-
-	It("TestUninstall", func() {
-		testcase.TestUninstall(cluster)
+	It("TestKillAll -> Uninstall", func() {
+		testcase.TestKillAllUninstall(cluster, cfg)
 	})
 })
 

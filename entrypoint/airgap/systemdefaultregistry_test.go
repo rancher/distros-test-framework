@@ -41,7 +41,6 @@ var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, f
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip
-
 })
 
 var _ = AfterEach(func() {

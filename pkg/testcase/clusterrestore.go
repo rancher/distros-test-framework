@@ -23,9 +23,12 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 
 	serverName, newServerIP := newInstance(awsClient)
 
-	installProduct(cluster, newServerIP, cfg.InstallVersion)
+	err := shared.InstallProduct(cluster, newServerIP, cfg.InstallVersion)
+	Expect(err).NotTo(HaveOccurred())
+
 	restoreS3Snapshot(cluster, onDemandPath, clusterToken, newServerIP, flags)
-	enableAndStartService(cluster, newServerIP)
+	enableErr := shared.EnableAndStartService(cluster, newServerIP, "server")
+	Expect(enableErr).NotTo(HaveOccurred())
 
 	kubeConfigErr := shared.NewLocalKubeconfigFile(newServerIP, serverName, cluster.Config.Product,
 		"/tmp/"+serverName+"_kubeconfig")
@@ -108,57 +111,6 @@ func newInstance(awsClient *aws.Client) (newServerName, newExternalIP string) {
 	return serverName[0], externalServerIP[0]
 }
 
-func installProduct(cluster *shared.Cluster, newClusterIP, version string) {
-	setConfigFile(cluster, newClusterIP)
-
-	installCmd := shared.GetInstallCmd(cluster.Config.Product, version, "server")
-	if cluster.Config.Product == "k3s" {
-		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
-		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
-	}
-
-	_, installCmdErr := shared.RunCommandOnNode(installCmd, newClusterIP)
-	Expect(installCmdErr).NotTo(HaveOccurred())
-
-	shared.LogLevel("info", "%s successfully installed on server: %s", cluster.Config.Product, newClusterIP)
-}
-
-func setConfigFile(cluster *shared.Cluster, newClusterIP string) {
-	serverFlags := os.Getenv("server_flags")
-	if serverFlags == "" {
-		serverFlags = "write-kubeconfig-mode: 644"
-	}
-	serverFlags = strings.ReplaceAll(serverFlags, `\n`, "\n")
-
-	tempFilePath := "/tmp/config.yaml"
-	tempFile, err := os.Create(tempFilePath)
-	Expect(err).NotTo(HaveOccurred())
-
-	defer tempFile.Close()
-
-	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", newClusterIP)
-	Expect(writeErr).NotTo(HaveOccurred())
-
-	flagValues := strings.Split(serverFlags, "\n")
-	for _, entry := range flagValues {
-		entry = strings.TrimSpace(entry)
-		if entry != "" {
-			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
-			Expect(err).NotTo(HaveOccurred())
-		}
-	}
-
-	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
-	user := os.Getenv("aws_user")
-	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
-
-	_, mkdirCmdErr := shared.RunCommandOnNode(cmd, newClusterIP)
-	Expect(mkdirCmdErr).NotTo(HaveOccurred())
-
-	scpErr := shared.RunScp(cluster, newClusterIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
-	Expect(scpErr).NotTo(HaveOccurred())
-}
-
 func restoreS3Snapshot(
 	cluster *shared.Cluster,
 	onDemandPath,
@@ -200,36 +152,6 @@ func restoreS3Snapshot(
 	default:
 		Expect(fmt.Errorf("product not supported: %s", cluster.Config.Product)).NotTo(HaveOccurred())
 	}
-}
-
-func enableAndStartService(cluster *shared.Cluster, newClusterIP string) {
-	ms := shared.NewManageService(5, 5)
-	actions := []shared.ServiceAction{
-		{
-			Service:  cluster.Config.Product,
-			Action:   "enable",
-			NodeType: "server",
-		},
-		{
-			Service:  cluster.Config.Product,
-			Action:   "start",
-			NodeType: "server",
-		},
-		{
-			Service:  cluster.Config.Product,
-			Action:   "status",
-			NodeType: "server",
-		},
-	}
-
-	output, err := ms.ManageService(newClusterIP, actions)
-	if output != "" {
-		Expect(output).To(ContainSubstring("active "), fmt.Sprintf("error starting %s server service for node ip: %s",
-			cluster.Config.Product, newClusterIP))
-	}
-	Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error starting %s service on %s", cluster.Config.Product, newClusterIP))
-
-	shared.LogLevel("info", "%s service successfully enabled", cluster.Config.Product)
 }
 
 func deleteOldNodes(cluster *shared.Cluster) {

@@ -57,7 +57,6 @@ func handleWorkload(action, resourceDir, workload string) error {
 
 func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
-
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	fmt.Println(out)
@@ -65,7 +64,6 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
-
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -252,15 +250,15 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script.
+// InstallSonobuoy Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.
-func SonobuoyMixedOS(action, version string) error {
+func InstallSonobuoy(action, version string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
-	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
+	scriptsDir := BasePath() + "/scripts/install_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0o755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
@@ -698,4 +696,99 @@ func AddProductCfg() *config.Env {
 	}
 
 	return cfg
+}
+
+func ExtractKubeImageVersion() string {
+	prod, serverVersion, err := Product()
+	if err != nil {
+		LogLevel("error", "error retrieving version of product: %s", err)
+		os.Exit(1)
+	}
+
+	version := strings.Split(serverVersion, "+")[0]
+	version = strings.TrimPrefix(version, prod+" version ")
+	version = strings.TrimSpace(version)
+
+	if strings.Contains(version, "-rc") {
+		version = strings.Split(version, "-rc")[0]
+	}
+
+	if version == "" {
+		LogLevel("error", "%s failed to resolve to server version string: %s", serverVersion, err)
+		os.Exit(1)
+	}
+	LogLevel("info", "serverVersionReturnValue: %s", version)
+
+	return version
+}
+
+// InstallProduct installs the product on the server node only.
+// TODO: add support for installing on all nodes.
+func InstallProduct(cluster *Cluster, publicIP, version string) error {
+	err := setConfigFile(cluster, publicIP)
+	if err != nil {
+		return ReturnLogError("failed to set config file: %w", err)
+	}
+
+	installCmd := GetInstallCmd(cluster.Config.Product, version, "server")
+	if cluster.Config.Product == "k3s" {
+		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
+		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
+	}
+
+	_, installCmdErr := RunCommandOnNode(installCmd, publicIP)
+	if installCmdErr != nil {
+		return ReturnLogError("failed to install product: \n%w", installCmdErr)
+	}
+
+	LogLevel("info", "%s successfully installed on server: %s", cluster.Config.Product, publicIP)
+
+	return nil
+}
+
+func setConfigFile(cluster *Cluster, publicIP string) error {
+	serverFlags := os.Getenv("server_flags")
+	if serverFlags == "" {
+		serverFlags = "write-kubeconfig-mode: 644"
+	}
+	serverFlags = strings.ReplaceAll(serverFlags, `\n`, "\n")
+
+	tempFilePath := "/tmp/config.yaml"
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return ReturnLogError("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", publicIP)
+	if writeErr != nil {
+		return ReturnLogError("failed to write to temp file: %w", writeErr)
+	}
+
+	flagValues := strings.Split(serverFlags, "\n")
+	for _, entry := range flagValues {
+		entry = strings.TrimSpace(entry)
+		if entry != "" {
+			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
+			if err != nil {
+				return ReturnLogError("failed to write to temp file: %w", err)
+			}
+		}
+	}
+
+	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
+	user := os.Getenv("aws_user")
+	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
+
+	_, mkdirCmdErr := RunCommandOnNode(cmd, publicIP)
+	if mkdirCmdErr != nil {
+		return ReturnLogError("failed to create remote directory: %w", mkdirCmdErr)
+	}
+
+	scpErr := RunScp(cluster, publicIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
+	if scpErr != nil {
+		return ReturnLogError("failed to copy file: %w", scpErr)
+	}
+
+	return nil
 }
