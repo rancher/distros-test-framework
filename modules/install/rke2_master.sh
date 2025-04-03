@@ -14,8 +14,8 @@
 # datastore_type=${10} # Datastore type: etcd or external
 # datastore_endpoint=${11} # Datastore endpoint
 # server_flags=${12} # Server Flags to add in config.yaml
-# rhel_username=${13} # Rhel Username
-# rhel_password=${14} # Rhel password
+# rhel_username=${13} # rhel Username
+# rhel_password=${14} # rhel password
 # install_or_enable=${15} # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
 # After a node reboot, the second time the script is recalled with 'enable' which enables services.
 # For all other node_os values, this value will be 'both' and this script will be called only once.

@@ -3,7 +3,7 @@
 # Usage:
 # node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
 # server_ip=${2} # Master Server IP to join to. Value will be added to config.yaml file.
-# token=${3} # Token
+# token=${3} # Node Token
 # public_ip=${4} # Public IP of the agent node
 # private_ip=${5} # Private IP of the agent node
 # ipv6_ip=${6} # IPv6 IP of the agent node
@@ -12,8 +12,8 @@
 # channel=${9} # Channel to install from - testing, latest or stable
 # install_method=${10} # Method of install - rpm or tar
 # worker_flags=${11} # Worker flags to add in config.yaml file
-# rhel_username=${12} # Rhel username
-# rhel_password=${13} # Rhel password
+# rhel_username=${12} # rhel username
+# rhel_password=${13} # rhel password
 # install_or_enable=${14}  # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
 # After a node reboot, the second time the script is recalled with 'enable' which enables services.
 # For all other node_os values, this value will be 'both' and this script will be called only once.

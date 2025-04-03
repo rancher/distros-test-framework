@@ -4,7 +4,7 @@
 # node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
 # fqdn=${2} # FQDN
 # server_ip=${3} # Master Server IP to join to. Value will be added to config.yaml file.
-# token=${4} # Token
+# token=${4} # Node Token
 # public_ip=${5} # Public IP of the joining server node
 # private_ip=${6} # Private IP of the joining server node
 # ipv6_ip=${7} # IPv6 IP of the joining server node
@@ -15,8 +15,8 @@
 # datastore_type=${12} # Datastore type - etcd or external
 # datastore_endpoint=${13} # Datastore Endpoint
 # server_flags=${14} # Server Flags to add in config.yaml
-# rhel_username=${15} # Rhel username
-# rhel_password=${16} # Rhel password
+# rhel_username=${15} # rhel username
+# rhel_password=${16} # rhel password
 # install_or_enable=${17}  # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
 # After a node reboot, the second time the script is recalled with 'enable' which enables services.
 # For all other node_os values, this value will be 'both' and this script will be called only once.
