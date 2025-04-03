@@ -3,10 +3,10 @@
 # Usage:
 # node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
 # server_ip=${2} # Master Server IP to join to. Value will be added to config.yaml file.
-# token=${3} # Node Token
-# public_ip=${4} # Public IP of the agent node
-# private_ip=${5} # Private IP of the agent node
-# ipv6_ip=${6} # IPv6 IP of the agent node
+# token=${3} # Node Token. Value will be added to config.yaml file.
+# public_ip=${4} # Public IP of the agent node. Value will be added to config.yaml file.
+# private_ip=${5} # Private IP of the agent node. Value will be added to config.yaml file.
+# ipv6_ip=${6} # IPv6 IP of the agent node. Value will be added to config.yaml file.
 # install_mode=${7} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
 # version=${8} # Version or Commit to install
 # channel=${9} # Channel to install from - testing, latest or stable

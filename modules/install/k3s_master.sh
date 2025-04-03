@@ -1,16 +1,16 @@
 #!/bin/bash
 # Usage:
 # node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
-# fqdn=${2} # FQDN Value
-# public_ip=${3} # Public IP of the master server node
-# private_ip=${4} # Private IP of the master server node
-# ipv6_ip=${5} # IPv6 IP of the master server node
+# fqdn=${2} # FQDN Value. Value will be added to config.yaml file.
+# public_ip=${3} # Public IP of the master server node. Value will be added to config.yaml file.
+# private_ip=${4} # Private IP of the master server node. Value will be added to config.yaml file.
+# ipv6_ip=${5} # IPv6 IP of the master server node. Value will be added to config.yaml file.
 # install_mode=${6} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
 # version=${7} # Version or Commit to install
 # channel=${8} # Channel values can be testing, latest or stable.
 # etcd_only_node=${9} # Count of etcd only nodes
 # datastore_type=${10} # Datastore type: etcd or external
-# datastore_endpoint=${11} # Datastore endpoint
+# datastore_endpoint=${11} # Datastore endpoint. Value will be added to config.yaml file.
 # server_flags=${12} # Server Flags to use in config.yaml
 # rhel_username=${13} # rhel username
 # rhel_password=${14} # rhel password

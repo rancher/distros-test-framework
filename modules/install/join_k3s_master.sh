@@ -1,17 +1,17 @@
 #!/bin/bash
 # Usage:
 # node_os=${1} # Node OS values. Ex: rhel8, centos8, slemicro
-# fqdn=${2} # FQDN
+# fqdn=${2} # FQDN. Value will be added to config.yaml file.
 # server_ip=${3} # # Master Server IP to join to. Value will be added to config.yaml file.
-# token=${4} # Node Token
-# public_ip=${5} # Public IP of the joining server node
-# private_ip=${6} # Privaate IP of the joining server node
-# ipv6_ip=${7} # IPV6 IP of the joining server node
+# token=${4} # Node Token. Value will be added to config.yaml file.
+# public_ip=${5} # Public IP of the joining server node. Value will be added to config.yaml file.
+# private_ip=${6} # Privaate IP of the joining server node. Value will be added to config.yaml file.
+# ipv6_ip=${7} # IPV6 IP of the joining server node. Value will be added to config.yaml file.
 # install_mode=${8} # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
 # version=${9} # Version or Commit to install
 # channel=${10} # Channel to install from - values can be testing, latest or stable
 # datastore_type=${11} # Datastore type can be etcd or external
-# datastore_endpoint=${12} # Datastore endpoint
+# datastore_endpoint=${12} # Datastore endpoint. Value will be added to config.yaml file.
 # server_flags=${13} # Server Flags to add in config.yaml
 # rhel_username=${14} # rhel username
 # rhel_password=${15} # rhel Password
