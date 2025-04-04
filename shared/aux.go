@@ -3,6 +3,7 @@ package shared
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -397,77 +398,24 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	return false
 }
 
-func UninstallProduct(product, nodeType, ip string) error {
-	var scriptName string
-	paths := []string{
-		"/usr/local/bin",
-		"/opt/local/bin",
-		"/usr/bin",
-		"/usr/sbin",
-		"/usr/local/sbin",
-		"/bin",
-		"/sbin",
-	}
-
-	switch product {
-	case "k3s":
-		if nodeType == "agent" {
-			scriptName = "k3s-agent-uninstall.sh"
-		} else {
-			scriptName = "k3s-uninstall.sh"
-		}
-	case "rke2":
-		scriptName = "rke2-uninstall.sh"
-	default:
-		return fmt.Errorf("unsupported product: %s", product)
-	}
-
-	foundPath, findErr := checkFiles(product, paths, scriptName, ip)
-	if findErr != nil {
-		return findErr
-	}
-
-	pathName := product + "-uninstall.sh"
-	if product == "k3s" && nodeType == "agent" {
-		pathName = "k3s-agent-uninstall.sh"
-	}
-
-	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err := RunCommandOnNode(uninstallCmd, ip)
-
-	return err
-}
-
-func checkFiles(product string, paths []string, scriptName, ip string) (string, error) {
-	var foundPath string
-	for _, path := range paths {
-		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
-			path, scriptName)
-		output, err := RunCommandOnNode(checkCmd, ip)
-		if err != nil {
-			return "", err
-		}
-		output = strings.TrimSpace(output)
-		if output == "found" {
-			foundPath = path
-		} else {
-			foundPath, err = FindPath(scriptName, ip)
-			if err != nil {
-				return "", fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
-			}
-		}
-	}
-
-	return foundPath, nil
-}
-
 func FindPath(name, ip string) (string, error) {
+	pathCmds := []string{
+		fmt.Sprintf("which %s 2>/dev/null", name),
+		fmt.Sprintf("command -v %s 2>/dev/null", name),
+		fmt.Sprintf("type -p %s 2>/dev/null", name),
+	}
+
+	for _, cmd := range pathCmds {
+		if path, err := RunCommandOnNode(cmd, ip); err == nil && path != "" {
+			return strings.TrimSpace(path), nil
+		}
+	}
+
 	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | grep -v data | sed 1q", name)
 	fullPath, err := RunCommandOnNode(searchPath, ip)
 	if err != nil {
 		return "", err
 	}
-
 	if fullPath == "" {
 		return "", fmt.Errorf("path for %s not found", name)
 	}
@@ -590,4 +538,114 @@ func SystemCtlCmd(service, action string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
+}
+
+// MountBind mounts a directory to another directory on the given node IP addresses.
+func MountBind(ips []string, dir, mountPoint string) error {
+	if ips == nil {
+		return errors.New("ips should not be empty")
+	}
+
+	if dir == "" || mountPoint == "" {
+		return errors.New(" dir and mountPoint should not be empty")
+	}
+
+	if !strings.HasPrefix(dir, "/") || !strings.HasPrefix(mountPoint, "/") {
+		return fmt.Errorf("dir and mountPoint should  be absolute paths %s and %s", dir, mountPoint)
+	}
+
+	LogLevel("info", "Mounting %s to %s on nodes: %v\n", dir, mountPoint, ips)
+
+	cmd := "sudo mount --bind " + dir + " " + mountPoint
+	for _, ip := range ips {
+		res, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return fmt.Errorf("failed to run command: %s, error: %w", cmd, err)
+		}
+		res = strings.TrimSpace(res)
+		if res != "" {
+			return fmt.Errorf("failed to run command: %s, error: %s", cmd, res)
+		}
+	}
+
+	return nil
+}
+
+func FindBinaries(ip string, binaries ...string) (map[string]string, error) {
+	if len(binaries) == 0 {
+		// default binaries if none provided.
+		binaries = []string{"kubectl", cluster.Config.Product}
+	}
+
+	binPaths := make(map[string]string)
+	for _, bin := range binaries {
+		path, err := FindPath(bin, ip)
+		if err != nil {
+			LogLevel("warn", "Binary %s not found: %v", bin, err)
+			continue
+		}
+
+		binDir := filepath.Dir(path)
+		binPaths[bin] = binDir
+	}
+
+	if len(binPaths) == 0 {
+		return nil, fmt.Errorf("no requested binaries %s found on node %s", strings.Join(binaries, ", "), ip)
+	}
+
+	LogLevel("info", "Found binaries: %v", binPaths)
+
+	return binPaths, nil
+}
+
+// ExportEnvNode creates a script with environment variables and exports them to the specified nodes.
+// updatePath argument is a list of directories to be added to the PATH variable if wanted.
+func ExportEnvNode(ips []string, vars map[string]string, updatePath []string, filename string) error {
+	if len(ips) == 0 {
+		return errors.New("ips cannot be empty")
+	}
+
+	if filename == "" {
+		filename = "env_vars.sh"
+	}
+
+	var linesToAdd, varList []string
+	linesToAdd = append(linesToAdd, "#!/usr/bin/env bash")
+	for name, value := range vars {
+		linesToAdd = append(linesToAdd, fmt.Sprintf("export %s=\"%q\"", name, value))
+		varList = append(varList, fmt.Sprintf("%s=%s", name, value))
+	}
+
+	// Add PATH if requested to change.
+	if len(updatePath) > 0 {
+		linesToAdd = append(linesToAdd, fmt.Sprintf("export PATH=%s:$PATH",
+			strings.Join(updatePath, ":")))
+	}
+
+	content := strings.Join(linesToAdd, "\n") + "\n"
+	tmp := "/tmp/" + filename
+	dest := "/etc/profile.d/" + filename
+
+	for _, ip := range ips {
+		cmd := fmt.Sprintf(
+			"sudo tee %s > /dev/null << EOF\n%s\nEOF\n"+
+				"sudo chmod +x %s\n"+
+				"sudo mv %s %s\n"+
+				"sudo chmod 644 %s",
+			tmp, content, tmp, tmp, dest, dest,
+		)
+
+		res, err := RunCommandOnNode(cmd, ip)
+		if res != "" {
+			return fmt.Errorf("failed to export environment on node %s: %s", ip, res)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to export environment on node %s: %w", ip, err)
+		}
+	}
+
+	LogLevel("info", "Environment variables exported to %s on %d nodes (%s): %s",
+		dest, len(ips), filename, strings.Join(varList, ", "))
+
+	return nil
 }
