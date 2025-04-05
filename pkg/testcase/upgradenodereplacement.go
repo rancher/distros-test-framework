@@ -62,10 +62,14 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 			_, updateErr := shared.RunCommandOnNode(cmd, ip)
 			Expect(updateErr).NotTo(HaveOccurred())
 			rebootInstances(awsClient, ip)
+			sshErr := waitForSSHReady(ip)
+			if sshErr != nil {
+				shared.LogLevel("warn", "connecting via SSH to %s to run commands after reboot of node: %w\n", ip, sshErr)
+			}
 		}
 	}
 	// bracket sleep to ensure ssh to instance works instead of waiting for every node to get ready
-	time.Sleep(20 * time.Second)
+	// time.Sleep(20 * time.Second)
 
 	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
 		version,
@@ -577,11 +581,15 @@ func nodeReplaceAgents(
 			_, updateErr := shared.RunCommandOnNode(cmd, ip)
 			Expect(updateErr).NotTo(HaveOccurred())
 			rebootInstances(awsClient, ip)
+			sshErr := waitForSSHReady(ip)
+			if sshErr != nil {
+				shared.LogLevel("error", "connecting via SSH to %s to run commands after reboot of node: %w\n", ip, sshErr)
+			}
 		}
 	}
 	// bracket sleep instead of waiting for every ip to get ssh ready
-	shared.LogLevel("debug", "sleep 20 to ensure ssh works before next cmd")
-	time.Sleep(20 * time.Second)
+	// shared.LogLevel("debug", "sleep 20 to ensure ssh works before next cmd")
+	// time.Sleep(20 * time.Second)
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel, nodeOS,
 		newExternalAgentIps, newPrivateAgentIps)
