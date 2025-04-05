@@ -29,7 +29,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	resourceName := os.Getenv("resource_name")
-	awsDependencies, err := aws.AddClient(cluster)
+	awsClient, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
 	// create server names.
@@ -39,7 +39,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	var createErr error
-	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr = awsDependencies.CreateInstances(serverNames...)
+	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr = awsClient.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
@@ -53,21 +53,35 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	serverErr := nodeReplaceServers(cluster, awsDependencies, resourceName, serverLeaderIP, token,
+	// If node os is slemicro prep/update it and reboot the node.
+	nodeOS := os.Getenv("node_os")
+	shared.LogLevel("debug", "Testing Node OS: %s", nodeOS)
+	for _, ip := range newExternalServerIps {
+		if nodeOS == "slemicro" {
+			cmd := "sudo transactional-update setup-selinux"
+			_, updateErr := shared.RunCommandOnNode(cmd, ip)
+			Expect(updateErr).NotTo(HaveOccurred())
+			rebootInstances(awsClient, ip)
+		}
+	}
+	// bracket sleep to ensure ssh to instance works instead of waiting for every node to get ready
+	time.Sleep(20 * time.Second)
+
+	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
 		version,
 		channel,
+		nodeOS,
 		newExternalServerIps,
-		newPrivateServerIps,
-	)
+		newPrivateServerIps)
 	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, awsDependencies, version, channel, resourceName, serverLeaderIP, token)
+		nodeReplaceAgents(cluster, awsClient, version, channel, resourceName, serverLeaderIP, token, nodeOS)
 	}
 	// delete the last remaining server = leader.
-	delErr := deleteRemainServer(serverLeaderIP, awsDependencies)
+	delErr := deleteRemainServer(serverLeaderIP, awsClient)
 	Expect(delErr).NotTo(HaveOccurred(), delErr)
 	shared.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
@@ -113,7 +127,7 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 
 func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
-	joinRemotePath := fmt.Sprintf("/tmp/join_rke2_%s.sh", nodeType)
+	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
 
 	if err := shared.RunScp(cluster, ip, []string{joinLocalPath}, []string{joinRemotePath}); err != nil {
 		return shared.ReturnLogError("error running scp: %w with ip: %s", err, ip)
@@ -140,10 +154,10 @@ func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 
 func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 	cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
-	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
+	cisWorkerRemotePath := "/var/tmp/cis_worker_config.yaml"
 
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
-	joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", agent)
+	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", agent)
 
 	return shared.RunScp(
 		cluster,
@@ -155,22 +169,22 @@ func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 
 func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
-	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
+	cisMasterRemotePath := "/var/tmp/cis_master_config.yaml"
 
 	clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
-	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
+	clusterLevelpssRemotePath := "/var/tmp/cluster-level-pss.yaml"
 
 	auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
-	auditRemotePath := "/tmp/audit.yaml"
+	auditRemotePath := "/var/tmp/audit.yaml"
 
 	policyLocalPath := shared.BasePath() + "/modules/k3s/master/policy.yaml"
-	policyRemotePath := "/tmp/policy.yaml"
+	policyRemotePath := "/var/tmp/policy.yaml"
 
 	ingressPolicyLocalPath := shared.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
-	ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
+	ingressPolicyRemotePath := "/var/tmp/ingresspolicy.yaml"
 
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
-	joinRemotePath := fmt.Sprintf("/tmp/join_k3s_%s.sh", master)
+	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", master)
 
 	return shared.RunScp(
 		cluster,
@@ -196,7 +210,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 func nodeReplaceServers(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	resourceName, serverLeaderIp, token, version, channel string,
+	resourceName, serverLeaderIp, token, version, channel, nodeOS string,
 	newExternalServerIps, newPrivateServerIps []string,
 ) error {
 	if token == "" {
@@ -209,7 +223,7 @@ func nodeReplaceServers(
 
 	// join the first new server.
 	newFirstServerIP := newExternalServerIps[0]
-	err := serverJoin(cluster, serverLeaderIp, token, version, channel, newFirstServerIP, newPrivateServerIps[0])
+	err := serverJoin(cluster, a, serverLeaderIp, token, version, channel, newFirstServerIP, newPrivateServerIps[0], nodeOS)
 	if err != nil {
 		shared.LogLevel("error", "error joining first server: %w\n", err)
 
@@ -240,7 +254,7 @@ func nodeReplaceServers(
 
 	// join the rest of the servers and delete all except the leader.
 	err = joinRemainServers(cluster, a, newExternalServerIps, newPrivateServerIps,
-		oldServerIPs, serverLeaderIp, token, version, channel)
+		oldServerIPs, serverLeaderIp, token, version, channel, nodeOS)
 	if err != nil {
 		return err
 	}
@@ -252,7 +266,7 @@ func nodeReplaceServers(
 
 func buildJoinCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, install_or_enable string,
+	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installEnableOrBoth string,
 ) (string, error) {
 	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
@@ -276,11 +290,11 @@ func buildJoinCmd(
 	case "k3s":
 		return buildK3sCmd(
 			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
-			selfPrivateIP, installMode, flags, install_or_enable)
+			selfPrivateIP, installMode, flags, installEnableOrBoth)
 	case "rke2":
 		return buildRke2Cmd(
 			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
-			selfPrivateIP, installMode, flags, install_or_enable)
+			selfPrivateIP, installMode, flags, installEnableOrBoth)
 	default:
 		return "", shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
@@ -288,13 +302,13 @@ func buildJoinCmd(
 
 func buildK3sCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, install_or_enable string,
+	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
 	if nodetype == agent {
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
+			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIP,
@@ -308,12 +322,12 @@ func buildK3sCmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
-			install_or_enable,
+			installEnableOrBoth,
 		)
 	} else {
 		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
+			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIP,
@@ -330,7 +344,7 @@ func buildK3sCmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
-			install_or_enable,
+			installEnableOrBoth,
 		)
 	}
 
@@ -339,14 +353,14 @@ func buildK3sCmd(
 
 func buildRke2Cmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags, install_or_enable string,
+	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
 	ipv6 := ""
 	if nodetype == agent {
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
+			"sudo /var/tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIp,
@@ -361,12 +375,12 @@ func buildRke2Cmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
-			install_or_enable,
+			installEnableOrBoth,
 		)
 	} else {
 		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
+			"sudo /var/tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIp,
@@ -384,7 +398,7 @@ func buildRke2Cmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
-			install_or_enable,
+			installEnableOrBoth,
 		)
 	}
 
@@ -400,7 +414,8 @@ func joinRemainServers(
 	serverLeaderIp,
 	token,
 	version,
-	channel string,
+	channel,
+	nodeOS string,
 ) error {
 	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
 		privateIp := newPrivateServerIps[i]
@@ -414,7 +429,7 @@ func joinRemainServers(
 			}
 		}
 
-		if joinErr := serverJoin(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp); joinErr != nil {
+		if joinErr := serverJoin(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS); joinErr != nil {
 			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
 
 			return joinErr
@@ -447,15 +462,59 @@ func validateNodeJoin(ip string) error {
 }
 
 func serverJoin(cluster *shared.Cluster,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
-		version, channel, newExternalIP, newPrivateIP, "both")
-	if parseErr != nil {
-		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
+	awsClient *aws.Client,
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, nodeOS string) error {
+	installOrBoth := "both"
+	if nodeOS == "slemicro" {
+		installOrBoth = "install"
+		shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
 	}
 
-	if joinErr := joinNode(joinCmd, newExternalIP); joinErr != nil {
-		return shared.ReturnLogError("error joining node: %w\n", joinErr)
+	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+		newExternalIP, newPrivateIP, installOrBoth)
+	if joinStepsErr != nil {
+		if nodeOS == "slemicro" {
+			return shared.ReturnLogError("error installing product (k3s | rke2) %w\n", joinStepsErr)
+		} else {
+			return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
+		}
+	}
+
+	// reboot nodes and enable services for slemicro OS
+	if nodeOS == "slemicro" {
+		rebootInstances(awsClient, newExternalIP)
+		sshErr := waitForSSHReady(newExternalIP)
+		if sshErr != nil {
+			return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", newExternalIP, sshErr)
+		}
+
+		// enable service post reboot
+		shared.LogLevel("debug", "Enable Services on: %s", newExternalIP)
+		enableErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+			newExternalIP, newPrivateIP, "enable")
+		if enableErr != nil {
+			return shared.ReturnLogError("error enabling service for product (k3s | rke2) %w\n", enableErr)
+		}
+	}
+
+	return nil
+}
+
+func joinSteps(cluster *shared.Cluster,
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, installEnableOrBoth string) error {
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
+		version, channel, newExternalIP, newPrivateIP, installEnableOrBoth)
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing join command for join step: %s %w\n", installEnableOrBoth, parseErr)
+	}
+	var delayTime bool
+	if installEnableOrBoth == "both" || installEnableOrBoth == "enable" {
+		delayTime = true
+	} else {
+		delayTime = false
+	}
+	if executeErr := execute(joinCmd, newExternalIP, delayTime); executeErr != nil {
+		return shared.ReturnLogError("error performing install or enable action on node: %s %w\n", installEnableOrBoth, executeErr)
 	}
 
 	return nil
@@ -483,12 +542,13 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 
 func nodeReplaceAgents(
 	cluster *shared.Cluster,
-	awsDependencies *aws.Client,
+	awsClient *aws.Client,
 	version,
 	channel,
 	resourceName,
 	serverLeaderIp,
-	token string,
+	token,
+	nodeOS string,
 ) {
 	// create agent names.
 	var agentNames []string
@@ -499,7 +559,7 @@ func nodeReplaceAgents(
 	newExternalAgentIps,
 		newPrivateAgentIps,
 		instanceAgentIds,
-		createAgentErr := awsDependencies.CreateInstances(agentNames...)
+		createAgentErr := awsClient.CreateInstances(agentNames...)
 	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
 	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",
@@ -509,9 +569,22 @@ func nodeReplaceAgents(
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
-	agentErr := replaceAgents(cluster, awsDependencies, serverLeaderIp, token, version, channel, newExternalAgentIps,
-		newPrivateAgentIps,
-	)
+	// If node os is slemicro prep/update it and reboot the node.
+	for _, ip := range newExternalAgentIps {
+		if nodeOS == "slemicro" {
+			// method to prep slemicro call here
+			cmd := "sudo transactional-update setup-selinux"
+			_, updateErr := shared.RunCommandOnNode(cmd, ip)
+			Expect(updateErr).NotTo(HaveOccurred())
+			rebootInstances(awsClient, ip)
+		}
+	}
+	// bracket sleep instead of waiting for every ip to get ssh ready
+	shared.LogLevel("debug", "sleep 20 to ensure ssh works before next cmd")
+	time.Sleep(20 * time.Second)
+
+	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel, nodeOS,
+		newExternalAgentIps, newPrivateAgentIps)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
 
 	shared.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
@@ -520,7 +593,7 @@ func nodeReplaceAgents(
 func replaceAgents(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	serverLeaderIp, token, version, channel string,
+	serverLeaderIp, token, version, channel, nodeOS string,
 	newExternalAgentIps, newPrivateAgentIps []string,
 ) error {
 	if token == "" {
@@ -540,7 +613,7 @@ func replaceAgents(
 	for i, externalIp := range newExternalAgentIps {
 		privateIp := newPrivateAgentIps[i]
 
-		joinErr := joinAgent(cluster, serverLeaderIp, token, version, channel, externalIp, privateIp)
+		joinErr := joinAgent(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS)
 		if joinErr != nil {
 			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
 
@@ -569,21 +642,52 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 	return nil
 }
 
-func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
-		channel, selfExternalIp, selfPrivateIp, "both")
-	if parseErr != nil {
-		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
+func joinAgent(cluster *shared.Cluster, awsClient *aws.Client, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, nodeOS string) error {
+	installOrBoth := "both"
+	if nodeOS == "slemicro" {
+		installOrBoth = "install"
+		shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
 	}
 
-	if joinErr := joinNode(cmd, selfExternalIp); joinErr != nil {
-		return shared.ReturnLogError("error joining node: %w\n", joinErr)
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, installOrBoth)
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing join(both)|install: %s commands: %w\n", installOrBoth, parseErr)
+	}
+	var joinErr error
+	if installOrBoth == "both" {
+		joinErr = execute(cmd, selfExternalIp, true)
+	} else {
+		joinErr = execute(cmd, selfExternalIp, false)
+	}
+
+	if joinErr != nil {
+		return shared.ReturnLogError("error on step join(both)|install: %s on agent node: %w\n", installOrBoth, joinErr)
+	}
+
+	// reboot nodes and enable services for slemicro OS
+	if nodeOS == "slemicro" {
+		rebootInstances(awsClient, selfExternalIp)
+		sshErr := waitForSSHReady(selfExternalIp)
+		if sshErr != nil {
+			return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", selfExternalIp, sshErr)
+		}
+		// enable service post reboot
+		cmd, parseErr = buildJoinCmd(cluster, agent, serverIp, token, version,
+			channel, selfExternalIp, selfPrivateIp, "enable")
+		if parseErr != nil {
+			return shared.ReturnLogError("error parsing enable commands: %w\n", parseErr)
+		}
+
+		if joinErr := execute(cmd, selfExternalIp, true); joinErr != nil {
+			return shared.ReturnLogError("error enabling services during join of agent node: %w\n", joinErr)
+		}
 	}
 
 	return nil
 }
 
-func joinNode(cmd, ip string) error {
+func execute(cmd, ip string, delayTime bool) error {
 	if cmd == "" {
 		return shared.ReturnLogError("cmd not sent\n")
 	}
@@ -591,10 +695,12 @@ func joinNode(cmd, ip string) error {
 		return shared.ReturnLogError("server IP not sent\n")
 	}
 
+	shared.LogLevel("debug", "Executing: %s on ip: %s", cmd, ip)
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	if err != nil {
-		return shared.ReturnLogError("error joining node: %w\n", err)
+		return shared.ReturnLogError("error running cmd %s on node: %w\n", cmd, err)
 	}
+
 	res = strings.TrimSpace(res)
 	if strings.Contains(res, "service failed") {
 		shared.LogLevel("error", "join node response: %s\n", res)
@@ -602,9 +708,11 @@ func joinNode(cmd, ip string) error {
 		return shared.ReturnLogError("error joining node: %s\n", res)
 	}
 
-	delay := time.After(40 * time.Second)
-	// delay not meant to wait if node is joined, but rather to give time for all join process to complete under the hood
-	<-delay
+	if delayTime {
+		delay := time.After(40 * time.Second)
+		// delay not meant to wait if node is joined, but rather to give time for all join process to complete under the hood
+		<-delay
+	}
 
 	return nil
 }
@@ -624,4 +732,24 @@ func validateClusterHealth() error {
 	}
 
 	return nil
+}
+
+func waitForSSHReady(ip string) error {
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(2 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timed out waiting for SSH Ready")
+		case <-ticker.C:
+			cmdOutput, sshErr := shared.RunCommandOnNode("ls -lrt", ip)
+			if sshErr != nil {
+				continue
+			}
+			if cmdOutput != "" {
+				return nil
+			}
+		}
+	}
 }
