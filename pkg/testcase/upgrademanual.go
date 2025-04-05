@@ -3,7 +3,9 @@ package testcase
 import (
 	"errors"
 	"fmt"
+	"os"
 
+	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/shared"
 
@@ -29,10 +31,20 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 		return shared.ReturnLogError("no nodes found to upgrade")
 	}
 
+	// Initialize aws client in case reboot is needed for slemicro
+	nodeOS := os.Getenv("node_os")
+	shared.LogLevel("debug", "Testing Node OS: %s", nodeOS)
+	var awsClient *aws.Client
+	var clientErr error
+	if nodeOS == "slemicro" {
+		awsClient, clientErr = aws.AddClient(cluster)
+		Expect(clientErr).NotTo(HaveOccurred())
+	}
+
 	// Upgrades server nodes sequentially
 	if cluster.NumServers > 0 {
 		for _, ip := range cluster.ServerIPs {
-			if err := upgradeProduct(cluster.Config.Product, server, version, ip); err != nil {
+			if err := upgradeProduct(awsClient, cluster.Config.Product, server, version, ip, nodeOS); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", server, ip, err)
 				return err
 			}
@@ -42,7 +54,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	// Upgrades agent nodes sequentially
 	if cluster.NumAgents > 0 {
 		for _, ip := range cluster.AgentIPs {
-			if err := upgradeProduct(cluster.Config.Product, agent, version, ip); err != nil {
+			if err := upgradeProduct(awsClient, cluster.Config.Product, agent, version, ip, nodeOS); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", agent, ip, err)
 				return err
 			}
@@ -60,13 +72,25 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	return nil
 }
 
+func rebootInstances(awsClient *aws.Client, ip string) {
+	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
+	Expect(getErr).NotTo(HaveOccurred())
+	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
+	rebootError := awsClient.RebootInstance(serverInstanceID)
+	Expect(rebootError).NotTo(HaveOccurred())
+}
+
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(product, nodeType, installType, ip string) error {
+func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, nodeOS string) error {
 	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
 		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
 		return err
+	}
+
+	if nodeOS == "slemicro" {
+		rebootInstances(awsClient, ip)
 	}
 
 	actions := []shared.ServiceAction{

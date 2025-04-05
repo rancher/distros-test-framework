@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -120,7 +121,17 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+	installMethodValue := os.Getenv("install_method")
+	installMethod := ""
+	if installMethodValue != "" {
+		installMethod = fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), installMethodValue)
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s", installCmd, installFlag, channel, installMethod)
+		return fmt.Sprintf(installCmd, installFlag, channel, installMethod)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s  sh -s - %s", product, nodeType)
+	LogLevel("debug", "installCmd: %s installFlag: %s channel: %s", installCmd, installFlag, channel)
 
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }
