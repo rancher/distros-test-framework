@@ -51,21 +51,33 @@ install_kubectl() {
 }
 
 install_podman() {
-  apt-get -qq update
-  apt-get -yq install podman
+  [ -r /etc/os-release ] && . /etc/os-release
+  if [ `expr "${ID_LIKE}" : ".*suse.*"` != 0 ]; then
+    echo "Installing podman using zypper..."
+    zypper install -y podman
+  else
+    echo "Installing podman using apt-get..."
+    apt-get -yq install podman
+  fi
 }
 
 main() {
   echo "Install kubectl..."
   install_kubectl
+  echo "Wait for 15 seconds for the process to finish"
+  sleep 10
   has_docker=$(has_bin docker)
   if [[ "$has_docker" =~ "error" ]] || [ -z "$has_docker" ]; then
     echo "Install docker..."
     install_docker
+    echo "Wait for 15 seconds for the process to finish"
+    sleep 10
   else
     echo "Found docker in path: $has_docker"
   fi
   echo "Install podman..."
   install_podman
+  echo "Wait for 15 seconds for the process to finish"
+  sleep 10
 }
 main "$@"
