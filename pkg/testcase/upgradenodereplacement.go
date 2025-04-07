@@ -58,16 +58,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	nodeOS := os.Getenv("node_os")
 	if nodeOS == "slemicro" {
 		for _, ip := range newExternalServerIps {
-			shared.LogLevel("debug", "Pre-install Setup %s node ip %s for selinux", nodeOS, ip)
-			cmd := "sudo transactional-update setup-selinux"
-			shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
-			_, updateErr := shared.RunCommandOnNode(cmd, ip)
-			Expect(updateErr).NotTo(HaveOccurred())
-			rebootInstances(awsClient, ip)
-			sshErr := waitForSSHReady(ip)
-			if sshErr != nil {
-				shared.LogLevel("warn", "connecting via SSH to %s to run commands after reboot of node: %w\n", ip, sshErr)
-			}
+			prepSlemicro(awsClient, ip, nodeOS)
 		}
 	}
 
@@ -486,11 +477,12 @@ func serverJoin(cluster *shared.Cluster,
 
 	// reboot nodes and enable services for slemicro OS
 	if nodeOS == "slemicro" {
-		rebootInstances(awsClient, newExternalIP)
-		sshErr := waitForSSHReady(newExternalIP)
-		if sshErr != nil {
-			return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", newExternalIP, sshErr)
-		}
+		rebootNodeAndWait(awsClient, newExternalIP)
+		// rebootEc2Instance(awsClient, newExternalIP)
+		// sshErr := waitForSSHReady(newExternalIP)
+		// if sshErr != nil {
+		// 	return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", newExternalIP, sshErr)
+		// }
 
 		// enable service post reboot
 		shared.LogLevel("debug", "Enable Services on: %s", newExternalIP)
@@ -576,16 +568,7 @@ func nodeReplaceAgents(
 	// If node os is slemicro prep/update it and reboot the node.
 	if nodeOS == "slemicro" {
 		for _, ip := range newExternalAgentIps {
-			shared.LogLevel("debug", "Pre-install Setup for nodeOS: %s on ip: %s for selinux", nodeOS, ip)
-			cmd := "sudo transactional-update setup-selinux"
-			shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
-			_, updateErr := shared.RunCommandOnNode(cmd, ip)
-			Expect(updateErr).NotTo(HaveOccurred())
-			rebootInstances(awsClient, ip)
-			sshErr := waitForSSHReady(ip)
-			if sshErr != nil {
-				shared.LogLevel("error", "connecting via SSH to %s to run commands after reboot of node: %w\n", ip, sshErr)
-			}
+			prepSlemicro(awsClient, ip, nodeOS)
 		}
 	}
 
@@ -673,11 +656,7 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client, serverIp, token, 
 
 	// reboot nodes and enable services for slemicro OS
 	if nodeOS == "slemicro" {
-		rebootInstances(awsClient, selfExternalIp)
-		sshErr := waitForSSHReady(selfExternalIp)
-		if sshErr != nil {
-			return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", selfExternalIp, sshErr)
-		}
+		rebootNodeAndWait(awsClient, selfExternalIp)
 		// enable service post reboot
 		cmd, parseErr = buildJoinCmd(cluster, agent, serverIp, token, version,
 			channel, selfExternalIp, selfPrivateIp, "enable")
@@ -758,4 +737,19 @@ func waitForSSHReady(ip string) error {
 			}
 		}
 	}
+}
+
+func prepSlemicro(awsClient *aws.Client, ip, nodeOS string) {
+	shared.LogLevel("debug", "Pre-install Setup for nodeOS: %s on ip: %s for selinux", nodeOS, ip)
+	cmd := "sudo transactional-update setup-selinux"
+	shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
+	_, updateErr := shared.RunCommandOnNode(cmd, ip)
+	Expect(updateErr).NotTo(HaveOccurred())
+	rebootNodeAndWait(awsClient, ip)
+}
+
+func rebootNodeAndWait(awsClient *aws.Client, ip string) {
+	rebootEc2Instance(awsClient, ip)
+	sshErr := waitForSSHReady(ip)
+	Expect(sshErr).NotTo(HaveOccurred())
 }
