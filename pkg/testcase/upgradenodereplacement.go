@@ -46,14 +46,6 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
 		newExternalServerIps, instanceServerIds)
 
-	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new server nodes done\n")
-
-	serverLeaderIP := cluster.ServerIPs[0]
-	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
-	Expect(err).NotTo(HaveOccurred(), err)
-
 	// If node os is slemicro prep/update it and reboot the node.
 	nodeOS := os.Getenv("node_os")
 	if nodeOS == "slemicro" {
@@ -61,6 +53,14 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 			prepSlemicro(awsClient, ip, nodeOS)
 		}
 	}
+
+	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new server nodes done\n")
+
+	serverLeaderIP := cluster.ServerIPs[0]
+	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
+	Expect(err).NotTo(HaveOccurred(), err)
 
 	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
 		version,
@@ -149,7 +149,7 @@ func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 
 func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 	cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
-	cisWorkerRemotePath := "/var/tmp/cis_worker_config.yaml"
+	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
 
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", agent)
@@ -164,19 +164,19 @@ func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 
 func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
-	cisMasterRemotePath := "/var/tmp/cis_master_config.yaml"
+	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
 	clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
-	clusterLevelpssRemotePath := "/var/tmp/cluster-level-pss.yaml"
+	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
 
 	auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
-	auditRemotePath := "/var/tmp/audit.yaml"
+	auditRemotePath := "/tmp/audit.yaml"
 
 	policyLocalPath := shared.BasePath() + "/modules/k3s/master/policy.yaml"
-	policyRemotePath := "/var/tmp/policy.yaml"
+	policyRemotePath := "/tmp/policy.yaml"
 
 	ingressPolicyLocalPath := shared.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
-	ingressPolicyRemotePath := "/var/tmp/ingresspolicy.yaml"
+	ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
 
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", master)
@@ -478,11 +478,6 @@ func serverJoin(cluster *shared.Cluster,
 	// reboot nodes and enable services for slemicro OS
 	if nodeOS == "slemicro" {
 		rebootNodeAndWait(awsClient, newExternalIP)
-		// rebootEc2Instance(awsClient, newExternalIP)
-		// sshErr := waitForSSHReady(newExternalIP)
-		// if sshErr != nil {
-		// 	return shared.ReturnLogError("error connecting via SSH to %s to run commands after reboot of node: %w\n", newExternalIP, sshErr)
-		// }
 
 		// enable service post reboot
 		shared.LogLevel("debug", "Enable Services on: %s", newExternalIP)
@@ -561,16 +556,16 @@ func nodeReplaceAgents(
 	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",
 		newExternalAgentIps, instanceAgentIds)
 
-	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new worker nodes done\n")
-
 	// If node os is slemicro prep/update it and reboot the node.
 	if nodeOS == "slemicro" {
 		for _, ip := range newExternalAgentIps {
 			prepSlemicro(awsClient, ip, nodeOS)
 		}
 	}
+
+	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel, nodeOS,
 		newExternalAgentIps, newPrivateAgentIps)
