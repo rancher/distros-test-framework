@@ -72,7 +72,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	return nil
 }
 
-func rebootInstances(awsClient *aws.Client, ip string) {
+func rebootEc2Instance(awsClient *aws.Client, ip string) {
 	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
 	Expect(getErr).NotTo(HaveOccurred())
 	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
@@ -90,7 +90,7 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 	}
 
 	if nodeOS == "slemicro" {
-		rebootInstances(awsClient, ip)
+		rebootEc2Instance(awsClient, ip)
 	}
 
 	actions := []shared.ServiceAction{
