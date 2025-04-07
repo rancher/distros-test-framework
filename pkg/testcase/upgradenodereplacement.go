@@ -21,7 +21,8 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+func TestUpgradeReplaceNode(cluster *shared.Cluster,
+	flags *customflag.FlagConfig) {
 	version := flags.InstallMode.String()
 	channel := flags.Channel.String()
 	if version == "" {
@@ -55,10 +56,11 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 
 	// If node os is slemicro prep/update it and reboot the node.
 	nodeOS := os.Getenv("node_os")
-	shared.LogLevel("debug", "Testing Node OS: %s", nodeOS)
-	for _, ip := range newExternalServerIps {
-		if nodeOS == "slemicro" {
+	if nodeOS == "slemicro" {
+		for _, ip := range newExternalServerIps {
+			shared.LogLevel("debug", "Pre-install Setup %s node ip %s for selinux", nodeOS, ip)
 			cmd := "sudo transactional-update setup-selinux"
+			shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
 			_, updateErr := shared.RunCommandOnNode(cmd, ip)
 			Expect(updateErr).NotTo(HaveOccurred())
 			rebootInstances(awsClient, ip)
@@ -68,8 +70,6 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 			}
 		}
 	}
-	// bracket sleep to ensure ssh to instance works instead of waiting for every node to get ready
-	// time.Sleep(20 * time.Second)
 
 	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
 		version,
@@ -479,9 +479,9 @@ func serverJoin(cluster *shared.Cluster,
 	if joinStepsErr != nil {
 		if nodeOS == "slemicro" {
 			return shared.ReturnLogError("error installing product (k3s | rke2) %w\n", joinStepsErr)
-		} else {
-			return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
 		}
+
+		return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
 	}
 
 	// reboot nodes and enable services for slemicro OS
@@ -574,10 +574,11 @@ func nodeReplaceAgents(
 	shared.LogLevel("info", "Scp files to new worker nodes done\n")
 
 	// If node os is slemicro prep/update it and reboot the node.
-	for _, ip := range newExternalAgentIps {
-		if nodeOS == "slemicro" {
-			// method to prep slemicro call here
+	if nodeOS == "slemicro" {
+		for _, ip := range newExternalAgentIps {
+			shared.LogLevel("debug", "Pre-install Setup for nodeOS: %s on ip: %s for selinux", nodeOS, ip)
 			cmd := "sudo transactional-update setup-selinux"
+			shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
 			_, updateErr := shared.RunCommandOnNode(cmd, ip)
 			Expect(updateErr).NotTo(HaveOccurred())
 			rebootInstances(awsClient, ip)
@@ -587,9 +588,6 @@ func nodeReplaceAgents(
 			}
 		}
 	}
-	// bracket sleep instead of waiting for every ip to get ssh ready
-	// shared.LogLevel("debug", "sleep 20 to ensure ssh works before next cmd")
-	// time.Sleep(20 * time.Second)
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel, nodeOS,
 		newExternalAgentIps, newPrivateAgentIps)
@@ -706,7 +704,7 @@ func execute(cmd, ip string, delayTime bool) error {
 	shared.LogLevel("debug", "Executing: %s on ip: %s", cmd, ip)
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	if err != nil {
-		return shared.ReturnLogError("error running cmd %s on node: %w\n", cmd, err)
+		return shared.ReturnLogError("error running cmd on node: %w\n", err)
 	}
 
 	res = strings.TrimSpace(res)
