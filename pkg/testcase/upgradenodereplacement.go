@@ -447,7 +447,8 @@ func validateNodeJoin(ip string) error {
 }
 
 func serverJoin(cluster *shared.Cluster,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
+) error {
 	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
 		version, channel, newExternalIP, newPrivateIP, "both")
 	if parseErr != nil {
