@@ -107,3 +107,7 @@ variable "engine_mode" {}
 variable "create_eip" {
   default = false
 }
+locals {
+ install_or_both = var.node_os == "slemicro" ? "install" : "both"
+ enable_service  = var.node_os == "slemicro" ? "enable" : "no"
+}

@@ -431,7 +431,7 @@ done
 main() {
     # Source the path for environment variables added by golang code.
     if [ -f "/etc/profile.d/bin_paths.sh" ]; then
-        source /etc/profile.d/bin_paths.sh
+        . /etc/profile.d/bin_paths.sh
         cat /etc/profile.d/bin_paths.sh
     fi
 

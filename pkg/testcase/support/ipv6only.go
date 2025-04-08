@@ -87,11 +87,11 @@ func InstallOnIPv6Servers(cluster *shared.Cluster) {
 				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
 				os.Getenv("username"), os.Getenv("password"),
 			)
-			_, err := shared.CmdForPrivateNode(cluster, cmd, serverIP)
+			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 
 			cmd = fmt.Sprintf("sudo cat /var/lib/rancher/%v/server/token", cluster.Config.Product)
-			token, err = shared.CmdForPrivateNode(cluster, cmd, serverIP)
+			token, err = CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 			Expect(token).NotTo(BeEmpty())
 			shared.LogLevel("debug", "token: %v", token)
@@ -111,7 +111,7 @@ func InstallOnIPv6Servers(cluster *shared.Cluster) {
 				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
 				os.Getenv("username"), os.Getenv("password"),
 			)
-			_, err := shared.CmdForPrivateNode(cluster, cmd, serverIP)
+			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 		}
 	}
@@ -131,7 +131,7 @@ func InstallOnIPv6Agents(cluster *shared.Cluster) {
 			os.Getenv("install_channel"), os.Getenv("worker_flags"),
 			os.Getenv("username"), os.Getenv("password"),
 		)
-		_, err := shared.CmdForPrivateNode(cluster, cmd, agentIP)
+		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
 }
@@ -143,7 +143,7 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 
 	cmd += fmt.Sprintf(
 		"sudo %v configure.sh %v@%v:~/",
-		shared.ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		cluster.Aws.AwsUser, shared.EncloseSqBraces(ip))
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
@@ -174,7 +174,7 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 	}
 	cmd += fmt.Sprintf(
 		"sudo %v %v %v@%v:~/",
-		shared.ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		installScript, cluster.Aws.AwsUser, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
@@ -197,7 +197,7 @@ func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (
 		"sudo chmod +x configure.sh && "+
 			`sudo sh ./configure.sh "%v"`,
 		instanceID)
-	_, err = shared.CmdForPrivateNode(cluster, cmd, ip)
+	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	if err != nil {
 		return err
 	}

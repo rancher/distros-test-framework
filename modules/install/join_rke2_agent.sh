@@ -1,5 +1,24 @@
 #!/bin/bash
 # This script is used to join one or more nodes as agents
+# Usage:
+# node_os=${1}              # Node OS values. Ex: rhel8, centos8, slemicro
+# server_ip=${2}            # Master Server IP to join to. Value will be added to config.yaml file.
+# token=${3}                # Node Token. Value will be added to config.yaml file.
+# public_ip=${4}            # Public IP of the agent node. Value will be added to config.yaml file.
+# private_ip=${5}           # Private IP of the agent node. Value will be added to config.yaml file.
+# ipv6_ip=${6}              # IPv6 IP of the agent node. Value will be added to config.yaml file.
+# install_mode=${7}         # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${8}              # Version or Commit to install
+# channel=${9}              # Channel to install from - testing, latest or stable
+# install_method=${10}      # Method of install - rpm or tar
+# worker_flags=${11}        # Worker flags to add in config.yaml file
+# rhel_username=${12}       # rhel username
+# rhel_password=${13}       # rhel password
+# install_or_enable=${14}   # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+                            # After a node reboot, the second time the script is recalled with 'enable' which enables services.
+                            # For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x                    # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
+
 echo "$@"
 
 PS4='+(${LINENO}): '
@@ -20,6 +39,7 @@ install_method=${10}
 worker_flags=${11}
 rhel_username=${12}
 rhel_password=${13}
+install_or_enable=${14}
 
 create_config() {
   hostname=$(hostname -f)
@@ -47,7 +67,7 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/rke2/config.yaml
     fi
   fi
-  echo -e server: https://${server_ip}:9345 >>/etc/rancher/rke2/config.yaml
+  echo -e server: https://"${server_ip}":9345 >>/etc/rancher/rke2/config.yaml
   echo -e node-name: "${hostname}" >>/etc/rancher/rke2/config.yaml
   cat /etc/rancher/rke2/config.yaml
 }
@@ -56,6 +76,15 @@ cis_setup() {
   if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]; then
     if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
       cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+    elif [[ "$node_os" == *"slemicro"* ]]; then
+      cat <<EOF >> ~/60-rke2-cis.conf
+on_oovm.panic_on_oom=0
+vm.overcommit_memory=1
+kernel.panic=10
+kernel.panic_ps=1
+kernel.panic_on_oops=1
+EOF
+      cp ~/60-rke2-cis.conf /etc/sysctl.d/;
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     fi
@@ -107,7 +136,7 @@ install_rke2() {
   fi
 
   install_cmd="curl -sfL $url | $params sh -"
-
+  echo "$install_cmd"
   if ! eval "$install_cmd"; then
     echo "Failed to install rke2-agent on joining node ip: $public_ip"
     exit 1
@@ -142,14 +171,21 @@ install() {
   install_rke2
   sleep 10
   cis_setup
-  enable_service
 }
 
 main() {
-  create_config
-  update_config
-  subscription_manager
-  disable_cloud_setup
-  install
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "${install_or_enable}" == "install" ]] || [[ "${install_or_enable}" == "both" ]]; then
+    echo "Executing INSTALL Block"
+    create_config
+    update_config
+    subscription_manager
+    disable_cloud_setup
+    install
+  fi
+  if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then
+    echo "Executing ENABLE Block"
+    enable_service
+  fi
 }
 main "$@"

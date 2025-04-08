@@ -91,6 +91,15 @@ resource "aws_instance" "master" {
     Name                              = "${var.resource_name}-${local.resource_tag}-server1"
     "kubernetes.io/cluster/clusterid" = "owned"
   }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
+    ]
+  }
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
   provisioner "file" {
     source      = "../install/optional_write_files.sh"
     destination = "/tmp/optional_write_files.sh"
@@ -113,15 +122,25 @@ resource "aws_instance" "master" {
   }
   provisioner "file" {
     source      = "../install/rke2_master.sh"
-    destination = "/tmp/rke2_master.sh"
+    destination = "/var/tmp/rke2_master.sh"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
-      chmod +x /tmp/rke2_master.sh
-      sudo /tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      chmod +x /var/tmp/rke2_master.sh
+      sudo /var/tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.install_or_both}"
     EOT
     ]
   }
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
+  provisioner "remote-exec" {
+    inline = [<<-EOT
+      sudo /var/tmp/rke2_master.sh ${var.node_os} ${local.fqdn} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.enable_service}"
+    EOT
+    ]
+  }
+
 
   //update master_ip file with either eip or public ip
   provisioner "local-exec" {
@@ -214,6 +233,14 @@ resource "aws_instance" "master2-ha" {
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   depends_on = [aws_instance.master]
+  provisioner "remote-exec" {
+    inline = [
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
+    ]
+  }
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
   provisioner "file" {
     source      = "../install/optional_write_files.sh"
     destination = "/tmp/optional_write_files.sh"
@@ -236,12 +263,21 @@ resource "aws_instance" "master2-ha" {
   }
   provisioner "file" {
     source      = "../install/join_rke2_master.sh"
-    destination = "/tmp/join_rke2_master.sh"
+    destination = "/var/tmp/join_rke2_master.sh"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
-      chmod +x /tmp/join_rke2_master.sh
-      sudo /tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password}
+      chmod +x /var/tmp/join_rke2_master.sh
+      sudo /var/tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.install_or_both}"
+    EOT
+    ]
+  }
+  provisioner "local-exec" {
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+  }
+  provisioner "remote-exec" {
+    inline = [<<-EOT
+      sudo /var/tmp/join_rke2_master.sh ${var.node_os} ${local.fqdn} ${local.master_node_ip} ${local.node_token} ${self.public_ip} ${self.private_ip} "${var.enable_ipv6 ? self.ipv6_addresses[0] : ""}" ${var.install_mode} ${var.rke2_version} "${var.rke2_channel}" "${var.install_method}" "${var.datastore_type}" "${data.template_file.test.rendered}" "${var.server_flags}" ${var.username} ${var.password} "${local.enable_service}"
     EOT
     ]
   }
@@ -483,7 +519,7 @@ resource "null_resource" "update_kubeconfig" {
     command = "ssh-keyscan ${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip} >> /root/.ssh/known_hosts"
   }
   provisioner "local-exec" {
-    command    = "scp -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
+    command    = "scp -i ${var.access_key} ${var.aws_user}@${count.index == 0 ? aws_instance.master.public_ip : aws_instance.master2-ha[count.index - 1].public_ip}:/var/tmp/.control-plane /tmp/${var.resource_name}_control_plane_${count.index}"
     on_failure = continue
   }
   provisioner "local-exec" {

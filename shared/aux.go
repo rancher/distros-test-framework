@@ -491,7 +491,7 @@ func CopyFileContents(srcPath, destPath string) error {
 	return nil
 }
 
-// ReplaceFileContents reads file from path and replaces them based on key value pair provided.
+// ReplaceFileContents reads file from local path and replaces them based on key value pair provided.
 func ReplaceFileContents(filePath string, replaceKV map[string]string) error {
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
