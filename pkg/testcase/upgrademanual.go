@@ -16,6 +16,8 @@ const (
 	server  = "server"
 	status  = "status"
 	restart = "restart"
+	stop    = "stop"
+	start   = "start"
 )
 
 // TestUpgradeClusterManual upgrades the cluster "manually".
@@ -94,7 +96,8 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 	}
 
 	actions := []shared.ServiceAction{
-		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 180},
+		{Service: product, Action: stop, NodeType: nodeType, ExplicitDelay: 30},
+		{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 180},
 		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 30},
 	}
 
