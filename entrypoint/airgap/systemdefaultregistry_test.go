@@ -7,14 +7,14 @@ import (
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
 var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, func() {
-	It("Creates bastion and private nodes", func() {
-		testcase.TestBuildAirgapCluster(cluster)
+	BeforeAll(func() {
+		support.BuildAirgapCluster(cluster)
 	})
 
 	It("Installs and validates product on private nodes:", func() {
@@ -37,7 +37,7 @@ var _ = Describe("Test Airgap Cluster with System Default Registry:", Ordered, f
 	})
 
 	AfterAll(func() {
-		shared.LogClusterInfoUsingBastion(cluster)
+		support.LogClusterInfoUsingBastion(cluster)
 	})
 
 	// TODO: Validate deployment, eg: cluster-ip

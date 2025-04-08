@@ -84,6 +84,9 @@ node {
                 case "tarball":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_${test_name}", parameters: install_params }
                   break
+                case "privateregistry_windows":
+                  jobs[test_name] = { build job: "rke2_private_registry_windows", parameters: install_params }
+                  break
                 } // switch case
             } // for each test_dir loop
             

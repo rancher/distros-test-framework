@@ -24,5 +24,10 @@ module "instance" {
    install_method      = var.install_method
    no_of_server_nodes  = var.no_of_server_nodes
    no_of_worker_nodes  = var.no_of_worker_nodes
+   no_of_windows_worker_nodes  = var.no_of_windows_worker_nodes
    install_channel     = var.install_channel
+   windows_ec2_instance_class  = var.windows_ec2_instance_class
+   windows_aws_ami             = var.windows_aws_ami
+   server_flags = var.server_flags
+   worker_flags = var.worker_flags
 }
