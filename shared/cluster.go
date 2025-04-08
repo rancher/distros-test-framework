@@ -721,3 +721,74 @@ func ExtractKubeImageVersion() string {
 
 	return version
 }
+
+// InstallProduct installs the product on the server node only.
+// TODO: add support for installing on all nodes.
+func InstallProduct(cluster *Cluster, publicIP, version string) error {
+	err := setConfigFile(cluster, publicIP)
+	if err != nil {
+		return ReturnLogError("failed to set config file: %w", err)
+	}
+
+	installCmd := GetInstallCmd(cluster.Config.Product, version, "server")
+	if cluster.Config.Product == "k3s" {
+		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
+		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
+	}
+
+	_, installCmdErr := RunCommandOnNode(installCmd, publicIP)
+	if installCmdErr != nil {
+		return ReturnLogError("failed to install product: \n%w", installCmdErr)
+	}
+
+	LogLevel("info", "%s successfully installed on server: %s", cluster.Config.Product, publicIP)
+
+	return nil
+}
+
+func setConfigFile(cluster *Cluster, publicIP string) error {
+	serverFlags := os.Getenv("server_flags")
+	if serverFlags == "" {
+		serverFlags = "write-kubeconfig-mode: 644"
+	}
+	serverFlags = strings.ReplaceAll(serverFlags, `\n`, "\n")
+
+	tempFilePath := "/tmp/config.yaml"
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return ReturnLogError("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", publicIP)
+	if writeErr != nil {
+		return ReturnLogError("failed to write to temp file: %w", writeErr)
+	}
+
+	flagValues := strings.Split(serverFlags, "\n")
+	for _, entry := range flagValues {
+		entry = strings.TrimSpace(entry)
+		if entry != "" {
+			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
+			if err != nil {
+				return ReturnLogError("failed to write to temp file: %w", err)
+			}
+		}
+	}
+
+	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
+	user := os.Getenv("aws_user")
+	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
+
+	_, mkdirCmdErr := RunCommandOnNode(cmd, publicIP)
+	if mkdirCmdErr != nil {
+		return ReturnLogError("failed to create remote directory: %w", mkdirCmdErr)
+	}
+
+	scpErr := RunScp(cluster, publicIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
+	if scpErr != nil {
+		return ReturnLogError("failed to copy file: %w", scpErr)
+	}
+
+	return nil
+}
