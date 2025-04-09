@@ -402,17 +402,18 @@ func joinRemainServers(
 			}
 		}
 
-		if joinErr := serverJoin(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS); joinErr != nil {
+		joinErr := serverJoin(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS)
+		if joinErr != nil {
 			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
 
 			return joinErr
 		}
 
-		joinErr := validateNodeJoin(externalIp)
-		if joinErr != nil {
-			shared.LogLevel("error", "error validating node join: %w with ip: %s", joinErr, externalIp)
+		validateJoinErr := validateNodeJoin(externalIp)
+		if validateJoinErr != nil {
+			shared.LogLevel("error", "error validating node join: %w with ip: %s", validateJoinErr, externalIp)
 
-			return joinErr
+			return validateJoinErr
 		}
 	}
 
@@ -470,7 +471,8 @@ func serverJoin(cluster *shared.Cluster,
 }
 
 func joinSteps(cluster *shared.Cluster,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, installEnableOrBoth string) error {
+	serverLeaderIP, token, version, channel string,
+	newExternalIP, newPrivateIP, installEnableOrBoth string) error {
 	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
 		version, channel, newExternalIP, newPrivateIP, installEnableOrBoth)
 	if parseErr != nil {
@@ -483,7 +485,8 @@ func joinSteps(cluster *shared.Cluster,
 		delayTime = false
 	}
 	if executeErr := execute(joinCmd, newExternalIP, delayTime); executeErr != nil {
-		return shared.ReturnLogError("error performing install or enable action on node: %s %w\n", installEnableOrBoth, executeErr)
+		return shared.ReturnLogError("error performing install or enable action on node: %s %w\n",
+			installEnableOrBoth, executeErr)
 	}
 
 	return nil
@@ -604,7 +607,8 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 	return nil
 }
 
-func joinAgent(cluster *shared.Cluster, awsClient *aws.Client, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, nodeOS string) error {
+func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
+	serverIp, token, version, channel, selfExternalIp, selfPrivateIp, nodeOS string) error {
 	installOrBoth := "both"
 	if nodeOS == "slemicro" {
 		installOrBoth = "install"
