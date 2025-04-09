@@ -126,15 +126,17 @@ func GetInstallCmd(product, installType, nodeType string) string {
 	if installMethodValue != "" {
 		installMethod = fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), installMethodValue)
 		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
-		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s", installCmd, installFlag, channel, installMethod)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s",
+			installCmd, installFlag, channel, installMethod)
 		return fmt.Sprintf(installCmd, installFlag, channel, installMethod)
 	}
 
 	nodeOS := os.Getenv("node_os")
-	if nodeOS == "slemicro" && strings.ToLower(product) == "k3s" {
+	if nodeOS == "slemicro" && strings.EqualFold(product, "k3s") {
 		skipEnable := fmt.Sprintf("INSTALL_%s_SKIP_ENABLE=true", strings.ToUpper(product))
 		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
-		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s skipEnable: %s", installCmd, installFlag, channel, skipEnable)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s skipEnable: %s",
+			installCmd, installFlag, channel, skipEnable)
 		return fmt.Sprintf(installCmd, installFlag, channel, skipEnable)
 	}
 

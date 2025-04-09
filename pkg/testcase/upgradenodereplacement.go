@@ -30,44 +30,19 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	}
 
 	resourceName := os.Getenv("resource_name")
-	awsClient, err := aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
-
-	// create server names.
-	var serverNames, instanceServerIds, newExternalServerIps, newPrivateServerIps []string
-	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace%d", resourceName, i+1))
-	}
-
-	var createErr error
-	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr = awsClient.CreateInstances(serverNames...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
-
-	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
-		newExternalServerIps, instanceServerIds)
-
-	// If node os is slemicro prep/update it and reboot the node.
 	nodeOS := os.Getenv("node_os")
-	if nodeOS == "slemicro" {
-		for _, ip := range newExternalServerIps {
-			prepSlemicro(awsClient, ip, nodeOS)
-		}
-	}
+	awsClient := getAwsClient(cluster)
 
-	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new server nodes done\n")
+	// create and prepare the servers
+	var newExternalServerIps, newPrivateServerIps []string
+	newExternalServerIps, newPrivateServerIps, _ = createAndPrepServers(awsClient, cluster, nodeOS, resourceName)
 
 	serverLeaderIP := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
-		version,
-		channel,
-		nodeOS,
-		newExternalServerIps,
-		newPrivateServerIps)
+		version, channel, nodeOS, newExternalServerIps, newPrivateServerIps)
 	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
@@ -297,7 +272,8 @@ func buildJoinCmd(
 
 func buildK3sCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, installEnableOrBoth string,
+	nodetype, serverIP, token, version, channel, selfExternalIP string,
+	selfPrivateIP, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
@@ -348,7 +324,8 @@ func buildK3sCmd(
 
 func buildRke2Cmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags, installEnableOrBoth string,
+	nodetype, serverIp, token, version, channel string,
+	selfExternalIp, selfPrivateIp, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
@@ -374,9 +351,8 @@ func buildRke2Cmd(
 		)
 	} else {
 		datastoreEndpoint := cluster.Config.RenderedTemplate
-		cmd = fmt.Sprintf(
-			"sudo /var/tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
-			nodetype,
+		arguments := fmt.Sprintf(
+			"'%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			os.Getenv("node_os"),
 			serverIp,
 			serverIp,
@@ -395,6 +371,8 @@ func buildRke2Cmd(
 			os.Getenv("password"),
 			installEnableOrBoth,
 		)
+		cmd = fmt.Sprintf(
+			"sudo /var/tmp/join_rke2_%s.sh %s", nodetype, arguments)
 	}
 
 	return cmd, nil
@@ -747,4 +725,48 @@ func rebootNodeAndWait(awsClient *aws.Client, ip string) {
 	rebootEc2Instance(awsClient, ip)
 	sshErr := waitForSSHReady(ip)
 	Expect(sshErr).NotTo(HaveOccurred())
+}
+
+func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
+	if nodeOS == "slemicro" {
+		for _, ip := range ips {
+			prepSlemicro(awsClient, ip, nodeOS)
+		}
+	}
+}
+
+func getAwsClient(cluster *shared.Cluster) *aws.Client {
+	awsClient, err := aws.AddClient(cluster)
+	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+	return awsClient
+}
+
+func getServerNames(cluster *shared.Cluster, resourceName string) []string {
+	var serverNames []string
+	for i := 0; i < len(cluster.ServerIPs); i++ {
+		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace%d", resourceName, i+1))
+	}
+	return serverNames
+}
+
+// function to create and prepare servers needed for replacement
+func createAndPrepServers(awsClient *aws.Client,
+	cluster *shared.Cluster,
+	nodeOS string, resourceName string) ([]string, []string, []string) {
+	// create aws ec2 instances
+	names := getServerNames(cluster, resourceName)
+	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr := awsClient.CreateInstances(names...)
+	Expect(createErr).NotTo(HaveOccurred(), createErr)
+	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
+		newExternalServerIps, instanceServerIds)
+
+	// If node os is slemicro prep/update it and reboot the node
+	prepSlemicroNodes(newExternalServerIps, nodeOS, awsClient)
+
+	// scp needed files to the new nodes
+	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
+	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	shared.LogLevel("info", "Scp files to new server nodes done\n")
+
+	return newExternalServerIps, newPrivateServerIps, instanceServerIds
 }
