@@ -26,7 +26,7 @@ resource "aws_instance" "worker" {
   }
   provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo mkdir -p /opt/data && sudo transactional-update setup-selinux || exit 0",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
 

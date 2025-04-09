@@ -83,7 +83,7 @@ resource "aws_instance" "master" {
 
   provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo mkdir -p /opt/data && sudo transactional-update setup-selinux || exit 0",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
@@ -246,7 +246,7 @@ resource "aws_instance" "master2-ha" {
   }
   provisioner "remote-exec" {
     inline = [
-      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo mkdir -p /opt/data && sudo transactional-update setup-selinux || exit 0",
+      "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
