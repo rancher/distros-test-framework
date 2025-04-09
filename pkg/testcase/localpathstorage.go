@@ -14,6 +14,7 @@ var lps = "local-path-storage"
 
 func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	createDir(cluster)
+	namespace := "local-path-storage"
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
@@ -26,6 +27,19 @@ func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, del
 		getPodVolumeTestRunning,
 		statusRunning,
 	)
+	if err != nil {
+		filters := map[string]string{
+			"namespace": namespace,
+		}
+		pods, getErr := shared.GetPodsFiltered(filters)
+		if getErr != nil {
+			shared.LogLevel("error", "Possibly no pods found with namespace: local-path-stograge")
+		}
+		for _, pod := range pods {
+			shared.GetPodLogs(cluster, pod)
+			shared.DescribePod(cluster, pod)
+		}
+	}
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	_, err = shared.WriteDataPod(cluster, lps)
