@@ -112,7 +112,7 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 			sleActions := []shared.ServiceAction{
 				{Service: product, Action: stop, NodeType: nodeType, ExplicitDelay: 30},
 				{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 60},
-				{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 180},
+				{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 120},
 			}
 			output, err = ms.ManageService(ip, sleActions)
 		} else {
