@@ -14,7 +14,6 @@ var namespace = "local-path-storage"
 
 func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	createDir(cluster)
-	// namespace := "local-path-storage"
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
