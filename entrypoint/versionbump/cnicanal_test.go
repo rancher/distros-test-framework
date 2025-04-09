@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	kgn        = "kubectl get node -o yaml"
 	calicoCmd  = kgn + " : | grep 'hardened-calico' -A1, "
 	flannelCmd = kgn + " : | grep 'hardened-flannel' -A1"
 )
