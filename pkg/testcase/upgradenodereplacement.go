@@ -738,6 +738,7 @@ func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
 func getAwsClient(cluster *shared.Cluster) *aws.Client {
 	awsClient, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+
 	return awsClient
 }
 
@@ -746,13 +747,14 @@ func getServerNames(cluster *shared.Cluster, resourceName string) []string {
 	for i := 0; i < len(cluster.ServerIPs); i++ {
 		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace%d", resourceName, i+1))
 	}
+
 	return serverNames
 }
 
-// function to create and prepare servers needed for replacement
 func createAndPrepServers(awsClient *aws.Client,
 	cluster *shared.Cluster,
-	nodeOS string, resourceName string) ([]string, []string, []string) {
+	nodeOS string, resourceName string) (
+	newExternalServerIps []string, newPrivateServerIps []string, instanceServerIds []string) {
 	// create aws ec2 instances
 	names := getServerNames(cluster, resourceName)
 	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr := awsClient.CreateInstances(names...)

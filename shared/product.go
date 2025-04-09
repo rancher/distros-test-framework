@@ -128,6 +128,7 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
 		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s",
 			installCmd, installFlag, channel, installMethod)
+
 		return fmt.Sprintf(installCmd, installFlag, channel, installMethod)
 	}
 
@@ -137,6 +138,7 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
 		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s skipEnable: %s",
 			installCmd, installFlag, channel, skipEnable)
+
 		return fmt.Sprintf(installCmd, installFlag, channel, skipEnable)
 	}
 
