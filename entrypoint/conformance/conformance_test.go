@@ -1,41 +1,36 @@
-package ipv6only
+package sonobuoyconformance
 
 import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
-	BeforeAll(func() {
-		support.BuildIPv6OnlyCluster(cluster)
+var _ = Describe("Sonobuoy Conformance Tests...", func() {
+	It("Starts Up with no issues", func() {
+		testcase.TestBuildCluster(cluster)
 	})
 
-	It("Install product on ipv6 only nodes", func() {
-		testcase.TestIPv6Only(cluster, awsClient)
-	})
-
-	It("Validates Nodes", func() {
-		testcase.TestNodeStatusUsingBastion(
+	It("Validates Node", func() {
+		testcase.TestNodeStatus(
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			nil,
 		)
 	})
 
-	It("Validates Pods", func() {
-		testcase.TestPodStatusUsingBastion(
+	It("Validate Pods", func() {
+		testcase.TestPodStatus(
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
 
-	AfterAll(func() {
-		support.LogClusterInfoUsingBastion(cluster)
+	It("Validates the releases conformance with upstream requirements", func() {
+		testcase.TestConformance(flags.External.SonobuoyVersion)
 	})
 })
 

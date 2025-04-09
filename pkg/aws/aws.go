@@ -17,7 +17,8 @@ type Client struct {
 
 func AddClient(c *shared.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(c.Aws.Region)})
+		Region: aws.String(c.Aws.Region),
+	})
 	if err != nil {
 		return nil, shared.ReturnLogError("error creating AWS session: %v", err)
 	}

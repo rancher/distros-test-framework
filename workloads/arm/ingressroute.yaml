@@ -72,7 +72,7 @@ spec:
             - name: web
               containerPort: 80
 ---
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: $APIVERSION
 kind: IngressRoute
 metadata:
   name: simpleingressroute
@@ -87,7 +87,7 @@ spec:
     - name: whoami
       port: 80
 ---
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: $APIVERSION
 kind: IngressRoute
 metadata:
   name: ingressroutetls

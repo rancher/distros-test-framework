@@ -57,7 +57,6 @@ func handleWorkload(action, resourceDir, workload string) error {
 
 func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
-
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
 	fmt.Println(out)
@@ -65,7 +64,6 @@ func applyWorkload(workload, filename string) error {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
-
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
 
@@ -252,15 +250,15 @@ func FetchIngressIP(namespace string) (ingressIPs []string, err error) {
 	return ingressIPs, nil
 }
 
-// SonobuoyMixedOS Executes scripts/mixedos_sonobuoy.sh script.
+// InstallSonobuoy Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.
-func SonobuoyMixedOS(action, version string) error {
+func InstallSonobuoy(action, version string) error {
 	if action != "install" && action != "delete" {
 		return ReturnLogError("invalid action: %s. Must be 'install' or 'delete'", action)
 	}
 
-	scriptsDir := BasePath() + "/scripts/mixedos_sonobuoy.sh"
+	scriptsDir := BasePath() + "/scripts/install_sonobuoy.sh"
 	err := os.Chmod(scriptsDir, 0o755)
 	if err != nil {
 		return ReturnLogError("failed to change script permissions: %w", err)
@@ -461,7 +459,7 @@ func ReadDataPod(cluster *Cluster, namespace string) (string, error) {
 	}
 
 	cmd := "kubectl exec -n local-path-storage " + podName + " --kubeconfig=" + KubeConfigFile +
-		" -- cat /data/test"
+		" -- cat /opt/data/test"
 
 	res, err := RunCommandHost(cmd)
 	if err != nil {
@@ -485,7 +483,7 @@ func WriteDataPod(cluster *Cluster, namespace string) (string, error) {
 	}
 
 	cmd := "kubectl exec -n local-path-storage  " + podName + " --kubeconfig=" + KubeConfigFile +
-		" -- sh -c 'echo testing local path > /data/test' "
+		" -- sh -c 'echo testing local path > /opt/data/test' "
 
 	return RunCommandHost(cmd)
 }
@@ -698,4 +696,28 @@ func AddProductCfg() *config.Env {
 	}
 
 	return cfg
+}
+
+func ExtractKubeImageVersion() string {
+	prod, serverVersion, err := Product()
+	if err != nil {
+		LogLevel("error", "error retrieving version of product: %s", err)
+		os.Exit(1)
+	}
+
+	version := strings.Split(serverVersion, "+")[0]
+	version = strings.TrimPrefix(version, prod+" version ")
+	version = strings.TrimSpace(version)
+
+	if strings.Contains(version, "-rc") {
+		version = strings.Split(version, "-rc")[0]
+	}
+
+	if version == "" {
+		LogLevel("error", "%s failed to resolve to server version string: %s", serverVersion, err)
+		os.Exit(1)
+	}
+	LogLevel("info", "serverVersionReturnValue: %s", version)
+
+	return version
 }

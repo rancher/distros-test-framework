@@ -1,8 +1,9 @@
-package mixedoscluster
+package sonobuoyconformance
 
 import (
 	"flag"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,8 +27,8 @@ var (
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
-	flag.StringVar(&flags.External.SonobuoyVersion, "sonobuoyVersion", "0.56.17", "Sonobuoy Version that will be executed on the cluster")
-	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&customflag.ServiceFlag.External.SonobuoyVersion, "sonobuoyVersion", "0.57.3", "Sonobuoy binary version")
+	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -35,6 +36,8 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	verifyClusterNodes()
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
@@ -45,21 +48,16 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	if cluster.Config.Product == "k3s" {
-		shared.LogLevel("error", "\nproduct not supported: %s", cluster.Config.Product)
-		os.Exit(1)
-	}
-
 	os.Exit(m.Run())
 }
 
-func TestMixedOSClusterCreateSuite(t *testing.T) {
-	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Create Mixed OS Cluster Test Suite")
+func TestConformance(t *testing.T) {
+	RegisterFailHandler(Fail)
+
+	RunSpecs(t, "Run Conformance Suite")
 }
 
-var _ = ReportAfterSuite("Create Mixed OS Cluster Test Suite", func(report Report) {
-	// Add Qase reporting capabilities.
+var _ = ReportAfterSuite("Conformance Suite", func(report Report) {
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
@@ -78,6 +76,18 @@ var _ = AfterSuite(func() {
 	}
 })
 
-func FailWithReport(message string, callerSkip ...int) {
-	Fail(message, callerSkip[0]+1)
+func verifyClusterNodes() {
+	shared.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
+	s, serverErr := strconv.Atoi(os.Getenv("no_of_server_nodes"))
+	w, workerErr := strconv.Atoi(os.Getenv("no_of_worker_nodes"))
+
+	if serverErr != nil || workerErr != nil {
+		shared.LogLevel("error", "Failed to convert node counts to integers: %v, %v", serverErr, workerErr)
+		os.Exit(1)
+	}
+
+	if s < 1 && w < 1 {
+		shared.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
+		os.Exit(1)
+	}
 }

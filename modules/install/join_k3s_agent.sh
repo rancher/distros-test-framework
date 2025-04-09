@@ -1,4 +1,21 @@
 #!/bin/bash
+# Usage:
+# node_os=${1}            # Node OS values. Ex: rhel8, centos8, slemicro
+# server_ip=${2}          # Master Server IP to join to. Value will be added to config.yaml file.
+# token=${3}              # Node Token. Value will be added to config.yaml file.
+# public_ip=${4}          # Public IP of the agent node. Value will be added to config.yaml file.
+# private_ip=${5}         # Private IP of the agent node. Value will be added to config.yaml file.
+# ipv6_ip=${6}            # IPv6 IP of the agent node. Value will be added to config.yaml file.
+# install_mode=${7}       # Install mode - INSTALL_<K3S|RKE2>_<VERSION|COMMIT>
+# version=${8}            # Version or Commit to install
+# channel=${9}            # Channel to install from - latest, testing, stable.
+# worker_flags=${10}      # Worker flags to add in config.yaml
+# rhel_username=${11}     # rhel username
+# rhel_password=${12}     # rhel password
+# install_or_enable=${13} # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
+                          # After a node reboot, the second time the script is recalled with 'enable' which enables services.
+                          # For all other node_os values, this value will be 'both' and this script will be called only once.
+# set -x                  # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 PS4='+(${LINENO}): '
 set -e
@@ -15,8 +32,9 @@ install_mode=${7}
 version=${8}
 channel=${9}
 worker_flags=${10}
-rhel_username=${12}
-rhel_password=${13}
+rhel_username=${11}
+rhel_password=${12}
+install_or_enable=${13}
 
 create_config() {
   hostname=$(hostname -f)
@@ -46,7 +64,7 @@ update_config() {
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
     fi
   fi
-  echo -e server: https://${server_ip}:6443 >>/etc/rancher/k3s/config.yaml
+  echo -e server: https://"${server_ip}":6443 >>/etc/rancher/k3s/config.yaml
   echo -e node-name: "${hostname}" >>/etc/rancher/k3s/config.yaml
   cat /etc/rancher/k3s/config.yaml
 
@@ -88,13 +106,31 @@ install_k3s() {
     params="$params INSTALL_K3S_CHANNEL=$channel"
   fi
 
+  if [[ "$install_or_enable" == "install" ]]; then
+    params="$params INSTALL_K3S_SKIP_ENABLE=true"
+  fi
+
   install_cmd="curl -sfL $url | $params sh -s - agent"
-  
+  echo "$install_cmd"
   if ! eval "$install_cmd"; then
     echo "Failed to install k3s-agent on node: $public_ip"
     exit 1
   fi
+}
 
+enable_service() {
+  if ! sudo systemctl enable k3s-agent --now; then
+    echo "k3s agent to start on node: $public_ip, Waiting for 10s for retry..."
+    sleep 10
+
+    if ! sudo systemctl is-active --quiet k3s-agent; then
+      echo "k3s agent exiting after failed retry to start on node: $public_ip"
+      sudo journalctl -xeu k3s-agent.service --no-pager | grep -i "failed\|fatal"
+      exit 1
+    else
+      echo "k3s agent started successfully on node: $public_ip"
+    fi
+  fi
 }
 
 check_service() {
@@ -110,14 +146,23 @@ check_service() {
 install() {
   install_k3s
   sleep 10
-  check_service
 }
 
 main() {
-  create_config
-  update_config
-  subscription_manager
-  disable_cloud_setup
-  install
+  echo "Install or enable or both? $install_or_enable"
+  if [[ "$install_or_enable" == "install" ]] || [[ "$install_or_enable" == "both" ]]; then
+    create_config
+    update_config
+    subscription_manager
+    disable_cloud_setup
+    install
+  fi
+  if [[ "$install_or_enable" == "enable" ]]; then
+    enable_service
+    sleep 10
+  fi
+  if [[ "$install_or_enable" == "enable" ]] || [[ "$install_or_enable" == "both" ]]; then
+    check_service
+  fi
 }
 main "$@"

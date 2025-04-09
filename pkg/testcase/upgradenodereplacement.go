@@ -39,8 +39,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster, flags *customflag.FlagConfi
 	}
 
 	var createErr error
-	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr =
-		awsDependencies.CreateInstances(serverNames...)
+	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr = awsDependencies.CreateInstances(serverNames...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 
 	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
@@ -253,7 +252,7 @@ func nodeReplaceServers(
 
 func buildJoinCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP string,
+	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, install_or_enable string,
 ) (string, error) {
 	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
@@ -276,10 +275,12 @@ func buildJoinCmd(
 	switch cluster.Config.Product {
 	case "k3s":
 		return buildK3sCmd(
-			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags)
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
+			selfPrivateIP, installMode, flags, install_or_enable)
 	case "rke2":
 		return buildRke2Cmd(
-			cluster, nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags)
+			cluster, nodetype, serverIp, token, version, channel, selfExternalIP,
+			selfPrivateIP, installMode, flags, install_or_enable)
 	default:
 		return "", shared.ReturnLogError("unsupported product: %s\n", cluster.Config.Product)
 	}
@@ -287,13 +288,13 @@ func buildJoinCmd(
 
 func buildK3sCmd(
 	cluster *shared.Cluster,
-	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags string,
+	nodetype, serverIP, token, version, channel, selfExternalIP, selfPrivateIP, installMode, flags, install_or_enable string,
 ) (string, error) {
 	var cmd string
 	ipv6 := ""
 	if nodetype == agent {
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIP,
@@ -307,11 +308,12 @@ func buildK3sCmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
+			install_or_enable,
 		)
 	} else {
 		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIP,
@@ -328,6 +330,7 @@ func buildK3sCmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
+			install_or_enable,
 		)
 	}
 
@@ -336,14 +339,14 @@ func buildK3sCmd(
 
 func buildRke2Cmd(
 	cluster *shared.Cluster,
-	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags string,
+	nodetype, serverIp, token, version, channel, selfExternalIp, selfPrivateIp, installMode, flags, install_or_enable string,
 ) (string, error) {
 	installMethod := os.Getenv("install_method")
 	var cmd string
 	ipv6 := ""
 	if nodetype == agent {
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIp,
@@ -358,11 +361,12 @@ func buildRke2Cmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
+			install_or_enable,
 		)
 	} else {
 		datastoreEndpoint := cluster.Config.RenderedTemplate
 		cmd = fmt.Sprintf(
-			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s'",
+			"sudo /tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
 			os.Getenv("node_os"),
 			serverIp,
@@ -380,6 +384,7 @@ func buildRke2Cmd(
 			flags,
 			os.Getenv("username"),
 			os.Getenv("password"),
+			install_or_enable,
 		)
 	}
 
@@ -441,8 +446,11 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoin(cluster *shared.Cluster, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
-	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
+func serverJoin(cluster *shared.Cluster,
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
+) error {
+	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
+		version, channel, newExternalIP, newPrivateIP, "both")
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
@@ -489,8 +497,10 @@ func nodeReplaceAgents(
 		agentNames = append(agentNames, fmt.Sprintf("%s-worker-replace%d", resourceName, i+1))
 	}
 
-	newExternalAgentIps, newPrivateAgentIps, instanceAgentIds, createAgentErr :=
-		awsDependencies.CreateInstances(agentNames...)
+	newExternalAgentIps,
+		newPrivateAgentIps,
+		instanceAgentIds,
+		createAgentErr := awsDependencies.CreateInstances(agentNames...)
 	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
 
 	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",
@@ -561,7 +571,8 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 }
 
 func joinAgent(cluster *shared.Cluster, serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, "both")
 	if parseErr != nil {
 		return shared.ReturnLogError("error parsing join commands: %w\n", parseErr)
 	}
