@@ -704,7 +704,6 @@ func waitForSSHReady(ip string) error {
 		select {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
-			// return errors.New(fmt.Sprintf("timed out waiting 3 mins for SSH Ready on node ip %s", ip))
 		case <-ticker.C:
 			cmdOutput, sshErr := shared.RunCommandOnNode("ls -lrt", ip)
 			if sshErr != nil {
