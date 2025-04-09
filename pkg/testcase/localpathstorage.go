@@ -33,7 +33,7 @@ func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, del
 		}
 		pods, getErr := shared.GetPodsFiltered(filters)
 		if getErr != nil {
-			shared.LogLevel("error", "Possibly no pods found with namespace: local-path-stograge")
+			shared.LogLevel("error", "Possibly no pods found with namespace: %s", namespace)
 		}
 		for _, pod := range pods {
 			shared.GetPodLogs(cluster, pod)
