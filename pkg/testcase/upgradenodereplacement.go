@@ -698,12 +698,13 @@ func validateClusterHealth() error {
 
 func waitForSSHReady(ip string) error {
 	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(2 * time.Minute)
+	timeout := time.After(3 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-timeout:
-			return errors.New("timed out waiting for SSH Ready")
+			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
+			// return errors.New(fmt.Sprintf("timed out waiting 3 mins for SSH Ready on node ip %s", ip))
 		case <-ticker.C:
 			cmdOutput, sshErr := shared.RunCommandOnNode("ls -lrt", ip)
 			if sshErr != nil {
@@ -723,6 +724,14 @@ func prepSlemicro(awsClient *aws.Client, ip, nodeOS string) {
 	_, updateErr := shared.RunCommandOnNode(cmd, ip)
 	Expect(updateErr).NotTo(HaveOccurred())
 	rebootNodeAndWait(awsClient, ip)
+}
+
+func rebootEc2Instance(awsClient *aws.Client, ip string) {
+	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
+	Expect(getErr).NotTo(HaveOccurred())
+	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
+	rebootError := awsClient.RebootInstance(serverInstanceID)
+	Expect(rebootError).NotTo(HaveOccurred())
 }
 
 func rebootNodeAndWait(awsClient *aws.Client, ip string) {

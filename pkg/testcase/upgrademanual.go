@@ -74,14 +74,6 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	return nil
 }
 
-func rebootEc2Instance(awsClient *aws.Client, ip string) {
-	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
-	Expect(getErr).NotTo(HaveOccurred())
-	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
-	rebootError := awsClient.RebootInstance(serverInstanceID)
-	Expect(rebootError).NotTo(HaveOccurred())
-}
-
 // upgradeProduct upgrades a node server or agent type to the specified version.
 func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, nodeOS string) error {
 	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
@@ -92,12 +84,11 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 	}
 
 	if nodeOS == "slemicro" {
-		rebootEc2Instance(awsClient, ip)
+		rebootNodeAndWait(awsClient, ip)
 	}
 
 	actions := []shared.ServiceAction{
-		{Service: product, Action: stop, NodeType: nodeType, ExplicitDelay: 30},
-		{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 180},
+		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 180},
 		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 30},
 	}
 
@@ -115,7 +106,18 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 
 	if product == "k3s" {
 		ms := shared.NewManageService(3, 10)
-		output, err := ms.ManageService(ip, []shared.ServiceAction{actions[1]})
+		var output string
+		var err error
+		if nodeOS == "slemicro" {
+			sleActions := []shared.ServiceAction{
+				{Service: product, Action: stop, NodeType: nodeType, ExplicitDelay: 30},
+				{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 60},
+				{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 180},
+			}
+			output, err = ms.ManageService(ip, sleActions)
+		} else {
+			output, err = ms.ManageService(ip, []shared.ServiceAction{actions[1]})
+		}
 		if output != "" {
 			Expect(output).To(ContainSubstring("active "),
 				fmt.Sprintf("error running %s service %s on %s node: %s", product, status, nodeType, ip))
