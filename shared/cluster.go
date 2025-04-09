@@ -723,7 +723,7 @@ func ExtractKubeImageVersion() string {
 	return version
 }
 
-func DescribePod(cluster *Cluster, pod Pod) {
+func DescribePod(cluster *Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
 	output, describeErr := KubectlCommand(cluster, "host", "describe", "pod", cmd)
 	if describeErr != nil {
@@ -735,7 +735,7 @@ func DescribePod(cluster *Cluster, pod Pod) {
 	}
 }
 
-func GetPodLogs(cluster *Cluster, pod Pod) {
+func LoggerPodLogs(cluster *Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
 	output, describeErr := KubectlCommand(cluster, "host", "logs", "", cmd)
 	if describeErr != nil {
