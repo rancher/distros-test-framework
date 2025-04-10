@@ -23,6 +23,7 @@ resource "aws_instance" "worker" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team                 = local.resource_tag
   }
   provisioner "remote-exec" {
     inline = [
@@ -69,6 +70,7 @@ resource "aws_eip" "worker_with_eip" {
   domain             = "vpc"
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team                 = local.resource_tag
   }
 }
 

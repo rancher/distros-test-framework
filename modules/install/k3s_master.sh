@@ -257,7 +257,7 @@ main() {
   fi
   if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then
     check_service
-    if [ "$etcd_only_node" -eq 0 ]; then
+    if [[ "$etcd_only_node" -eq 0 ]]; then
       # If etcd only node count is 0, then wait for nodes/pods to come up.
       # etcd only node needs api server to come up fully, which is in control plane node.
       # and hence we cannot wait for node/pod status in this case.

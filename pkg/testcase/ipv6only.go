@@ -12,7 +12,9 @@ func TestIPv6Only(cluster *shared.Cluster, awsClient *aws.Client) {
 	err := support.ConfigureIPv6OnlyNodes(cluster, awsClient)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	shared.LogLevel("info", "Installing %s on ipv6 only nodes...", cluster.Config.Product)
+	shared.LogLevel("info", "Installing %s on ipv6 only server nodes...", cluster.Config.Product)
 	support.InstallOnIPv6Servers(cluster)
+	shared.LogLevel("info", "Installing %s on ipv6 only agent nodes...", cluster.Config.Product)
 	support.InstallOnIPv6Agents(cluster)
+	shared.LogLevel("info", "Installation of %s on ipv6 only nodes: Completed!", cluster.Config.Product)
 }
