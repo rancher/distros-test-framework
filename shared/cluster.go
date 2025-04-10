@@ -740,7 +740,7 @@ func LoggerPodLogs(cluster *Cluster, pod *Pod) {
 	output, logsErr := KubectlCommand(cluster, "host", "logs", "", cmd)
 	if logsErr != nil {
 		LogLevel(
-			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
+			"error", "error getting logs for pod %s on namespace %s", pod.Name, pod.NameSpace)
 	}
 	if output != "" {
 		LogLevel("debug", "Output for: $ kubectl logs %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
