@@ -12,7 +12,8 @@ resource "aws_db_instance" "db" {
   password               = var.db_password
   availability_zone      = var.availability_zone
   tags = {
-    Environment = var.environment
+    Environment          = var.environment
+    Team                 = local.resource_tag
   }
   skip_final_snapshot    = true
 }
@@ -29,6 +30,7 @@ resource "aws_rds_cluster" "db" {
   engine_mode            = var.engine_mode
   tags = {
     Environment          = var.environment
+    Team                 = local.resource_tag
   }
   skip_final_snapshot    = true
 }
@@ -45,8 +47,9 @@ resource "aws_rds_cluster_instance" "db" {
 resource "aws_eip" "master_with_eip" {
   count                   = var.create_eip ? 1 : 0
   domain                  = "vpc"
-  tags                    = {
-    Name ="${var.resource_name}-${local.resource_tag}-server1"
+  tags = {
+    Name                  = "${var.resource_name}-${local.resource_tag}-server1"
+    Team                  = local.resource_tag
   }
 }
 
@@ -77,8 +80,9 @@ resource "aws_instance" "master" {
   availability_zone      = var.availability_zone
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
-  tags                   = {
+  tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server1"
+    Team                 = local.resource_tag
   }
 
   provisioner "remote-exec" {
@@ -206,8 +210,9 @@ data "local_file" "token" {
 resource "aws_eip" "master2_with_eip" {
   count         = var.create_eip ? local.secondary_masters : 0
   domain        = "vpc"
-  tags       = {
-    Name ="${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
+  tags = {
+    Name        = "${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
+    Team        = local.resource_tag
   }
   depends_on = [aws_eip.master_with_eip ]
 }
@@ -243,6 +248,7 @@ resource "aws_instance" "master2-ha" {
   depends_on             = [aws_instance.master]
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 2}"
+    Team                 = local.resource_tag
   }
   provisioner "remote-exec" {
     inline = [

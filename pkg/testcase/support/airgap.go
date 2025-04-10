@@ -72,7 +72,7 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 		}
 	}
 
-	shared.LogLevel("info", "Process kubeconfig from server node: %v", cluster.ServerIPs[0])
+	shared.LogLevel("info", "Process kubeconfig from primary server node: %v", cluster.ServerIPs[0])
 	err := processKubeconfigOnBastion(cluster)
 	if err != nil {
 		shared.LogLevel("error", "unable to get kubeconfig\n%w", err)
