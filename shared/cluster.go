@@ -731,18 +731,18 @@ func DescribePod(cluster *Cluster, pod *Pod) {
 			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
 	}
 	if output != "" {
-		LogLevel("debug", "Output for: $ kubectl describe pod %s -n %s is: %s\n", pod.Name, pod.NameSpace, output)
+		LogLevel("debug", "Output for: $ kubectl describe pod %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
 	}
 }
 
 func LoggerPodLogs(cluster *Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
-	output, describeErr := KubectlCommand(cluster, "host", "logs", "", cmd)
-	if describeErr != nil {
+	output, logsErr := KubectlCommand(cluster, "host", "logs", "", cmd)
+	if logsErr != nil {
 		LogLevel(
 			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
 	}
 	if output != "" {
-		LogLevel("debug", "Output for: $ kubectl logs %s -n %s is: %s\n", pod.Name, pod.NameSpace, output)
+		LogLevel("debug", "Output for: $ kubectl logs %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
 	}
 }

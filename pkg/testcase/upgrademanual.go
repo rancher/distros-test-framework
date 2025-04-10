@@ -88,8 +88,8 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 	}
 
 	actions := []shared.ServiceAction{
-		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 180},
-		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 30},
+		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 60},
+		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 120},
 	}
 
 	if product == "rke2" {
