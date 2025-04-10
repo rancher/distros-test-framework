@@ -106,6 +106,9 @@ func logPodData(cluster *shared.Cluster) {
 		shared.LogLevel("error", "Possibly no pods found with namespace: %s", namespace)
 	}
 	for i := range pods {
+		if pods[i].NameSpace == "" {
+			pods[i].NameSpace = namespace
+		}
 		shared.LoggerPodLogs(cluster, &pods[i])
 		shared.DescribePod(cluster, &pods[i])
 	}
