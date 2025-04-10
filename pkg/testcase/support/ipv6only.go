@@ -2,7 +2,6 @@ package support
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -76,17 +75,8 @@ func InstallOnIPv6Servers(cluster *shared.Cluster) {
 		// Installing product on primary server aka server-1, saving the token.
 		if idx == 0 {
 			shared.LogLevel("info", "Installing %v on server-1...", cluster.Config.Product)
-			cmd := fmt.Sprintf(
-				"sudo chmod +x %[1]v_master.sh; "+
-					`sudo ./%[1]v_master.sh `+
-					`"%[2]v" "%[3]v" "" "" "%[4]v" "%[5]v" "%[6]v" `+
-					`"%[7]v" "" "%[8]v" "%[9]v" "%[10]v" "%[11]v" "%[12]v"`,
-				cluster.Config.Product, os.Getenv("node_os"), "fake.fqdn.value",
-				serverIP, os.Getenv("install_mode"), os.Getenv("install_version"),
-				os.Getenv("install_channel"), os.Getenv("datastore_type"),
-				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
-				os.Getenv("username"), os.Getenv("password"),
-			)
+			cmd := buildInstallCmd(cluster, "master", serverIP)
+			shared.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 
@@ -99,38 +89,27 @@ func InstallOnIPv6Servers(cluster *shared.Cluster) {
 		// Installing product on additional server nodes.
 		if idx > 0 {
 			shared.LogLevel("info", "Installing %v on server-%v...", cluster.Config.Product, idx+1)
-			cmd := fmt.Sprintf(
-				"sudo chmod +x join_%[1]v_master.sh; "+
-					`sudo ./join_%[1]v_master.sh `+
-					`"%[2]v" "%[3]v" "%[4]v" "%[5]v" "" "" "%[6]v" "%[7]v" `+
-					`"%[8]v" "%[9]v" "%[10]v" "%[11]v" "%[12]v" "%[13]v" "%[14]v"`,
-				cluster.Config.Product, os.Getenv("node_os"), "fake.fqdn.value",
-				cluster.ServerIPs[0], token, serverIP,
-				os.Getenv("install_mode"), os.Getenv("install_version"),
-				os.Getenv("install_channel"), os.Getenv("datastore_type"),
-				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
-				os.Getenv("username"), os.Getenv("password"),
-			)
+			cmd := buildInstallCmd(cluster, "master", serverIP)
+			shared.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 		}
 	}
+
+	shared.LogLevel("info", "Process kubeconfig from primary server node: %v", cluster.ServerIPs[0])
+	err := processKubeconfigOnBastion(cluster)
+	if err != nil {
+		shared.LogLevel("error", "unable to get kubeconfig\n%w", err)
+	}
+	shared.LogLevel("info", "Process kubeconfig: Complete!")
 }
 
 func InstallOnIPv6Agents(cluster *shared.Cluster) {
 	// Installing product on agent nodes.
 	for idx, agentIP := range cluster.AgentIPs {
 		shared.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
-		cmd := fmt.Sprintf(
-			"sudo chmod +x join_%[1]v_agent.sh; "+
-				`sudo ./join_%[1]v_agent.sh "%[2]v" "%[3]v" "%[4]v" "" "" "%[5]v" `+
-				`"%[6]v" "%[7]v" "%[8]v" "%[9]v" "%[10]v" "%[11]v"`,
-			cluster.Config.Product, os.Getenv("node_os"),
-			cluster.ServerIPs[0], token, agentIP,
-			os.Getenv("install_mode"), os.Getenv("install_version"),
-			os.Getenv("install_channel"), os.Getenv("worker_flags"),
-			os.Getenv("username"), os.Getenv("password"),
-		)
+		cmd := buildInstallCmd(cluster, "agent", agentIP)
+		shared.LogLevel("debug", "Install cmd: %v", cmd)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}

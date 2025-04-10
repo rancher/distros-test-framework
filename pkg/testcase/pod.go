@@ -55,7 +55,7 @@ func TestPodStatusUsingBastion(
 ) {
 	var podDetails string
 	Eventually(func(g Gomega) {
-		podDetails = support.GetPrivatePods(cluster)
+		podDetails = support.GetPodsViaBastion(cluster)
 		pods := shared.ParsePods(podDetails)
 		g.Expect(pods).NotTo(BeEmpty())
 
