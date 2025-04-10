@@ -3,7 +3,6 @@ package testcase
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
@@ -34,11 +33,10 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	}
 
 	// Initialize aws client in case reboot is needed for slemicro
-	nodeOS := os.Getenv("node_os")
-	shared.LogLevel("debug", "Testing Node OS: %s", nodeOS)
+	shared.LogLevel("debug", "Testing Node OS: %s", cluster.NodeOS)
 	var awsClient *aws.Client
 	var clientErr error
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		awsClient, clientErr = aws.AddClient(cluster)
 		Expect(clientErr).NotTo(HaveOccurred())
 	}
@@ -46,7 +44,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	// Upgrades server nodes sequentially
 	if cluster.NumServers > 0 {
 		for _, ip := range cluster.ServerIPs {
-			if err := upgradeProduct(awsClient, cluster.Config.Product, server, version, ip, nodeOS); err != nil {
+			if err := upgradeProduct(awsClient, cluster.Config.Product, server, version, ip, cluster.NodeOS); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", server, ip, err)
 				return err
 			}
@@ -56,7 +54,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	// Upgrades agent nodes sequentially
 	if cluster.NumAgents > 0 {
 		for _, ip := range cluster.AgentIPs {
-			if err := upgradeProduct(awsClient, cluster.Config.Product, agent, version, ip, nodeOS); err != nil {
+			if err := upgradeProduct(awsClient, cluster.Config.Product, agent, version, ip, cluster.NodeOS); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", agent, ip, err)
 				return err
 			}
@@ -116,7 +114,10 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 			}
 			output, err = ms.ManageService(ip, sleActions)
 		} else {
-			output, err = ms.ManageService(ip, []shared.ServiceAction{actions[1]})
+			k3sActions := []shared.ServiceAction{
+				{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 30},
+			}
+			output, err = ms.ManageService(ip, k3sActions)
 		}
 		if output != "" {
 			Expect(output).To(ContainSubstring("active "),

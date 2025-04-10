@@ -29,26 +29,24 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 		Expect(version).NotTo(BeEmpty(), "version/commit is empty")
 	}
 
-	resourceName := os.Getenv("resource_name")
-	nodeOS := os.Getenv("node_os")
 	awsClient := getAwsClient(cluster)
 
 	// create and prepare the servers
 	var newExternalServerIps, newPrivateServerIps []string
-	newExternalServerIps, newPrivateServerIps, _ = createAndPrepServers(awsClient, cluster, nodeOS, resourceName)
+	newExternalServerIps, newPrivateServerIps = createAndPrepServers(awsClient, cluster, server)
 
 	serverLeaderIP := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	serverErr := nodeReplaceServers(cluster, awsClient, resourceName, serverLeaderIP, token,
-		version, channel, nodeOS, newExternalServerIps, newPrivateServerIps)
+	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
+		version, channel, newExternalServerIps, newPrivateServerIps)
 	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, awsClient, version, channel, resourceName, serverLeaderIP, token, nodeOS)
+		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token)
 	}
 	// delete the last remaining server = leader.
 	delErr := deleteRemainServer(serverLeaderIP, awsClient)
@@ -180,7 +178,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 func nodeReplaceServers(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	resourceName, serverLeaderIp, token, version, channel, nodeOS string,
+	serverLeaderIp, token, version, channel string,
 	newExternalServerIps, newPrivateServerIps []string,
 ) error {
 	if token == "" {
@@ -193,7 +191,7 @@ func nodeReplaceServers(
 
 	// join the first new server.
 	newFirstServerIP := newExternalServerIps[0]
-	err := serverJoin(cluster, a, serverLeaderIp, token, version, channel, newFirstServerIP, newPrivateServerIps[0], nodeOS)
+	err := serverJoin(cluster, a, serverLeaderIp, token, version, channel, newFirstServerIP, newPrivateServerIps[0])
 	if err != nil {
 		shared.LogLevel("error", "error joining first server: %w\n", err)
 
@@ -209,7 +207,7 @@ func nodeReplaceServers(
 	}
 
 	shared.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n", newFirstServerIP)
-	kubeConfigUpdated, kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
+	kubeConfigUpdated, kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, cluster.ResourceName, cluster.Config.Product)
 	if kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
@@ -224,7 +222,7 @@ func nodeReplaceServers(
 
 	// join the rest of the servers and delete all except the leader.
 	err = joinRemainServers(cluster, a, newExternalServerIps, newPrivateServerIps,
-		oldServerIPs, serverLeaderIp, token, version, channel, nodeOS)
+		oldServerIPs, serverLeaderIp, token, version, channel)
 	if err != nil {
 		return err
 	}
@@ -238,13 +236,13 @@ func buildJoinCmd(
 	cluster *shared.Cluster,
 	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installEnableOrBoth string,
 ) (string, error) {
-	if nodetype != master && nodetype != agent {
+	if nodetype != master && nodetype != agent && nodetype != server {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
 	}
 
 	var flags string
 	var installMode string
-	if nodetype == master {
+	if nodetype == master || nodetype == server {
 		flags = fmt.Sprintf("'%s'", os.Getenv("server_flags"))
 	} else {
 		flags = fmt.Sprintf("'%s'", os.Getenv("worker_flags"))
@@ -281,7 +279,7 @@ func buildK3sCmd(
 		cmd = fmt.Sprintf(
 			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
-			os.Getenv("node_os"),
+			cluster.NodeOS,
 			serverIP,
 			token,
 			selfExternalIP,
@@ -300,7 +298,7 @@ func buildK3sCmd(
 		cmd = fmt.Sprintf(
 			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
-			os.Getenv("node_os"),
+			cluster.NodeOS,
 			serverIP,
 			serverIP,
 			token,
@@ -334,7 +332,7 @@ func buildRke2Cmd(
 		cmd = fmt.Sprintf(
 			"sudo /var/tmp/join_rke2_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
-			os.Getenv("node_os"),
+			cluster.NodeOS,
 			serverIp,
 			token,
 			selfExternalIp,
@@ -353,7 +351,7 @@ func buildRke2Cmd(
 		datastoreEndpoint := cluster.Config.RenderedTemplate
 		arguments := fmt.Sprintf(
 			"'%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
-			os.Getenv("node_os"),
+			cluster.NodeOS,
 			serverIp,
 			serverIp,
 			token,
@@ -387,8 +385,7 @@ func joinRemainServers(
 	serverLeaderIp,
 	token,
 	version,
-	channel,
-	nodeOS string,
+	channel string,
 ) error {
 	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
 		privateIp := newPrivateServerIps[i]
@@ -402,7 +399,7 @@ func joinRemainServers(
 			}
 		}
 
-		joinErr := serverJoin(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS)
+		joinErr := serverJoin(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error joining server: %w with ip: %s\n", joinErr, externalIp)
 
@@ -437,9 +434,9 @@ func validateNodeJoin(ip string) error {
 
 func serverJoin(cluster *shared.Cluster,
 	awsClient *aws.Client,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP, nodeOS string) error {
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
 	installOrBoth := "both"
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		installOrBoth = "install"
 		shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
 	}
@@ -447,7 +444,7 @@ func serverJoin(cluster *shared.Cluster,
 	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
 		newExternalIP, newPrivateIP, installOrBoth)
 	if joinStepsErr != nil {
-		if nodeOS == "slemicro" {
+		if cluster.NodeOS == "slemicro" {
 			return shared.ReturnLogError("error installing product (k3s | rke2) %w\n", joinStepsErr)
 		}
 
@@ -455,7 +452,7 @@ func serverJoin(cluster *shared.Cluster,
 	}
 
 	// reboot nodes and enable services for slemicro OS
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		rebootNodeAndWait(awsClient, newExternalIP)
 
 		// enable service post reboot
@@ -517,38 +514,12 @@ func nodeReplaceAgents(
 	awsClient *aws.Client,
 	version,
 	channel,
-	resourceName,
 	serverLeaderIp,
-	token,
-	nodeOS string,
+	token string,
 ) {
-	// create agent names.
-	var agentNames []string
-	for i := 0; i < len(cluster.AgentIPs); i++ {
-		agentNames = append(agentNames, fmt.Sprintf("%s-worker-replace%d", resourceName, i+1))
-	}
+	newExternalAgentIps, newPrivateAgentIps := createAndPrepServers(awsClient, cluster, agent)
 
-	newExternalAgentIps,
-		newPrivateAgentIps,
-		instanceAgentIds,
-		createAgentErr := awsClient.CreateInstances(agentNames...)
-	Expect(createAgentErr).NotTo(HaveOccurred(), createAgentErr)
-
-	shared.LogLevel("debug", "created worker ips: %s and worker ids: %s\n",
-		newExternalAgentIps, instanceAgentIds)
-
-	// If node os is slemicro prep/update it and reboot the node.
-	if nodeOS == "slemicro" {
-		for _, ip := range newExternalAgentIps {
-			prepSlemicro(awsClient, ip, nodeOS)
-		}
-	}
-
-	scpErr := scpToNewNodes(cluster, agent, newExternalAgentIps)
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new worker nodes done\n")
-
-	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel, nodeOS,
+	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel,
 		newExternalAgentIps, newPrivateAgentIps)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
 
@@ -558,7 +529,7 @@ func nodeReplaceAgents(
 func replaceAgents(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	serverLeaderIp, token, version, channel, nodeOS string,
+	serverLeaderIp, token, version, channel string,
 	newExternalAgentIps, newPrivateAgentIps []string,
 ) error {
 	if token == "" {
@@ -578,7 +549,7 @@ func replaceAgents(
 	for i, externalIp := range newExternalAgentIps {
 		privateIp := newPrivateAgentIps[i]
 
-		joinErr := joinAgent(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp, nodeOS)
+		joinErr := joinAgent(cluster, a, serverLeaderIp, token, version, channel, externalIp, privateIp)
 		if joinErr != nil {
 			shared.LogLevel("error", "error joining agent: %w\n", joinErr)
 
@@ -608,9 +579,9 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 }
 
 func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
-	serverIp, token, version, channel, selfExternalIp, selfPrivateIp, nodeOS string) error {
+	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
 	installOrBoth := "both"
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		installOrBoth = "install"
 		shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
 	}
@@ -632,7 +603,7 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	}
 
 	// reboot nodes and enable services for slemicro OS
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		rebootNodeAndWait(awsClient, selfExternalIp)
 		// enable service post reboot
 		cmd, parseErr = buildJoinCmd(cluster, agent, serverIp, token, version,
@@ -754,33 +725,35 @@ func getAwsClient(cluster *shared.Cluster) *aws.Client {
 	return awsClient
 }
 
-func getServerNames(cluster *shared.Cluster, resourceName string) []string {
-	var serverNames []string
-	for i := 0; i < len(cluster.ServerIPs); i++ {
-		serverNames = append(serverNames, fmt.Sprintf("%s-server-replace%d", resourceName, i+1))
+func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []string {
+	var nodeNames []string
+	var nodeCount = len(cluster.ServerIPs)
+	if nodeType == "agent" {
+		nodeCount = len(cluster.AgentIPs)
+	}
+	for i := 0; i < nodeCount; i++ {
+		nodeNames = append(nodeNames, fmt.Sprintf("%s-%s-replace%d", resourceName, nodeType, i+1))
 	}
 
-	return serverNames
+	return nodeNames
 }
 
-func createAndPrepServers(awsClient *aws.Client,
-	cluster *shared.Cluster,
-	nodeOS string, resourceName string) (
-	newExternalServerIps []string, newPrivateServerIps []string, instanceServerIds []string) {
+func createAndPrepServers(awsClient *aws.Client, cluster *shared.Cluster, nodeType string) (
+	newExternalIps []string, newPrivateIps []string) {
 	// create aws ec2 instances
-	names := getServerNames(cluster, resourceName)
-	newExternalServerIps, newPrivateServerIps, instanceServerIds, createErr := awsClient.CreateInstances(names...)
+	names := getNodeNames(cluster, cluster.ResourceName, nodeType)
+	newExternalIps, newPrivateIps, instanceIds, createErr := awsClient.CreateInstances(names...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
-	shared.LogLevel("debug", "Created server public ips: %s and ids: %s\n",
-		newExternalServerIps, instanceServerIds)
+	shared.LogLevel("debug", "Created %s nodes with public ips: %s and ids: %s\n",
+		nodeType, newExternalIps, instanceIds)
 
 	// If node os is slemicro prep/update it and reboot the node
-	prepSlemicroNodes(newExternalServerIps, nodeOS, awsClient)
+	prepSlemicroNodes(newExternalIps, cluster.NodeOS, awsClient)
 
 	// scp needed files to the new nodes
-	scpErr := scpToNewNodes(cluster, master, newExternalServerIps)
+	scpErr := scpToNewNodes(cluster, nodeType, newExternalIps)
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
-	shared.LogLevel("info", "Scp files to new server nodes done\n")
+	shared.LogLevel("info", "Scp files to new %s nodes done\n", nodeType)
 
-	return newExternalServerIps, newPrivateServerIps, instanceServerIds
+	return newExternalIps, newPrivateIps
 }
