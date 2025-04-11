@@ -34,12 +34,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 
 	// Initialize aws client in case reboot is needed for slemicro
 	shared.LogLevel("debug", "Testing Node OS: %s", cluster.NodeOS)
-	var awsClient *aws.Client
-	var clientErr error
-	if cluster.NodeOS == "slemicro" {
-		awsClient, clientErr = aws.AddClient(cluster)
-		Expect(clientErr).NotTo(HaveOccurred())
-	}
+	awsClient := getAwsClient(cluster)
 
 	// Upgrades server nodes sequentially
 	if cluster.NumServers > 0 {
@@ -109,7 +104,7 @@ func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, n
 		if nodeOS == "slemicro" {
 			sleActions := []shared.ServiceAction{
 				{Service: product, Action: stop, NodeType: nodeType, ExplicitDelay: 30},
-				{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 60},
+				{Service: product, Action: start, NodeType: nodeType, ExplicitDelay: 30},
 				{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 120},
 			}
 			output, err = ms.ManageService(ip, sleActions)

@@ -1,7 +1,6 @@
 package testcase
 
 import (
-	"os"
 	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -80,8 +79,7 @@ func readData(cluster *shared.Cluster) error {
 }
 
 func createDir(cluster *shared.Cluster) {
-	nodeOS := os.Getenv("node_os")
-	if nodeOS == "slemicro" {
+	if cluster.NodeOS == "slemicro" {
 		var output string
 		var mkdirErr error
 		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
@@ -98,6 +96,7 @@ func createDir(cluster *shared.Cluster) {
 }
 
 func logPodData(cluster *shared.Cluster) {
+	shared.LogLevel("debug", "Logging pod logs and describe pod output")
 	filters := map[string]string{
 		"namespace": namespace,
 	}
