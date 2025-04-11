@@ -79,10 +79,12 @@ func readData(cluster *shared.Cluster) error {
 }
 
 func createDir(cluster *shared.Cluster) {
+	shared.LogLevel("debug", "Node OS: %s ", cluster.NodeOS)
 	if cluster.NodeOS == "slemicro" {
 		var output string
 		var mkdirErr error
 		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
+		shared.LogLevel("debug", "Create /opt/data directory with cmd: %s", cmd)
 		for _, ip := range cluster.ServerIPs {
 			output, mkdirErr = shared.RunCommandOnNode(cmd, ip)
 			if mkdirErr != nil {

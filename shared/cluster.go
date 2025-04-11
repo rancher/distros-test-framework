@@ -724,8 +724,9 @@ func ExtractKubeImageVersion() string {
 }
 
 func DescribePod(cluster *Cluster, pod *Pod) {
+	LogLevel("debug", "Logging describe pod output")
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
-	output, describeErr := KubectlCommand(cluster, "host", "describe", "pod", cmd)
+	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
 	if describeErr != nil {
 		LogLevel(
 			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
@@ -736,8 +737,9 @@ func DescribePod(cluster *Cluster, pod *Pod) {
 }
 
 func LoggerPodLogs(cluster *Cluster, pod *Pod) {
+	LogLevel("debug", "Logging pod logs")
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
-	output, logsErr := KubectlCommand(cluster, "host", "logs", "", cmd)
+	output, logsErr := KubectlCommand(cluster, "node", "logs", "", cmd)
 	if logsErr != nil {
 		LogLevel(
 			"error", "error getting logs for pod %s on namespace %s", pod.Name, pod.NameSpace)
