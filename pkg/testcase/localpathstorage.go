@@ -85,7 +85,7 @@ func createDir(cluster *shared.Cluster) {
 		var mkdirErr error
 		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
 		shared.LogLevel("debug", "Create /opt/data directory with cmd: %s", cmd)
-		for _, ip := range cluster.ServerIPs {
+		for _, ip := range append(cluster.ServerIPs, cluster.AgentIPs...) {
 			output, mkdirErr = shared.RunCommandOnNode(cmd, ip)
 			if mkdirErr != nil {
 				shared.LogLevel("warn", "error creating /opt/data dir on node ip: %s", ip)
