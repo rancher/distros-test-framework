@@ -9,9 +9,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var lps = "local-path-storage"
+var namespace = "local-path-storage"
 
 func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
+	createDir(cluster)
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
@@ -24,22 +25,25 @@ func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, del
 		getPodVolumeTestRunning,
 		statusRunning,
 	)
+	if err != nil {
+		logPodData(cluster)
+	}
 	Expect(err).NotTo(HaveOccurred(), err)
 
-	_, err = shared.WriteDataPod(cluster, lps)
+	_, err = shared.WriteDataPod(cluster, namespace)
 	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)
 
 	Eventually(func(g Gomega) {
 		var res string
 		shared.LogLevel("info", "Reading data from pod")
 
-		res, err = shared.ReadDataPod(cluster, lps)
+		res, err = shared.ReadDataPod(cluster, namespace)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(res).Should(ContainSubstring("testing local path"))
 		g.Expect(err).NotTo(HaveOccurred())
 	}, "300s", "5s").Should(Succeed())
 
-	_, err = shared.ReadDataPod(cluster, lps)
+	_, err = shared.ReadDataPod(cluster, namespace)
 	if err != nil {
 		return
 	}
@@ -66,10 +70,47 @@ func readData(cluster *shared.Cluster) error {
 	delay := time.After(30 * time.Second)
 	<-delay
 
-	_, err = shared.ReadDataPod(cluster, lps)
+	_, err = shared.ReadDataPod(cluster, namespace)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func createDir(cluster *shared.Cluster) {
+	shared.LogLevel("debug", "Node OS: %s ", cluster.NodeOS)
+	if cluster.NodeOS == "slemicro" {
+		var output string
+		var mkdirErr error
+		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
+		shared.LogLevel("debug", "Create /opt/data directory with cmd: %s", cmd)
+		for _, ip := range append(cluster.ServerIPs, cluster.AgentIPs...) {
+			output, mkdirErr = shared.RunCommandOnNode(cmd, ip)
+			if mkdirErr != nil {
+				shared.LogLevel("warn", "error creating /opt/data dir on node ip: %s", ip)
+			}
+			if output != "" {
+				shared.LogLevel("debug", "create and check /opt/data output: %s", output)
+			}
+		}
+	}
+}
+
+func logPodData(cluster *shared.Cluster) {
+	shared.LogLevel("debug", "Logging pod logs and describe pod output")
+	filters := map[string]string{
+		"namespace": namespace,
+	}
+	pods, getErr := shared.GetPodsFiltered(filters)
+	if getErr != nil {
+		shared.LogLevel("error", "Possibly no pods found with namespace: %s", namespace)
+	}
+	for i := range pods {
+		if pods[i].NameSpace == "" {
+			pods[i].NameSpace = namespace
+		}
+		shared.LoggerPodLogs(cluster, &pods[i])
+		shared.DescribePod(cluster, &pods[i])
+	}
 }

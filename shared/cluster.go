@@ -126,6 +126,7 @@ func KubectlCommand(cluster *Cluster, destination, action, source string, args .
 		"exec":     "kubectl exec",
 		"delete":   "kubectl delete",
 		"apply":    "kubectl apply",
+		"logs":     "kubectl logs",
 	}
 
 	cmdPrefix, ok := shortCmd[action]
@@ -720,4 +721,30 @@ func ExtractKubeImageVersion() string {
 	LogLevel("info", "serverVersionReturnValue: %s", version)
 
 	return version
+}
+
+func DescribePod(cluster *Cluster, pod *Pod) {
+	LogLevel("debug", "Logging describe pod output")
+	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
+	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
+	if describeErr != nil {
+		LogLevel(
+			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
+	}
+	if output != "" {
+		LogLevel("debug", "Output for: $ kubectl describe pod %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
+	}
+}
+
+func LoggerPodLogs(cluster *Cluster, pod *Pod) {
+	LogLevel("debug", "Logging pod logs")
+	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
+	output, logsErr := KubectlCommand(cluster, "node", "logs", "", cmd)
+	if logsErr != nil {
+		LogLevel(
+			"error", "error getting logs for pod %s on namespace %s", pod.Name, pod.NameSpace)
+	}
+	if output != "" {
+		LogLevel("debug", "Output for: $ kubectl logs %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
+	}
 }
