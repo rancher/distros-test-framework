@@ -94,6 +94,9 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 }
 
 func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
+	if nodeType != "agent" {
+		nodeType = master
+	}
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
 
