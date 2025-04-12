@@ -26,7 +26,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 		return shared.ReturnLogError("should send even number of args")
 	}
 
-	timeout := time.After(180 * time.Second)
+	timeout := time.After(120 * time.Second)
 	ticker := time.NewTicker(5 * time.Second)
 
 	for i := 0; i < len(args); i++ {
