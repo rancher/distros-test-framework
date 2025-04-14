@@ -60,8 +60,11 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 }
 
 func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string) error {
+	if nodeType != master && nodeType != agent {
+		shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
+	}
 	if newNodeIps == nil {
-		return shared.ReturnLogError("newServerIps should send at least one ip\n")
+		return shared.ReturnLogError("newNodeIps should contain at least one ip\n")
 	}
 
 	if cluster.Config.Product != "k3s" && cluster.Config.Product != "rke2" {
@@ -94,8 +97,8 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 }
 
 func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
-	if nodeType != "agent" {
-		nodeType = master
+	if nodeType != master && nodeType != agent {
+		shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
@@ -239,13 +242,13 @@ func buildJoinCmd(
 	cluster *shared.Cluster,
 	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installEnableOrBoth string,
 ) (string, error) {
-	if nodetype != master && nodetype != agent && nodetype != server {
+	if nodetype != master && nodetype != agent {
 		return "", shared.ReturnLogError("unsupported nodetype: %s\n", nodetype)
 	}
 
 	var flags string
 	var installMode string
-	if nodetype == master || nodetype == server {
+	if nodetype == master {
 		flags = fmt.Sprintf("'%s'", os.Getenv("server_flags"))
 	} else {
 		flags = fmt.Sprintf("'%s'", os.Getenv("worker_flags"))
@@ -754,7 +757,12 @@ func createAndPrepServers(awsClient *aws.Client, cluster *shared.Cluster, nodeTy
 	prepSlemicroNodes(newExternalIps, cluster.NodeOS, awsClient)
 
 	// scp needed files to the new nodes
-	scpErr := scpToNewNodes(cluster, nodeType, newExternalIps)
+	var scpErr error
+	if nodeType == agent {
+		scpErr = scpToNewNodes(cluster, nodeType, newExternalIps)
+	} else {
+		scpErr = scpToNewNodes(cluster, master, newExternalIps)
+	}
 	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
 	shared.LogLevel("info", "Scp files to new %s nodes done\n", nodeType)
 
