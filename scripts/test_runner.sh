@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -135,6 +135,8 @@ if [ -n "${TEST_DIR}" ]; then
           OPTS=(-timeout=260m -v -count=1 ./entrypoint/conformance/... )
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
         go test "${OPTS[@]}" --ginkgo.timeout=260m
+    elif [ "${TEST_DIR}" = "nvidia" ]; then
+       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/...
     fi
 fi
 }
