@@ -61,7 +61,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 
 func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string) error {
 	if nodeType != master && nodeType != agent {
-		shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
+		return shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
 	if newNodeIps == nil {
 		return shared.ReturnLogError("newNodeIps should contain at least one ip\n")
@@ -98,7 +98,7 @@ func scpToNewNodes(cluster *shared.Cluster, nodeType string, newNodeIps []string
 
 func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
 	if nodeType != master && nodeType != agent {
-		shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
+		return shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
 	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
