@@ -84,8 +84,9 @@ func createDir(cluster *shared.Cluster) {
 		var output string
 		var mkdirErr error
 		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
-		shared.LogLevel("debug", "Create /opt/data directory with cmd: %s", cmd)
+		shared.LogLevel("debug", "Reboot Node and Create /opt/data directory with cmd: %s", cmd)
 		for _, ip := range append(cluster.ServerIPs, cluster.AgentIPs...) {
+			rebootNodeAndWait(getAwsClient(cluster), ip)
 			output, mkdirErr = shared.RunCommandOnNode(cmd, ip)
 			if mkdirErr != nil {
 				shared.LogLevel("warn", "error creating /opt/data dir on node ip: %s", ip)
