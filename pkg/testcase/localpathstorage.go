@@ -82,14 +82,13 @@ func readData(cluster *shared.Cluster) error {
 
 func createDir(cluster *shared.Cluster) {
 	shared.LogLevel("debug", "node OS: %s ", cluster.NodeOS)
+	dir := "/opt/data"
+	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
+	cmdPart2 := fmt.Sprintf("sudo mkdir -p %s", dir)
+	cmd := fmt.Sprintf("%s || %s; sudo chmod +w %s; sudo ls -lrt %s", cmdPart1, cmdPart2, dir, dir)
 	if cluster.NodeOS == "slemicro" {
 		var output string
 		var mkdirErr error
-		dirpath := fmt.Sprintf("/var/lib/rancher/%s/storage", cluster.Config.Product)
-		cmd := "test -d '/opt/data' && echo 'directory exists: /opt/data' || sudo mkdir -p /opt/data; ls -lrt /opt"
-		cmd2 := fmt.Sprintf(
-			"test -d '%s' && echo 'directory exists: %s' || sudo mkdir -p %s; sudo ls -lrtR %s",
-			dirpath, dirpath, dirpath, dirpath)
 		for _, ip := range append(cluster.ServerIPs, cluster.AgentIPs...) {
 			shared.LogLevel("debug", "create /opt/data directory with cmd: %s", cmd)
 			output, mkdirErr = shared.RunCommandOnNode(cmd, ip)
@@ -98,14 +97,6 @@ func createDir(cluster *shared.Cluster) {
 			}
 			if output != "" {
 				shared.LogLevel("debug", "create and check /opt/data output: %s", output)
-			}
-			shared.LogLevel("debug", "Create %s directory with cmd: %s", dirpath, cmd)
-			output, mkdirErr = shared.RunCommandOnNode(cmd2, ip)
-			if mkdirErr != nil {
-				shared.LogLevel("warn", "error creating %s dir on node ip: %s", dirpath, ip)
-			}
-			if output != "" {
-				shared.LogLevel("debug", "create and check %s output: %s", dirpath, output)
 			}
 		}
 	}
