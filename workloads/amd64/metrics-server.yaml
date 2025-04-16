@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-metrics-server
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: nginx-app-metrics-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: nginx-app-metrics-server
+    spec:
+      containers:
+        - name: nginx
+          image: ranchertest/mytestcontainer:unprivileged
+          ports:
+            - containerPort: 8080

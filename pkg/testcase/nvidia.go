@@ -96,7 +96,7 @@ func initialSetupSles(ip string) {
 }
 
 func initialSetupRHEL(ip string) {
-	installPackages := "sudo dnf -y install " +
+	installPackages := "sudo dnf -y install dkms " +
 		"kernel-devel-$(uname -r) " +
 		"kernel-headers-$(uname -r) " +
 		"gcc make elfutils-libelf-devel libglvnd-devel"
@@ -104,6 +104,14 @@ func initialSetupRHEL(ip string) {
 	_, cmdErr := shared.RunCommandOnNode(installPackages, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error installing pre-requisite packages: %v", cmdErr)
 	shared.LogLevel("info", "Installed pre-requisite packages")
+
+	epel := "sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+	_, cmdErr = shared.RunCommandOnNode(epel, ip)
+	Expect(cmdErr).ToNot(HaveOccurred(), "error installing epel-release: %v", cmdErr)
+
+	kdevel := "sudo dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r)"
+	_, cmdErr = shared.RunCommandOnNode(kdevel, ip)
+	Expect(cmdErr).ToNot(HaveOccurred(), "error installing kernel-devel and kernel-headers: %v", cmdErr)
 
 	cmdRepo := "sudo dnf config-manager --add-repo" +
 		" https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
