@@ -84,7 +84,7 @@ func createDir(cluster *shared.Cluster) {
 	shared.LogLevel("debug", "node OS: %s ", cluster.NodeOS)
 	dir := "/opt/data"
 	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
-	cmdPart2 := fmt.Sprintf("sudo mkdir -p %s", dir)
+	cmdPart2 := "sudo mkdir -p " + dir
 	cmd := fmt.Sprintf("%s || %s; sudo chmod +w %s; sudo ls -lrt %s", cmdPart1, cmdPart2, dir, dir)
 	if cluster.NodeOS == "slemicro" {
 		var output string
