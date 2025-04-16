@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -549,4 +550,54 @@ func SystemCtlCmd(service, action string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
+}
+
+func CreateDir(dir, chmodValue, ip string) {
+	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
+	cmdPart2 := "sudo mkdir -p " + dir
+	var cmd string
+	if chmodValue != "" {
+		cmd = fmt.Sprintf("%s || %s; sudo chmod %s %s; sudo ls -lrt %s", cmdPart1, cmdPart2, chmodValue, dir, dir)
+	} else {
+		cmd = fmt.Sprintf("%s || %s; sudo ls -lrt %s", cmdPart1, cmdPart2, dir)
+	}
+	output, mkdirErr := RunCommandOnNode(cmd, ip)
+	if mkdirErr != nil {
+		LogLevel("warn", "error creating %s dir on node ip: %s", dir, ip)
+	}
+	if output != "" {
+		LogLevel("debug", "create and check %s output: %s", dir, output)
+	}
+}
+
+func WaitForSSHReady(ip string) error {
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(3 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
+		case <-ticker.C:
+			cmdOutput, sshErr := RunCommandOnNode("ls -lrt", ip)
+			if sshErr != nil {
+				LogLevel("warn", "SSH Error: %s", sshErr)
+				continue
+			}
+			if cmdOutput != "" {
+				return nil
+			}
+		}
+	}
+}
+
+func LogGrepOutput(filename, content, ip string) {
+	cmd := fmt.Sprintf("sudo cat %s | grep %s", filename, content)
+	grepData, grepErr := RunCommandOnNode(cmd, ip)
+	if grepErr != nil {
+		LogLevel("error", "error getting grep %s log for %s calls", filename, content)
+	}
+	if grepData != "" {
+		LogLevel("debug", "grep for %s in file %s output:\n %s", content, filename, grepData)
+	}
 }

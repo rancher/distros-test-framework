@@ -33,7 +33,7 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 
 	// create and prepare the servers
 	var newExternalServerIps, newPrivateServerIps []string
-	newExternalServerIps, newPrivateServerIps = createAndPrepServers(awsClient, cluster, server)
+	newExternalServerIps, newPrivateServerIps = createAndPrepNodes(awsClient, cluster, server)
 
 	serverLeaderIP := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
@@ -523,7 +523,7 @@ func nodeReplaceAgents(
 	serverLeaderIp,
 	token string,
 ) {
-	newExternalAgentIps, newPrivateAgentIps := createAndPrepServers(awsClient, cluster, agent)
+	newExternalAgentIps, newPrivateAgentIps := createAndPrepNodes(awsClient, cluster, agent)
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel,
 		newExternalAgentIps, newPrivateAgentIps)
@@ -673,38 +673,28 @@ func validateClusterHealth() error {
 	return nil
 }
 
-func waitForSSHReady(ip string) error {
-	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(3 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
-		case <-ticker.C:
-			cmdOutput, sshErr := shared.RunCommandOnNode("ls -lrt", ip)
-			if sshErr != nil {
-				continue
-			}
-			if cmdOutput != "" {
-				return nil
-			}
-		}
-	}
+func getAwsClient(cluster *shared.Cluster) *aws.Client {
+	awsClient, err := aws.AddClient(cluster)
+	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
+
+	return awsClient
 }
 
 func prepSlemicro(awsClient *aws.Client, ip, nodeOS string) {
 	shared.LogLevel("debug", "Pre-install Setup for nodeOS: %s on ip: %s for selinux", nodeOS, ip)
+
 	cmd := "sudo transactional-update setup-selinux"
 	shared.LogLevel("debug", "Running cmd: %s on ip: %s", cmd, ip)
 	_, updateErr := shared.RunCommandOnNode(cmd, ip)
 	Expect(updateErr).NotTo(HaveOccurred())
+
 	rebootNodeAndWait(awsClient, ip)
 }
 
 func rebootEc2Instance(awsClient *aws.Client, ip string) {
 	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
 	Expect(getErr).NotTo(HaveOccurred())
+
 	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
 	rebootError := awsClient.RebootInstance(serverInstanceID)
 	Expect(rebootError).NotTo(HaveOccurred())
@@ -712,7 +702,8 @@ func rebootEc2Instance(awsClient *aws.Client, ip string) {
 
 func rebootNodeAndWait(awsClient *aws.Client, ip string) {
 	rebootEc2Instance(awsClient, ip)
-	sshErr := waitForSSHReady(ip)
+
+	sshErr := shared.WaitForSSHReady(ip)
 	Expect(sshErr).NotTo(HaveOccurred())
 }
 
@@ -722,13 +713,6 @@ func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
 			prepSlemicro(awsClient, ip, nodeOS)
 		}
 	}
-}
-
-func getAwsClient(cluster *shared.Cluster) *aws.Client {
-	awsClient, err := aws.AddClient(cluster)
-	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
-
-	return awsClient
 }
 
 func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []string {
@@ -744,7 +728,7 @@ func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []stri
 	return nodeNames
 }
 
-func createAndPrepServers(awsClient *aws.Client, cluster *shared.Cluster, nodeType string) (
+func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType string) (
 	newExternalIps []string, newPrivateIps []string) {
 	// create aws ec2 instances
 	names := getNodeNames(cluster, cluster.ResourceName, nodeType)
