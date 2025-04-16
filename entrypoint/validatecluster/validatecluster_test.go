@@ -29,6 +29,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
+	It("Validate Metrics Server", func() {
+		testcase.TestNodeMetricsServer(true, true)
+	})
+
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})

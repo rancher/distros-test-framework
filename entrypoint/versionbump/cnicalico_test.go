@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	kgn       = "kubectl get node -o yaml"
 	calicoCmd = kgn + " : | grep mirrored-calico  -A1"
 )
 
