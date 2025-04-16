@@ -114,12 +114,12 @@ func scpTestScripts(cluster *shared.Cluster) {
 }
 
 func umountDataDir(cluster *shared.Cluster, productDataDir string) {
-	umountServer := "sudo umount -l " + productDataDir + "/server"
+	umountServer := "sudo umount -f " + productDataDir + "/server"
 	ures, err := shared.RunCommandOnNode(umountServer, cluster.ServerIPs[0])
 	Expect(err).NotTo(HaveOccurred(), "failed to umount server data dir: %v", err)
 	Expect(ures).To(BeEmpty(), "failed to umount server data dir")
 
-	umountAgent := "sudo umount -l " + productDataDir + "/agent"
+	umountAgent := "sudo umount -f " + productDataDir + "/agent"
 	ures, err = shared.RunCommandOnNode(umountAgent, cluster.AgentIPs[0])
 	Expect(err).NotTo(HaveOccurred(), "failed to umount agent data dir: %v", err)
 	Expect(ures).To(BeEmpty(), "failed to umount agent data dir")

@@ -253,7 +253,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		LogLevel("warn", "%v\n", stderrStr)
+		LogLevel("warn", "stderrStr from RunCommandOnNode() , please double check!\n%v\n", stderrStr)
 		return "", stderrStr, errssh
 	}
 
