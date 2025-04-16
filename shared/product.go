@@ -109,6 +109,8 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	return secretsEncryptStdOut, nil
 }
 
+// installType is version or commit.
+// nodeType is server or agent.
 func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string

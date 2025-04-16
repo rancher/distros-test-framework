@@ -67,8 +67,8 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	return nil
 }
 
-// nodeType can be server or agent
-// installType can be version or commit
+// nodeType can be server or agent.
+// installType can be version or commit.
 func runUpgradeCommand(cluster *shared.Cluster, nodeType, installType, ip string) error {
 	upgradeCommand := shared.GetInstallCmd(cluster, installType, nodeType)
 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
