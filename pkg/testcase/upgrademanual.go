@@ -67,15 +67,26 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	return nil
 }
 
+// nodeType can be server or agent
+// installType can be version or commit
+func runUpgradeCommand(cluster *shared.Cluster, nodeType, installType, ip string) error {
+	upgradeCommand := shared.GetInstallCmd(cluster, installType, nodeType)
+	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
+	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
+		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
+		return err
+	}
+
+	return nil
+}
+
 // upgradeProduct upgrades a node server or agent type to the specified version.
 func upgradeProduct(awsClient *aws.Client, cluster *shared.Cluster, nodeType, installType, ip string) error {
 	nodeOS := cluster.NodeOS
 	product := cluster.Config.Product
 
-	upgradeCommand := shared.GetInstallCmd(cluster, installType, nodeType)
-	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
-	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
-		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
+	err := runUpgradeCommand(cluster, nodeType, installType, ip)
+	if err != nil {
 		return err
 	}
 
@@ -87,7 +98,6 @@ func upgradeProduct(awsClient *aws.Client, cluster *shared.Cluster, nodeType, in
 		{Service: product, Action: restart, NodeType: nodeType, ExplicitDelay: 60},
 		{Service: product, Action: status, NodeType: nodeType, ExplicitDelay: 120},
 	}
-
 	if product == "rke2" {
 		ms := shared.NewManageService(3, 30)
 		output, err := ms.ManageService(ip, actions)
