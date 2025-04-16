@@ -673,6 +673,22 @@ func validateClusterHealth() error {
 	return nil
 }
 
+func rebootEc2Instance(awsClient *aws.Client, ip string) {
+	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
+	Expect(getErr).NotTo(HaveOccurred())
+
+	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
+	rebootError := awsClient.RebootInstance(serverInstanceID)
+	Expect(rebootError).NotTo(HaveOccurred())
+}
+
+func rebootNodeAndWait(awsClient *aws.Client, ip string) {
+	rebootEc2Instance(awsClient, ip)
+
+	sshErr := shared.WaitForSSHReady(ip)
+	Expect(sshErr).NotTo(HaveOccurred())
+}
+
 func getAwsClient(cluster *shared.Cluster) *aws.Client {
 	awsClient, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
@@ -689,22 +705,6 @@ func prepSlemicro(awsClient *aws.Client, ip, nodeOS string) {
 	Expect(updateErr).NotTo(HaveOccurred())
 
 	rebootNodeAndWait(awsClient, ip)
-}
-
-func rebootEc2Instance(awsClient *aws.Client, ip string) {
-	serverInstanceID, getErr := awsClient.GetInstanceIDByIP(ip)
-	Expect(getErr).NotTo(HaveOccurred())
-
-	shared.LogLevel("debug", "Rebooting instance id: %s", serverInstanceID)
-	rebootError := awsClient.RebootInstance(serverInstanceID)
-	Expect(rebootError).NotTo(HaveOccurred())
-}
-
-func rebootNodeAndWait(awsClient *aws.Client, ip string) {
-	rebootEc2Instance(awsClient, ip)
-
-	sshErr := shared.WaitForSSHReady(ip)
-	Expect(sshErr).NotTo(HaveOccurred())
 }
 
 func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
