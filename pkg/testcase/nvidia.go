@@ -96,40 +96,56 @@ func initialSetupSles(ip string) {
 }
 
 func initialSetupRHEL(ip string) {
-	installPackages := "sudo dnf -y install " +
+
+	d := "sudo dnf config-manager --set-enabled codeready-builder-for-rhel-8-rhui-rpms"
+	_, dErr := shared.RunCommandOnNode(d, ip)
+	Expect(dErr).ToNot(HaveOccurred(), "error enabling codeready-builder repo: %v", dErr)
+
+	a := "sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+	_, aErr := shared.RunCommandOnNode(a, ip)
+	Expect(aErr).ToNot(HaveOccurred(), "error installing epel-release: %v", aErr)
+
+	p := "sudo dnf install -y dnf-plugins-core"
+	_, pErr := shared.RunCommandOnNode(p, ip)
+	Expect(pErr).ToNot(HaveOccurred(), "error installing dnf-plugins-core: %v", pErr)
+
+	installPackages := "sudo dnf -y install dkms  " +
 		"kernel-devel-$(uname -r) " +
 		"kernel-headers-$(uname -r) " +
 		"gcc make elfutils-libelf-devel libglvnd-devel"
 
 	_, cmdErr := shared.RunCommandOnNode(installPackages, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error installing pre-requisite packages: %v", cmdErr)
+
 	shared.LogLevel("info", "Installed pre-requisite packages")
 
-	cmdRepo := "sudo dnf config-manager --add-repo" +
+	cmdRepo := "sudo dnf -y config-manager --add-repo" +
 		" https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
 	_, cmdErr = shared.RunCommandOnNode(cmdRepo, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error adding CUDA repo: %v", cmdErr)
 
-	installDriver := " sudo dnf module install nvidia-driver:565-dkms"
+	installDriver := " sudo dnf module install -y nvidia-driver:565-dkms"
 	_, cmdErr = shared.RunCommandOnNode(installDriver, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error enabling nvidia-driver module: %v", cmdErr)
 
-	clean := "sudo dnf clean all && sudo dnf makecache "
+	clean := "sudo dnf -y clean all && sudo dnf -y makecache "
 	_, cmdErr = shared.RunCommandOnNode(clean, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error cleaning dnf cache: %v", cmdErr)
 
 	keyImport := "sudo rpm --import https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/D42D0685.pub"
 	_, keyImportErr := shared.RunCommandOnNode(keyImport, ip)
 	Expect(keyImportErr).ToNot(HaveOccurred(), "error importing NVIDIA GPG key: %v", keyImportErr)
+
 	shared.LogLevel("info", "Imported NVIDIA GPG key")
 
-	repoRefresh := "sudo dnf clean all && sudo dnf makecache"
+	repoRefresh := "sudo dnf -y clean all && sudo dnf -y makecache"
 	_, repoRefreshErr := shared.RunCommandOnNode(repoRefresh, ip)
 	Expect(repoRefreshErr).ToNot(HaveOccurred(), "error refreshing repo metadata: %v", repoRefreshErr)
 
 	installComputeUtils := "sudo dnf install -y nvidia-compute-utils-570.124.06"
 	_, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
 	Expect(installComputeUtilsErr).ToNot(HaveOccurred(), "error installing compute utils: %v", installComputeUtilsErr)
+
 	shared.LogLevel("info", "Installed NVIDIA compute utilities")
 
 	updateEnvPath := "sudo echo 'export PATH=/usr/local/cuda/bin:$PATH' | sudo tee /etc/profile.d/cuda.sh && " +
@@ -137,11 +153,6 @@ func initialSetupRHEL(ip string) {
 		"sudo tee -a /etc/profile.d/cuda.sh && sudo chmod +x /etc/profile.d/cuda.sh"
 	_, updateEnvErr := shared.RunCommandOnNode(updateEnvPath, ip)
 	Expect(updateEnvErr).ToNot(HaveOccurred(), "error setting environment variables: %v", updateEnvErr)
-
-	createSymlink := "if [ -f /usr/local/cuda/lib64/libnvidia-ml.so ] && [ ! -f /usr/lib64/libnvidia-ml.so ]; " +
-		"then sudo ln -sf /usr/local/cuda/lib64/libnvidia-ml.so* /usr/lib64/; fi"
-	_, cmdErr = shared.RunCommandOnNode(createSymlink, ip)
-	Expect(cmdErr).ToNot(HaveOccurred(), "error creating symlinks: %v", cmdErr)
 }
 
 func validateNvidiaModule(ip string) {

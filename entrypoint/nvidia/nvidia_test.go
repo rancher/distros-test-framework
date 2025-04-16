@@ -33,20 +33,20 @@ var _ = Describe("Test:", func() {
 		testcase.TestNvidia(cluster)
 	})
 
-	// It("Validate Nodes after nvidia test", func() {
-	// 	testcase.TestNodeStatus(
-	// 		cluster,
-	// 		assert.NodeAssertReadyStatus(),
-	// 		nil,
-	// 	)
-	// })
-	//
-	// It("Validate Pods after nvidia test", func() {
-	// 	testcase.TestPodStatus(
-	// 		cluster,
-	// 		nil,
-	// 		assert.PodAssertReady())
-	// })
+	It("Validate Nodes after nvidia test", func() {
+		testcase.TestNodeStatus(
+			cluster,
+			assert.NodeAssertReadyStatus(),
+			nil,
+		)
+	})
+
+	It("Validate Pods after nvidia test", func() {
+		testcase.TestPodStatus(
+			cluster,
+			nil,
+			assert.PodAssertReady())
+	})
 })
 
 var _ = AfterEach(func() {
