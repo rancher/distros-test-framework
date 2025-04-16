@@ -13,6 +13,7 @@ var namespace = "local-path-storage"
 
 func TestLocalPathProvisionerStorage(cluster *shared.Cluster, applyWorkload, deleteWorkload bool) {
 	createDir(cluster)
+
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = shared.ManageWorkload("apply", "local-path-provisioner.yaml")
@@ -103,7 +104,7 @@ func logDebugData(cluster *shared.Cluster) {
 		shared.LogLevel("debug", "pv,pvc,storageclass info:\n %s", output)
 	}
 
-	//Log sestatus output
+	// Log sestatus output
 	cmd := "sestatus"
 	seStatusOut, statusLogErr := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 	if statusLogErr != nil {

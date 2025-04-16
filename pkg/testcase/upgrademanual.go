@@ -39,7 +39,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	// Upgrades server nodes sequentially
 	if cluster.NumServers > 0 {
 		for _, ip := range cluster.ServerIPs {
-			if err := upgradeProduct(awsClient, cluster.Config.Product, server, version, ip, cluster.NodeOS); err != nil {
+			if err := upgradeProduct(awsClient, cluster, server, version, ip); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", server, ip, err)
 				return err
 			}
@@ -49,7 +49,7 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 	// Upgrades agent nodes sequentially
 	if cluster.NumAgents > 0 {
 		for _, ip := range cluster.AgentIPs {
-			if err := upgradeProduct(awsClient, cluster.Config.Product, agent, version, ip, cluster.NodeOS); err != nil {
+			if err := upgradeProduct(awsClient, cluster, agent, version, ip); err != nil {
 				shared.LogLevel("error", "error upgrading %s %s: %v", agent, ip, err)
 				return err
 			}
@@ -68,8 +68,11 @@ func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, ve
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(awsClient *aws.Client, product, nodeType, installType, ip, nodeOS string) error {
-	upgradeCommand := shared.GetInstallCmd(product, installType, nodeType)
+func upgradeProduct(awsClient *aws.Client, cluster *shared.Cluster, nodeType, installType, ip string) error {
+	nodeOS := cluster.NodeOS
+	product := cluster.Config.Product
+
+	upgradeCommand := shared.GetInstallCmd(cluster, installType, nodeType)
 	shared.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 	if _, err := shared.RunCommandOnNode(upgradeCommand, ip); err != nil {
 		shared.LogLevel("error", "error running cmd on %s %s: %v", nodeType, ip, err)
