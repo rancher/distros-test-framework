@@ -223,7 +223,7 @@ test_fapolicyd_removal() {
         return
     fi
 
-    if fapolicyd --list-rules | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel|K3S|RKE2'; then
+    if fapolicyd --list-rules | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel|multus|multus-cni|K3S|RKE2'; then
         check_result 1 "Fapolicyd rules still exist" "Found: ${cni_rules}..."
         test_pass=false
     else

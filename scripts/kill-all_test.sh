@@ -182,8 +182,8 @@ test_iptables_rules() {
     test_pass=true
 
     # IPv4 checks.
-    if iptables-save 2>/dev/null | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel'; then
-        cni_rules=$(iptables-save 2>/dev/null | grep -E 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel' | head -5)
+    if iptables-save 2>/dev/null | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|multus|multus-cni|flannel'; then
+        cni_rules=$(iptables-save 2>/dev/null | grep -E 'KUBE-|CNI-|cali-|cali:|CILIUM_|multus|multus-cni|flannel' | head -5)
         check_result 1 "IPv4 iptables rules exist" "Found: ${cni_rules}..."
         test_pass=false
     else
@@ -191,8 +191,8 @@ test_iptables_rules() {
     fi
 
     # IPv6 check.
-    if ip6tables-save 2>/dev/null | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel'; then
-        cni_rules_v6=$(ip6tables-save 2>/dev/null | grep -E 'KUBE-|CNI-|cali-|cali:|CILIUM_|flannel' | head -5)
+    if ip6tables-save 2>/dev/null | grep -qE 'KUBE-|CNI-|cali-|cali:|CILIUM_|multus|multus-cni|flannel'; then
+        cni_rules_v6=$(ip6tables-save 2>/dev/null | grep -E 'KUBE-|CNI-|cali-|cali:|CILIUM_|multus|multus-cni|flannel' | head -5)
         check_result 1 "IPv6 ip6tables rules exist" "Found: ${cni_rules_v6}..."
         test_pass=false
     else
