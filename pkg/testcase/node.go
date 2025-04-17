@@ -69,7 +69,7 @@ func TestNodeStatusUsingBastion(
 	var nodeDetails string
 	var err error
 	Eventually(func(g Gomega) bool {
-		nodeDetails, err = support.GetPrivateNodes(cluster)
+		nodeDetails, err = support.GetNodesViaBastion(cluster)
 		Expect(err).To(BeNil())
 		nodes := shared.ParseNodes(nodeDetails)
 		g.Expect(len(nodes)).To(Equal(expectedNodeCount),
