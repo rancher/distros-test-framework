@@ -11,8 +11,9 @@ product=${1}
 version=${2}
 platform=${3}
 arch=${4}
-server_flags=${5}
-tarball_type=${6}
+registry_url=${5}
+server_flags=${6}
+tarball_type=${7}
 k3s_binary=$product
 
 validate_args() {
@@ -52,7 +53,7 @@ download_retry() {
   max_attempts=3
   attempt_num=1
 
-  while [ $attempt_num -le $max_attempts ]; do
+  while [[ $attempt_num -le $max_attempts ]]; do
     if eval "$cmd"; then
       echo "Command succeeded after $attempt_num attempts."
       break
@@ -63,7 +64,7 @@ download_retry() {
     fi
   done
 
-  if [ $attempt_num -gt $max_attempts ]; then
+  if [[ $attempt_num -ge $max_attempts ]]; then
     echo "Command failed after $max_attempts attempts."
   fi
 }
@@ -79,7 +80,12 @@ get_assets() {
       download_retry "wget $url/k3s-airgap-images-$arch.$tarball_type"
     fi
   elif [[ "$product" == "rke2" ]]; then
-    url="https://github.com/rancher/rke2/releases/download/$version"
+    if [[ -n "$registry_url" ]]; then
+      url=$registry_url/rke2/$version
+    else
+      url="https://github.com/rancher/rke2/releases/download/$version"
+    fi
+    echo "Download assets using url: $url"
     download_retry "wget $url/sha256sum-$arch.txt"
     # Ref: https://docs.rke2.io/install/airgap
     if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]]; then
@@ -102,7 +108,12 @@ get_assets() {
 
 get_cni_assets() {
   if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ "$server_flags" != *"cni: none"* ]]; then
-    url="https://github.com/rancher/rke2/releases/download/$version"
+    if [[ -n "$registry_url" ]]; then
+      url=$registry_url/rke2/$version
+    else
+      url="https://github.com/rancher/rke2/releases/download/$version"
+    fi
+    echo "Download cni assets using url: $url"
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
       if [[ "$server_flags" =~ $cni ]]; then

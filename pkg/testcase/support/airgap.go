@@ -102,7 +102,7 @@ func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
 // SetupAirgapRegistry sets bastion node for airgap registry.
 func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, airgapMethod string) (err error) {
 	shared.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
-	_, err = GetArtifacts(cluster, "linux", flags.AirgapFlag.TarballType)
+	_, err = GetArtifacts(cluster, "linux", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	if err != nil {
 		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
 	}
@@ -325,16 +325,19 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 }
 
 // GetArtifacts executes get_artifacts.sh script.
-func GetArtifacts(cluster *shared.Cluster, platform, tarballType string) (res string, err error) {
+func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType string) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
 	if platform == "" {
 		platform = "linux"
 	}
+	if registryURL != "" {
+		shared.LogLevel("info", "Getting artifacts from URL: %v", registryURL)
+	}
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v"`,
+			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, cluster.Config.Version, platform,
-		cluster.Config.Arch, serverFlags, tarballType)
+		cluster.Config.Arch, registryURL, serverFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
