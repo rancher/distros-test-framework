@@ -302,3 +302,12 @@ no_of_worker_nodes = 1
              e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
     systemd-logs   complete   passed       2
  Sonobuoy has completed. Use `sonobuoy retrieve` to get results
+
+
+## Kill all - Uninstall tests
+- Based on fixes here https://github.com/rancher/rke2/commit/613399eefdd581b137fc9bd7aeb7fb59ecdfdd8e introduced in v1.30.4 when running kill all script after this,
+we are not directly umounting the data dir, which is the behavior tests scripts are expecting.
+
+- Ideally we should run killall uninstall tests on versions above 1.30.4.
+
+- Optionally we can pass `-killallUninstall true` to run kill all-uninstall tests on the end of ValidateCluster tests.

@@ -25,6 +25,7 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.KillAllUninstallTest, "killallUninstall", "Run killall test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()

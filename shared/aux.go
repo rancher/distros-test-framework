@@ -253,7 +253,8 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		LogLevel("warn", "stderrStr from RunCommandOnNode() , please double check!\n%v\n", stderrStr)
+		LogLevel("warn", "stderr/error from RunCommandOnNode(), "+
+			"please double check!\nstderr: %v\nerror: %v\n", stderrStr, errssh)
 		return "", stderrStr, errssh
 	}
 
@@ -265,9 +266,11 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 // That could separators like ";" , | , "&&" etc.
 //
 // Example:
-// "kubectl get nodes -o wide : | grep IMAGES" =>
+// "kubectl get nodes -o wide | grep IMAGES"
 //
-// "kubectl get nodes -o wide --kubeconfig /tmp/kubeconfig | grep IMAGES".
+// should be called like this:
+//
+// "kubectl get nodes -o wide : | grep IMAGES".
 func JoinCommands(cmd, kubeconfigFlag string) string {
 	cmds := strings.Split(cmd, ":")
 	joinedCmd := cmds[0] + kubeconfigFlag

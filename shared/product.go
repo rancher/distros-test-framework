@@ -121,7 +121,8 @@ func GetInstallCmd(product, installType, nodeType string) string {
 
 	if product == "rke2" {
 		installMethod := fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), os.Getenv("install_method"))
-		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %s sh -s - %s", product, installMethod, nodeType)
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %s sh -s - %s",
+			product, installMethod, nodeType)
 	} else {
 		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
 	}

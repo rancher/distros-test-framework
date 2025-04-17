@@ -29,7 +29,7 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("TestKillAll -> Uninstall", func() {
+	It("Validate KillAll -> Uninstall", func() {
 		testcase.TestKillAllUninstall(cluster, cfg)
 	})
 })
