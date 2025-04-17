@@ -119,11 +119,14 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	channel := getChannel(product)
-	installMethod := fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), os.Getenv("install_method"))
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %s sh -s - %s", product, installMethod, nodeType)
+	if product == "rke2" {
+		installMethod := fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), os.Getenv("install_method"))
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %s sh -s - %s", product, installMethod, nodeType)
+	} else {
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+	}
 
-	return fmt.Sprintf(installCmd, installFlag, channel)
+	return fmt.Sprintf(installCmd, installFlag, getChannel(product))
 }
 
 func getChannel(product string) string {
