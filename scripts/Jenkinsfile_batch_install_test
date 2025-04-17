@@ -82,6 +82,12 @@ node {
                 case "validatecluster_arm":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
                   break
+                 case "killalluninstall"
+                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall", parameters: install_params }
+                   break
+                 case "killalluninstall_arm
+                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm", parameters: install_params }
+                   break"
                 case "docker_cri":
                   jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
                   break             

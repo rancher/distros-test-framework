@@ -3,6 +3,7 @@ package shared
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -252,7 +253,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		LogLevel("warn", "%v\n", stderrStr)
+		LogLevel("warn", "stderrStr from RunCommandOnNode() , please double check!\n%v\n", stderrStr)
 		return "", stderrStr, errssh
 	}
 
@@ -397,36 +398,57 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	return false
 }
 
-func checkFiles(product string, paths []string, scriptName, ip string) (string, error) {
-	var foundPath string
-	for _, path := range paths {
-		checkCmd := fmt.Sprintf("if [ -f %s/%s ]; then echo 'found'; else echo 'not found'; fi",
-			path, scriptName)
-		output, err := RunCommandOnNode(checkCmd, ip)
-		if err != nil {
-			return "", err
-		}
-		output = strings.TrimSpace(output)
-		if output == "found" {
-			foundPath = path
-		} else {
-			foundPath, err = FindPath(scriptName, ip)
-			if err != nil {
-				return "", fmt.Errorf("failed to find uninstall script for %s: %w", product, err)
-			}
-		}
-	}
-
-	return foundPath, nil
-}
-
 func FindPath(name, ip string) (string, error) {
-	searchPath := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | grep -v data | sed 1q", name)
-	fullPath, err := RunCommandOnNode(searchPath, ip)
-	if err != nil {
-		return "", err
+	if ip == "" {
+		return "", errors.New("ip should not be empty")
 	}
 
+	if name == "" {
+		return "", errors.New("name should not be empty")
+	}
+
+	// adding common paths to the environment variable PATH since in some os's not all paths are available.
+	commonPaths := "/var/lib/rancher/rke2/bin:" +
+		"/var/rancher/rke2/bin:" +
+		"/var/lib/rancher:" +
+		"/var/rancher:" +
+		"/opt/rke2/bin:" +
+		"/var/lib/rancher/k3s/bin:" +
+		"/var/rancher/k3s/bin:" +
+		"/opt/k3s/bin:" +
+		"/usr/local/bin:" +
+		"/usr/bin:"
+
+	// adding the common paths to the PATH environment variable by sourcing it from a file.
+	envFile := "find_path_env.sh"
+	err := ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to create environment file: %w", err)
+	}
+
+	sourcedCmds := []string{
+		fmt.Sprintf(". /etc/profile.d/%s && which %s 2>/dev/null", envFile, name),
+		fmt.Sprintf(". /etc/profile.d/%s && command -v %s 2>/dev/null", envFile, name),
+		fmt.Sprintf(". /etc/profile.d/%s && type -p %s 2>/dev/null", envFile, name),
+	}
+
+	for _, cmd := range sourcedCmds {
+		path, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			LogLevel("warn", "Failed to find %s with sourced environment: %v", name, err)
+			continue
+		}
+		if path != "" {
+			return strings.TrimSpace(path), nil
+		}
+	}
+
+	findCmd := fmt.Sprintf("find / -type f -executable -name %s 2>/dev/null | "+
+		" grep -v data | sed 1q", name)
+	fullPath, err := RunCommandOnNode(findCmd, ip)
+	if err != nil {
+		return "", fmt.Errorf("failed to run command %s: %w", findCmd, err)
+	}
 	if fullPath == "" {
 		return "", fmt.Errorf("path for %s not found", name)
 	}
@@ -549,4 +571,115 @@ func SystemCtlCmd(service, action string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
+}
+
+// MountBind mounts a directory to another directory on the given node IP addresses.
+func MountBind(ips []string, dir, mountPoint string) error {
+	if ips == nil {
+		return errors.New("ips should not be empty")
+	}
+
+	if dir == "" || mountPoint == "" {
+		return errors.New(" dir and mountPoint should not be empty")
+	}
+
+	if !strings.HasPrefix(dir, "/") || !strings.HasPrefix(mountPoint, "/") {
+		return fmt.Errorf("dir and mountPoint should  be absolute paths %s and %s", dir, mountPoint)
+	}
+
+	LogLevel("info", "Mounting %s to %s on nodes: %v\n", dir, mountPoint, ips)
+
+	cmd := "sudo mount --bind " + dir + " " + mountPoint
+	for _, ip := range ips {
+		res, err := RunCommandOnNode(cmd, ip)
+		if err != nil {
+			return fmt.Errorf("failed to run command: %s, error: %w", cmd, err)
+		}
+		res = strings.TrimSpace(res)
+		if res != "" {
+			return fmt.Errorf("failed to run command: %s, error: %s", cmd, res)
+		}
+	}
+
+	return nil
+}
+
+func FindBinaries(ip string, binaries ...string) (map[string]string, error) {
+	if ip == "" {
+		return nil, errors.New("ip should not be empty")
+	}
+
+	if len(binaries) == 0 {
+		// default binary if none provided.
+		binaries = []string{"kubectl"}
+	}
+
+	binPaths := make(map[string]string)
+	for _, bin := range binaries {
+		path, err := FindPath(bin, ip)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find binary %s: %w", bin, err)
+		}
+
+		binDir := filepath.Dir(path)
+		binPaths[bin] = binDir
+	}
+
+	if len(binPaths) == 0 {
+		return nil, fmt.Errorf("no requested binaries %s found on node %s", strings.Join(binaries, ", "), ip)
+	}
+
+	LogLevel("info", "Found binaries: %v", binPaths)
+
+	return binPaths, nil
+}
+
+// ExportEnvProfileNode creates a script with environment variables and exports them to the specified nodes.
+func ExportEnvProfileNode(ips []string, vars map[string]string, filename string) error {
+	if len(ips) == 0 {
+		return errors.New("ips cannot be empty")
+	}
+
+	if vars == nil {
+		return errors.New("vars cannot be empty")
+	}
+
+	if filename == "" {
+		filename = "env_vars.sh"
+	}
+
+	var linesToAdd, varList []string
+	linesToAdd = append(linesToAdd, "#!/usr/bin/env bash")
+
+	for name, value := range vars {
+		linesToAdd = append(linesToAdd, fmt.Sprintf("export %s=%s", name, value))
+		varList = append(varList, fmt.Sprintf("%s=%s", name, value))
+	}
+
+	content := strings.Join(linesToAdd, "\n") + "\n"
+	tmp := "/tmp/" + filename
+	dest := "/etc/profile.d/" + filename
+
+	for _, ip := range ips {
+		cmd := fmt.Sprintf(
+			"sudo tee %s > /dev/null << EOF\n%s\nEOF\n"+
+				"sudo chmod +x %s\n"+
+				"sudo mv %s %s\n"+
+				"sudo chmod 644 %s",
+			tmp, content, tmp, tmp, dest, dest,
+		)
+
+		res, err := RunCommandOnNode(cmd, ip)
+		if res != "" {
+			return fmt.Errorf("failed to export environment on node %s: %s", ip, res)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to export environment on node %s: %w", ip, err)
+		}
+	}
+
+	LogLevel("debug", "Environment variables exported to %s on %d nodes (%s): %s",
+		dest, len(ips), filename, strings.Join(varList, ", "))
+
+	return nil
 }
