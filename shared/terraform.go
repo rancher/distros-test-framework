@@ -70,7 +70,6 @@ func loadTFconfig(
 	}
 
 	LogLevel("info", "Loading other tfvars in to config....")
-	c.ResourceName = terraform.GetVariableAsStringFromVarFile(t, varDir, "resource_name")
 	c.NodeOS = terraform.GetVariableAsStringFromVarFile(t, varDir, "node_os")
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = product

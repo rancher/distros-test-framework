@@ -32,7 +32,6 @@ type Cluster struct {
 	Aws           AwsConfig
 	BastionConfig bastionConfig
 	NodeOS        string
-	ResourceName  string
 }
 
 type AwsConfig struct {
@@ -171,8 +170,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		BastionConfig: bastionConfig{
 			PublicIPv4Addr: os.Getenv("BASTION_IP"),
 		},
-		NodeOS:       os.Getenv("node_os"),
-		ResourceName: os.Getenv("resource_name"),
+		NodeOS: os.Getenv("node_os"),
 	}, nil
 }
 

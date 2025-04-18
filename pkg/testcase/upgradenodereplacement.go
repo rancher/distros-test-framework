@@ -30,23 +30,24 @@ func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	}
 
 	awsClient := getAwsClient(cluster)
+	resourceName := os.Getenv("resource_name")
 
 	// create and prepare the servers
 	var newExternalServerIps, newPrivateServerIps []string
-	newExternalServerIps, newPrivateServerIps = createAndPrepNodes(awsClient, cluster, server)
+	newExternalServerIps, newPrivateServerIps = createAndPrepNodes(awsClient, cluster, server, resourceName)
 
 	serverLeaderIP := cluster.ServerIPs[0]
 	token, err := shared.FetchToken(cluster.Config.Product, serverLeaderIP)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
-		version, channel, newExternalServerIps, newPrivateServerIps)
+		version, channel, resourceName, newExternalServerIps, newPrivateServerIps)
 	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
 	shared.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token)
+		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token, resourceName)
 	}
 	// delete the last remaining server = leader.
 	delErr := deleteRemainServer(serverLeaderIP, awsClient)
@@ -184,7 +185,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 func nodeReplaceServers(
 	cluster *shared.Cluster,
 	a *aws.Client,
-	serverLeaderIp, token, version, channel string,
+	serverLeaderIp, token, version, channel, resourceName string,
 	newExternalServerIps, newPrivateServerIps []string,
 ) error {
 	if token == "" {
@@ -213,7 +214,7 @@ func nodeReplaceServers(
 	}
 
 	shared.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n", newFirstServerIP)
-	kubeConfigUpdated, kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, cluster.ResourceName, cluster.Config.Product)
+	kubeConfigUpdated, kbCfgErr := shared.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
 	if kbCfgErr != nil {
 		return shared.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
@@ -521,9 +522,10 @@ func nodeReplaceAgents(
 	version,
 	channel,
 	serverLeaderIp,
-	token string,
+	token,
+	resourceName string,
 ) {
-	newExternalAgentIps, newPrivateAgentIps := createAndPrepNodes(awsClient, cluster, agent)
+	newExternalAgentIps, newPrivateAgentIps := createAndPrepNodes(awsClient, cluster, agent, resourceName)
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel,
 		newExternalAgentIps, newPrivateAgentIps)
@@ -728,10 +730,10 @@ func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []stri
 	return nodeNames
 }
 
-func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType string) (
+func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType, resourceName string) (
 	newExternalIps []string, newPrivateIps []string) {
 	// create aws ec2 instances
-	names := getNodeNames(cluster, cluster.ResourceName, nodeType)
+	names := getNodeNames(cluster, resourceName, nodeType)
 	newExternalIps, newPrivateIps, instanceIds, createErr := awsClient.CreateInstances(names...)
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 	shared.LogLevel("debug", "Created %s nodes with public ips: %s and ids: %s\n",
