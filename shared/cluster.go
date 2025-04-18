@@ -126,6 +126,7 @@ func KubectlCommand(cluster *Cluster, destination, action, source string, args .
 		"exec":     "kubectl exec",
 		"delete":   "kubectl delete",
 		"apply":    "kubectl apply",
+		"logs":     "kubectl logs",
 	}
 
 	cmdPrefix, ok := shortCmd[action]
@@ -720,4 +721,71 @@ func ExtractKubeImageVersion() string {
 	LogLevel("info", "serverVersionReturnValue: %s", version)
 
 	return version
+}
+
+func DescribePod(cluster *Cluster, pod *Pod) {
+	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
+	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
+	if describeErr != nil {
+		LogLevel(
+			"error", "error getting describe pod information for pod %s on namespace %s", pod.Name, pod.NameSpace)
+	}
+	if output != "" {
+		LogLevel("debug", "Output for: $ kubectl describe pod %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
+	}
+}
+
+func PodLogs(cluster *Cluster, pod *Pod) {
+	if pod.NameSpace == "" || pod.Name == "" {
+		LogLevel("warn", "Name or Namespace info in pod data is empty. kubectl logs cmd may not work")
+	}
+	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
+	output, logsErr := KubectlCommand(cluster, "node", "logs", "", cmd)
+	if logsErr != nil {
+		LogLevel(
+			"error", "error getting logs for pod %s on namespace %s", pod.Name, pod.NameSpace)
+	}
+	if output != "" {
+		LogLevel("debug", "Output for: $ kubectl logs %s -n %s is:\n %s", pod.Name, pod.NameSpace, output)
+	}
+}
+
+func LogAllPodsForNamespace(namespace string) {
+	LogLevel("debug", "logging pod logs and describe pod output for all pods with namespace: %s", namespace)
+	filters := map[string]string{
+		"namespace": namespace,
+	}
+	pods, getErr := GetPodsFiltered(filters)
+	if getErr != nil {
+		LogLevel("error", "possibly no pods found with namespace: %s", namespace)
+	}
+	for i := range pods {
+		if pods[i].NameSpace == "" {
+			pods[i].NameSpace = namespace
+		}
+		PodLogs(cluster, &pods[i])
+		DescribePod(cluster, &pods[i])
+	}
+}
+
+func FindPodAndLog(name, namespace string) {
+	LogLevel("debug",
+		"find and log(pod logs and describe pod) for pod starting with %s for namespace %s", name, namespace)
+	filters := map[string]string{
+		"namespace": namespace,
+	}
+
+	pods, getPodErr := GetPodsFiltered(filters)
+	if getPodErr != nil {
+		LogLevel("error", "error getting pods with namespace: %s", namespace)
+	}
+	for i := range pods {
+		if strings.Contains(pods[i].Name, name) {
+			if pods[i].NameSpace == "" {
+				pods[i].NameSpace = namespace
+			}
+			PodLogs(cluster, &pods[i])
+			DescribePod(cluster, &pods[i])
+		}
+	}
 }
