@@ -1,6 +1,7 @@
 #!/bin/bash
 
-set +x
+# This script prepares bastion node with installing kubectl
+# set +x
 
 arch=$(uname -m)
 if [ "$arch" = "aarch64" ]; then
