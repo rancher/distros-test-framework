@@ -439,37 +439,41 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
+func serverJoinSlemicro(cluster *shared.Cluster,
+	awsClient *aws.Client,
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	// For slemicro nodes, we perform only 'install' step at this stage.
+	shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
+	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+		newExternalIP, newPrivateIP, "install")
+	if joinStepsErr != nil {
+		return shared.ReturnLogError("error installing product (k3s | rke2) %w\n", joinStepsErr)
+	}
+
+	// reboot nodes.
+	rebootNodeAndWait(awsClient, newExternalIP)
+
+	// enable service post reboot.
+	shared.LogLevel("debug", "Enable Services on: %s", newExternalIP)
+	enableErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+		newExternalIP, newPrivateIP, "enable")
+	if enableErr != nil {
+		return shared.ReturnLogError("error enabling service for product (k3s | rke2) %w\n", enableErr)
+	}
+
+	return nil
+}
+
 func serverJoin(cluster *shared.Cluster,
 	awsClient *aws.Client,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
-	// All non-slemicro, we do install and enable services in the same step using 'both' keyword
-	installOrBoth := "both"
 	if cluster.NodeOS == "slemicro" {
-		// For slemicro nodes, we perform only 'install' step at this stage.
-		installOrBoth = "install"
-		shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
-	}
-
-	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
-		newExternalIP, newPrivateIP, installOrBoth)
-	if joinStepsErr != nil {
-		if cluster.NodeOS == "slemicro" {
-			return shared.ReturnLogError("error installing product (k3s | rke2) %w\n", joinStepsErr)
-		}
-
-		return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
-	}
-
-	// reboot nodes and enable services for slemicro OS
-	if cluster.NodeOS == "slemicro" {
-		rebootNodeAndWait(awsClient, newExternalIP)
-
-		// enable service post reboot
-		shared.LogLevel("debug", "Enable Services on: %s", newExternalIP)
-		enableErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
-			newExternalIP, newPrivateIP, "enable")
-		if enableErr != nil {
-			return shared.ReturnLogError("error enabling service for product (k3s | rke2) %w\n", enableErr)
+		return serverJoinSlemicro(cluster, awsClient, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
+	} else {
+		joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+			newExternalIP, newPrivateIP, "both")
+		if joinStepsErr != nil {
+			return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
 		}
 	}
 
@@ -588,44 +592,49 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 	return nil
 }
 
+func joinAgentSlemicro(cluster *shared.Cluster, awsClient *aws.Client,
+	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	// For slemicro nodes, we perform only 'install' step at this stage.
+	shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, "install")
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing install command: %w\n", parseErr)
+	}
+
+	if installErr := executeJoinCmd(cmd, selfExternalIp, false); installErr != nil {
+		return shared.ReturnLogError("error on install step on agent node: %w\n", installErr)
+	}
+
+	// reboot nodes.
+	rebootNodeAndWait(awsClient, selfExternalIp)
+
+	// enable services post reboot.
+	cmd, parseErr = buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, "enable")
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing enable commands: %w\n", parseErr)
+	}
+	if enableErr := executeJoinCmd(cmd, selfExternalIp, true); enableErr != nil {
+		return shared.ReturnLogError("error enabling services during join of agent node: %w\n", enableErr)
+	}
+
+	return nil
+}
+
 func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
-	// All non-slemicro, we perform install and enable services in the same step with 'both' keyword.
-	installOrBoth := "both"
 	if cluster.NodeOS == "slemicro" {
-		// We do only 'install' first in slemicro case
-		installOrBoth = "install"
-		shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
-	}
-
-	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
-		channel, selfExternalIp, selfPrivateIp, installOrBoth)
-	if parseErr != nil {
-		return shared.ReturnLogError("error parsing join(both)|install: %s commands: %w\n", installOrBoth, parseErr)
-	}
-	var joinErr error
-	if installOrBoth == "both" {
-		joinErr = executeJoinCmd(cmd, selfExternalIp, true)
+		return joinAgentSlemicro(cluster, awsClient, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
 	} else {
-		joinErr = executeJoinCmd(cmd, selfExternalIp, false)
-	}
-
-	if joinErr != nil {
-		return shared.ReturnLogError("error on step join(both)|install: %s on agent node: %w\n", installOrBoth, joinErr)
-	}
-
-	// reboot nodes and enable services for slemicro OS
-	if cluster.NodeOS == "slemicro" {
-		rebootNodeAndWait(awsClient, selfExternalIp)
-		// enable service post reboot
-		cmd, parseErr = buildJoinCmd(cluster, agent, serverIp, token, version,
-			channel, selfExternalIp, selfPrivateIp, "enable")
+		cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+			channel, selfExternalIp, selfPrivateIp, "both")
 		if parseErr != nil {
-			return shared.ReturnLogError("error parsing enable commands: %w\n", parseErr)
+			return shared.ReturnLogError("error parsing join(both) commands: %w\n", parseErr)
 		}
 
 		if joinErr := executeJoinCmd(cmd, selfExternalIp, true); joinErr != nil {
-			return shared.ReturnLogError("error enabling services during join of agent node: %w\n", joinErr)
+			return shared.ReturnLogError("error on step join(both) on agent node: %w\n", joinErr)
 		}
 	}
 
