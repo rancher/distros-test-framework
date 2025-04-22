@@ -442,8 +442,10 @@ func validateNodeJoin(ip string) error {
 func serverJoin(cluster *shared.Cluster,
 	awsClient *aws.Client,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	// All non-slemicro, we do install and enable services in the same step using 'both' keyword
 	installOrBoth := "both"
 	if cluster.NodeOS == "slemicro" {
+		// For slemicro nodes, we perform only 'install' step at this stage.
 		installOrBoth = "install"
 		shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
 	}
@@ -488,7 +490,7 @@ func joinSteps(cluster *shared.Cluster,
 	} else {
 		delayTime = false
 	}
-	if executeErr := execute(joinCmd, newExternalIP, delayTime); executeErr != nil {
+	if executeErr := executeJoinCmd(joinCmd, newExternalIP, delayTime); executeErr != nil {
 		return shared.ReturnLogError("error performing install or enable action on node: %s %w\n",
 			installEnableOrBoth, executeErr)
 	}
@@ -588,8 +590,10 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 
 func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	// All non-slemicro, we perform install and enable services in the same step with 'both' keyword.
 	installOrBoth := "both"
 	if cluster.NodeOS == "slemicro" {
+		// We do only 'install' first in slemicro case
 		installOrBoth = "install"
 		shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
 	}
@@ -601,9 +605,9 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	}
 	var joinErr error
 	if installOrBoth == "both" {
-		joinErr = execute(cmd, selfExternalIp, true)
+		joinErr = executeJoinCmd(cmd, selfExternalIp, true)
 	} else {
-		joinErr = execute(cmd, selfExternalIp, false)
+		joinErr = executeJoinCmd(cmd, selfExternalIp, false)
 	}
 
 	if joinErr != nil {
@@ -620,7 +624,7 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 			return shared.ReturnLogError("error parsing enable commands: %w\n", parseErr)
 		}
 
-		if joinErr := execute(cmd, selfExternalIp, true); joinErr != nil {
+		if joinErr := executeJoinCmd(cmd, selfExternalIp, true); joinErr != nil {
 			return shared.ReturnLogError("error enabling services during join of agent node: %w\n", joinErr)
 		}
 	}
@@ -628,7 +632,7 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	return nil
 }
 
-func execute(cmd, ip string, delayTime bool) error {
+func executeJoinCmd(cmd, ip string, delayTime bool) error {
 	if cmd == "" {
 		return shared.ReturnLogError("cmd not sent\n")
 	}

@@ -552,6 +552,8 @@ func SystemCtlCmd(service, action string) (string, error) {
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
 }
 
+// Create a directory if it does not exist.
+// Optional: If chmodValue is not empty, Run chmod to change permission of the directory.
 func CreateDir(dir, chmodValue, ip string) {
 	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
 	cmdPart2 := "sudo mkdir -p " + dir
@@ -570,6 +572,8 @@ func CreateDir(dir, chmodValue, ip string) {
 	}
 }
 
+// Wait for SSH to a node ip to be ready.
+// Default max wait time: 3 mins. Retry 'SSH is ready' check every 10 seconds.
 func WaitForSSHReady(ip string) error {
 	ticker := time.NewTicker(10 * time.Second)
 	timeout := time.After(3 * time.Minute)
@@ -591,6 +595,8 @@ func WaitForSSHReady(ip string) error {
 	}
 }
 
+// Grep for a particular text/string from a filename and log the same.
+// Ex: Log content:'denied' calls in filename:'/var/log/audit/audit.log' file.
 func LogGrepOutput(filename, content, ip string) {
 	cmd := fmt.Sprintf("sudo cat %s | grep %s", filename, content)
 	grepData, grepErr := RunCommandOnNode(cmd, ip)
