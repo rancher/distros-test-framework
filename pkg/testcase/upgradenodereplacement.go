@@ -469,12 +469,11 @@ func serverJoin(cluster *shared.Cluster,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
 	if cluster.NodeOS == "slemicro" {
 		return serverJoinSlemicro(cluster, awsClient, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
-	} else {
-		joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
-			newExternalIP, newPrivateIP, "both")
-		if joinStepsErr != nil {
-			return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
-		}
+	}
+	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
+		newExternalIP, newPrivateIP, "both")
+	if joinStepsErr != nil {
+		return shared.ReturnLogError("error joining node %w\n", joinStepsErr)
 	}
 
 	return nil
@@ -626,16 +625,15 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
 	if cluster.NodeOS == "slemicro" {
 		return joinAgentSlemicro(cluster, awsClient, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
-	} else {
-		cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
-			channel, selfExternalIp, selfPrivateIp, "both")
-		if parseErr != nil {
-			return shared.ReturnLogError("error parsing join(both) commands: %w\n", parseErr)
-		}
+	}
+	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
+		channel, selfExternalIp, selfPrivateIp, "both")
+	if parseErr != nil {
+		return shared.ReturnLogError("error parsing join(both) commands: %w\n", parseErr)
+	}
 
-		if joinErr := executeJoinCmd(cmd, selfExternalIp, true); joinErr != nil {
-			return shared.ReturnLogError("error on step join(both) on agent node: %w\n", joinErr)
-		}
+	if joinErr := executeJoinCmd(cmd, selfExternalIp, true); joinErr != nil {
+		return shared.ReturnLogError("error on step join(both) on agent node: %w\n", joinErr)
 	}
 
 	return nil
