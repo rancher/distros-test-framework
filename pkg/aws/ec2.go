@@ -331,6 +331,10 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 						Key:   aws.String("Name"),
 						Value: aws.String(name + "-distros-qa"),
 					},
+					{
+						Key:   aws.String("Team"),
+						Value: aws.String("distros-qa"),
+					},
 				},
 			},
 		},
