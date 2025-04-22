@@ -88,6 +88,12 @@ func createDir(cluster *shared.Cluster) {
 	}
 }
 
+// Logs the following debug data:
+// 1. pod log and describe pod output for 'helper-pod-create-pvc' pod.
+// 2. pod log and describe pod output for all pods in local-path-storage namespace
+// 3. kubectl get pv,pvc,storageclass output
+// 4. sestatus output
+// 5. grep audit logs for denied calls and log the same.
 func logDebugData(cluster *shared.Cluster) {
 	// Pod log and describe pod output for 'helper-pod-create-pvc' pod
 	shared.FindPodAndLog("helper-pod-create-pvc", "kube-system")
