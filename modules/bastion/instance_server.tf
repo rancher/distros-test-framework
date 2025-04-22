@@ -21,6 +21,7 @@ resource "aws_instance" "bastion" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-bastion-server"
+    Team                 = local.resource_tag
   }
 
   provisioner "file" {
