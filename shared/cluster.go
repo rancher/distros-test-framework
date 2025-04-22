@@ -723,7 +723,7 @@ func ExtractKubeImageVersion() string {
 	return version
 }
 
-// Runs and logs kubectl describe pod command
+// Runs 'kubectl describe pod' command and logs output.
 func DescribePod(cluster *Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
 	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
@@ -736,7 +736,7 @@ func DescribePod(cluster *Cluster, pod *Pod) {
 	}
 }
 
-// Runs and logs: kubectl logs command output
+// Runs 'kubectl logs' command and logs output.
 func PodLogs(cluster *Cluster, pod *Pod) {
 	if pod.NameSpace == "" || pod.Name == "" {
 		LogLevel("warn", "Name or Namespace info in pod data is empty. kubectl logs cmd may not work")
@@ -753,8 +753,8 @@ func PodLogs(cluster *Cluster, pod *Pod) {
 }
 
 // Given a namespace, this function:
-// 1.  filters ALL pods in the namespace
-// 2.  logs both kubectl describe pod and kubectl logs output for each pod in the namespace
+// 1.  Filters ALL pods in the namespace.
+// 2.  logs both 'kubectl describe pod' and 'kubectl logs' output for each pod in the namespace.
 func LogAllPodsForNamespace(namespace string) {
 	LogLevel("debug", "logging pod logs and describe pod output for all pods with namespace: %s", namespace)
 	filters := map[string]string{
@@ -773,9 +773,10 @@ func LogAllPodsForNamespace(namespace string) {
 	}
 }
 
-// Search and log for a particular pod(s) given its unique name substring and namespace. Ex: coredns, kube-system
-// 1. Filter based on the name substring, and find the right pod(s)
-// 2. For the pods matching the name, logs: kubectl describe pod and kubectl logs output
+// Search and log for a particular pod(s) given its unique name substring and namespace. Ex: coredns, kube-system.
+// 1. Filter based on the name substring, and find the right pod(s).
+// 2. For the pods matching the name, logs: 'kubectl describe pod' and 'kubectl logs' output.
+// In the given example, it will filter all 'coredns' named pods in 'kube-system' namespace and log their outputs.
 func FindPodAndLog(name, namespace string) {
 	LogLevel("debug",
 		"find and log(pod logs and describe pod) for pod starting with %s for namespace %s", name, namespace)

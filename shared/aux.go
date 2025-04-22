@@ -553,7 +553,7 @@ func SystemCtlCmd(service, action string) (string, error) {
 }
 
 // Create a directory if it does not exist.
-// Optional: If chmodValue is not empty, Run chmod to change permission of the directory.
+// Optional: If chmodValue is not empty, run 'chmod' to change permission of the directory.
 func CreateDir(dir, chmodValue, ip string) {
 	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
 	cmdPart2 := "sudo mkdir -p " + dir
@@ -595,7 +595,8 @@ func WaitForSSHReady(ip string) error {
 	}
 }
 
-// Grep for a particular text/string from a filename and log the same.
+// Function to log a 'grep' output.
+// Grep for a particular text/string (content) in a file (filename) on a node with 'ip' and log the same.
 // Ex: Log content:'denied' calls in filename:'/var/log/audit/audit.log' file.
 func LogGrepOutput(filename, content, ip string) {
 	cmd := fmt.Sprintf("sudo cat %s | grep %s", filename, content)
