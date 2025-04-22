@@ -470,6 +470,7 @@ func serverJoin(cluster *shared.Cluster,
 	if cluster.NodeOS == "slemicro" {
 		return serverJoinSlemicro(cluster, awsClient, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
 	}
+
 	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
 		newExternalIP, newPrivateIP, "both")
 	if joinStepsErr != nil {
@@ -626,6 +627,7 @@ func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
 	if cluster.NodeOS == "slemicro" {
 		return joinAgentSlemicro(cluster, awsClient, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
 	}
+
 	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
 		channel, selfExternalIp, selfPrivateIp, "both")
 	if parseErr != nil {
