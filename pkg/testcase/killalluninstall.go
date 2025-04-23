@@ -6,10 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	killAllTimeout = 25 * time.Second
+
+	errDirNotFound   = " no such file or directory"
+	errNoMount       = " no mount point specified"
+	errMount         = " mount point does not exist"
+	errMountNotFound = " not found"
+	errNotMounted    = " not mounted"
 )
 
 func TestKillAllUninstall(cluster *shared.Cluster, cfg *config.Env) {
@@ -30,7 +42,8 @@ func TestKillAllUninstall(cluster *shared.Cluster, cfg *config.Env) {
 
 	killAllValidations(cluster, "true", true)
 
-	shared.LogLevel("info", "umounting data dir: %s since kill all doesn't unmount if previously mounted", productDataDir)
+	shared.LogLevel("info", "umounting data dir: %s since kill all after v1.30.4 doesn't unmount if previously mounted",
+		productDataDir)
 	umountDataDir(cluster, productDataDir)
 
 	shared.LogLevel("info", "running uninstall script and tests after kill all")
@@ -130,59 +143,71 @@ func scpTestScripts(cluster *shared.Cluster) {
 }
 
 func umountDataDir(cluster *shared.Cluster, productDataDir string) {
-	// umount server nodes.
-	umountAllProductMounts(productDataDir, cluster.ServerIPs[0])
-	// umount agent nodes.
-	umountAllProductMounts(productDataDir, cluster.AgentIPs[0])
+	umountAllProductMounts(productDataDir, cluster.ServerIPs[0], "server")
+	umountAllProductMounts(productDataDir, cluster.AgentIPs[0], "agent")
 }
 
-func umountAllProductMounts(productDataDir, nodeIP string) {
-	findMountsCmd := "sudo awk -v dir=\"" + productDataDir + "\" '$2 ~ dir {print $2}' /proc/mounts | sort -r"
-	mountsOutput, err := shared.RunCommandOnNode(findMountsCmd, nodeIP)
+func umountAllProductMounts(productDataDir, nodeIP, nodeType string) {
+	forceUmountCmd := "sudo umount -f -R " + productDataDir + "/server/" + " && " +
+		"sudo umount -f -R " + productDataDir + "/agent/"
+
+	if nodeType == "agent" {
+		forceUmountCmd = "sudo umount -f -R " + productDataDir + "/agent/"
+	}
+	ures, err := shared.RunCommandOnNode(forceUmountCmd, nodeIP)
 	if err != nil {
-		if strings.Contains(err.Error(), " mount point does not exist") {
-			shared.LogLevel("info", "data dir not mounted on node %s, mount point does not exist: %v", nodeIP, err)
-			return
+		var exitError *ssh.ExitError
+		if errors.As(err, &exitError) {
+			errMsg := exitError.Msg()
+			if strings.Contains(errMsg, errNotMounted) ||
+				strings.Contains(errMsg, errMount) ||
+				strings.Contains(errMsg, errNoMount) ||
+				strings.Contains(errMsg, errDirNotFound) ||
+				strings.Contains(errMsg, errMountNotFound) {
+				shared.LogLevel("warn", "not mounted %s on node %s, mount point does not exist: %v",
+					productDataDir, nodeIP, err)
+			}
 		}
+	} else {
 		Expect(err).NotTo(HaveOccurred(),
-			"failed to find mounts for data dir %s on node %s: %v", productDataDir, nodeIP, err)
+			"failed to umount on node %s: %v", nodeIP, err)
 	}
+	Expect(ures).To(BeEmpty(), "failed to umount on node %s", nodeIP)
 
-	if mountsOutput == "" {
-		shared.LogLevel("info", "No mounts found under %s on node %s", productDataDir, nodeIP)
-		return
-	}
+	findMountsCmd := "find " + productDataDir + " -path '*/containerd/tmpmounts/containerd-mount*' " +
+		" -type d 2>/dev/null || true"
+	path, _ := shared.RunCommandOnNode(findMountsCmd, nodeIP)
+	if path != "" {
+		path = strings.TrimSpace(path)
+		shared.LogLevel("info", "umounting all containerd mounts on node %s: %s", nodeIP, path)
 
-	mounts := strings.Split(strings.TrimSpace(mountsOutput), "\n")
-	for _, mount := range mounts {
-		forceUmountCmd := "sudo umount -f " + mount
-		ures, err := shared.RunCommandOnNode(forceUmountCmd, nodeIP)
+		umountCmd := "sudo umount -f " + path + " 2>/dev/null || sudo umount -l " + path + " 2>/dev/null || true"
+		ures, err = shared.RunCommandOnNode(umountCmd, nodeIP)
 		if err != nil {
-			if strings.Contains(err.Error(), " not mounted") {
-				shared.LogLevel("info", "Mount %s on node %s not mounted, skipping: %v", mount, nodeIP, err)
-				continue
-			}
-
-			shared.LogLevel("info", "Force unmount of %s failed on node %s, trying lazy unmount: %v", mount, nodeIP, err)
-
-			lazyUmountCmd := "sudo umount -l " + mount
-			ures, err = shared.RunCommandOnNode(lazyUmountCmd, nodeIP)
-			if err != nil {
-				if strings.Contains(err.Error(), " not mounted") {
-					shared.LogLevel("info", "Mount %s on node %s not mounted, lazy unmount failed: %v", mount, nodeIP, err)
-				} else {
-					Expect(err).NotTo(HaveOccurred(), "failed to lazy unmount %s on node %s: %v", mount, nodeIP, err)
+			var exitError *ssh.ExitError
+			if errors.As(err, &exitError) {
+				errMsg := exitError.Msg()
+				if strings.Contains(errMsg, errNotMounted) ||
+					strings.Contains(errMsg, errMount) ||
+					strings.Contains(errMsg, errNoMount) ||
+					strings.Contains(errMsg, errDirNotFound) ||
+					strings.Contains(errMsg, errMountNotFound) {
+					shared.LogLevel("warn", "not mounted %s on node %s, mount point does not exist: %v",
+						productDataDir+"/agent/tmpmounts", nodeIP, errMsg)
 				}
+			} else {
+				Expect(err).NotTo(HaveOccurred(),
+					"failed to umount on node %s: %v", nodeIP, err)
 			}
 		}
-		Expect(ures).To(BeEmpty(), "failed to unmount %s on node %s", mount, nodeIP)
 	}
+	Expect(ures).To(BeEmpty(), "failed to umount %s on node %s", productDataDir+"/tmp", nodeIP)
 }
 
 func killAllValidations(cluster *shared.Cluster, mount string, agent bool) {
 	killAllErr := shared.ManageProductCleanup(cluster.Config.Product, "server", cluster.ServerIPs[0], "killall")
 	Expect(killAllErr).NotTo(HaveOccurred(), "failed to run killall for product: %v server", cluster.Config.Product)
-	waitScriptFinish := time.After(20 * time.Second)
+	waitScriptFinish := time.After(killAllTimeout)
 	<-waitScriptFinish
 
 	killTesCmd := "sudo bash /var/tmp/kill-all_test.sh -mount " + mount

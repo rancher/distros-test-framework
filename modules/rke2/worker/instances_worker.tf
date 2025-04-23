@@ -8,7 +8,8 @@ resource "aws_eip" "worker_with_eip" {
   count              = var.create_eip ? var.no_of_worker_nodes : 0
   domain             = "vpc"
   tags = {
-    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Name             = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team             = local.resource_tag
   }
 }
 
@@ -29,17 +30,16 @@ resource "aws_instance" "worker" {
     private_key = file(var.access_key)
   }
   root_block_device {
-    volume_size = var.volume_size
-    volume_type = "standard"
+    volume_size          = var.volume_size
+    volume_type          = "standard"
   }
   subnet_id = var.subnets
-  availability_zone = var.availability_zone
-  vpc_security_group_ids = [
-    var.sg_id
-  ]
-  key_name = var.key_name
+  availability_zone      = var.availability_zone
+  vpc_security_group_ids = [var.sg_id]
+  key_name               = var.key_name
   tags = {
-    Name = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team                 = local.resource_tag
     "kubernetes.io/cluster/clusterid" = "owned"
   }
   provisioner "remote-exec" {
