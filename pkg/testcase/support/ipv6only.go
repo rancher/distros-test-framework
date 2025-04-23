@@ -12,11 +12,7 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-var (
-	token   string
-	script  string
-	product string
-)
+var token string
 
 func BuildIPv6OnlyCluster(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Created nodes for %s cluster...", cluster.Config.Product)
@@ -139,6 +135,7 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 
 // copyInstallScripts Copies install scripts on the nodes.
 func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
+	var script string
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
 
@@ -169,7 +166,7 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 
 // processConfigureFile Runs configure.sh script on the nodes.
 func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (err error) {
-	flags := ""
+	var flags string
 	if slices.Contains(cluster.ServerIPs, ip) {
 		flags = cluster.Config.ServerFlags
 	}
@@ -192,43 +189,56 @@ func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (
 	return nil
 }
 
-func buildInstallCmd(cluster *shared.Cluster, nodeType, token, ip string) (cmd string) {
-	product = cluster.Config.Product
+func buildInstallCmd(cluster *shared.Cluster, nodeType, token, ip string) string {
+	var cmdBuilder strings.Builder
+	var cmdSlice []string
+	var script string
+	product := cluster.Config.Product
 	if nodeType == "master" && token == "" {
-		script = fmt.Sprintf("%v_%v.sh", product, nodeType)
-		cmd = fmt.Sprintf("sudo chmod +x %v; ", script)
-		cmd += fmt.Sprintf(
-			`sudo ./%v "%v" "%v" "%v" "%v" "%v" "%v" "%v" `+
-				`"%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
-			script, os.Getenv("node_os"), cluster.FQDN, "", "", ip,
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.FQDN, "", "", ip,
 			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			"", os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"),
-			os.Getenv("server_flags"), os.Getenv("username"), os.Getenv("password"), "both",
-		)
-	}
-	if nodeType == "master" && token != "" {
-		script = fmt.Sprintf("join_%v_%v.sh", product, nodeType)
-		cmd = fmt.Sprintf("sudo chmod +x %v; ", script)
-		cmd += fmt.Sprintf(
-			`sudo ./%v "%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`+
-				`"%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
-			script, os.Getenv("node_os"), cluster.FQDN, cluster.ServerIPs[0], token,
-			"", "", ip, os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			"", os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"),
-			os.Getenv("server_flags"), os.Getenv("username"), os.Getenv("password"), "both",
-		)
-	}
-	if nodeType == "agent" {
-		script = fmt.Sprintf("join_%v_%v.sh", product, nodeType)
-		cmd = fmt.Sprintf("sudo chmod +x %v; ", script)
-		cmd += fmt.Sprintf(
-			`sudo ./%v "%v" "%v" "%v" "%v" "%v" "%v" `+
-				`"%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
-			script, os.Getenv("node_os"), cluster.ServerIPs[0], token,
-			"", "", ip, os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			"", os.Getenv("worker_flags"), os.Getenv("username"), os.Getenv("password"), "both",
-		)
+			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "k3s" {
+			cmdSlice = slices.Insert(cmdSlice, 8, "")
+		} else {
+			cmdSlice = slices.Insert(cmdSlice, 8, os.Getenv("install_method"))
+		}
+		script = "./" + product + "_" + nodeType + ".sh"
 	}
 
-	return cmd
+	if nodeType == "master" && token != "" {
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.FQDN, cluster.ServerIPs[0], token, "", "", ip,
+			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
+			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "rke2" {
+			cmdSlice = slices.Insert(cmdSlice, 10, os.Getenv("install_method"))
+		}
+		script = "./join_" + product + "_" + nodeType + ".sh"
+	}
+
+	if nodeType == "agent" {
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.ServerIPs[0], token, "", "", ip,
+			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
+			os.Getenv("worker_flags"), os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "rke2" {
+			cmdSlice = slices.Insert(cmdSlice, 9, os.Getenv("install_method"))
+		}
+		script = "./join_" + product + "_" + nodeType + ".sh"
+	}
+
+	_, _ = cmdBuilder.WriteString(fmt.Sprintf("sudo chmod +x %v; ", script))
+	_, _ = cmdBuilder.WriteString("sudo " + script + " ")
+	for _, str := range cmdSlice {
+		_, _ = cmdBuilder.WriteString(`"` + str + `" `)
+	}
+
+	return cmdBuilder.String()
 }
