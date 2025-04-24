@@ -737,6 +737,8 @@ func InstallProduct(cluster *Cluster, publicIP, version string) error {
 		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
 	}
 
+	LogLevel("info", "Install command: %s", installCmd)
+
 	_, installCmdErr := RunCommandOnNode(installCmd, publicIP)
 	if installCmdErr != nil {
 		return ReturnLogError("failed to install product: \n%w", installCmdErr)
