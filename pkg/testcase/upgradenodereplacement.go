@@ -22,7 +22,8 @@ const (
 )
 
 func TestUpgradeReplaceNode(cluster *shared.Cluster,
-	flags *customflag.FlagConfig) {
+	flags *customflag.FlagConfig,
+) {
 	version := flags.InstallMode.String()
 	channel := flags.Channel.String()
 	if version == "" {
@@ -441,7 +442,8 @@ func validateNodeJoin(ip string) error {
 
 func serverJoinSlemicro(cluster *shared.Cluster,
 	awsClient *aws.Client,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
+) error {
 	// For slemicro nodes, we perform only 'install' step at this stage.
 	shared.LogLevel("debug", "Running Install on: %s", newExternalIP)
 	joinStepsErr := joinSteps(cluster, serverLeaderIP, token, version, channel,
@@ -466,7 +468,8 @@ func serverJoinSlemicro(cluster *shared.Cluster,
 
 func serverJoin(cluster *shared.Cluster,
 	awsClient *aws.Client,
-	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string) error {
+	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
+) error {
 	if cluster.NodeOS == "slemicro" {
 		return serverJoinSlemicro(cluster, awsClient, serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP)
 	}
@@ -482,7 +485,8 @@ func serverJoin(cluster *shared.Cluster,
 
 func joinSteps(cluster *shared.Cluster,
 	serverLeaderIP, token, version, channel string,
-	newExternalIP, newPrivateIP, installEnableOrBoth string) error {
+	newExternalIP, newPrivateIP, installEnableOrBoth string,
+) error {
 	joinCmd, parseErr := buildJoinCmd(cluster, master, serverLeaderIP, token,
 		version, channel, newExternalIP, newPrivateIP, installEnableOrBoth)
 	if parseErr != nil {
@@ -593,7 +597,8 @@ func deleteAgents(a *aws.Client, c *shared.Cluster) error {
 }
 
 func joinAgentSlemicro(cluster *shared.Cluster, awsClient *aws.Client,
-	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string,
+) error {
 	// For slemicro nodes, we perform only 'install' step at this stage.
 	shared.LogLevel("debug", "Running Install step for ip: %s", selfExternalIp)
 	cmd, parseErr := buildJoinCmd(cluster, agent, serverIp, token, version,
@@ -623,7 +628,8 @@ func joinAgentSlemicro(cluster *shared.Cluster, awsClient *aws.Client,
 }
 
 func joinAgent(cluster *shared.Cluster, awsClient *aws.Client,
-	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string) error {
+	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string,
+) error {
 	if cluster.NodeOS == "slemicro" {
 		return joinAgentSlemicro(cluster, awsClient, serverIp, token, version, channel, selfExternalIp, selfPrivateIp)
 	}
@@ -732,7 +738,7 @@ func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
 
 func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []string {
 	var nodeNames []string
-	var nodeCount = len(cluster.ServerIPs)
+	nodeCount := len(cluster.ServerIPs)
 	if nodeType == "agent" {
 		nodeCount = len(cluster.AgentIPs)
 	}
@@ -744,7 +750,8 @@ func getNodeNames(cluster *shared.Cluster, resourceName, nodeType string) []stri
 }
 
 func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType, resourceName string) (
-	newExternalIps []string, newPrivateIps []string) {
+	newExternalIps []string, newPrivateIps []string,
+) {
 	// create aws ec2 instances
 	names := getNodeNames(cluster, resourceName, nodeType)
 	newExternalIps, newPrivateIps, instanceIds, createErr := awsClient.CreateInstances(names...)
