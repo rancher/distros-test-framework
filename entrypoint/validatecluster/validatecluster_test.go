@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -71,6 +72,35 @@ var _ = Describe("Test:", func() {
 			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
 	}
+
+	if customflag.ServiceFlag.SelinuxTest {
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
+		})
+
+		It("Validate uninstall selinux policies", func() {
+			testcase.TestUninstallPolicy(cluster)
+		})
+	}
+
+	// if customflag.ServiceFlag.KillAllUninstallTest {
+	// 	// It("Verifies KillAll -> Uninstall", func() {
+	// 	// 	testcase.TestKillAllUninstall(cluster, cfg)
+	// 	// })
+
+	// }
 })
 
 var _ = AfterEach(func() {

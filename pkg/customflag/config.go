@@ -14,16 +14,18 @@ var (
 
 // FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
-	InstallMode        installModeFlag
-	TestTemplateConfig templateConfigFlag
-	Destroy            destroyFlag
-	SUCUpgradeVersion  sucUpgradeVersionFlag
-	Channel            channelFlag
-	External           externalFlag
-	CertManager        certManagerFlag
-	Charts             helmChartsFlag
-	AirgapFlag         airgapFlag
-	S3Flags            s3ConfigFlag
+	InstallMode          installModeFlag
+	TestTemplateConfig   templateConfigFlag
+	Destroy              destroyFlag
+	SUCUpgradeVersion    sucUpgradeVersionFlag
+	Channel              channelFlag
+	External             externalFlag
+	CertManager          certManagerFlag
+	Charts               helmChartsFlag
+	AirgapFlag           airgapFlag
+	S3Flags              s3ConfigFlag
+	KillAllUninstallTest killAllUninstallTestFlag
+	SelinuxTest          selinuxTestFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -185,4 +187,54 @@ type certManagerFlag struct {
 type s3ConfigFlag struct {
 	Bucket string
 	Folder string
+}
+
+type killAllUninstallTestFlag bool
+
+func (k *killAllUninstallTestFlag) Set(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	if value != "true" && value != "false" {
+		return fmt.Errorf("invalid kill all test flag: %s", value)
+	}
+
+	v, err := strconv.ParseBool(value)
+	if err != nil {
+		return err
+	}
+
+	*k = killAllUninstallTestFlag(v)
+
+	return nil
+}
+
+func (k *killAllUninstallTestFlag) String() string {
+	return fmt.Sprintf("%v", *k)
+}
+
+type selinuxTestFlag bool
+
+func (s *selinuxTestFlag) Set(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	if value != "true" && value != "false" {
+		return fmt.Errorf("invalid selinux test flag: %s", value)
+	}
+
+	v, err := strconv.ParseBool(value)
+	if err != nil {
+		return err
+	}
+
+	*s = selinuxTestFlag(v)
+
+	return nil
+}
+
+func (s *selinuxTestFlag) String() string {
+	return fmt.Sprintf("%v", *s)
 }

@@ -608,3 +608,24 @@ func LogGrepOutput(filename, content, ip string) {
 		LogLevel("debug", "grep for %s in file %s output:\n %s", content, filename, grepData)
 	}
 }
+
+// VerifyFileContent greps for a specific string in a file on the node.
+func VerifyFileContent(filePath, content, ip string) error {
+	if filePath == "" {
+		return ReturnLogError("filePath should not be sent empty")
+	}
+	if content == "" {
+		return ReturnLogError("assert should not be sent empty")
+	}
+	cmd := fmt.Sprintf("sudo cat %s | grep \"%s\"", filePath, content)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return ReturnLogError("error running command: %s, error: %w", cmd, err)
+	}
+	if !strings.Contains(res, content) {
+		return ReturnLogError("file: %s does not have content: %s", filePath, content)
+	}
+	LogLevel("debug", "file: %s has content: %s", filePath, content)
+
+	return nil
+}

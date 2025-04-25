@@ -20,16 +20,13 @@ type configuration struct {
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
 func TestSelinuxEnabled(cluster *shared.Cluster) {
 	ips := shared.FetchNodeExternalIPs()
-	selinuxConfigAssert := "selinux: true"
-	selinuxContainerdAssert := "enable_selinux = true"
 
 	for _, ip := range ips {
-		err := assert.CheckComponentCmdNode("cat /etc/rancher/"+
-			cluster.Config.Product+"/config.yaml", ip, selinuxConfigAssert)
+		err := shared.VerifyFileContent("/etc/rancher/"+cluster.Config.Product+"/config.yaml", "selinux: true", ip)
 		Expect(err).NotTo(HaveOccurred())
 
-		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
-			cluster.Config.Product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
+		filePath := fmt.Sprintf("/var/lib/rancher/%s/agent/etc/containerd/config.toml", cluster.Config.Product)
+		errCont := shared.VerifyFileContent(filePath, "enable_selinux = true", ip)
 		Expect(errCont).NotTo(HaveOccurred())
 	}
 }
@@ -161,7 +158,7 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
 
-		err := shared.UninstallProduct(cluster.Config.Product, "server", serverIP)
+		err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
 		Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
@@ -178,7 +175,7 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	for _, agentIP := range cluster.AgentIPs {
 		fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
 
-		err := shared.UninstallProduct(cluster.Config.Product, "agent", agentIP)
+		err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
 		Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
