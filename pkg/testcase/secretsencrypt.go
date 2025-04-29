@@ -137,7 +137,7 @@ func verifyActionStdOut(action, stdout string) {
 	case "reencrypt":
 		Expect(stdout).To(ContainSubstring("reencryption started"))
 	case "rotate-keys":
-		Expect(stdout).To(ContainSubstring("keys rotated, reencryption started"))
+		Expect(stdout).To(ContainSubstring("keys rotated, reencryption finished"))
 	}
 }
 
