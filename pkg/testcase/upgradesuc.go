@@ -24,7 +24,7 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 
 	crdApplyErr := shared.ManageWorkload("apply", "suc_crd.yaml")
 	Expect(crdApplyErr).NotTo(HaveOccurred(),
-		"suc crd did not deploy successfully on second apply")
+		"suc crd did not deploy successfully")
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
 	err := assert.CheckComponentCmdHost(
