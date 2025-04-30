@@ -24,6 +24,7 @@ type FlagConfig struct {
 	Charts             helmChartsFlag
 	AirgapFlag         airgapFlag
 	S3Flags            s3ConfigFlag
+	SecretsEncrypt     secretsEncryptFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -185,4 +186,8 @@ type certManagerFlag struct {
 type s3ConfigFlag struct {
 	Bucket string
 	Folder string
+}
+
+type secretsEncryptFlag struct {
+	Method string
 }
