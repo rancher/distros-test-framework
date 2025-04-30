@@ -24,7 +24,7 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 
 	crdApplyErr := shared.ManageWorkload("apply", "suc_crd.yaml")
 	Expect(crdApplyErr).NotTo(HaveOccurred(),
-		"suc crd did not deploy successfully")
+		"suc_crd.yaml apply did not deploy successfully")
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
 	err := assert.CheckComponentCmdHost(
@@ -55,8 +55,8 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 		return fmt.Errorf("failed to write file: %s", err)
 	}
 
-	sucApplyErr = shared.ManageWorkload("apply", "plan.yaml")
-	Expect(sucApplyErr).NotTo(HaveOccurred(), "failed to upgrade cluster.")
+	planApplyErr := shared.ManageWorkload("apply", "plan.yaml")
+	Expect(planApplyErr).NotTo(HaveOccurred(), "failed to upgrade cluster - apply plan.yaml step failed.")
 
 	ok, err := k8sClient.CheckClusterHealth(0)
 	Expect(err).NotTo(HaveOccurred(), err, "error checking cluster health")
