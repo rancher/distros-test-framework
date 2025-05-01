@@ -64,7 +64,7 @@ func applySucYamls() {
 	sucCRDUrl := "https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml"
 
 	shared.LogLevel("debug", "Applying system-upgrade-controller manifest from url: %s", sucUrl)
-	applyErr := shared.ManageWorkload("apply", sucUrl)
+	applyErr := shared.ApplyWorkloadURL(sucUrl)
 	if applyErr != nil {
 		shared.LogLevel(
 			"warn", "error applying system-upgrade-controller manifest from url: %s error: %v", sucUrl, applyErr)
@@ -76,7 +76,7 @@ func applySucYamls() {
 		"system-upgrade-controller manifest did not deploy successfully")
 
 	shared.LogLevel("debug", "Applying SUC CRD manifest from url: %s", sucCRDUrl)
-	applyErr = shared.ManageWorkload("apply", sucCRDUrl)
+	applyErr = shared.ApplyWorkloadURL(sucCRDUrl)
 	if applyErr != nil {
 		shared.LogLevel("warn", "error applying SUC CRD manifest from url: %s error: %v", sucCRDUrl, applyErr)
 		shared.LogLevel("debug", "applying SUC CRD manifest from local file")
