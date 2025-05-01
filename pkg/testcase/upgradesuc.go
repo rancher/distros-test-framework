@@ -18,13 +18,7 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 
 	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
 
-	sucApplyErr := shared.ManageWorkload("apply", "suc.yaml")
-	Expect(sucApplyErr).NotTo(HaveOccurred(),
-		"system-upgrade-controller manifest did not deploy successfully")
-
-	crdApplyErr := shared.ManageWorkload("apply", "suc_crd.yaml")
-	Expect(crdApplyErr).NotTo(HaveOccurred(),
-		"suc_crd.yaml apply did not deploy successfully")
+	applySucYamls()
 
 	getPodsSystemUpgrade := "kubectl get pods -n system-upgrade --kubeconfig="
 	err := assert.CheckComponentCmdHost(
@@ -63,4 +57,32 @@ func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, versi
 	Expect(ok).To(BeTrue(), "cluster health check failed")
 
 	return nil
+}
+
+func applySucYamls() {
+	sucUrl := "https://github.com/rancher/system-upgrade-controller/releases/latest/download/system-upgrade-controller.yaml"
+	sucCRDUrl := "https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml"
+
+	shared.LogLevel("debug", "Applying system-upgrade-controller manifest from url: %s", sucUrl)
+	applyErr := shared.ManageWorkload("apply", sucUrl)
+	if applyErr != nil {
+		shared.LogLevel(
+			"warn", "error applying system-upgrade-controller manifest from url: %s error: %v", sucUrl, applyErr)
+		shared.LogLevel("debug", "applying system-upgrade-controller manifest from local file")
+		// Fallback to local file if URL fails
+		applyErr = shared.ManageWorkload("apply", "suc.yaml")
+	}
+	Expect(applyErr).NotTo(HaveOccurred(),
+		"system-upgrade-controller manifest did not deploy successfully")
+
+	shared.LogLevel("debug", "Applying SUC CRD manifest from url: %s", sucCRDUrl)
+	applyErr = shared.ManageWorkload("apply", sucCRDUrl)
+	if applyErr != nil {
+		shared.LogLevel("warn", "error applying SUC CRD manifest from url: %s error: %v", sucCRDUrl, applyErr)
+		shared.LogLevel("debug", "applying SUC CRD manifest from local file")
+		// Fallback to local file if URL fails
+		applyErr = shared.ManageWorkload("apply", "suc_crd.yaml")
+	}
+	Expect(applyErr).NotTo(HaveOccurred(),
+		"suc_crd.yaml apply did not deploy successfully")
 }
