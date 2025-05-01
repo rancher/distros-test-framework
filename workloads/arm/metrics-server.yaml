@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-metrics-server
-  namespace: kube-system
+  namespace: test-metrics-server
 spec:
   selector:
     matchLabels:
