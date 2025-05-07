@@ -111,7 +111,7 @@ func newInstance(awsClient *aws.Client) (newServerName, newExternalIP string) {
 func installProduct(cluster *shared.Cluster, newClusterIP, version string) {
 	setConfigFile(cluster, newClusterIP)
 
-	installCmd := shared.GetInstallCmd(cluster.Config.Product, version, "server")
+	installCmd := shared.GetInstallCmd(cluster, version, "server")
 	if cluster.Config.Product == "k3s" {
 		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
 		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)

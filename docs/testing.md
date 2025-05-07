@@ -64,6 +64,12 @@ Note/TODO: k3s external db fails working with etcd only node. Refer: https://doc
 
 ## Validating Dual-Stack
 
+- Required vars for `.env` file
+
+```
+TEST_DIR=dualstack
+```
+
 - Required vars for `*.tfvars` file
 - `kubelet-arg: \n - node-ip=0.0.0.0` is required to be added to both server and worker flags if the public and private IPv6 IPs are same
 
@@ -81,6 +87,13 @@ bastion_subnets      = "<dual-stack-subnet>"
 - Reorder IP is not supported at this time (Future enhancement)
 
 ## Validating IPv6 Only
+
+- Required vars for `.env` file
+
+```
+ENV_MODULE=ipv6only
+TEST_DIR=ipv6only
+```
 
 - Required vars for `*.tfvars` file
 

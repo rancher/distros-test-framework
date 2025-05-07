@@ -13,7 +13,8 @@ resource "aws_instance" "windows_worker" {
   vpc_security_group_ids = ["${var.sg_id}"]
   key_name               = var.key_name
   tags = {
-    Name = "${var.resource_name}-${local.resource_tag}-windows-worker-${count.index + 1}"
+    Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker-${count.index + 1}"
+    Team                 = local.resource_tag
     "kubernetes.io/cluster/clusterid" = "owned"
   }
 }

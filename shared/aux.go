@@ -3,6 +3,7 @@ package shared
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -17,6 +20,116 @@ import (
 )
 
 var log = logger.AddLogger()
+
+var connPool = struct {
+	sync.Mutex
+	conClient map[string]*ssh.Client
+}{
+	conClient: make(map[string]*ssh.Client),
+}
+
+// RetryCfg is the configuration for retrying commands.
+// Attempts: total attempts (first try + retries).
+// Delay: delay before 1st retry.
+// DelayMultiplier: delay multiplier for each retry if needed.
+// RetryableExitCodes: e.g. []int{1, 2, 255}.
+// NonRetryableSubstrErr: error substrings that MUST stop retrying.
+type RetryCfg struct {
+	Attempts              int
+	Delay                 time.Duration
+	DelayMultiplier       float64
+	RetryableExitCodes    []int
+	NonRetryableSubstrErr []string
+}
+
+var defaultRetryCfg = RetryCfg{
+	Attempts:        3,
+	Delay:           2 * time.Second,
+	DelayMultiplier: 0.5,
+	RetryableExitCodes: []int{
+		// generic "something failed"
+		1,
+		// misuse of shell built‑ins
+		2,
+		// command timed out
+		124,
+		// command was found but can’t execute
+		126,
+		// command not found $PATH
+		127,
+		// script terminated by Control‑C
+		130,
+		// SIGKILL
+		137,
+		// ssh connection lost
+		255,
+	},
+	NonRetryableSubstrErr: []string{
+		"Permission denied",
+		"Host key verification failed",
+		"invalid argument",
+	},
+}
+
+func CmdNodeRetryCfg() RetryCfg {
+	return defaultRetryCfg
+}
+
+// RunCommandOnNodeWithRetry runs a command on a node with error retry config logic.
+func RunCommandOnNodeWithRetry(cmd, ip string, cfg *RetryCfg) (string, error) {
+	if cfg == nil {
+		tmp := defaultRetryCfg
+		cfg = &tmp
+	}
+
+	delay := cfg.Delay
+	var out string
+	var lastErr error
+
+	for attempt := 1; attempt <= cfg.Attempts; attempt++ {
+		out, lastErr = RunCommandOnNode(cmd, ip)
+		if lastErr == nil {
+			return out, nil
+		}
+
+		if fatalSSHError(lastErr, cfg) || attempt == cfg.Attempts {
+			break
+		}
+
+		time.Sleep(delay)
+		delay = time.Duration(float64(delay) * cfg.DelayMultiplier)
+	}
+
+	return "", fmt.Errorf("after %d attempts: %w", cfg.Attempts, lastErr)
+}
+
+// fatalSSHError checks if the error is fatal based on the configuration.
+func fatalSSHError(err error, cfg *RetryCfg) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+	for _, bad := range cfg.NonRetryableSubstrErr {
+		if strings.Contains(msg, bad) {
+			return true
+		}
+	}
+
+	var ee *ssh.ExitError
+	if errors.As(err, &ee) {
+		exit := ee.ExitStatus()
+		for _, rc := range cfg.RetryableExitCodes {
+			if exit == rc {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
+}
 
 // RunCommandHost executes a command on the host.
 func RunCommandHost(cmds ...string) (string, error) {
@@ -50,9 +163,9 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	}
 
 	host := ip + ":22"
-	conn, err := configureSSH(host)
+	conn, err := getOrDial(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %w\n", err)
+		return "", err
 	}
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
@@ -80,6 +193,97 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	}
 
 	return stdout, err
+}
+
+func getOrDial(host string) (*ssh.Client, error) {
+	connPool.Lock()
+	conn := connPool.conClient[host]
+	connPool.Unlock()
+
+	if conn != nil {
+		_, _, err := runsshCommand("echo ok", conn)
+		if err == nil {
+			return conn, nil
+		}
+		_ = conn.Close()
+		connPool.Lock()
+		delete(connPool.conClient, host)
+		connPool.Unlock()
+	}
+
+	newConn, err := configureSSH(host)
+	if err != nil {
+		return nil, err
+	}
+
+	connPool.Lock()
+	connPool.conClient[host] = newConn
+	connPool.Unlock()
+
+	return newConn, nil
+}
+
+func configureSSH(host string) (*ssh.Client, error) {
+	var (
+		cfg *ssh.ClientConfig
+		err error
+	)
+
+	// get access key and user from cluster config.
+	kubeConfig := os.Getenv("KUBE_CONFIG")
+	if kubeConfig == "" {
+		productCfg := AddProductCfg()
+		cluster = ClusterConfig(productCfg)
+	} else {
+		cluster, err = addClusterFromKubeConfig(nil)
+		if err != nil {
+			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
+		}
+	}
+
+	authMethod, err := publicKey(cluster.Aws.AccessKey)
+	if err != nil {
+		return nil, ReturnLogError("failed to get public key: %w", err)
+	}
+
+	cfg = &ssh.ClientConfig{
+		User: cluster.Aws.AwsUser,
+		Auth: []ssh.AuthMethod{
+			authMethod,
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	conn, err := ssh.Dial("tcp", host, cfg)
+	if err != nil {
+		return nil, ReturnLogError("failed to dial: %w", err)
+	}
+
+	return conn, nil
+}
+
+func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
+	session, err := conn.NewSession()
+	if err != nil {
+		return "", "", ReturnLogError("failed to create session: %w\n", err)
+	}
+	defer session.Close()
+
+	var stdoutBuf bytes.Buffer
+	var stderrBuf bytes.Buffer
+	session.Stdout = &stdoutBuf
+	session.Stderr = &stderrBuf
+
+	errssh := session.Run(cmd)
+	stdoutStr = stdoutBuf.String()
+	stderrStr = stderrBuf.String()
+
+	if errssh != nil {
+		LogLevel("warn", "%v\n", stderrStr)
+		return "", stderrStr, errssh
+	}
+
+	return stdoutStr, stderrStr, nil
 }
 
 // BasePath returns the base path of the project.
@@ -193,70 +397,6 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 	}
 
 	return ssh.PublicKeys(signer), nil
-}
-
-func configureSSH(host string) (*ssh.Client, error) {
-	var (
-		cfg *ssh.ClientConfig
-		err error
-	)
-
-	// get access key and user from cluster config.
-	kubeConfig := os.Getenv("KUBE_CONFIG")
-	if kubeConfig == "" {
-		productCfg := AddProductCfg()
-		cluster = ClusterConfig(productCfg)
-	} else {
-		cluster, err = addClusterFromKubeConfig(nil)
-		if err != nil {
-			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
-		}
-	}
-
-	authMethod, err := publicKey(cluster.Aws.AccessKey)
-	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %w", err)
-	}
-
-	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.AwsUser,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	conn, err := ssh.Dial("tcp", host, cfg)
-	if err != nil {
-		return nil, ReturnLogError("failed to dial: %w", err)
-	}
-
-	return conn, nil
-}
-
-func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
-	session, err := conn.NewSession()
-	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %w\n", err)
-	}
-
-	defer session.Close()
-
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	session.Stdout = &stdoutBuf
-	session.Stderr = &stderrBuf
-
-	errssh := session.Run(cmd)
-	stdoutStr = stdoutBuf.String()
-	stderrStr = stderrBuf.String()
-
-	if errssh != nil {
-		LogLevel("warn", "%v\n", stderrStr)
-		return "", stderrStr, errssh
-	}
-
-	return stdoutStr, stderrStr, nil
 }
 
 // JoinCommands joins the first command with some arg.
@@ -549,4 +689,62 @@ func SystemCtlCmd(service, action string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
+}
+
+// CreateDir creates if it does not exist.
+// Optional: If chmodValue is not empty, run 'chmod' to change permission of the directory.
+func CreateDir(dir, chmodValue, ip string) {
+	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
+	cmdPart2 := "sudo mkdir -p " + dir
+	var cmd string
+	if chmodValue != "" {
+		cmd = fmt.Sprintf("%s || %s; sudo chmod %s %s; sudo ls -lrt %s", cmdPart1, cmdPart2, chmodValue, dir, dir)
+	} else {
+		cmd = fmt.Sprintf("%s || %s; sudo ls -lrt %s", cmdPart1, cmdPart2, dir)
+	}
+	output, mkdirErr := RunCommandOnNode(cmd, ip)
+	if mkdirErr != nil {
+		LogLevel("warn", "error creating %s dir on node ip: %s", dir, ip)
+	}
+	if output != "" {
+		LogLevel("debug", "create and check %s output: %s", dir, output)
+	}
+}
+
+// WaitForSSHReady Waits to a node ip to be ready.
+// Default max wait time: 3 mins. Retry 'SSH is ready' check every 10 seconds.
+func WaitForSSHReady(ip string) error {
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(3 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
+		case <-ticker.C:
+			cmdOutput, sshErr := RunCommandOnNode("ls -lrt", ip)
+			if sshErr != nil {
+				LogLevel("warn", "SSH Error: %s", sshErr)
+				continue
+			}
+			if cmdOutput != "" {
+				return nil
+			}
+		}
+	}
+}
+
+// LogGrepOutput function to log a 'grep' output.
+// Grep for a particular text/string (content) in a file (filename) on a node with 'ip' and log the same.
+// Ex: Log content:'denied' calls in filename:'/var/log/audit/audit.log' file.
+func LogGrepOutput(filename, content, ip string) {
+	cmd := fmt.Sprintf("sudo cat %s | grep %s", filename, content)
+	grepData, grepErr := RunCommandOnNode(cmd, ip)
+	if grepErr != nil {
+		LogLevel("error", "error getting grep %s log for %s calls", filename, content)
+	}
+	if grepData != "" {
+		LogLevel("debug", "grep for %s in file %s output:\n %s", content, filename, grepData)
+	}
 }
