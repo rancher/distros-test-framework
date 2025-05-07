@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
+	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -25,7 +26,6 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.KillAllUninstallTest, "killallUninstall", "Run killall test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -65,6 +65,9 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
+		shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
+		testcase.TestKillAllUninstall(cluster, cfg)
+
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

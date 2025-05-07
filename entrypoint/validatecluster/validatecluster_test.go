@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -70,12 +69,6 @@ var _ = Describe("Test:", func() {
 
 		It("Verifies Traefik IngressRoute using new GKV", func() {
 			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
-		})
-	}
-
-	if customflag.ServiceFlag.KillAllUninstallTest {
-		It("Verifies KillAll -> Uninstall", func() {
-			testcase.TestKillAllUninstall(cluster, cfg)
 		})
 	}
 })

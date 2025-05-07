@@ -161,6 +161,8 @@ func getChannel(product string) string {
 	return defaultChannel
 }
 
+// ManageProductCleanup performs cleanup actions for k3s or rke2.
+// It supports uninstall and killall actions.
 func ManageProductCleanup(product, nodeType, ip string, actions ...string) error {
 	if product != "k3s" && product != "rke2" {
 		return fmt.Errorf("unsupported product: %s", product)

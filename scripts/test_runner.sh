@@ -136,7 +136,7 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
         go test "${OPTS[@]}" --ginkgo.timeout=260m
     elif [ "${TEST_DIR}" = "killalluninstall" ]; then
-        go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/...
+        go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
     fi
 fi
 }
