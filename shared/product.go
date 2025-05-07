@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -108,11 +109,16 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	return secretsEncryptStdOut, nil
 }
 
-func GetInstallCmd(product, installType, nodeType string) string {
+// installType is version or commit.
+// nodeType is server or agent.
+func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 
-	channel := getChannel(product)
+	product := cluster.Config.Product
+	nodeOS := cluster.NodeOS
+
+	channel := getChannel(cluster.Config.Product)
 
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
@@ -120,7 +126,28 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+	installMethodValue := os.Getenv("install_method")
+	installMethod := ""
+	if installMethodValue != "" {
+		installMethod = fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), installMethodValue)
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s",
+			installCmd, installFlag, channel, installMethod)
+
+		return fmt.Sprintf(installCmd, installFlag, channel, installMethod)
+	}
+
+	if nodeOS == "slemicro" && strings.EqualFold(product, "k3s") {
+		skipEnable := fmt.Sprintf("INSTALL_%s_SKIP_ENABLE=true", strings.ToUpper(product))
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s skipEnable: %s",
+			installCmd, installFlag, channel, skipEnable)
+
+		return fmt.Sprintf(installCmd, installFlag, channel, skipEnable)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s  sh -s - %s", product, nodeType)
+	LogLevel("debug", "installCmd: %s installFlag: %s channel: %s", installCmd, installFlag, channel)
 
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }

@@ -17,10 +17,11 @@ resource "aws_instance" "master" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-server${count.index + 1}"
+    Team                 = local.resource_tag
   }
 
   provisioner "local-exec" { 
-    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.master[count.index].id}" 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
   }
 }
 
@@ -43,10 +44,11 @@ resource "aws_instance" "worker" {
   key_name               = var.key_name
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
+    Team                 = local.resource_tag
   }
 
   provisioner "local-exec" { 
-    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}" 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
   }
 }
 
@@ -70,8 +72,11 @@ resource "aws_instance" "bastion" {
   availability_zone      = var.availability_zone
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
+  user_data              = file("scripts/prepare.sh")
+
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-bastion"
+    Team                 = local.resource_tag
   }
 
   provisioner "local-exec" { 
