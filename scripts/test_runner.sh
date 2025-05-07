@@ -136,7 +136,7 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
         go test "${OPTS[@]}" --ginkgo.timeout=260m
     elif [ "${TEST_DIR}" = "nvidia" ]; then
-       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/...
+       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
     fi
 fi
 }

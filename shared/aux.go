@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -50,9 +51,9 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	}
 
 	host := ip + ":22"
-	conn, err := configureSSH(host)
+	conn, err := getOrDial(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %w\n", err)
+		return "", fmt.Errorf("failed to connect to host %s: %v", host, err)
 	}
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
@@ -193,70 +194,6 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 	}
 
 	return ssh.PublicKeys(signer), nil
-}
-
-func configureSSH(host string) (*ssh.Client, error) {
-	var (
-		cfg *ssh.ClientConfig
-		err error
-	)
-
-	// get access key and user from cluster config.
-	kubeConfig := os.Getenv("KUBE_CONFIG")
-	if kubeConfig == "" {
-		productCfg := AddProductCfg()
-		cluster = ClusterConfig(productCfg)
-	} else {
-		cluster, err = addClusterFromKubeConfig(nil)
-		if err != nil {
-			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
-		}
-	}
-
-	authMethod, err := publicKey(cluster.Aws.AccessKey)
-	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %w", err)
-	}
-
-	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.AwsUser,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	conn, err := ssh.Dial("tcp", host, cfg)
-	if err != nil {
-		return nil, ReturnLogError("failed to dial: %w", err)
-	}
-
-	return conn, nil
-}
-
-func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
-	session, err := conn.NewSession()
-	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %w\n", err)
-	}
-
-	defer session.Close()
-
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	session.Stdout = &stdoutBuf
-	session.Stderr = &stderrBuf
-
-	errssh := session.Run(cmd)
-	stdoutStr = stdoutBuf.String()
-	stderrStr = stderrBuf.String()
-
-	if errssh != nil {
-		LogLevel("warn", "%v\n", stderrStr)
-		return "", stderrStr, errssh
-	}
-
-	return stdoutStr, stderrStr, nil
 }
 
 // JoinCommands joins the first command with some arg.
@@ -549,4 +486,62 @@ func SystemCtlCmd(service, action string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", sysctlPrefix, service), nil
+}
+
+// CreateDir creates if it does not exist.
+// Optional: If chmodValue is not empty, run 'chmod' to change permission of the directory.
+func CreateDir(dir, chmodValue, ip string) {
+	cmdPart1 := fmt.Sprintf("test -d '%s' && echo 'directory exists: %s'", dir, dir)
+	cmdPart2 := "sudo mkdir -p " + dir
+	var cmd string
+	if chmodValue != "" {
+		cmd = fmt.Sprintf("%s || %s; sudo chmod %s %s; sudo ls -lrt %s", cmdPart1, cmdPart2, chmodValue, dir, dir)
+	} else {
+		cmd = fmt.Sprintf("%s || %s; sudo ls -lrt %s", cmdPart1, cmdPart2, dir)
+	}
+	output, mkdirErr := RunCommandOnNode(cmd, ip)
+	if mkdirErr != nil {
+		LogLevel("warn", "error creating %s dir on node ip: %s", dir, ip)
+	}
+	if output != "" {
+		LogLevel("debug", "create and check %s output: %s", dir, output)
+	}
+}
+
+// WaitForSSHReady Waits to a node ip to be ready.
+// Default max wait time: 3 mins. Retry 'SSH is ready' check every 10 seconds.
+func WaitForSSHReady(ip string) error {
+	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(3 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
+		case <-ticker.C:
+			cmdOutput, sshErr := RunCommandOnNode("ls -lrt", ip)
+			if sshErr != nil {
+				LogLevel("warn", "SSH Error: %s", sshErr)
+				continue
+			}
+			if cmdOutput != "" {
+				return nil
+			}
+		}
+	}
+}
+
+// LogGrepOutput function to log a 'grep' output.
+// Grep for a particular text/string (content) in a file (filename) on a node with 'ip' and log the same.
+// Ex: Log content:'denied' calls in filename:'/var/log/audit/audit.log' file.
+func LogGrepOutput(filename, content, ip string) {
+	cmd := fmt.Sprintf("sudo cat %s | grep %s", filename, content)
+	grepData, grepErr := RunCommandOnNode(cmd, ip)
+	if grepErr != nil {
+		LogLevel("error", "error getting grep %s log for %s calls", filename, content)
+	}
+	if grepData != "" {
+		LogLevel("debug", "grep for %s in file %s output:\n %s", content, filename, grepData)
+	}
 }

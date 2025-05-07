@@ -12,6 +12,8 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
+var token string
+
 func BuildIPv6OnlyCluster(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Created nodes for %s cluster...", cluster.Config.Product)
 	Expect(cluster.Status).To(Equal("cluster created"))
@@ -50,10 +52,10 @@ func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) (err
 			if err != nil {
 				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", nodeIP, err)
 			}
-			shared.LogLevel("info", "Copying install scripts on node: %s", nodeIP)
+			shared.LogLevel("info", "Copying install script on node: %s", nodeIP)
 			err = copyInstallScripts(cluster, nodeIP)
 			if err != nil {
-				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", nodeIP, err)
+				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", nodeIP, err)
 			}
 		}(nodeIP)
 	}
@@ -69,24 +71,13 @@ func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) (err
 	return nil
 }
 
-var token string
-
 func InstallOnIPv6Servers(cluster *shared.Cluster) {
 	for idx, serverIP := range cluster.ServerIPs {
 		// Installing product on primary server aka server-1, saving the token.
 		if idx == 0 {
 			shared.LogLevel("info", "Installing %v on server-1...", cluster.Config.Product)
-			cmd := fmt.Sprintf(
-				"sudo chmod +x %[1]v_master.sh; "+
-					`sudo ./%[1]v_master.sh `+
-					`"%[2]v" "%[3]v" "" "" "%[4]v" "%[5]v" "%[6]v" `+
-					`"%[7]v" "" "%[8]v" "%[9]v" "%[10]v" "%[11]v" "%[12]v"`,
-				cluster.Config.Product, os.Getenv("node_os"), "fake.fqdn.value",
-				serverIP, os.Getenv("install_mode"), os.Getenv("install_version"),
-				os.Getenv("install_channel"), os.Getenv("datastore_type"),
-				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
-				os.Getenv("username"), os.Getenv("password"),
-			)
+			cmd := buildInstallCmd(cluster, "master", "", serverIP)
+			shared.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 
@@ -99,38 +90,27 @@ func InstallOnIPv6Servers(cluster *shared.Cluster) {
 		// Installing product on additional server nodes.
 		if idx > 0 {
 			shared.LogLevel("info", "Installing %v on server-%v...", cluster.Config.Product, idx+1)
-			cmd := fmt.Sprintf(
-				"sudo chmod +x join_%[1]v_master.sh; "+
-					`sudo ./join_%[1]v_master.sh `+
-					`"%[2]v" "%[3]v" "%[4]v" "%[5]v" "" "" "%[6]v" "%[7]v" `+
-					`"%[8]v" "%[9]v" "%[10]v" "%[11]v" "%[12]v" "%[13]v" "%[14]v"`,
-				cluster.Config.Product, os.Getenv("node_os"), "fake.fqdn.value",
-				cluster.ServerIPs[0], token, serverIP,
-				os.Getenv("install_mode"), os.Getenv("install_version"),
-				os.Getenv("install_channel"), os.Getenv("datastore_type"),
-				os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
-				os.Getenv("username"), os.Getenv("password"),
-			)
+			cmd := buildInstallCmd(cluster, "master", token, serverIP)
+			shared.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 		}
 	}
+
+	shared.LogLevel("info", "Process kubeconfig from primary server node: %v", cluster.ServerIPs[0])
+	err := processKubeconfigOnBastion(cluster)
+	if err != nil {
+		shared.LogLevel("error", "unable to get kubeconfig\n%w", err)
+	}
+	shared.LogLevel("info", "Process kubeconfig: Complete!")
 }
 
 func InstallOnIPv6Agents(cluster *shared.Cluster) {
 	// Installing product on agent nodes.
 	for idx, agentIP := range cluster.AgentIPs {
 		shared.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
-		cmd := fmt.Sprintf(
-			"sudo chmod +x join_%[1]v_agent.sh; "+
-				`sudo ./join_%[1]v_agent.sh "%[2]v" "%[3]v" "%[4]v" "" "" "%[5]v" `+
-				`"%[6]v" "%[7]v" "%[8]v" "%[9]v" "%[10]v" "%[11]v"`,
-			cluster.Config.Product, os.Getenv("node_os"),
-			cluster.ServerIPs[0], token, agentIP,
-			os.Getenv("install_mode"), os.Getenv("install_version"),
-			os.Getenv("install_channel"), os.Getenv("worker_flags"),
-			os.Getenv("username"), os.Getenv("password"),
-		)
+		cmd := buildInstallCmd(cluster, "agent", token, agentIP)
+		shared.LogLevel("debug", "Install cmd: %v", cmd)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
@@ -155,19 +135,19 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 
 // copyInstallScripts Copies install scripts on the nodes.
 func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
-	var installScript string
+	var script string
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
 
 	if slices.Contains(cluster.ServerIPs, ip) {
 		if slices.Index(cluster.ServerIPs, ip) == 0 {
-			installScript = cluster.Config.Product + "_master.sh"
+			script = cluster.Config.Product + "_master.sh"
 		} else {
-			installScript = "join_" + cluster.Config.Product + "_master.sh"
+			script = "join_" + cluster.Config.Product + "_master.sh"
 		}
 	}
 	if slices.Contains(cluster.AgentIPs, ip) {
-		installScript = "*_agent.sh"
+		script = "*_agent.sh"
 	}
 	if strings.Contains(ip, ":") {
 		ip = shared.EncloseSqBraces(ip)
@@ -175,7 +155,7 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 	cmd += fmt.Sprintf(
 		"sudo %v %v %v@%v:~/",
 		ShCmdPrefix("scp", cluster.Aws.KeyName),
-		installScript, cluster.Aws.AwsUser, ip)
+		script, cluster.Aws.AwsUser, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		return err
@@ -186,6 +166,10 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 
 // processConfigureFile Runs configure.sh script on the nodes.
 func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (err error) {
+	var flags string
+	if slices.Contains(cluster.ServerIPs, ip) {
+		flags = cluster.Config.ServerFlags
+	}
 	instanceID, err := ec2.GetInstanceIDByIP(ip)
 	if err != nil {
 		shared.LogLevel("error", "unable to get instance id for node: %s", ip)
@@ -195,12 +179,66 @@ func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (
 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x configure.sh && "+
-			`sudo sh ./configure.sh "%v"`,
-		instanceID)
+			`sudo ./configure.sh "%v" "%v" "%v"`,
+		instanceID, cluster.Config.Product, flags)
 	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func buildInstallCmd(cluster *shared.Cluster, nodeType, token, ip string) string {
+	var cmdBuilder strings.Builder
+	var cmdSlice []string
+	var script string
+	product := cluster.Config.Product
+	if nodeType == "master" && token == "" {
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.FQDN, "", "", ip,
+			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
+			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "k3s" {
+			cmdSlice = slices.Insert(cmdSlice, 8, "")
+		} else {
+			cmdSlice = slices.Insert(cmdSlice, 8, os.Getenv("install_method"))
+		}
+		script = "./" + product + "_" + nodeType + ".sh"
+	}
+
+	if nodeType == "master" && token != "" {
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.FQDN, cluster.ServerIPs[0], token, "", "", ip,
+			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
+			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "rke2" {
+			cmdSlice = slices.Insert(cmdSlice, 10, os.Getenv("install_method"))
+		}
+		script = "./join_" + product + "_" + nodeType + ".sh"
+	}
+
+	if nodeType == "agent" {
+		cmdSlice = []string{
+			os.Getenv("node_os"), cluster.ServerIPs[0], token, "", "", ip,
+			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
+			os.Getenv("worker_flags"), os.Getenv("username"), os.Getenv("password"), "both",
+		}
+		if product == "rke2" {
+			cmdSlice = slices.Insert(cmdSlice, 9, os.Getenv("install_method"))
+		}
+		script = "./join_" + product + "_" + nodeType + ".sh"
+	}
+
+	_, _ = cmdBuilder.WriteString(fmt.Sprintf("sudo chmod +x %v; ", script))
+	_, _ = cmdBuilder.WriteString("sudo " + script + " ")
+	for _, str := range cmdSlice {
+		_, _ = cmdBuilder.WriteString(`"` + str + `" `)
+	}
+
+	return cmdBuilder.String()
 }

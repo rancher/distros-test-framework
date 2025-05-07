@@ -30,6 +30,9 @@ for image_file in $image_files; do
   echo "Reading from file: $image_file"
   while read -r image_url_tag; do
     if [[ -n "$registry_url" ]]; then
+      if [[ $registry_url =~ "http" ]]; then
+        registry_url=$(echo $registry_url | cut -d '/' -f 3)
+      fi
       image_url_tag="${image_url_tag/docker.io/$registry_url}"
     fi
     echo "Pulling image: $image_url_tag"

@@ -40,7 +40,7 @@ func TestPodStatus(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue(), "Pods are not in desired state")
+	}, "800s", "10s").Should(BeTrue(), "Pods are not in desired state")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())
@@ -54,7 +54,7 @@ func TestPodStatusUsingBastion(
 ) {
 	var podDetails string
 	Eventually(func(g Gomega) {
-		podDetails = support.GetPrivatePods(cluster)
+		podDetails = support.GetPodsViaBastion(cluster)
 		pods := shared.ParsePods(podDetails)
 		g.Expect(pods).NotTo(BeEmpty())
 

@@ -35,7 +35,7 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 // ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
 func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
 	shared.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
-	_, err = GetArtifacts(cluster, "windows", flags.AirgapFlag.TarballType)
+	_, err = GetArtifacts(cluster, "windows", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	if err != nil {
 		return fmt.Errorf("error downloading %v artifacts: %w", cluster.Config.Product, err)
 	}

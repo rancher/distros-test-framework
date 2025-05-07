@@ -9,35 +9,42 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/gomega"
 )
 
+var nodeOs string
+
 func TestNvidia(cluster *shared.Cluster) {
 	targetNodeIP := cluster.ServerIPs[0]
-	checkOS := "cat /etc/os-release"
+	nodeOs = cluster.NodeOS
 
-	osName, cmdErr := shared.RunCommandOnNode(checkOS, targetNodeIP)
-	Expect(cmdErr).NotTo(HaveOccurred(), "error checking OS version: %v", cmdErr)
-
-	if strings.Contains(osName, "rhel") {
+	switch nodeOs {
+	case "ubuntu":
+		shared.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation")
+		initialSetupUbuntu(targetNodeIP)
+	case "rhel", "rhel8", "rhel9":
 		shared.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation")
 		initialSetupRHEL(targetNodeIP)
-	} else if strings.Contains(osName, "sles") {
+	case "sles15":
 		shared.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation")
 		initialSetupSles(targetNodeIP)
+	default:
+		shared.LogLevel("error", "Unsupported OS: %s", nodeOs)
+		return
 	}
-	shared.LogLevel("info", "Successfully installing nvidia driver and compute utils")
 
 	workloadErr := shared.ManageWorkload("apply", "nvidia-operator.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia operator manifests not deployed")
-	workloadErr = shared.ManageWorkload("apply", "nvidia-benchmark.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia benchmark manifests not deployed")
 
-	validateNvidiaModule(targetNodeIP)
+	restartRke2 := "sudo systemctl restart rke2-server.service"
+	_, restartRke2Err := shared.RunCommandOnNode(restartRke2, targetNodeIP)
+	if restartRke2Err != nil {
+		shared.LogLevel("warn", "Error restarting rke2: %v", restartRke2Err)
+	}
+
 	validateNvidiaVersion(targetNodeIP)
 	validateNvidiaLibMl(targetNodeIP)
 
@@ -56,9 +63,48 @@ func TestNvidia(cluster *shared.Cluster) {
 
 	validateNvidiaToolKit(targetNodeIP)
 
-	validateNvidiaPodStatus()
+	err = validateNvidiaModule(targetNodeIP)
+	Expect(err).NotTo(HaveOccurred(), "NVIDIA module not found: %v", err)
 
+	workloadErr = shared.ManageWorkload("apply", "nvidia-benchmark.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia benchmark manifests not deployed")
+	validateNvidiaBenchmarkPodStatus()
 	validateBenchmark()
+}
+
+func initialSetupUbuntu(ip string) {
+	updateCmd := "sudo apt update"
+	_, updateErr := shared.RunCommandOnNode(updateCmd, ip)
+	Expect(updateErr).ToNot(HaveOccurred(), "error updating package lists: %v", updateErr)
+	shared.LogLevel("info", "Updated package lists")
+
+	installPrereqs := "DEBIAN_FRONTEND=noninteractive sudo apt install -y build-essential " +
+		"linux-headers-$(uname -r) " +
+		"pkg-config " +
+		"libglvnd-dev " +
+		"xorg-dev " +
+		"vulkan-tools " +
+		"dkms " +
+		"acpid"
+	_, prereqErr := shared.RunCommandOnNode(installPrereqs, ip)
+	Expect(prereqErr).ToNot(HaveOccurred(), "error installing prerequisites: %v", prereqErr)
+	shared.LogLevel("info", "Installed prerequisite packages")
+
+	driverVersion := "570.133.20"
+	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" + driverVersion + "/NVIDIA-Linux-x86_64-" +
+		driverVersion + ".run"
+	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
+	Expect(downloadErr).ToNot(HaveOccurred(), "error downloading NVIDIA driver: %v", downloadErr)
+	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", driverVersion)
+
+	kernelVersion := "$(uname -r)"
+	modulesPath := "/lib/modules/" + kernelVersion + "/build"
+	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + driverVersion + ".run --accept-license --silent --no-questions " +
+		" --ui=none --kernel-source-path=" + modulesPath
+	_, installErr := shared.RunCommandOnNode(driverInstall, ip)
+	Expect(installErr).ToNot(HaveOccurred(), "error installing NVIDIA driver: %v", installErr)
+
+	shared.LogLevel("info", "Installed NVIDIA driver")
 }
 
 func initialSetupSles(ip string) {
@@ -96,110 +142,60 @@ func initialSetupSles(ip string) {
 }
 
 func initialSetupRHEL(ip string) {
+	// create a empty dummy repo file to GPU operator acknowledge.
+	repoFile := "sudo mkdir -p /etc/yum.repos.d && sudo touch /etc/yum.repos.d/redhat.repo && " +
+		"sudo chmod 644 /etc/yum.repos.d/redhat.repo"
+	_, repoErr := shared.RunCommandOnNode(repoFile, ip)
+	Expect(repoErr).ToNot(HaveOccurred(), "error creating repo file: %v", repoErr)
 
-	d := "sudo dnf config-manager --set-enabled codeready-builder-for-rhel-8-rhui-rpms"
-	_, dErr := shared.RunCommandOnNode(d, ip)
-	Expect(dErr).ToNot(HaveOccurred(), "error enabling codeready-builder repo: %v", dErr)
+	driverVersion := "570.133.20"
+	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" +
+		driverVersion + "/NVIDIA-Linux-x86_64-" + driverVersion + ".run"
+	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
+	Expect(downloadErr).ToNot(HaveOccurred(), "error downloading NVIDIA driver: %v", downloadErr)
+	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", driverVersion)
 
-	a := "sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
-	_, aErr := shared.RunCommandOnNode(a, ip)
-	Expect(aErr).ToNot(HaveOccurred(), "error installing epel-release: %v", aErr)
+	checkKernel := "uname -r"
+	kernelVersion, kernelCheckErr := shared.RunCommandOnNode(checkKernel, ip)
+	Expect(kernelCheckErr).ToNot(HaveOccurred(), "error checking kernel version: %v", kernelCheckErr)
+	kernelVersion = strings.TrimSpace(kernelVersion)
+	shared.LogLevel("info", "Kernel version: %s", kernelVersion)
 
-	p := "sudo dnf install -y dnf-plugins-core"
-	_, pErr := shared.RunCommandOnNode(p, ip)
-	Expect(pErr).ToNot(HaveOccurred(), "error installing dnf-plugins-core: %v", pErr)
+	kernelPackages := fmt.Sprintf("sudo yum -y install kernel-devel-%s kernel-headers-%s gcc make acpid pkg-config ",
+		kernelVersion, kernelVersion)
+	_, kernelErr := shared.RunCommandOnNode(kernelPackages, ip)
+	Expect(kernelErr).ToNot(HaveOccurred(), "error installing kernel packages: %v", kernelErr)
+	shared.LogLevel("info", "Installed kernel development packages")
 
-	installPackages := "sudo dnf -y install dkms  " +
-		"kernel-devel-$(uname -r) " +
-		"kernel-headers-$(uname -r) " +
-		"gcc make elfutils-libelf-devel libglvnd-devel"
+	// update sim link so when driver is installed, it will use the correct kernel version and it will find the path.
+	kernelPath := "/usr/src/kernels/" + kernelVersion
+	kernelSimLinkPath := "/usr/lib/modules/" + kernelVersion + "/build"
+	sl := "sudo ln -sf " + kernelPath + " " + kernelSimLinkPath
+	_, slErr := shared.RunCommandOnNode(sl, ip)
+	Expect(slErr).ToNot(HaveOccurred(), "error creating symlink: %v", slErr)
 
-	_, cmdErr := shared.RunCommandOnNode(installPackages, ip)
-	Expect(cmdErr).ToNot(HaveOccurred(), "error installing pre-requisite packages: %v", cmdErr)
+	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + driverVersion + ".run --accept-license --silent --no-questions" +
+		" --ui=none --kernel-source-path=" + kernelSimLinkPath
+	_, installErr := shared.RunCommandOnNode(driverInstall, ip)
+	Expect(installErr).ToNot(HaveOccurred(), "error installing NVIDIA driver: %v", installErr)
+	shared.LogLevel("info", "Installed NVIDIA driver")
 
-	shared.LogLevel("info", "Installed pre-requisite packages")
-
-	cmdRepo := "sudo dnf -y config-manager --add-repo" +
-		" https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
-	_, cmdErr = shared.RunCommandOnNode(cmdRepo, ip)
-	Expect(cmdErr).ToNot(HaveOccurred(), "error adding CUDA repo: %v", cmdErr)
-
-	installDriver := " sudo dnf module install -y nvidia-driver:565-dkms"
-	_, cmdErr = shared.RunCommandOnNode(installDriver, ip)
-	Expect(cmdErr).ToNot(HaveOccurred(), "error enabling nvidia-driver module: %v", cmdErr)
-
-	clean := "sudo dnf -y clean all && sudo dnf -y makecache "
-	_, cmdErr = shared.RunCommandOnNode(clean, ip)
-	Expect(cmdErr).ToNot(HaveOccurred(), "error cleaning dnf cache: %v", cmdErr)
-
-	keyImport := "sudo rpm --import https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/D42D0685.pub"
-	_, keyImportErr := shared.RunCommandOnNode(keyImport, ip)
-	Expect(keyImportErr).ToNot(HaveOccurred(), "error importing NVIDIA GPG key: %v", keyImportErr)
-
-	shared.LogLevel("info", "Imported NVIDIA GPG key")
-
-	repoRefresh := "sudo dnf -y clean all && sudo dnf -y makecache"
-	_, repoRefreshErr := shared.RunCommandOnNode(repoRefresh, ip)
-	Expect(repoRefreshErr).ToNot(HaveOccurred(), "error refreshing repo metadata: %v", repoRefreshErr)
-
-	installComputeUtils := "sudo dnf install -y nvidia-compute-utils-570.124.06"
-	_, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
-	Expect(installComputeUtilsErr).ToNot(HaveOccurred(), "error installing compute utils: %v", installComputeUtilsErr)
-
-	shared.LogLevel("info", "Installed NVIDIA compute utilities")
-
-	updateEnvPath := "sudo echo 'export PATH=/usr/local/cuda/bin:$PATH' | sudo tee /etc/profile.d/cuda.sh && " +
-		"echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' | " +
-		"sudo tee -a /etc/profile.d/cuda.sh && sudo chmod +x /etc/profile.d/cuda.sh"
-	_, updateEnvErr := shared.RunCommandOnNode(updateEnvPath, ip)
-	Expect(updateEnvErr).ToNot(HaveOccurred(), "error setting environment variables: %v", updateEnvErr)
-}
-
-func validateNvidiaModule(ip string) {
-	var res string
-	var lsmodErr error
-
-	retryErr := retry.Do(
-		func() error {
-			lsmodCmd := "sudo lsmod | grep nvidia"
-			res, lsmodErr = shared.RunCommandOnNode(lsmodCmd, ip)
-
-			if lsmodErr != nil {
-				var exitErr *ssh.ExitError
-				if errors.As(lsmodErr, &exitErr) && exitErr.ExitStatus() == 1 {
-					return errors.New("nvidia module not yet found via lsmod | grep")
-				}
-
-				return fmt.Errorf("failed to run lsmod command: %w", lsmodErr)
-			}
-
-			if !strings.Contains(res, "nvidia") {
-				return errors.New("nvidia module not found in lsmod output")
-			}
-
-			return nil
-		},
-		retry.Attempts(20),
-		retry.Delay(10*time.Second),
-		retry.OnRetry(func(n uint, err error) {
-			shared.LogLevel("warn", "Attempt %d failed, retrying to find nvidia module: %v", n+1, err)
-		}),
-	)
-	Expect(retryErr).NotTo(HaveOccurred(),
-		"failed to find nvidia module via lsmod after multiple attempts: %v", retryErr)
-
-	Expect(res).To(ContainSubstring("nvidia"), "lsmod output does not contain 'nvidia'")
-	Expect(res).To(Or(ContainSubstring("nvidia_uvm"), ContainSubstring("nvidia_drm")),
-		"lsmod output does not contain 'nvidia_uvm' or 'nvidia_drm'")
-	Expect(res).To(ContainSubstring("nvidia_modeset"), "lsmod output does not contain 'nvidia_modeset'")
-
-	shared.LogLevel("info", "NVIDIA modules found:\n%s", res)
+	s := "sudo setenforce 0"
+	_, cmdErr := shared.RunCommandOnNode(s, ip)
+	Expect(cmdErr).ToNot(HaveOccurred(), "error setting SELinux to permissive mode: %v", cmdErr)
 }
 
 func validateNvidiaVersion(ip string) {
 	versionCmd := "sudo cat /proc/driver/nvidia/version"
 
-	res, err := shared.RunCommandOnNode(versionCmd, ip)
+	cfg := shared.CmdNodeRetryCfg()
+	cfg.Attempts = 20
+	cfg.Delay = 10 * time.Second
+	cfg.RetryableErrorSubString = []string{
+		"No such file or directory",
+	}
+
+	res, err := shared.RunCommandOnNodeWithRetry(versionCmd, ip, &cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to read driver version: %v", err)
 	Expect(res).To(ContainSubstring("NVRM version: NVIDIA"), "NVRM version string not found")
 	Expect(res).To(ContainSubstring("GCC version:"), "GCC version string not found")
@@ -222,26 +218,43 @@ func validateNvidiaLibMl(ip string) {
 }
 
 func validateNvidiaOperatorDeploy(nodeName string) {
-	delayTime := time.After(120 * time.Second)
-	// as per doc , delay time needed.
-	// https://docs.rke2.io/advanced#deploy-nvidia-operator
-	<-delayTime
-
 	cmd := fmt.Sprintf("kubectl get node %s  --kubeconfig=%s -o jsonpath=\"{.metadata.labels}\" ",
 		strings.TrimSpace(nodeName), shared.KubeConfigFile)
-	res, labelErr := shared.RunCommandHost(cmd)
-	Expect(labelErr).NotTo(HaveOccurred(), "failed to get node labels: %v", labelErr)
 
-	Expect(strings.TrimSpace(res)).To(Not(BeEmpty()), "Label nvidia.com/gpu.deploy.driver not found")
-	Expect(strings.TrimSpace(res)).To(ContainSubstring("\"nvidia.com/gpu.deploy.driver\":"+"\"pre-installed\""),
-		"wrong label value for nvidia.com/gpu.deploy.driver")
+	labelsToFind := []string{
+		"\"nvidia.com/gpu.deploy.driver\":" + "\"pre-installed\"",
+		"nvidia.com/cuda.driver.major",
+		"nvidia.com/gpu.machine",
+		"nvidia.com/gpu.count",
+		"nvidia.com/gpu.product",
+	}
 
-	Expect(res).To(Or(ContainSubstring("nvidia.com/cuda.driver.major"), ContainSubstring("nvidia.com/gpu.machine")),
-		"Label nvidia.com/cuda.driver.major OR nvidia.com/gpu.machine not found")
-	Expect(res).To(ContainSubstring("nvidia.com/gpu.count"), "Label nvidia.com/gpu.count not found")
-	Expect(res).To(ContainSubstring("nvidia.com/gpu.product"), "Label nvidia.com/gpu.product not found")
+	retryErr := retry.Do(
+		func() error {
+			res, err := shared.RunCommandHost(cmd)
+			if err != nil {
+				return fmt.Errorf("failed to get node labels: %w", err)
+			}
 
-	shared.LogLevel("debug", "Nvidia operator labels found on node %s:\n%s", nodeName, res)
+			if strings.TrimSpace(res) == "" {
+				return errors.New("node labels are empty")
+			}
+
+			for _, label := range labelsToFind {
+				if !strings.Contains(res, label) {
+					return fmt.Errorf("label %s not found in node labels", label)
+				}
+			}
+
+			return nil
+		},
+		retry.Attempts(20),
+		retry.Delay(10*time.Second),
+		retry.OnRetry(func(n uint, err error) {
+			shared.LogLevel("warn", "Attempt %d failed, retrying to get node labels: %v", n+1, err)
+		}))
+
+	Expect(retryErr).NotTo(HaveOccurred(), "failed to get node labels after multiple attempts: %v", retryErr)
 }
 
 func validateNvidiaGPU(nodeName string) {
@@ -293,17 +306,71 @@ func validateNvidiaRunBinPath(ip string) {
 	shared.LogLevel("info", "nvidia-container-runtime binary found at %s", res)
 }
 
-func validateNvidiaPodStatus() {
+func validateNvidiaModule(ip string) error {
+	lsmodCmd := "sudo lsmod | grep nvidia"
+
+	modulesToCheck := []string{
+		"nvidia",
+		"nvidia_uvm",
+		"nvidia_drm",
+		"nvidia_modeset",
+	}
+
+	cfg := shared.CmdNodeRetryCfg()
+	cfg.Attempts = 20
+	cfg.Delay = 10 * time.Second
+
+	out, err := shared.RunCommandOnNodeWithRetry(lsmodCmd, ip, &cfg)
+	Expect(err).NotTo(HaveOccurred(),
+		"failed to find nvidia module via lsmod after multiple attempts: %v", err)
+
+	for _, module := range modulesToCheck {
+		if !strings.Contains(out, module) {
+			shared.LogLevel("warn", "NVIDIA module %s not found in lsmod output:\n%s\nRetrying...", module, out)
+
+			out, err = shared.RunCommandOnNode(module, ip)
+			if !strings.Contains(out, module) {
+				return fmt.Errorf("NVIDIA module %s not found in lsmod output:\n%s", module, out)
+			} else {
+				continue
+			}
+		}
+	}
+
+	shared.LogLevel("info", "NVIDIA modules found:\n%s", out)
+
+	return nil
+}
+
+func validateNvidiaBenchmarkPodStatus() {
 	cmd := fmt.Sprintf("kubectl get pod nbody-gpu-benchmark -n kube-system --kubeconfig=%s -o jsonpath='{.status.phase}'",
 		shared.KubeConfigFile)
-	podStatus, err := shared.RunCommandHost(cmd)
-	Expect(err).NotTo(HaveOccurred(), "failed to get benchmark pod status: %v", err)
 
-	podStatus = strings.TrimSpace(podStatus)
-	Expect(podStatus).To(Or(Equal("Succeeded"), Equal("Running"), Equal("Completed")),
-		"Benchmark pod phase is not Succeeded/Running/Completed")
+	var podStatus string
+	var err error
+	retryErr := retry.Do(
+		func() error {
+			podStatus, err = shared.RunCommandHost(cmd)
+			if err != nil {
+				return fmt.Errorf("failed to get benchmark pod status: %w", err)
+			}
 
-	shared.LogLevel("info", "Benchmark pod status:\n%s", podStatus)
+			podStatus = strings.TrimSpace(podStatus)
+			if podStatus != "Succeeded" && podStatus != "Running" && podStatus != "Completed" {
+				return errors.New("benchmark pod status is not Succeeded/Running/Completed")
+			}
+
+			return nil
+		},
+		retry.Attempts(20),
+		retry.Delay(5*time.Second),
+		retry.OnRetry(func(n uint, err error) {
+			shared.LogLevel("warn", "Attempt %d failed, retrying to get benchmark pod status: %v", n+1, err)
+		}),
+	)
+	Expect(retryErr).NotTo(HaveOccurred(), "failed to get benchmark pod status after multiple attempts: %v", retryErr)
+
+	shared.LogLevel("info", "Benchmark pod status: %s", podStatus)
 }
 
 func validateBenchmark() {

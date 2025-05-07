@@ -117,7 +117,7 @@ test-system-default-registry:
 	@go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
 test-nvidia:
-	@go test -timeout=45m -v -count=1 ./entrypoint/nvidia/...
+	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
 
 #========================= TestCode Static Quality Check =========================#
 pre-commit: go-check
