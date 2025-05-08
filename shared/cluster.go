@@ -723,7 +723,80 @@ func ExtractKubeImageVersion() string {
 	return version
 }
 
-// Runs 'kubectl describe pod' command and logs output.
+// InstallProduct installs the product on the server node only.
+// TODO: add support for installing on all nodes.
+func InstallProduct(cluster *Cluster, publicIP, version string) error {
+	err := setConfigFile(cluster, publicIP)
+	if err != nil {
+		return ReturnLogError("failed to set config file: %w", err)
+	}
+
+	installCmd := GetInstallCmd(cluster, version, "server")
+	if cluster.Config.Product == "k3s" {
+		skipInstall := fmt.Sprintf(" INSTALL_%s_SKIP_ENABLE=true ", strings.ToUpper(cluster.Config.Product))
+		installCmd = strings.Replace(installCmd, "sh", skipInstall+" "+"  sh", 1)
+	}
+
+	LogLevel("info", "Install command: %s", installCmd)
+
+	_, installCmdErr := RunCommandOnNode(installCmd, publicIP)
+	if installCmdErr != nil {
+		return ReturnLogError("failed to install product: \n%w", installCmdErr)
+	}
+
+	LogLevel("info", "%s successfully installed on server: %s", cluster.Config.Product, publicIP)
+
+	return nil
+}
+
+func setConfigFile(cluster *Cluster, publicIP string) error {
+	serverFlags := os.Getenv("server_flags")
+	if serverFlags == "" {
+		serverFlags = "write-kubeconfig-mode: 644"
+	}
+	serverFlags = strings.ReplaceAll(serverFlags, `\n`, "\n")
+
+	tempFilePath := "/tmp/config.yaml"
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return ReturnLogError("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", publicIP)
+	if writeErr != nil {
+		return ReturnLogError("failed to write to temp file: %w", writeErr)
+	}
+
+	flagValues := strings.Split(serverFlags, "\n")
+	for _, entry := range flagValues {
+		entry = strings.TrimSpace(entry)
+		if entry != "" {
+			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
+			if err != nil {
+				return ReturnLogError("failed to write to temp file: %w", err)
+			}
+		}
+	}
+
+	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
+	user := os.Getenv("aws_user")
+	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
+
+	_, mkdirCmdErr := RunCommandOnNode(cmd, publicIP)
+	if mkdirCmdErr != nil {
+		return ReturnLogError("failed to create remote directory: %w", mkdirCmdErr)
+	}
+
+	scpErr := RunScp(cluster, publicIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
+	if scpErr != nil {
+		return ReturnLogError("failed to copy file: %w", scpErr)
+	}
+
+	return nil
+}
+
+// DescribePod Runs 'kubectl describe pod' command and logs output.
 func DescribePod(cluster *Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
 	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
@@ -736,7 +809,7 @@ func DescribePod(cluster *Cluster, pod *Pod) {
 	}
 }
 
-// Runs 'kubectl logs' command and logs output.
+// PodLogs Runs 'kubectl logs' command and logs output.
 func PodLogs(cluster *Cluster, pod *Pod) {
 	if pod.NameSpace == "" || pod.Name == "" {
 		LogLevel("warn", "Name or Namespace info in pod data is empty. kubectl logs cmd may not work")
@@ -752,6 +825,7 @@ func PodLogs(cluster *Cluster, pod *Pod) {
 	}
 }
 
+// LogAllPodsForNamespace
 // Given a namespace, this function:
 // 1.  Filters ALL pods in the namespace.
 // 2.  logs both 'kubectl describe pod' and 'kubectl logs' output for each pod in the namespace.
@@ -773,6 +847,7 @@ func LogAllPodsForNamespace(namespace string) {
 	}
 }
 
+// FindPodAndLog
 // Search and log for a particular pod(s) given its unique name substring and namespace. Ex: coredns, kube-system.
 // 1. Filter based on the name substring, and find the right pod(s).
 // 2. For the pods matching the name, logs: 'kubectl describe pod' and 'kubectl logs' output.
