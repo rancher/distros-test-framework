@@ -1,7 +1,9 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-# set -x
+set -x
+
+exec 2> bastion_prep.log
 # echo "$@"
 
 arch=$(uname -m)
@@ -52,7 +54,7 @@ install_kubectl() {
 
 install_podman() {
   [ -r /etc/os-release ] && . /etc/os-release
-  if [ `expr "${ID_LIKE}" : ".*suse.*"` != 0 ]; then
+  if [ "$(expr "${ID_LIKE}" : ".*suse.*")" != 0 ]; then
     echo "Installing podman using zypper..."
     zypper install -y podman
   else

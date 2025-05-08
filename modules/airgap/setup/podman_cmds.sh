@@ -1,7 +1,9 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-# set -x
+set -x
+
+exec 2> podman_cmds.log
 # echo "$@"
 
 # Perform image pull/tag/push/validate operations on listed images
@@ -29,12 +31,6 @@ echo "Found image files: $image_files"
 for image_file in $image_files; do
   echo "Reading from file: $image_file"
   while read -r image_url_tag; do
-    if [[ -n "$registry_url" ]]; then
-      if [[ $registry_url =~ "http" ]]; then
-        registry_url=$(echo $registry_url | cut -d '/' -f 3)
-      fi
-      image_url_tag="${image_url_tag/docker.io/$registry_url}"
-    fi
     echo "Pulling image: $image_url_tag"
     if [[ "$image_url_tag" =~ "windows" ]]; then
       podman pull "$image_url_tag" --platform windows/amd64
@@ -44,6 +40,9 @@ for image_file in $image_files; do
     img="$image_url_tag"
     if [[ "$image_url_tag" =~ "docker" ]]; then
       img="${img/docker.io\/}"
+    fi
+    if [[ "$image_url_tag" =~ registry.rancher.com ]]; then
+      img="${img/registry.rancher.com\/}"
     fi
     if [[ -n "$registry_url" ]] && [[ "$image_url_tag" =~ $registry_url ]]; then
       img="${img/$registry_url\/}"
@@ -56,4 +55,6 @@ for image_file in $image_files; do
     echo "Pull/Tag/Push completed for image: $img"
   done < "$image_file"
 done
+
+"$(podman image ls)"
 
