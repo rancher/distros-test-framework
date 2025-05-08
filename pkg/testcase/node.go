@@ -93,7 +93,7 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 		workloadErr = shared.ManageWorkload("apply", "metrics-server.yaml")
 		Expect(workloadErr).To(BeNil())
 	}
-	cmd := "kubectl get pods -n kube-system --kubeconfig=" + shared.KubeConfigFile + " | grep metrics-server"
+	cmd := "kubectl get pods -n test-metrics-server --kubeconfig=" + shared.KubeConfigFile + " | grep metrics-server"
 	err := assert.ValidateOnHost(cmd, "Running")
 	Expect(err).To(BeNil())
 

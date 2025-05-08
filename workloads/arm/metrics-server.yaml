@@ -27,6 +27,6 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: ranchertest/mytestcontainer:unprivileged
+          image: shylajarancher19/mytestcontainer:unprivileged
           ports:
             - containerPort: 8080
