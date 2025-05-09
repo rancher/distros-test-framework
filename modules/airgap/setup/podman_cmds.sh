@@ -55,6 +55,3 @@ for image_file in $image_files; do
     echo "Pull/Tag/Push completed for image: $img"
   done < "$image_file"
 done
-
-"$(podman image ls)"
-
