@@ -634,7 +634,6 @@ func LogGrepOutput(filename, content, ip string) {
 	}
 }
 
-
 // VerifyFileContent greps for a specific string in a file on the node.
 func VerifyFileContent(filePath, content, ip string) error {
 	if filePath == "" {
@@ -652,6 +651,9 @@ func VerifyFileContent(filePath, content, ip string) error {
 		return ReturnLogError("file: %s does not have content: %s", filePath, content)
 	}
 	LogLevel("debug", "file: %s has content: %s", filePath, content)
+
+	return nil
+}
 
 // MountBind mounts a directory to another directory on the given node IP addresses.
 func MountBind(ips []string, dir, mountPoint string) error {
