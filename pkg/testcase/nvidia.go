@@ -108,7 +108,8 @@ func initialSetupUbuntu(ip string) {
 }
 
 func initialSetupSles(ip string) {
-	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp==570.124.06'"
+	driverVersion := "570.124.06"
+	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + driverVersion + " ' "
 	_, installDriverErr := shared.RunCommandOnNode(installDriver, ip)
 	Expect(installDriverErr).ToNot(HaveOccurred(), "error installing driver: %v", installDriverErr)
 
@@ -328,11 +329,9 @@ func validateNvidiaModule(ip string) error {
 		if !strings.Contains(out, module) {
 			shared.LogLevel("warn", "NVIDIA module %s not found in lsmod output:\n%s\nRetrying...", module, out)
 
-			out, err = shared.RunCommandOnNode(module, ip)
-			if !strings.Contains(out, module) {
-				return fmt.Errorf("NVIDIA module %s not found in lsmod output:\n%s", module, out)
-			} else {
-				continue
+			output, retryErr := shared.RunCommandOnNode(module, ip)
+			if !strings.Contains(output, module) {
+				return fmt.Errorf("NVIDIA module %s not found in lsmod output:\n%s\n%v", module, output, retryErr)
 			}
 		}
 	}

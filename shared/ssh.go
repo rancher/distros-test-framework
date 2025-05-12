@@ -147,6 +147,7 @@ func fatalSSHError(err error, cfg *RetryCfg) bool {
 		}
 
 		LogLevel("info", "Fatal exit code: %d, not retrying", exit)
+
 		return true
 	}
 

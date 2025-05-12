@@ -116,6 +116,9 @@ test-private-registry:
 test-system-default-registry:
 	@go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
+test-killall-uninstall:
+	@go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
+
 test-nvidia:
 	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
 

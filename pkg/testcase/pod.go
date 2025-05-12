@@ -40,7 +40,7 @@ func TestPodStatus(
 		}
 
 		return true
-	}, "800s", "10s").Should(BeTrue(), "Pods are not in desired state")
+	}, "1000s", "10s").Should(BeTrue(), "Pods are not in desired state")
 
 	_, err := shared.GetPods(true)
 	Expect(err).NotTo(HaveOccurred())

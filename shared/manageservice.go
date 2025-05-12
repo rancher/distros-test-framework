@@ -127,3 +127,38 @@ func (ms *ManageService) execute(cmd, ip string) (string, error) {
 
 	return result, nil
 }
+
+func EnableAndStartService(cluster *Cluster, publicIP, nodeType string) error {
+	ms := NewManageService(10, 5)
+	actions := []ServiceAction{
+		{
+			Service:  cluster.Config.Product,
+			Action:   "enable",
+			NodeType: nodeType,
+		},
+		{
+			Service:  cluster.Config.Product,
+			Action:   "start",
+			NodeType: nodeType,
+		},
+		{
+			Service:  cluster.Config.Product,
+			Action:   "status",
+			NodeType: nodeType,
+		},
+	}
+
+	output, err := ms.ManageService(publicIP, actions)
+	if err != nil {
+		return fmt.Errorf("%w: failed to start %s-%s on %s", err, cluster.Config.Product, nodeType, publicIP)
+	}
+	if output != "" {
+		if !strings.Contains(output, "active ") {
+			return ReturnLogError("failed with output: %s", output)
+		}
+	}
+
+	LogLevel("info", "%s-%s service successfully enabled", cluster.Config.Product, nodeType)
+
+	return nil
+}

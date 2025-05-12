@@ -62,7 +62,7 @@ jobs:
           # Print the latest log 
             echo "Latest log file: $LATEST_LOG"
           
-          # Set the product name on the output #TODO !!!!!!!#$#$#$ TODO!!!! 
+          # Set the product name on the output
             echo "product=rke2" >> $GITHUB_OUTPUT
          
           # Download the file
