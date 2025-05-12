@@ -51,8 +51,10 @@ func loadTFconfig(
 ) (*Cluster, error) {
 	LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
+
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAws(t, varDir, c)
+
 	LogLevel("info", "Loading tfvars in to ec2 config....")
 	loadEC2(t, varDir, c)
 
