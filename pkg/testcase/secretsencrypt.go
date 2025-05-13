@@ -13,9 +13,6 @@ import (
 )
 
 func TestSecretsEncryption(cluster *shared.Cluster, flags *customflag.FlagConfig) {
-	Expect(cluster.Status).To(Equal("cluster created"))
-	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
-
 	nodes, errGetNodes := shared.GetNodesByRoles("etcd", "control-plane")
 	Expect(nodes).NotTo(BeEmpty())
 	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes")
@@ -28,17 +25,18 @@ func TestSecretsEncryption(cluster *shared.Cluster, flags *customflag.FlagConfig
 
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
-	err = performSecretsEncryption(flags.SecretsEncrypt.Method, product, cluster.ServerIPs[0], cpIp, nodes)
-	Expect(err).NotTo(HaveOccurred(), "error performing secrets-encryption")
+	seErr := performSecretsEncryption(flags.SecretsEncrypt.Method, product,
+		cluster.Config.ServerFlags, cluster.ServerIPs[0], cpIp, nodes)
+	Expect(seErr).NotTo(HaveOccurred(), "error performing secrets-encryption")
 }
 
-func performSecretsEncryption(method, product, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
+func performSecretsEncryption(method, product, serverFlags, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
 	actions := []string{"prepare", "rotate", "reencrypt", "rotate-keys"}
 	switch method {
 	case "reencrypt":
 		shared.LogLevel("info", "Performing secrets-encryption using prepare, rotate and reencrypt...")
 		for _, action := range actions[:len(actions)-1] {
-			err = secretsEncryptOps(action, product, primaryNodeIp, cpIP, nodes)
+			err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 			if err != nil {
 				return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
 			}
@@ -46,13 +44,13 @@ func performSecretsEncryption(method, product, primaryNodeIp, cpIP string, nodes
 	case "rotate-keys":
 		shared.LogLevel("info", "Performing secrets-encryption using rotate-keys...")
 		action := actions[len(actions)-1]
-		err = secretsEncryptOps(action, product, primaryNodeIp, cpIP, nodes)
+		err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 		if err != nil {
 			return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
 		}
 	case "both":
 		for _, action := range actions {
-			err = secretsEncryptOps(action, product, primaryNodeIp, cpIP, nodes)
+			err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 			if err != nil {
 				return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
 			}
@@ -64,7 +62,7 @@ func performSecretsEncryption(method, product, primaryNodeIp, cpIP string, nodes
 	return nil
 }
 
-func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
+func secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
 	shared.LogLevel("info", "Secrets-Encryption %v action starting...", action)
 
 	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
@@ -75,7 +73,7 @@ func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shar
 		return shared.ReturnLogError("error: performing secret-encryption: %v", action)
 	}
 	verifyActionStdOut(action, stdOutput)
-	verifyStatusProvider(stdOutput)
+	verifyStatusProvider(serverFlags, stdOutput)
 
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("debug", "waiting for %s action completion - 20 seconds before service restarts", action)
@@ -111,7 +109,7 @@ func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shar
 		return shared.ReturnLogError("error: getting secret-encryption status")
 	}
 	verifyStatusStdOut(action, secretEncryptStatus)
-	verifyStatusProvider(secretEncryptStatus)
+	verifyStatusProvider(serverFlags, secretEncryptStatus)
 
 	err = logEncryptionFileContents(nodes, action, product)
 	if err != nil {
@@ -197,8 +195,12 @@ func verifyStatusStdOut(action, stdout string) {
 	}
 }
 
-func verifyStatusProvider(stdout string) {
-	serverFlags := os.Getenv("server_flags")
+// verifyStatusProvider Verifies secrets-encryption provider type post different actions.
+//
+// Verifies std output contains the corresponding provider: sudo k3s|rke2 secrets-encryption status.
+//
+// post the actions -> prepare|rotate|reencrypt|rotate-keys and restart services have been completed.
+func verifyStatusProvider(serverFlags, stdout string) {
 	if strings.Contains(serverFlags, "secrets-encryption-provider: secretbox") {
 		Expect(stdout).To(ContainSubstring("XSalsa20-POLY1305"))
 	} else {
