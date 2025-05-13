@@ -50,7 +50,7 @@ func TestMain(m *testing.M) {
 func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
 	cniSlice := []string{"calico", "flannel"}
-	if os.Getenv("ENV_MODULE") == "" {
+	if cfg.Module == "" {
 		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
 		os.Exit(1)
 	}
@@ -71,8 +71,7 @@ func validateAirgap() {
 	}
 
 	if cfg.Product == "k3s" {
-		if (strings.Contains(serverFlags, "protect")) ||
-			(cfg.Product == "rke2" && strings.Contains(serverFlags, "profile")) {
+		if strings.Contains(serverFlags, "protect") {
 			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
 		}
@@ -82,11 +81,19 @@ func validateAirgap() {
 		}
 	}
 
-	if (cfg.Product == "rke2") && (os.Getenv("no_of_windows_worker_nodes") != "0") &&
-		(!shared.SliceContainsString(cniSlice, serverFlags) || strings.Contains(serverFlags, "multus")) {
-		shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
-		shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
-		os.Exit(1)
+	if cfg.Product == "rke2" {
+		if strings.Contains(serverFlags, "profile") {
+			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
+			os.Exit(1)
+		}
+		if os.Getenv("no_of_windows_worker_nodes") != "0" {
+			if !shared.SliceContainsString(cniSlice, serverFlags) ||
+				strings.Contains(serverFlags, "multus") {
+				shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
+				shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
+				os.Exit(1)
+			}
+		}
 	}
 }
 
