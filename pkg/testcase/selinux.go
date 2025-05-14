@@ -162,16 +162,8 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 			err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
 			Expect(err).NotTo(HaveOccurred())
 		}
-		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
-		// res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
-		// Expect(errSel).NotTo(HaveOccurred())
 
-		// if strings.Contains(osPolicy, "centos7") {
-		// 	Expect(res).Should(ContainSubstring("container-selinux"))
-		// 	Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
-		// } else {
-		// 	Expect(res).Should(BeEmpty())
-		// }
+		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
@@ -180,17 +172,9 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 			err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
 			Expect(err).NotTo(HaveOccurred())
 		}
+
 		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"
 		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
-		// res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
-		// Expect(errSel).NotTo(HaveOccurred())
-
-		// if osPolicy == "centos7" {
-		// 	Expect(res).Should(ContainSubstring("container-selinux"))
-		// 	Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
-		// } else {
-		// 	Expect(res).Should(BeEmpty())
-		// }
 	}
 }
 
