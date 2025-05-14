@@ -1,4 +1,4 @@
-package validatecluster
+package killalluninstall
 
 import (
 	"flag"
@@ -6,26 +6,27 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
-	kubeconfig string
+	flags      *customflag.FlagConfig
 	cluster    *shared.Cluster
 	cfg        *config.Env
+	kubeconfig string
 	err        error
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -46,18 +47,18 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestValidateClusterSuite(t *testing.T) {
+func TestKillAllUninstallSuite(t *testing.T) {
 	RegisterFailHandler(FailWithReport)
-	RunSpecs(t, "Validate Cluster Test Suite")
+	RunSpecs(t, "killAllUninstall Test Suite")
 }
 
-var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
-	// Add Qase reporting capabilities.
+var _ = ReportAfterSuite("killAllUninstall Test Suite", func(report Report) {
+	// AddClient Qase reporting capabilities.
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, flags.InstallMode.String())
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}
@@ -65,9 +66,6 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
-		testcase.TestKillAllUninstall(cluster, cfg)
-
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))

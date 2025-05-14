@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|killalluninstall)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -98,7 +98,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/...
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}" -killallUninstall "${KILLALLUNINSTALL}"
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
@@ -135,6 +135,8 @@ if [ -n "${TEST_DIR}" ]; then
           OPTS=(-timeout=260m -v -count=1 ./entrypoint/conformance/... )
             [ -n "${SONOBUOY_VERSION}" ] && OPTS+=(-sonobuoyVersion "${SONOBUOY_VERSION}")
         go test "${OPTS[@]}" --ginkgo.timeout=260m
+    elif [ "${TEST_DIR}" = "killalluninstall" ]; then
+        go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
     fi
 fi
 }
