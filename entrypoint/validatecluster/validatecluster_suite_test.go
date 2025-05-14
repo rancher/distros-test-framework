@@ -72,7 +72,7 @@ var _ = AfterSuite(func() {
 		if customflag.ServiceFlag.SelinuxTest {
 			shared.LogLevel("info", "Running selinux test before destroying the cluster")
 			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-				testcase.TestUninstallPolicy(cluster)
+				testcase.TestUninstallPolicy(cluster, false)
 			}
 		}
 

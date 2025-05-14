@@ -37,7 +37,7 @@ var _ = Describe("Test:", func() {
 
 	It("Validate Selinux, if selinux true", func() {
 		if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-			testcase.TestUninstallPolicy(cluster)
+			testcase.TestUninstallPolicy(cluster, false)
 		}
 	})
 })
