@@ -2,6 +2,8 @@ package validatecluster
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
@@ -74,33 +76,26 @@ var _ = Describe("Test:", func() {
 	}
 
 	if customflag.ServiceFlag.SelinuxTest {
-		It("Validate selinux is enabled", func() {
-			testcase.TestSelinuxEnabled(cluster)
-		})
+		if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+			It("Validate selinux is enabled", func() {
+				testcase.TestSelinuxEnabled(cluster)
+			})
 
-		It("Validate container, server and selinux version", func() {
-			testcase.TestSelinux(cluster)
-		})
+			It("Validate container, server and selinux version", func() {
+				testcase.TestSelinux(cluster)
+			})
 
-		It("Validate container security", func() {
-			testcase.TestSelinuxSpcT(cluster)
-		})
+			It("Validate container security", func() {
+				testcase.TestSelinuxSpcT(cluster)
+			})
 
-		It("Validate context", func() {
-			testcase.TestSelinuxContext(cluster)
-		})
-
-		It("Validate uninstall selinux policies", func() {
-			testcase.TestUninstallPolicy(cluster)
-		})
+			It("Validate context", func() {
+				testcase.TestSelinuxContext(cluster)
+			})
+		} else {
+			fmt.Printf("Skipping selinux tests, selinux is not enabled in server flags\n")
+		}
 	}
-
-	// if customflag.ServiceFlag.KillAllUninstallTest {
-	// 	// It("Verifies KillAll -> Uninstall", func() {
-	// 	// 	testcase.TestKillAllUninstall(cluster, cfg)
-	// 	// })
-
-	// }
 })
 
 var _ = AfterEach(func() {

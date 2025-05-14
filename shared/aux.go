@@ -642,7 +642,7 @@ func VerifyFileContent(filePath, content, ip string) error {
 	if content == "" {
 		return ReturnLogError("assert should not be sent empty")
 	}
-	cmd := fmt.Sprintf("sudo cat %s | grep %q", filePath, content)
+	cmd := fmt.Sprintf("sudo cat %s; sudo cat %s | grep %q", filePath, filePath, content)
 	res, err := RunCommandOnNode(cmd, ip)
 	if err != nil {
 		return ReturnLogError("error running command: %s, error: %w", cmd, err)

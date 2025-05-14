@@ -19,7 +19,7 @@ type configuration struct {
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
 func TestSelinuxEnabled(cluster *shared.Cluster) {
-	ips := shared.FetchNodeExternalIPs()
+	ips := cluster.ServerIPs
 
 	for _, ip := range ips {
 		err := shared.VerifyFileContent("/etc/rancher/"+cluster.Config.Product+"/config.yaml", "selinux: true", ip)
@@ -149,6 +149,7 @@ func TestSelinuxSpcT(cluster *shared.Cluster) {
 }
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
+// Call this function after the un-installation of the product.
 func TestUninstallPolicy(cluster *shared.Cluster) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
@@ -156,10 +157,10 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
-		fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
+		// fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
 
-		err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
-		Expect(err).NotTo(HaveOccurred())
+		// err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
+		// Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
 		Expect(errSel).NotTo(HaveOccurred())
@@ -173,10 +174,10 @@ func TestUninstallPolicy(cluster *shared.Cluster) {
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
-		fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
+		// fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
 
-		err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
-		Expect(err).NotTo(HaveOccurred())
+		// err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
+		// Expect(err).NotTo(HaveOccurred())
 
 		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
 		Expect(errSel).NotTo(HaveOccurred())
