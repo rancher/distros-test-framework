@@ -648,11 +648,11 @@ func VerifyFileContent(filePath, content, ip string) error {
 	if err != nil {
 		return ReturnLogError("error running command: %s, error: %w", cmd, err)
 	}
-	if !strings.Contains(res, content) {
-		return ReturnLogError("file: %s does not have content: %s", filePath, content)
+	if res == "" || !strings.Contains(res, content) {
+		return ReturnLogError("file: %s does not have content: %s, grep result: %s", filePath, content, res)
 	}
 
-	LogLevel("debug", "file: %s has content: %s", filePath, content)
+	LogLevel("debug", "file: %s has content: %s; grep result: %s", filePath, content, res)
 
 	return nil
 }
