@@ -57,7 +57,7 @@ Please set the server_flags in .tfvars file for k3s:
 server_flags   = "secrets-encryption: true\n"
 ```
 
-The test tag `secretsEncryptMethod` is optional which is set to `rotate-keys` by default. Other values that is accepted are `reencrypt`, which performs prepare/rotate/reencrypt operations and `both` which performs `prepare/rotate/reencrypt` and `rotate-keys` operations.
+The test tag `secretsEncryptMethod` is optional which is set to `both` by default, which performs both `prepare/rotate/reencrypt` and `rotate-keys` operations. Other values that is accepted are `reencrypt`, which performs prepare/rotate/reencrypt operations and `rotate-keys` which performs only `rotate-keys` operations.
 Additionally starting v1.30.12 and above, support for secretbox has been added only for `rotate-keys` and below can be added on the `server_flags` to test that feature.
 ```
 secrets-encryption-provider: secretbox
