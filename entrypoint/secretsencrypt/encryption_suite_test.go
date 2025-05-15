@@ -27,7 +27,7 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.SecretsEncrypt.Method, "secretsEncryptMethod", "rotate-keys", "method to perform secrets encryption")
+	flag.StringVar(&flags.SecretsEncrypt.Method, "secretsEncryptMethod", "both", "method to perform secrets encryption")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -61,6 +61,12 @@ func validateSecretsEncryptFlag() {
 			shared.LogLevel("error", "Add secrets-encryption:true to server_flags for this test")
 			os.Exit(1)
 		}
+	}
+
+	if strings.Contains(os.Getenv("server_flags"), "secretbox") &&
+		flags.SecretsEncrypt.Method != "rotate-keys" {
+		shared.LogLevel("info", "secretbox provider is supported only with rotate-keys operation")
+		flags.SecretsEncrypt.Method = "rotate-keys"
 	}
 }
 

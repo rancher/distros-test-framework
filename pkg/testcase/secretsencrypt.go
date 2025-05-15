@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -111,7 +110,7 @@ func secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP string,
 	verifyStatusStdOut(action, secretEncryptStatus)
 	verifyStatusProvider(serverFlags, secretEncryptStatus)
 
-	err = logEncryptionFileContents(nodes, action, product)
+	err = logEncryptionFileContents(nodes, serverFlags, action, product)
 	if err != nil {
 		return shared.ReturnLogError("error: logging secret-encryption file contents")
 	}
@@ -208,8 +207,7 @@ func verifyStatusProvider(serverFlags, stdout string) {
 	}
 }
 
-func logEncryptionFileContents(nodes []shared.Node, action, product string) error {
-	serverFlags := os.Getenv("server_flags")
+func logEncryptionFileContents(nodes []shared.Node, serverFlags, action, product string) error {
 	configFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-config.json", product)
 	stateFile := fmt.Sprintf("/var/lib/rancher/%s/server/cred/encryption-state.json", product)
 	cmdShowConfig := "sudo cat  " + configFile
