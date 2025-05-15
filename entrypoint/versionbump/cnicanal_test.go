@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	calicoCmd  = kgn + " : | grep 'hardened-calico' -A1, "
-	flannelCmd = kgn + " : | grep 'hardened-flannel' -A1"
+	calicoCmd  = " kubectl get node -o yaml: | grep 'hardened-calico' -A1, "
+	flannelCmd = " kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
 )
 
 var _ = Describe("Canal Version bump:", func() {
