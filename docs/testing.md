@@ -64,6 +64,12 @@ Note/TODO: k3s external db fails working with etcd only node. Refer: https://doc
 
 ## Validating Dual-Stack
 
+- Required vars for `.env` file
+
+```
+TEST_DIR=dualstack
+```
+
 - Required vars for `*.tfvars` file
 - `kubelet-arg: \n - node-ip=0.0.0.0` is required to be added to both server and worker flags if the public and private IPv6 IPs are same
 
@@ -81,6 +87,13 @@ bastion_subnets      = "<dual-stack-subnet>"
 - Reorder IP is not supported at this time (Future enhancement)
 
 ## Validating IPv6 Only
+
+- Required vars for `.env` file
+
+```
+ENV_MODULE=ipv6only
+TEST_DIR=ipv6only
+```
 
 - Required vars for `*.tfvars` file
 
@@ -302,3 +315,12 @@ no_of_worker_nodes = 1
              e2e   complete   passed       1   Passed:  0, Failed:  0, Remaining:404
     systemd-logs   complete   passed       2
  Sonobuoy has completed. Use `sonobuoy retrieve` to get results
+
+
+## Kill all - Uninstall tests
+- Based on fixes here https://github.com/rancher/rke2/commit/613399eefdd581b137fc9bd7aeb7fb59ecdfdd8e introduced in v1.30.4 when running kill all script after this,
+we are not directly umounting the data dir, which is the behavior tests scripts are expecting.
+
+- Ideally we should run killall uninstall tests on versions above 1.30.4.
+
+- Optionally we can pass `-killallUninstall true` to run kill all-uninstall tests on the end of ValidateCluster tests.

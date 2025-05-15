@@ -13,9 +13,8 @@ import (
 const statusCompleted = "Completed"
 
 var (
-	ciliumPodsRunning                 = 0
-	ciliumPodsNotRunning              = 0
-	podAssertRestarts, podAssertReady assert.PodAssertFunc
+	ciliumPodsRunning    = 0
+	ciliumPodsNotRunning = 0
 )
 
 // TestPodStatus test the status of the pods in the cluster using custom assert functions.
@@ -55,7 +54,7 @@ func TestPodStatusUsingBastion(
 ) {
 	var podDetails string
 	Eventually(func(g Gomega) {
-		podDetails = support.GetPrivatePods(cluster)
+		podDetails = support.GetPodsViaBastion(cluster)
 		pods := shared.ParsePods(podDetails)
 		g.Expect(pods).NotTo(BeEmpty())
 
@@ -63,28 +62,6 @@ func TestPodStatusUsingBastion(
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
 		}
 	}, "600s", "10s").Should(Succeed(), "\nfailed to process pods status\n%v\n", podDetails)
-}
-
-func CheckPodStatus(cluster *shared.Cluster) {
-	cmd := `kubectl get pods -A ` +
-		`-o jsonpath='{range .items[?(@.status.containerStatuses[-1:].state.waiting)]}{.metadata.name}: ` +
-		`{@.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}'`
-	Eventually(func(g Gomega) bool {
-		pods, err := shared.GetPods(false)
-		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(pods).NotTo(BeEmpty())
-
-		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
-		if res != "" {
-			shared.LogLevel("info", "Waiting for pods: \n%s", res)
-			return false
-		}
-		for i := range pods {
-			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)
-		}
-
-		return true
-	}, "600s", "10s").Should(BeTrue(), "failed to process pods status")
 }
 
 func processPodStatus(
@@ -98,7 +75,9 @@ func processPodStatus(
 	switch {
 	case strings.Contains(pod.Name, "helm-install") ||
 		strings.Contains(pod.Name, "helm-delete") ||
-		strings.Contains(pod.Name, "helm-operation"):
+		strings.Contains(pod.Name, "helm-operation") ||
+		strings.Contains(pod.Name, "nvidia-cuda-validator-") ||
+		strings.Contains(pod.Name, "-benchmark"):
 		g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
 
 	case strings.Contains(pod.Name, "apply") && strings.Contains(pod.NameSpace, "system-upgrade"):

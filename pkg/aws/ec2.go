@@ -213,6 +213,28 @@ func (c Client) StartInstance(instanceID string) error {
 	return nil
 }
 
+func (c Client) RebootInstance(instanceID string) error {
+	if instanceID == "" {
+		return shared.ReturnLogError("calling RebootInstance with empty instance ID, must send a valid instance ID")
+	}
+
+	input := &ec2.RebootInstancesInput{
+		InstanceIds: []*string{aws.String(instanceID)},
+	}
+
+	_, err := c.ec2.RebootInstances(input)
+	if err != nil {
+		return shared.ReturnLogError("failed to reboot instance %s: %v", instanceID, err)
+	}
+
+	startErr := c.waitForInstanceRunning(instanceID)
+	if startErr != nil {
+		return shared.ReturnLogError("timed out on reboot instance %s: %v", instanceID, startErr)
+	}
+
+	return nil
+}
+
 func (c Client) ReleaseElasticIps(ipAddress string) error {
 	if ipAddress == "" {
 		return shared.ReturnLogError("calling ReleaseElasticIps with empty ip address, must send a valid ip address")
@@ -308,6 +330,10 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 					{
 						Key:   aws.String("Name"),
 						Value: aws.String(name + "-distros-qa"),
+					},
+					{
+						Key:   aws.String("Team"),
+						Value: aws.String("distros-qa"),
 					},
 				},
 			},

@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"strings"
+
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
@@ -67,7 +69,7 @@ func TestNodeStatusUsingBastion(
 	var nodeDetails string
 	var err error
 	Eventually(func(g Gomega) bool {
-		nodeDetails, err = support.GetPrivateNodes(cluster)
+		nodeDetails, err = support.GetNodesViaBastion(cluster)
 		Expect(err).To(BeNil())
 		nodes := shared.ParseNodes(nodeDetails)
 		g.Expect(len(nodes)).To(Equal(expectedNodeCount),
@@ -83,4 +85,41 @@ func TestNodeStatusUsingBastion(
 
 		return true
 	}, "600s", "10s").Should(BeTrue())
+}
+
+func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
+	var workloadErr error
+	if applyWorkload {
+		workloadErr = shared.ManageWorkload("apply", "metrics-server.yaml")
+		Expect(workloadErr).To(BeNil())
+	}
+	cmd := "kubectl get pods -n kube-system --kubeconfig=" + shared.KubeConfigFile + " | grep metrics-server"
+	err := assert.ValidateOnHost(cmd, "Running")
+	Expect(err).To(BeNil())
+
+	topCmd := "kubectl top node --kubeconfig=" + shared.KubeConfigFile + " | grep CPU -A1 " +
+		" && kubectl top pods -A --kubeconfig=" + shared.KubeConfigFile + " | grep CPU -A5 "
+	res, err := shared.RunCommandHost(topCmd)
+	Expect(err).To(BeNil())
+	Expect(res).To(ContainSubstring("CPU"))
+	Expect(res).To(ContainSubstring("MEMORY"))
+	Expect(res).NotTo(Equal(""))
+	Expect(res).NotTo(ContainSubstring("No resources found"))
+
+	lines := strings.Split(res, "\n")
+	dataLines := 0
+	for _, line := range lines {
+		if strings.Contains(line, "m") && strings.Contains(line, "Mi") {
+			dataLines++
+		}
+		if strings.Contains(line, "g") && strings.Contains(line, "Gi") {
+			dataLines++
+		}
+	}
+	Expect(dataLines).To(BeNumerically(">", 0), "Expected to find lines with metric data")
+
+	if deleteWorkload {
+		workloadErr = shared.ManageWorkload("delete", "metrics-server.yaml")
+		Expect(workloadErr).To(BeNil())
+	}
 }

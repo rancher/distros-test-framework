@@ -51,8 +51,10 @@ func loadTFconfig(
 ) (*Cluster, error) {
 	LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
+
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAws(t, varDir, c)
+
 	LogLevel("info", "Loading tfvars in to ec2 config....")
 	loadEC2(t, varDir, c)
 
@@ -70,6 +72,7 @@ func loadTFconfig(
 	}
 
 	LogLevel("info", "Loading other tfvars in to config....")
+	c.NodeOS = terraform.GetVariableAsStringFromVarFile(t, varDir, "node_os")
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")

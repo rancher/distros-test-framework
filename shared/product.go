@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -108,11 +109,14 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	return secretsEncryptStdOut, nil
 }
 
-func GetInstallCmd(product, installType, nodeType string) string {
+func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 
-	channel := getChannel(product)
+	product := cluster.Config.Product
+	nodeOS := cluster.NodeOS
+
+	channel := getChannel(cluster.Config.Product)
 
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
@@ -120,13 +124,34 @@ func GetInstallCmd(product, installType, nodeType string) string {
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s sh -s - %s", product, nodeType)
+	installMethodValue := os.Getenv("install_method")
+	installMethod := ""
+	if installMethodValue != "" {
+		installMethod = fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), installMethodValue)
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s installMethod: %s",
+			installCmd, installFlag, channel, installMethod)
+
+		return fmt.Sprintf(installCmd, installFlag, channel, installMethod)
+	}
+
+	if nodeOS == "slemicro" && strings.EqualFold(product, "k3s") {
+		skipEnable := fmt.Sprintf("INSTALL_%s_SKIP_ENABLE=true", strings.ToUpper(product))
+		installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s %%s sh -s - %s", product, nodeType)
+		LogLevel("debug", "installCmd: %s installFlag: %s channel: %s skipEnable: %s",
+			installCmd, installFlag, channel, skipEnable)
+
+		return fmt.Sprintf(installCmd, installFlag, channel, skipEnable)
+	}
+
+	installCmd = fmt.Sprintf("curl -sfL https://get.%s.io | sudo %%s %%s  sh -s - %s", product, nodeType)
+	LogLevel("debug", "installCmd: %s installFlag: %s channel: %s", installCmd, installFlag, channel)
 
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }
 
 func getChannel(product string) string {
-	defaultChannel := fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "stable")
+	defaultChannel := fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "testing")
 
 	if customflag.ServiceFlag.Channel.String() != "" {
 		return fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product),
@@ -136,44 +161,65 @@ func getChannel(product string) string {
 	return defaultChannel
 }
 
-// UninstallProduct uninstalls provided product from given node ip.
-func UninstallProduct(product, nodeType, ip string) error {
-	var scriptName string
-	paths := []string{
-		"/usr/local/bin",
-		"/opt/local/bin",
-		"/usr/bin",
-		"/usr/sbin",
-		"/usr/local/sbin",
-		"/bin",
-		"/sbin",
-	}
-
-	switch product {
-	case "k3s":
-		if nodeType == "agent" {
-			scriptName = "k3s-agent-uninstall.sh"
-		} else {
-			scriptName = "k3s-uninstall.sh"
-		}
-	case "rke2":
-		scriptName = "rke2-uninstall.sh"
-	default:
+// ManageProductCleanup performs cleanup actions for k3s or rke2.
+// It supports uninstall and killall actions.
+func ManageProductCleanup(product, nodeType, ip string, actions ...string) error {
+	if product != "k3s" && product != "rke2" {
 		return fmt.Errorf("unsupported product: %s", product)
 	}
 
-	foundPath, findErr := checkFiles(product, paths, scriptName, ip)
-	if findErr != nil {
-		return findErr
+	if len(actions) == 0 {
+		return fmt.Errorf("no actions specified for %s cleanup", product)
 	}
 
-	pathName := product + "-uninstall.sh"
-	if product == "k3s" && nodeType == "agent" {
-		pathName = "k3s-agent-uninstall.sh"
+	for _, action := range actions {
+		switch action {
+		case "uninstall":
+			uninstallScript := product + "-uninstall.sh"
+			if product == "k3s" && nodeType == "agent" {
+				uninstallScript = "k3s-agent-uninstall.sh"
+			}
+			err := execAction(product, uninstallScript, ip)
+			if err != nil {
+				return fmt.Errorf("%v uninstall failed for %s-%s", err, product, nodeType)
+			}
+
+			LogLevel("info", "%s completed successfully on %s ip:%s", uninstallScript, nodeType, ip)
+
+		case "killall":
+			killAllScript := product + "-killall.sh"
+			err := execAction(product, killAllScript, ip)
+			if err != nil {
+				return fmt.Errorf("killall failed for %s-%s", product, nodeType)
+			}
+
+			LogLevel("info", "%s completed successfully on %s ip:%s", killAllScript, nodeType, ip)
+
+		default:
+			return fmt.Errorf("unsupported action: %s", action)
+		}
 	}
 
-	uninstallCmd := fmt.Sprintf("sudo %s/%s", foundPath, pathName)
-	_, err := RunCommandOnNode(uninstallCmd, ip)
+	return nil
+}
 
-	return err
+func execAction(product, script, ip string) error {
+	execPath, err := FindPath(script, ip)
+	if err != nil {
+		return fmt.Errorf("failed to find %s script for %s: %w", script, product, err)
+	}
+
+	LogLevel("info", "execPath path: %s", execPath)
+
+	cmd := "sudo " + execPath
+	res, execErr := RunCommandOnNode(cmd, ip)
+	// here we should check if its not empty because scripts ran here, will always return output.
+	if strings.TrimSpace(res) == "" {
+		return fmt.Errorf("failed to run command: %s", execPath)
+	}
+	if execErr != nil {
+		return fmt.Errorf("failed to run command: %s, error: %w", execPath, execErr)
+	}
+
+	return nil
 }

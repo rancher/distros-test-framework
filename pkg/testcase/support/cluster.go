@@ -17,7 +17,7 @@ func LogAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	}
 }
 
-func GetPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {
+func GetNodesViaBastion(cluster *shared.Cluster) (nodeDetails string, err error) {
 	cmd := fmt.Sprintf(
 		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
 		cluster.Config.Product)
@@ -27,7 +27,7 @@ func GetPrivateNodes(cluster *shared.Cluster) (nodeDetails string, err error) {
 	return nodeDetails, err
 }
 
-func GetPrivatePods(cluster *shared.Cluster) (podDetails string) {
+func GetPodsViaBastion(cluster *shared.Cluster) (podDetails string) {
 	cmd := fmt.Sprintf(
 		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
 		cluster.Config.Product)
