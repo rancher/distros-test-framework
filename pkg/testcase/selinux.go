@@ -158,7 +158,7 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 
 	for _, serverIP := range cluster.ServerIPs {
 		if uninstall {
-			fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
+			shared.LogLevel("info", "Uninstalling %s on server: %s", cluster.Config.Product, serverIP)
 			err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -168,7 +168,7 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 
 	for _, agentIP := range cluster.AgentIPs {
 		if uninstall {
-			fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
+			shared.LogLevel("info", "Uninstalling %s on agent: %s", cluster.Config.Product, agentIP)
 			err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
 			Expect(err).NotTo(HaveOccurred())
 		}

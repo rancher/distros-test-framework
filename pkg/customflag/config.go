@@ -192,9 +192,10 @@ type selinuxTestFlag bool
 
 func (s *selinuxTestFlag) Set(value string) error {
 	if value == "" {
-		return nil
+		return fmt.Errorf("invalid selinux test flag - cannot be empty")
 	}
-
+	// selinux test flag can only be true or false
+	// if value is not true or false, return an error
 	if value != "true" && value != "false" {
 		return fmt.Errorf("invalid selinux test flag: %s", value)
 	}
