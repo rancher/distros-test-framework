@@ -74,6 +74,8 @@ var _ = AfterSuite(func() {
 			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
 				testcase.TestUninstallPolicy(cluster, false)
 			}
+		} else {
+			shared.LogLevel("info", "Skipping selinux tests")
 		}
 
 		status, err := shared.DestroyCluster(cfg)
