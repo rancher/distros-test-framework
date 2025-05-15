@@ -62,6 +62,12 @@ func validateSecretsEncryptFlag() {
 			os.Exit(1)
 		}
 	}
+
+	if strings.Contains(os.Getenv("server_flags"), "secretbox") &&
+		flags.SecretsEncrypt.Method != "rotate-keys" {
+		shared.LogLevel("info", "secretbox provider is supported only with rotate-keys operation")
+		flags.SecretsEncrypt.Method = "rotate-keys"
+	}
 }
 
 var _ = ReportAfterSuite("Secrets Encryption Test Suite", func(report Report) {
