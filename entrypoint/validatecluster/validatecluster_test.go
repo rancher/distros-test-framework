@@ -92,6 +92,8 @@ var _ = Describe("Test:", func() {
 			It("Validate context", func() {
 				testcase.TestSelinuxContext(cluster)
 			})
+		} else {
+			fmt.Printf("Skipping selinux tests - selinux is not set to true in server flags\n")
 		}
 	}
 })
