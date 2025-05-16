@@ -157,7 +157,7 @@ enable_service() {
     sleep 20
 
     if ! sudo systemctl is-active --quiet rke2-agent; then
-      echo "rke2-agent exiting after failed retry to start on node: $public_ip while joining server: $server_ip"
+      echo "rke2-agent exiting after failed to start on node: $public_ip while joining server: $server_ip"
       sudo journalctl -xeu rke2-agent.service --no-pager | grep -i "error\|failed\|fatal"
       exit 1
     else
