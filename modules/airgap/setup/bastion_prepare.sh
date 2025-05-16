@@ -1,7 +1,9 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-# set -x
+set -x
+
+exec 2> bastion_prep.log
 # echo "$@"
 
 arch=$(uname -m)
@@ -52,7 +54,7 @@ install_kubectl() {
 
 install_podman() {
   [ -r /etc/os-release ] && . /etc/os-release
-  if [ `expr "${ID_LIKE}" : ".*suse.*"` != 0 ]; then
+  if [ "$(expr "${ID_LIKE}" : ".*suse.*")" != 0 ]; then
     echo "Installing podman using zypper..."
     zypper install -y podman
   else
@@ -64,20 +66,18 @@ install_podman() {
 main() {
   echo "Install kubectl..."
   install_kubectl
-  echo "Wait for 15 seconds for the process to finish"
-  sleep 10
+  echo "Wait for 30 seconds for the process to finish"
+  sleep 30
   has_docker=$(has_bin docker)
   if [[ "$has_docker" =~ "error" ]] || [ -z "$has_docker" ]; then
     echo "Install docker..."
     install_docker
-    echo "Wait for 15 seconds for the process to finish"
-    sleep 10
+    echo "Wait for 30 seconds for the process to finish"
+    sleep 30
   else
     echo "Found docker in path: $has_docker"
   fi
   echo "Install podman..."
   install_podman
-  echo "Wait for 15 seconds for the process to finish"
-  sleep 10
 }
 main "$@"

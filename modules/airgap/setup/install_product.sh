@@ -3,7 +3,9 @@
 # ./install_product.sh product serverIP token nodeType nodeIP flags
 
 ## Uncomment the following lines to enable debug mode
-# set -x
+set -x
+
+exec 2> install_product.log
 # echo "$@"
 
 product=${1}
