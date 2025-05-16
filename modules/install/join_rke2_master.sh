@@ -167,13 +167,13 @@ install_dependencies() {
 
 enable_service() {
   if ! sudo systemctl enable rke2-server --now; then
-    echo "rke2-server failed to start on node: $public_ip, Waiting for 20s to retry..."
+    echo "rke2-server failed to start on node: $public_ip, Waiting for 20s to check if it starts"
 
     ## rke2 can sometimes fail to start but some time after it starts successfully.
     sleep 20
 
     if ! sudo systemctl is-active --quiet rke2-server; then
-      echo "rke2-server exiting after failed retry to start on node: $public_ip while joining server: $server_ip"
+      echo "rke2-server exiting after failed to start on node: $public_ip while joining server: $server_ip"
       sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
       exit 1
     else
