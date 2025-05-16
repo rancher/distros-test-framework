@@ -83,7 +83,7 @@ func secretsEncryptOps(action, product, primaryNodeIp, cpIP string, nodes []shar
 }
 
 func restartServerAndWait(ip, product string) {
-	ms := shared.NewManageService(5, 5)
+	ms := shared.NewManageService(1, 1)
 
 	action := shared.ServiceAction{
 		Service:  product,
