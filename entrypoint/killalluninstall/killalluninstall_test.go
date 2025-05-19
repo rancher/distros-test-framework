@@ -2,6 +2,8 @@ package killalluninstall
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
@@ -31,6 +33,12 @@ var _ = Describe("Test:", func() {
 
 	It("Validate KillAll -> Uninstall", func() {
 		testcase.TestKillAllUninstall(cluster, cfg)
+	})
+
+	It("Validate Selinux, if selinux true", func() {
+		if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+			testcase.TestUninstallPolicy(cluster, false)
+		}
 	})
 })
 

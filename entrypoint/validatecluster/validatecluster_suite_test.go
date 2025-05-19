@@ -26,6 +26,7 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.SelinuxTest, "selinux", "Run selinux test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -67,6 +68,15 @@ var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
 		shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
 		testcase.TestKillAllUninstall(cluster, cfg)
+
+		if customflag.ServiceFlag.SelinuxTest {
+			shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
+			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+				testcase.TestUninstallPolicy(cluster, false)
+			}
+		} else {
+			shared.LogLevel("info", "Skipping selinux tests")
+		}
 
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
