@@ -13,6 +13,7 @@ const (
 	status  = "status"
 	restart = "restart"
 	start   = "start"
+	stop    = "stop"
 	enable  = "enable"
 )
 
@@ -117,6 +118,7 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 func validateActions(ip string, actions []ServiceAction) error {
 	validActions := map[string]bool{
 		rotate:  true,
+		stop:    true,
 		status:  true,
 		restart: true,
 		start:   true,
