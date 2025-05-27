@@ -35,6 +35,17 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Check if selinux test is enabled
+	if customflag.ServiceFlag.SelinuxTest {
+		if !strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+			shared.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
+			os.Exit(1)
+		}
+		shared.LogLevel("info", "Running selinux test")
+	} else {
+		shared.LogLevel("info", "Skipping selinux test")
+	}
+
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
