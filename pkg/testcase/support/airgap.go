@@ -2,6 +2,7 @@ package support
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -122,7 +123,7 @@ func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 		}
 	}
 
-	shared.LogLevel("info", "Perform image pull/tag/push/inspect...")
+	shared.LogLevel("info", "Perform image pull/tag/push...")
 	err = podmanCmds(cluster, "linux", flags)
 	if err != nil {
 		return fmt.Errorf("error performing docker actions: %w", err)
@@ -159,9 +160,6 @@ func systemDefaultRegistry(cluster *shared.Cluster) (err error) {
 
 // podmanCmds executes podman_cmds.sh script.
 func podmanCmds(cluster *shared.Cluster, platform string, flags *customflag.FlagConfig) (err error) {
-	if flags.AirgapFlag.ImageRegistryUrl != "" {
-		shared.LogLevel("info", "Images will be pulled from registry url: %v", flags.AirgapFlag.ImageRegistryUrl)
-	}
 	cmd := "sudo chmod +x podman_cmds.sh && " +
 		fmt.Sprintf(`sudo ./podman_cmds.sh "%v" "%v" "%v" "%v" "%v" "%v"`,
 			cluster.Config.Product, platform, cluster.BastionConfig.PublicDNS,
@@ -327,16 +325,18 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 // GetArtifacts executes get_artifacts.sh script.
 func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType string) (res string, err error) {
 	serverFlags := os.Getenv("server_flags")
+	version := cluster.Config.Version
 	if platform == "" {
 		platform = "linux"
 	}
 	if registryURL != "" {
 		shared.LogLevel("info", "Getting artifacts from URL: %v", registryURL)
+		version = url.QueryEscape(cluster.Config.Version)
 	}
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
-		cluster.Config.Product, cluster.Config.Version, platform,
+		cluster.Config.Product, version, platform,
 		cluster.Config.Arch, registryURL, serverFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
