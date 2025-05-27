@@ -1,7 +1,9 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-# set -x
+set -x
+
+exec 2> get_artifacts.log
 # echo "$@"
 
 # Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
@@ -48,6 +50,15 @@ check_arch() {
   fi
 }
 
+get_url() {
+  if [[ -n "$registry_url" ]]; then
+    url=$registry_url/rke2/$version
+  else
+    url="https://github.com/rancher/rke2/releases/download/$version"
+  fi
+  echo "$url"
+}
+
 download_retry() {
   cmd=${1}
   max_attempts=3
@@ -80,11 +91,7 @@ get_assets() {
       download_retry "wget $url/k3s-airgap-images-$arch.$tarball_type"
     fi
   elif [[ "$product" == "rke2" ]]; then
-    if [[ -n "$registry_url" ]]; then
-      url=$registry_url/rke2/$version
-    else
-      url="https://github.com/rancher/rke2/releases/download/$version"
-    fi
+    url=$(get_url)
     echo "Download assets using url: $url"
     download_retry "wget $url/sha256sum-$arch.txt"
     # Ref: https://docs.rke2.io/install/airgap
@@ -108,11 +115,7 @@ get_assets() {
 
 get_cni_assets() {
   if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ "$server_flags" != *"cni: none"* ]]; then
-    if [[ -n "$registry_url" ]]; then
-      url=$registry_url/rke2/$version
-    else
-      url="https://github.com/rancher/rke2/releases/download/$version"
-    fi
+    url=$(get_url)
     echo "Download cni assets using url: $url"
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
@@ -136,7 +139,7 @@ get_cni_assets() {
 # TODO: Add function for ingress-controller: traefik
 
 get_windows_assets() {
-  url="https://github.com/rancher/rke2/releases/download/$version"
+  url=$(get_url)
   download_retry "wget $url/rke2-images.windows-amd64.txt"
   download_retry "wget $url/rke2-windows-amd64.exe"
   download_retry "wget $url/rke2.windows-amd64.tar.gz"

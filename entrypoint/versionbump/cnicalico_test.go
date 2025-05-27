@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	calicoCmd = kgn + " : | grep mirrored-calico  -A1"
+	calicoCmd = "kubectl get node -o yaml : | grep mirrored-calico  -A1"
 )
 
 var _ = Describe("Calico Version bump:", func() {
