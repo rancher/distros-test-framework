@@ -12,7 +12,7 @@
 | **255** | Connection Issue | `exit status 255`, `connection lost`, `connection reset by peer`, `connection refused`, `no route to host` |
 
 
-### Common Error Messages that could possible be retryable.
+### Common Error Messages that could possibly be retried.
 ```
 "exit status 1",
 "command timed out",

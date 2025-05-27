@@ -17,7 +17,7 @@ import (
 
 var nodeOs string
 
-func TestNvidia(cluster *shared.Cluster) {
+func TestNvidiaIntegration(cluster *shared.Cluster) {
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
 
@@ -109,7 +109,7 @@ func initialSetupUbuntu(ip string) {
 
 func initialSetupSles(ip string) {
 	driverVersion := "570.124.06"
-	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + driverVersion + " ' "
+	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + driverVersion + "' "
 	_, installDriverErr := shared.RunCommandOnNode(installDriver, ip)
 	Expect(installDriverErr).ToNot(HaveOccurred(), "error installing driver: %v", installDriverErr)
 
