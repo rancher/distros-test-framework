@@ -639,6 +639,7 @@ func VerifyFileContent(filePath, content, ip string) error {
 	if filePath == "" {
 		return ReturnLogError("filePath should not be sent empty")
 	}
+
 	if content == "" {
 		return ReturnLogError("assert should not be sent empty")
 	}
