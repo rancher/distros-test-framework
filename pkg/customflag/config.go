@@ -195,6 +195,7 @@ func (s *selinuxTestFlag) Set(value string) error {
 	if value == "" {
 		return errors.New("invalid selinux test flag - cannot be empty")
 	}
+
 	// selinux test flag can only be true or false
 	// if value is not true or false, return an error
 	if value != "true" && value != "false" {
