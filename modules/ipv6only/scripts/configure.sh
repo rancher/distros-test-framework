@@ -29,7 +29,7 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    bgp:
+    bgpControlPlane:
       enabled: true
       announce:
         podCIDR: true
