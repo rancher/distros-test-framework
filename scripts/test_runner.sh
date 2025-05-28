@@ -98,7 +98,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}" -selinux "${SELINUXTEST}"
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}" -selinux "${SELINUX_TEST}"
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
