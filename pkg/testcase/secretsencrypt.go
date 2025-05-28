@@ -14,30 +14,30 @@ import (
 func TestSecretsEncryption(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 	nodes, errGetNodes := shared.GetNodesByRoles("etcd", "control-plane")
 	Expect(nodes).NotTo(BeEmpty())
-	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes")
+	Expect(errGetNodes).NotTo(HaveOccurred(), "error getting etcd/control-plane nodes\n%v", errGetNodes)
 
 	product, _, err := shared.Product()
-	Expect(err).NotTo(HaveOccurred(), "error getting product from config")
+	Expect(err).NotTo(HaveOccurred(), "error getting product from config\n%v", err)
 
 	errSecret := shared.CreateSecret("secret1", "default")
-	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret")
+	Expect(errSecret).NotTo(HaveOccurred(), "error creating secret\n%v", errSecret)
 
 	index := len(nodes) - 1
 	cpIp := nodes[index].ExternalIP
 	seErr := performSecretsEncryption(flags.SecretsEncrypt.Method, product,
 		cluster.Config.ServerFlags, cluster.ServerIPs[0], cpIp, nodes)
-	Expect(seErr).NotTo(HaveOccurred(), "error performing secrets-encryption")
+	Expect(seErr).NotTo(HaveOccurred(), "error performing secrets-encryption\n%v", seErr)
 }
 
 func performSecretsEncryption(method, product, serverFlags, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
 	actions := []string{"prepare", "rotate", "reencrypt", "rotate-keys"}
 	switch method {
-	case "reencrypt":
+	case "classic":
 		shared.LogLevel("info", "Performing secrets-encryption using prepare, rotate and reencrypt...")
 		for _, action := range actions[:len(actions)-1] {
 			err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 			if err != nil {
-				return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
+				return shared.ReturnLogError("error on node: %s!\n%v", cpIP, err)
 			}
 		}
 	case "rotate-keys":
@@ -45,49 +45,43 @@ func performSecretsEncryption(method, product, serverFlags, primaryNodeIp, cpIP 
 		action := actions[len(actions)-1]
 		err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 		if err != nil {
-			return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
+			return shared.ReturnLogError("error on node: %s!\n%v", cpIP, err)
 		}
 	case "both":
 		for _, action := range actions {
 			err = secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP, nodes)
 			if err != nil {
-				return shared.ReturnLogError("error performing secrets-encrypt %s operation on node: %s!", action, cpIP)
+				return shared.ReturnLogError("error on node: %s!\n%v", cpIP, err)
 			}
 		}
 	default:
-		return shared.ReturnLogError("unsupported method %s! Supported methods are: reencrypt, rotate-keys and both", method)
+		return shared.ReturnLogError("unsupported method %s! Supported methods are: classic, rotate-keys and both", method)
 	}
 
 	return nil
 }
 
 func secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP string, nodes []shared.Node) (err error) {
-	shared.LogLevel("info", "Secrets-Encryption %v action starting...", action)
+	shared.LogLevel("info", "%s secrets-encrypt %v starting...", product, action)
 
-	_, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
+	statusOut, errStatusB4 := shared.SecretEncryptOps("status", cpIP, product)
 	Expect(errStatusB4).NotTo(HaveOccurred(), "error: getting secret-encryption status before action")
 
 	stdOutput, err := shared.SecretEncryptOps(action, cpIP, product)
 	if err != nil {
-		return shared.ReturnLogError("error: performing secret-encryption: %v", action)
+		return shared.ReturnLogError("error on %s secret-encrypt %s:\n%v", product, action, err)
 	}
 	verifyActionStdOut(action, stdOutput)
-	verifyStatusProvider(serverFlags, stdOutput)
+	verifyStatusProvider(serverFlags, statusOut)
 
 	if (action == "reencrypt") || (action == "rotate-keys") {
 		shared.LogLevel("debug", "waiting for %s action completion - 20 seconds before service restarts", action)
 		time.Sleep(20 * time.Second)
 	}
 
-	// Restart Primary Etcd Node First
-	restartServerAndWait(primaryNodeIp, product)
-
-	// Restart all other server nodes - etcd and control plane
-	for _, node := range nodes {
-		if node.ExternalIP == primaryNodeIp {
-			continue
-		}
-		restartServerAndWait(node.ExternalIP, product)
+	err = restartService(product, primaryNodeIp, nodes)
+	if err != nil {
+		return shared.ReturnLogError("%v", err)
 	}
 
 	switch product {
@@ -105,30 +99,32 @@ func secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP string,
 
 	secretEncryptStatus, err := waitForHashMatch(cpIP, product)
 	if err != nil {
-		return shared.ReturnLogError("error: getting secret-encryption status")
+		return shared.ReturnLogError("error on %s secret-encrypt status on node: %s\n%v", product, cpIP, err)
 	}
 	verifyStatusStdOut(action, secretEncryptStatus)
 	verifyStatusProvider(serverFlags, secretEncryptStatus)
 
 	err = logEncryptionFileContents(nodes, serverFlags, action, product)
 	if err != nil {
-		return shared.ReturnLogError("error: logging secret-encryption file contents")
+		return shared.ReturnLogError("error logging secret-encryption file contents...\n%v", err)
 	}
-	shared.LogLevel("info", "Secrets-Encryption %s action is completed!", action)
+	shared.LogLevel("info", "%s secrets-encrypt %s is completed!", product, action)
 
 	return nil
 }
 
-func restartServerAndWait(ip, product string) {
-	ms := shared.NewManageService(0, 0)
+func restartServerAndWait(ip, product string) (err error) {
+	ms := shared.NewManageService(5, 5)
 
 	action := shared.ServiceAction{
 		Service:  product,
 		Action:   "restart",
 		NodeType: "server",
 	}
-	_, err := ms.ManageService(ip, []shared.ServiceAction{action})
-	Expect(err).NotTo(HaveOccurred(), "error: restarting %s server service on %s", product, ip)
+	_, err = ms.ManageService(ip, []shared.ServiceAction{action})
+	if err != nil {
+		return shared.ReturnLogError("error restarting %s service on server node: %s\n%v", product, ip, err)
+	}
 
 	// Little lag needed between node restarts to avoid issues.
 	shared.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
@@ -137,27 +133,50 @@ func restartServerAndWait(ip, product string) {
 	if waitEtcdErr != nil {
 		shared.LogLevel("warn", "pods not up after 30 seconds.")
 	}
+
+	return nil
 }
 
-func waitForHashMatch(cpIP, product string) (stdOut string, err error) {
+func restartService(product, primaryNodeIp string, nodes []shared.Node) (err error) {
+	// Restart Primary Etcd Node First
+	err = restartServerAndWait(primaryNodeIp, product)
+	if err != nil {
+		return shared.ReturnLogError("error restarting %s service on node: %s\n%v", product, primaryNodeIp, err)
+	}
+
+	// Restart all other server nodes - etcd and control plane
+	for _, node := range nodes {
+		if node.ExternalIP == primaryNodeIp {
+			continue
+		}
+		err = restartServerAndWait(node.ExternalIP, product)
+		if err != nil {
+			return shared.ReturnLogError("error restarting %s service on node: %s\n%v", product, node.ExternalIP, err)
+		}
+	}
+
+	return nil
+}
+
+func waitForHashMatch(cpIP, product string) (statusOut string, err error) {
 	// Max 3 minute wait time for hash match.
 	defaultTime := time.Duration(10)
 	times := 6 * 3
 	for i := 0; i < times; i++ {
-		stdOut, err = shared.SecretEncryptOps("status", cpIP, product)
+		statusOut, err = shared.SecretEncryptOps("status", cpIP, product)
 		if err != nil {
 			shared.LogLevel("debug", "error getting secret-encryption status. Retry.")
 		}
-		if stdOut != "" && strings.Contains(stdOut, "All hashes match") {
+		if statusOut != "" && strings.Contains(statusOut, "All hashes match") {
 			shared.LogLevel("debug", "Hash matched after: %d seconds", i*int(defaultTime))
 
-			return stdOut, nil
+			return statusOut, nil
 		}
 		time.Sleep(defaultTime * time.Second)
 	}
 	shared.LogLevel("warn", "Hashes did not match after %d seconds", times*int(defaultTime))
 
-	return stdOut, err
+	return statusOut, err
 }
 
 // verifyActionStdOut Verifies secrets-encryption action outputs.
