@@ -63,7 +63,7 @@ func applySucYamls() {
 	sucUrl := "https://github.com/rancher/system-upgrade-controller/releases/latest/download/system-upgrade-controller.yaml"
 	sucCRDUrl := "https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml"
 
-	shared.LogLevel("debug", "Applying system-upgrade-controller manifest from url: %s", sucUrl)
+	shared.LogLevel("info", "Applying system-upgrade-controller manifest from url: %s", sucUrl)
 	applyErr := shared.ApplyWorkloadURL(sucUrl)
 	if applyErr != nil {
 		shared.LogLevel(
