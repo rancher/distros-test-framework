@@ -138,7 +138,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "killalluninstall" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
     elif [ "${TEST_DIR}" = "nvidia" ]; then
-       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
+       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
     fi
 fi
 }

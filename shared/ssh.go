@@ -222,8 +222,8 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	return stdoutStr, stderrStr, nil
 }
 
-// getOrDial checks existence of a SSH connection or dials a new one with configureSSH(host).
-func getOrDial(host string) (*ssh.Client, error) {
+// getOrDialShh checks existence of a SSH connection or dials a new one with configureSSH(host).
+func getOrDialShh(host string) (*ssh.Client, error) {
 	connPool.Lock()
 	conn := connPool.connClient[host]
 	connPool.Unlock()

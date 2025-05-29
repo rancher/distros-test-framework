@@ -17,20 +17,21 @@ import (
 
 var nodeOs string
 
-func TestNvidiaIntegration(cluster *shared.Cluster) {
+func TestNvidiaIntegration(cluster *shared.Cluster, nvidiaVersion string) {
+	// for now we are only testing integration with the first server in the cluster.
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
 
 	switch nodeOs {
 	case "ubuntu":
 		shared.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation")
-		initialSetupUbuntu(targetNodeIP)
+		initialSetupUbuntu(targetNodeIP, nvidiaVersion)
 	case "rhel", "rhel8", "rhel9":
 		shared.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation")
-		initialSetupRHEL(targetNodeIP)
+		initialSetupRHEL(targetNodeIP, nvidiaVersion)
 	case "sles15":
 		shared.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation")
-		initialSetupSles(targetNodeIP)
+		initialSetupSles(targetNodeIP, nvidiaVersion)
 	default:
 		shared.LogLevel("error", "Unsupported OS: %s", nodeOs)
 		return
@@ -72,7 +73,7 @@ func TestNvidiaIntegration(cluster *shared.Cluster) {
 	validateBenchmark()
 }
 
-func initialSetupUbuntu(ip string) {
+func initialSetupUbuntu(ip, nvidiaVersion string) {
 	updateCmd := "sudo apt update"
 	_, updateErr := shared.RunCommandOnNode(updateCmd, ip)
 	Expect(updateErr).ToNot(HaveOccurred(), "error updating package lists: %v", updateErr)
@@ -90,16 +91,15 @@ func initialSetupUbuntu(ip string) {
 	Expect(prereqErr).ToNot(HaveOccurred(), "error installing prerequisites: %v", prereqErr)
 	shared.LogLevel("info", "Installed prerequisite packages")
 
-	driverVersion := "570.133.20"
-	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" + driverVersion + "/NVIDIA-Linux-x86_64-" +
-		driverVersion + ".run"
+	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" + nvidiaVersion + "/NVIDIA-Linux-x86_64-" +
+		nvidiaVersion + ".run"
 	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
 	Expect(downloadErr).ToNot(HaveOccurred(), "error downloading NVIDIA driver: %v", downloadErr)
-	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", driverVersion)
+	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", nvidiaVersion)
 
 	kernelVersion := "$(uname -r)"
 	modulesPath := "/lib/modules/" + kernelVersion + "/build"
-	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + driverVersion + ".run --accept-license --silent --no-questions " +
+	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + nvidiaVersion + ".run --accept-license --silent --no-questions " +
 		" --ui=none --kernel-source-path=" + modulesPath
 	_, installErr := shared.RunCommandOnNode(driverInstall, ip)
 	Expect(installErr).ToNot(HaveOccurred(), "error installing NVIDIA driver: %v", installErr)
@@ -107,9 +107,8 @@ func initialSetupUbuntu(ip string) {
 	shared.LogLevel("info", "Installed NVIDIA driver")
 }
 
-func initialSetupSles(ip string) {
-	driverVersion := "570.124.06"
-	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + driverVersion + "' "
+func initialSetupSles(ip, nvidiaVersion string) {
+	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + nvidiaVersion + "' "
 	_, installDriverErr := shared.RunCommandOnNode(installDriver, ip)
 	Expect(installDriverErr).ToNot(HaveOccurred(), "error installing driver: %v", installDriverErr)
 
@@ -137,24 +136,23 @@ func initialSetupSles(ip string) {
 	Expect(keyImportErr).ToNot(HaveOccurred(), "error importing key: %v", keyImportErr)
 	shared.LogLevel("info", "Imported NVIDIA RPM key")
 
-	installComputeUtils := "sudo zypper -v --non-interactive in -r cuda 'nvidia-compute-utils-G06==570.124.06'"
+	installComputeUtils := "sudo zypper -v --non-interactive in -r cuda 'nvidia-compute-utils-G06== " + nvidiaVersion + "'"
 	_, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
 	Expect(installComputeUtilsErr).ToNot(HaveOccurred(), "error installing compute utils: %v", installComputeUtilsErr)
 }
 
-func initialSetupRHEL(ip string) {
+func initialSetupRHEL(ip, nvidiaVersion string) {
 	// create a empty dummy repo file to GPU operator acknowledge.
 	repoFile := "sudo mkdir -p /etc/yum.repos.d && sudo touch /etc/yum.repos.d/redhat.repo && " +
 		"sudo chmod 644 /etc/yum.repos.d/redhat.repo"
 	_, repoErr := shared.RunCommandOnNode(repoFile, ip)
 	Expect(repoErr).ToNot(HaveOccurred(), "error creating repo file: %v", repoErr)
 
-	driverVersion := "570.133.20"
 	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" +
-		driverVersion + "/NVIDIA-Linux-x86_64-" + driverVersion + ".run"
+		nvidiaVersion + "/NVIDIA-Linux-x86_64-" + nvidiaVersion + ".run"
 	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
 	Expect(downloadErr).ToNot(HaveOccurred(), "error downloading NVIDIA driver: %v", downloadErr)
-	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", driverVersion)
+	shared.LogLevel("info", "Downloaded NVIDIA driver version %s", nvidiaVersion)
 
 	checkKernel := "uname -r"
 	kernelVersion, kernelCheckErr := shared.RunCommandOnNode(checkKernel, ip)
@@ -175,7 +173,7 @@ func initialSetupRHEL(ip string) {
 	_, slErr := shared.RunCommandOnNode(sl, ip)
 	Expect(slErr).ToNot(HaveOccurred(), "error creating symlink: %v", slErr)
 
-	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + driverVersion + ".run --accept-license --silent --no-questions" +
+	driverInstall := "sudo bash NVIDIA-Linux-x86_64-" + nvidiaVersion + ".run --accept-license --silent --no-questions" +
 		" --ui=none --kernel-source-path=" + kernelSimLinkPath
 	_, installErr := shared.RunCommandOnNode(driverInstall, ip)
 	Expect(installErr).ToNot(HaveOccurred(), "error installing NVIDIA driver: %v", installErr)

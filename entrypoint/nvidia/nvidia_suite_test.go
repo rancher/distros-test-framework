@@ -14,13 +14,15 @@ import (
 )
 
 var (
-	cluster *shared.Cluster
-	cfg     *config.Env
-	err     error
+	cluster       *shared.Cluster
+	cfg           *config.Env
+	err           error
+	nvidiaVersion string
 )
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&nvidiaVersion, "nvidiaVersion", "570.133.20", "Nvidia version")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
