@@ -3,6 +3,7 @@ package testcase
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
@@ -92,7 +93,20 @@ func upgradeProduct(awsClient *aws.Client, cluster *shared.Cluster, nodeType, in
 	}
 
 	if nodeOS == "slemicro" {
-		rebootNodeAndWait(awsClient, ip)
+		// rebootNodeAndWait(awsClient, ip)
+		restart, err := shared.RunCommandOnNode("sudo reboot", ip)
+		if err != nil {
+			shared.LogLevel("error", "error rebooting %s node %s: %v", nodeType, ip, err)
+			return fmt.Errorf("error rebooting %s node %s: %w", nodeType, ip, err)
+		}
+		shared.LogLevel("info", "Reboot command output for %s node %s: %s", nodeType, ip, restart)
+
+		time.Sleep(120 * time.Second)
+		sshErr := shared.WaitForSSHReady(ip)
+		if sshErr != nil {
+			shared.LogLevel("error", "error waiting for SSH to be ready on %s node %s: %v", nodeType, ip, sshErr)
+			return fmt.Errorf("error waiting for SSH to be ready on %s node %s: %w", nodeType, ip, sshErr)
+		}
 	}
 
 	actions := []shared.ServiceAction{

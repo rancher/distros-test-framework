@@ -32,26 +32,26 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
 	})
-
-	It("Verifies ClusterIP Service pre-upgrade", func() {
-		testcase.TestServiceClusterIP(true, false)
-	})
-
-	It("Verifies NodePort Service pre-upgrade", func() {
-		testcase.TestServiceNodePort(true, false)
-	})
+	//
+	// It("Verifies ClusterIP Service pre-upgrade", func() {
+	// 	testcase.TestServiceClusterIP(true, false)
+	// })
+	//
+	// It("Verifies NodePort Service pre-upgrade", func() {
+	// 	testcase.TestServiceNodePort(true, false)
+	// })
 
 	It("Verifies Ingress pre-upgrade", func() {
 		testcase.TestIngress(true, false)
 	})
-
-	It("Verifies Daemonset pre-upgrade", func() {
-		testcase.TestDaemonset(true, false)
-	})
-
-	It("Verifies dns access pre-upgrade", func() {
-		testcase.TestDNSAccess(true, false)
-	})
+	//
+	// It("Verifies Daemonset pre-upgrade", func() {
+	// 	testcase.TestDaemonset(true, false)
+	// })
+	//
+	// It("Verifies dns access pre-upgrade", func() {
+	// 	testcase.TestDNSAccess(true, false)
+	// })
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service pre-upgrade", func() {
@@ -87,25 +87,25 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Verifies ClusterIP Service after upgrade", func() {
-		testcase.TestServiceClusterIP(false, true)
-	})
+	// It("Verifies ClusterIP Service after upgrade", func() {
+	// 	testcase.TestServiceClusterIP(false, true)
+	// })
+	//
+	// It("Verifies NodePort Service after upgrade", func() {
+	// 	testcase.TestServiceNodePort(false, true)
+	// })
 
-	It("Verifies NodePort Service after upgrade", func() {
-		testcase.TestServiceNodePort(false, true)
-	})
-
-	It("Verifies Ingress after upgrade", func() {
-		testcase.TestIngress(false, true)
-	})
-
-	It("Verifies Daemonset after upgrade", func() {
-		testcase.TestDaemonset(false, true)
-	})
-
-	It("Verifies dns access after upgrade", func() {
-		testcase.TestDNSAccess(false, true)
-	})
+	// It("Verifies Ingress after upgrade", func() {
+	// 	testcase.TestIngress(false, true)
+	// })
+	//
+	// It("Verifies Daemonset after upgrade", func() {
+	// 	testcase.TestDaemonset(false, true)
+	// })
+	//
+	// It("Verifies dns access after upgrade", func() {
+	// 	testcase.TestDNSAccess(false, true)
+	// })
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {

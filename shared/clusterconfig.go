@@ -134,8 +134,10 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 
 	for i := range nodes {
 		if nodes[i].Roles == "<none>" && nodes[i].Roles != "control-plane" {
+			nodes[i].ExternalIP = nodes[i].InternalIP
 			agentIPs = append(agentIPs, nodes[i].ExternalIP)
 		} else {
+			nodes[i].ExternalIP = nodes[i].InternalIP
 			serverIPs = append(serverIPs, nodes[i].ExternalIP)
 		}
 	}
