@@ -634,6 +634,30 @@ func LogGrepOutput(filename, content, ip string) {
 	}
 }
 
+// VerifyFileContent greps for a specific string in a file on the node.
+func VerifyFileContent(filePath, content, ip string) error {
+	if filePath == "" {
+		return ReturnLogError("filePath should not be sent empty")
+	}
+
+	if content == "" {
+		return ReturnLogError("assert should not be sent empty")
+	}
+
+	cmd := fmt.Sprintf("sudo cat %s | grep %q", filePath, content)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return ReturnLogError("error running command: %s, error: %w", cmd, err)
+	}
+	if res == "" || !strings.Contains(res, content) {
+		return ReturnLogError("file: %s does not have content: %s, grep result: %s", filePath, content, res)
+	}
+
+	LogLevel("debug", "file: %s has content: %s; grep result: %s", filePath, content, res)
+
+	return nil
+}
+
 // MountBind mounts a directory to another directory on the given node IP addresses.
 func MountBind(ips []string, dir, mountPoint string) error {
 	if ips == nil {
