@@ -1,6 +1,7 @@
 package customflag
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ type FlagConfig struct {
 	Charts             helmChartsFlag
 	AirgapFlag         airgapFlag
 	S3Flags            s3ConfigFlag
+	SelinuxTest        selinuxTestFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -185,4 +187,31 @@ type certManagerFlag struct {
 type s3ConfigFlag struct {
 	Bucket string
 	Folder string
+}
+
+type selinuxTestFlag bool
+
+func (s *selinuxTestFlag) Set(value string) error {
+	if value == "" {
+		return errors.New("invalid selinux test flag - cannot be empty")
+	}
+
+	// selinux test flag can only be true or false
+	// if value is not true or false, return an error
+	if value != "true" && value != "false" {
+		return fmt.Errorf("invalid selinux test flag: %s", value)
+	}
+
+	v, err := strconv.ParseBool(value)
+	if err != nil {
+		return err
+	}
+
+	*s = selinuxTestFlag(v)
+
+	return nil
+}
+
+func (s *selinuxTestFlag) String() string {
+	return fmt.Sprintf("%v", *s)
 }

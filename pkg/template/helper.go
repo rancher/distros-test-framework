@@ -91,7 +91,7 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 			testcase.TestSelinuxSpcT(cluster)
 		},
 		"TestUninstallPolicy": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestUninstallPolicy(cluster)
+			testcase.TestUninstallPolicy(cluster, true)
 		},
 		"TestSelinuxContext": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestSelinuxContext(cluster)
