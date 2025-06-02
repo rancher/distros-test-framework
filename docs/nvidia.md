@@ -2,7 +2,7 @@
 
 ## Qase Test Suite
 
-- **Test Suite URL**: https://app.qase.io/project/K3SRKE2?suite=63
+- **Test Suite**: Internal project in Qase.io
 
 ## RKE2 Integration
 

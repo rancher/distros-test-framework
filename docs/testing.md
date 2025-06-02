@@ -324,3 +324,13 @@ we are not directly umounting the data dir, which is the behavior tests scripts 
 - Ideally we should run killall uninstall tests on versions above 1.30.4.
 
 - Optionally we can pass `-killallUninstall true` to run kill all-uninstall tests on the end of ValidateCluster tests.
+
+## Selinux tests. 
+These tests are enabled in 3 test suites: 
+1. Selinux test suite
+2. Validate cluster test suite
+3. killall test suite - in particular the uninstall test check only for selinux tests.
+
+When using with the validate cluster test suite: 
+- Use the flag `-selinux "${SELINUX_TEST}"` where SELINUX_TEST value is a boolean: `true` or `false`
+- `server_flags` should have the value `'selinux: true'` in it

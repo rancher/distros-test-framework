@@ -19,17 +19,14 @@ type configuration struct {
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
 func TestSelinuxEnabled(cluster *shared.Cluster) {
-	ips := shared.FetchNodeExternalIPs()
-	selinuxConfigAssert := "selinux: true"
-	selinuxContainerdAssert := "enable_selinux = true"
+	ips := cluster.ServerIPs
 
 	for _, ip := range ips {
-		err := assert.CheckComponentCmdNode("cat /etc/rancher/"+
-			cluster.Config.Product+"/config.yaml", ip, selinuxConfigAssert)
+		err := shared.VerifyFileContent("/etc/rancher/"+cluster.Config.Product+"/config.yaml", "selinux: true", ip)
 		Expect(err).NotTo(HaveOccurred())
 
-		errCont := assert.CheckComponentCmdNode("sudo cat /var/lib/rancher/"+
-			cluster.Config.Product+"/agent/etc/containerd/config.toml", ip, selinuxContainerdAssert)
+		filePath := fmt.Sprintf("/var/lib/rancher/%s/agent/etc/containerd/config.toml", cluster.Config.Product)
+		errCont := shared.VerifyFileContent(filePath, "enable_selinux = true", ip)
 		Expect(errCont).NotTo(HaveOccurred())
 	}
 }
@@ -152,44 +149,44 @@ func TestSelinuxSpcT(cluster *shared.Cluster) {
 }
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
-func TestUninstallPolicy(cluster *shared.Cluster) {
+// Call this function after the un-installation of the product.
+func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
-		fmt.Println("Uninstalling "+cluster.Config.Product+" on server: ", serverIP)
-
-		err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
-		Expect(err).NotTo(HaveOccurred())
-
-		res, errSel := shared.RunCommandOnNode(serverCmd, serverIP)
-		Expect(errSel).NotTo(HaveOccurred())
-
-		if strings.Contains(osPolicy, "centos7") {
-			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
-		} else {
-			Expect(res).Should(BeEmpty())
+		if uninstall {
+			shared.LogLevel("info", "Uninstalling %s on server: %s", cluster.Config.Product, serverIP)
+			err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
+			Expect(err).NotTo(HaveOccurred())
 		}
+
+		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
-		fmt.Println("Uninstalling "+cluster.Config.Product+" on agent: ", agentIP)
-
-		err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
-		Expect(err).NotTo(HaveOccurred())
-
-		res, errSel := shared.RunCommandOnNode("rpm -qa container-selinux "+cluster.Config.Product+"-selinux", agentIP)
-		Expect(errSel).NotTo(HaveOccurred())
-
-		if osPolicy == "centos7" {
-			Expect(res).Should(ContainSubstring("container-selinux"))
-			Expect(res).ShouldNot(ContainSubstring(cluster.Config.Product + "-selinux"))
-		} else {
-			Expect(res).Should(BeEmpty())
+		if uninstall {
+			shared.LogLevel("info", "Uninstalling %s on agent: %s", cluster.Config.Product, agentIP)
+			err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
+			Expect(err).NotTo(HaveOccurred())
 		}
+
+		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"
+		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
+	}
+}
+
+func verifyUninstallPolicy(product, ip, cmd string) {
+	res, err := shared.RunCommandOnNode(cmd, ip)
+	Expect(err).NotTo(HaveOccurred())
+
+	if strings.Contains(osPolicy, "centos7") {
+		Expect(res).Should(ContainSubstring("container-selinux"))
+		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+	} else {
+		Expect(res).Should(BeEmpty())
 	}
 }
 
