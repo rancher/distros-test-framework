@@ -140,6 +140,7 @@ get_cni_assets() {
 
 get_windows_assets() {
   url=$(get_url)
+  echo "Download Windows assets using url: $url"
   download_retry "wget $url/rke2-images.windows-amd64.txt"
   download_retry "wget $url/rke2-windows-amd64.exe"
   download_retry "wget $url/rke2.windows-amd64.tar.gz"
@@ -155,7 +156,7 @@ save_to_directory() {
     folder="$folder-windows"
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
-    sudo cp -r ./*windows-amd64* "$folder"
+    sudo cp -r ./*windows-* "$folder"
   else
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
