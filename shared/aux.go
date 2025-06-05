@@ -52,7 +52,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	}
 
 	host := ip + ":22"
-	conn, err := getOrDialShh(host)
+	conn, err := getOrDialSSH(host)
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %v", host, err)
 	}

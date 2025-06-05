@@ -10,7 +10,9 @@
 
 ## NVIDIA Platform Support
 
-- **Reference**: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/platform-support.html#supported-operating-systems-and-kubernetes-platforms
+- **Reference**:
+To find the latest drivers refer to:
+https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/platform-support.html#supported-operating-systems-and-kubernetes-platforms
 
 ## Driver Version used as flag default for now.
 Add this on local .env file
