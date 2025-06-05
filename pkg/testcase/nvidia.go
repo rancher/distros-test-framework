@@ -340,7 +340,8 @@ func validateNvidiaModule(ip string) error {
 }
 
 func validateNvidiaBenchmarkPodStatus() {
-	cmd := fmt.Sprintf("kubectl get pod nbody-gpu-benchmark -n kube-system --kubeconfig=%s -o jsonpath='{.status.phase}'",
+	cmd := fmt.Sprintf("kubectl get pod nbody-gpu-benchmark -n test-nvidia-benchmark "+
+		"--kubeconfig=%s -o jsonpath='{.status.phase}'",
 		shared.KubeConfigFile)
 
 	var podStatus string
@@ -365,13 +366,15 @@ func validateNvidiaBenchmarkPodStatus() {
 			shared.LogLevel("warn", "Attempt %d failed, retrying to get benchmark pod status: %v", n+1, err)
 		}),
 	)
-	Expect(retryErr).NotTo(HaveOccurred(), "failed to get benchmark pod status after multiple attempts: %v", retryErr)
+	Expect(retryErr).NotTo(HaveOccurred(), "failed to get benchmark pod status "+
+		"after multiple attempts: %v", retryErr)
 
 	shared.LogLevel("info", "Benchmark pod status: %s", podStatus)
 }
 
 func validateBenchmark() {
-	benchmarkLogs := "kubectl logs nbody-gpu-benchmark -n kube-system --kubeconfig=" + shared.KubeConfigFile
+	benchmarkLogs := "kubectl logs nbody-gpu-benchmark -n test-nvidia-benchmark " +
+		"--kubeconfig=" + shared.KubeConfigFile
 	logs, logErr := shared.RunCommandHost(benchmarkLogs)
 	Expect(logErr).NotTo(HaveOccurred(), "Failed to get benchmark pod logs")
 
