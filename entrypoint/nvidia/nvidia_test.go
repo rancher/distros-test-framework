@@ -29,8 +29,8 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
-	It("Validate Nvidia", func() {
-		testcase.TestNvidiaIntegration(cluster, nvidiaVersion)
+	It("Validate Nvidia GPU functionality", func() {
+		testcase.TestNvidiaGPUFunctionality(cluster, nvidiaVersion)
 	})
 
 	It("Validate Nodes after nvidia test", func() {

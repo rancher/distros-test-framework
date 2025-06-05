@@ -17,7 +17,7 @@ import (
 
 var nodeOs string
 
-func TestNvidiaIntegration(cluster *shared.Cluster, nvidiaVersion string) {
+func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 	// for now we are only testing integration with the first server in the cluster.
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
