@@ -52,9 +52,9 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	}
 
 	host := ip + ":22"
-	conn, err := configureSSH(host)
+	conn, err := getOrDialSSH(host)
 	if err != nil {
-		return "", ReturnLogError("failed to configure SSH: %w\n", err)
+		return "", fmt.Errorf("failed to connect to host %s: %v", host, err)
 	}
 
 	stdout, stderr, err := runsshCommand(cmd, conn)
@@ -195,71 +195,6 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 	}
 
 	return ssh.PublicKeys(signer), nil
-}
-
-func configureSSH(host string) (*ssh.Client, error) {
-	var (
-		cfg *ssh.ClientConfig
-		err error
-	)
-
-	// get access key and user from cluster config.
-	kubeConfig := os.Getenv("KUBE_CONFIG")
-	if kubeConfig == "" {
-		productCfg := AddProductCfg()
-		cluster = ClusterConfig(productCfg)
-	} else {
-		cluster, err = addClusterFromKubeConfig(nil)
-		if err != nil {
-			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
-		}
-	}
-
-	authMethod, err := publicKey(cluster.Aws.AccessKey)
-	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %w", err)
-	}
-
-	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.AwsUser,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-
-	conn, err := ssh.Dial("tcp", host, cfg)
-	if err != nil {
-		return nil, ReturnLogError("failed to dial: %w", err)
-	}
-
-	return conn, nil
-}
-
-func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
-	session, err := conn.NewSession()
-	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %w\n", err)
-	}
-
-	defer session.Close()
-
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-	session.Stdout = &stdoutBuf
-	session.Stderr = &stderrBuf
-
-	errssh := session.Run(cmd)
-	stdoutStr = stdoutBuf.String()
-	stderrStr = stderrBuf.String()
-
-	if errssh != nil {
-		LogLevel("warn", "stderr/error from RunCommandOnNode(), "+
-			"please double check!\nstderr: %v\nerror: %v\n", stderrStr, errssh)
-		return "", stderrStr, errssh
-	}
-
-	return stdoutStr, stderrStr, nil
 }
 
 // JoinCommands joins the first command with some arg.
@@ -603,6 +538,7 @@ func WaitForSSHReady(ip string) error {
 	ticker := time.NewTicker(10 * time.Second)
 	timeout := time.After(3 * time.Minute)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-timeout:

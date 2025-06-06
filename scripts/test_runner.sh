@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|killalluninstall)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -137,6 +137,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test "${OPTS[@]}" --ginkgo.timeout=260m
     elif [ "${TEST_DIR}" = "killalluninstall" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
+    elif [ "${TEST_DIR}" = "nvidia" ]; then
+       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
     fi
 fi
 }
