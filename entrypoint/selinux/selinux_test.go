@@ -82,10 +82,6 @@ var _ = Describe("Test:", func() {
 			testcase.TestSelinuxContext(cluster)
 		})
 	}
-
-	It("Validate uninstall selinux policies", func() {
-		testcase.TestUninstallPolicy(cluster)
-	})
 })
 
 var _ = AfterEach(func() {

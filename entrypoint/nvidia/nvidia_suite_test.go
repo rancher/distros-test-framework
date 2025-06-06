@@ -1,4 +1,4 @@
-package selinux
+package nvidia
 
 import (
 	"flag"
@@ -7,8 +7,6 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/k8s"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -16,17 +14,15 @@ import (
 )
 
 var (
-	kubeconfig string
-	cluster    *shared.Cluster
-	k8sClient  *k8s.Client
-	cfg        *config.Env
-	err        error
+	cluster       *shared.Cluster
+	cfg           *config.Env
+	err           error
+	nvidiaVersion string
 )
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.InstallMode, "installVersionOrCommit", "Install upgrade customflag for version bump")
-	flag.Var(&customflag.ServiceFlag.Channel, "channel", "channel to use on install or upgrade")
+	flag.StringVar(&nvidiaVersion, "nvidiaVersion", "570.133.20", "Nvidia version")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -35,7 +31,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	kubeconfig = os.Getenv("KUBE_CONFIG")
+	kubeconfig := os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
 		// gets a cluster from terraform.
 		cluster = shared.ClusterConfig(cfg)
@@ -44,25 +40,22 @@ func TestMain(m *testing.M) {
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
-	k8sClient, err = k8s.AddClient()
-	if err != nil {
-		shared.LogLevel("error", "error adding k8s: %w\n", err)
-		os.Exit(1)
-	}
-
 	os.Exit(m.Run())
 }
 
-func TestSelinuxSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Selinux Test Suite")
+func TestNvidiaSuite(t *testing.T) {
+	RegisterFailHandler(FailWithReport)
+	RunSpecs(t, "Nvidia Test Suite")
 }
 
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		testcase.TestUninstallPolicy(cluster, true)
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
+
+func FailWithReport(message string, callerSkip ...int) {
+	Fail(message, callerSkip[0]+1)
+}

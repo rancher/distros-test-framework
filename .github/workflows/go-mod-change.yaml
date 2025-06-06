@@ -14,9 +14,11 @@ on:
       target1:
         description: 'The release to compare against the master branch/latest release'
         required: true
-        default: 'release-1.27'
+        default: 'release-1.32'
       target2:
         required: false
+        description: 'The second release target to compare against the master branch/latest release'
+        default: 'release-1.31'
       moduleKeyword:
         description: "The keyword denoting the module you want to check within the go.mod file"
         required: true

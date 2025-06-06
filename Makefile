@@ -119,6 +119,9 @@ test-system-default-registry:
 test-killall-uninstall:
 	@go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
 
+test-nvidia:
+	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
+
 #========================= TestCode Static Quality Check =========================#
 pre-commit: go-check
 

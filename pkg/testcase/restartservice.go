@@ -7,7 +7,7 @@ import (
 )
 
 func TestRestartService(cluster *shared.Cluster) {
-	ms := shared.NewManageService(5, 5)
+	ms := shared.NewManageService(1, 1)
 	serverAction := shared.ServiceAction{
 		Service:  cluster.Config.Product,
 		Action:   "restart",

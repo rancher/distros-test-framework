@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|killalluninstall)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -98,7 +98,7 @@ if [ -n "${TEST_DIR}" ]; then
     elif [  "${TEST_DIR}" = "createcluster" ]; then
         go test -timeout=60m -v -count=1 ./entrypoint/createcluster/...
     elif [ "${TEST_DIR}" = "validatecluster" ]; then
-        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}" -killallUninstall "${KILLALLUNINSTALL}"
+        go test -timeout=65m -v -count=1 ./entrypoint/validatecluster/... -destroy "${DESTROY}" -selinux "${SELINUX_TEST}"
     elif [ "${TEST_DIR}" = "selinux" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/selinux/...
     elif [ "${TEST_DIR}" = "certrotate" ]; then
@@ -137,6 +137,8 @@ if [ -n "${TEST_DIR}" ]; then
         go test "${OPTS[@]}" --ginkgo.timeout=260m
     elif [ "${TEST_DIR}" = "killalluninstall" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
+    elif [ "${TEST_DIR}" = "nvidia" ]; then
+       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
     fi
 fi
 }

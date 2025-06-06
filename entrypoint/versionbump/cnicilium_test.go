@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	ciliumCmd     = kgn + " : | grep mirrored-cilium  -A1, "
-	cniPluginsCmd = kgn + " : | grep hardened-cni-plugins -A1"
+	ciliumCmd     = "kubectl get node -o yaml : | grep mirrored-cilium  -A1, "
+	cniPluginsCmd = "kubectl get node -o yaml : | grep hardened-cni-plugins -A1"
 )
 
 var _ = Describe("Cilium Version bump:", func() {

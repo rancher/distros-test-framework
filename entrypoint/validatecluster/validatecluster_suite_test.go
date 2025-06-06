@@ -26,12 +26,24 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&customflag.ServiceFlag.SelinuxTest, "selinux", "Run selinux test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
 	if err != nil {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
+	}
+
+	// Check if selinux test is enabled
+	if customflag.ServiceFlag.SelinuxTest {
+		if !strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+			shared.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
+			os.Exit(1)
+		}
+		shared.LogLevel("info", "Running selinux test")
+	} else {
+		shared.LogLevel("info", "Skipping selinux test")
 	}
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
@@ -67,6 +79,15 @@ var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
 		shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
 		testcase.TestKillAllUninstall(cluster, cfg)
+
+		if customflag.ServiceFlag.SelinuxTest {
+			shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
+			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+				testcase.TestUninstallPolicy(cluster, false)
+			}
+		} else {
+			shared.LogLevel("info", "Skipping selinux tests")
+		}
 
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
