@@ -33,15 +33,25 @@ func RunCommandHost(cmds ...string) (string, error) {
 		}
 
 		c := exec.Command("bash", "-c", cmd)
+		c.Stdin = strings.NewReader("")
 		c.Stdout = &output
 		c.Stderr = &errOut
-
-		err := c.Run()
+	 
+		LogLevel("debug", "about to start command")
+		err := c.Start()   
 		if err != nil {
-			return c.Stderr.(*bytes.Buffer).String(), err
+			LogLevel("debug", "failed to start command: %v", err)
+			return errOut.String(), err
+		}
+		
+		LogLevel("debug", "command started, waiting for completion")
+		err = c.Wait()
+		if err != nil {
+			LogLevel("debug", "command failed: %v", err)
+			return errOut.String(), err
 		}
 	}
-
+ 
 	return output.String(), nil
 }
 
@@ -50,6 +60,9 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	if cmd == "" {
 		return "", ReturnLogError("cmd should not be empty")
 	}
+
+	LogLevel("debug", "running command on node: %s", cmd)
+	LogLevel("debug", "ip: %s", ip)
 
 	host := ip + ":22"
 	conn, err := getOrDialSSH(host)

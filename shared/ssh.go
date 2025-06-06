@@ -167,23 +167,29 @@ func configureSSH(host string) (*ssh.Client, error) {
 
 	// get access key and user from cluster config.
 	kubeConfig := os.Getenv("KUBE_CONFIG")
-	if kubeConfig == "" {
-		productCfg := AddProductCfg()
-		cluster = ClusterConfig(productCfg)
-	} else {
+	if kubeConfig != "" {
 		cluster, err = addClusterFromKubeConfig(nil)
 		if err != nil {
 			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
 		}
+		if cluster == nil {
+			return nil, ReturnLogError("cluster is nil after loading from kubeconfig")
+		}
 	}
 
-	authMethod, err := publicKey(cluster.Aws.AccessKey)
+	accessKey := os.Getenv("access_key")
+	awsUser := os.Getenv("aws_user")
+
+	LogLevel("debug", "accessKey: %s", accessKey)
+	LogLevel("debug", "awsUser: %s", awsUser)
+
+	authMethod, err := publicKey(accessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.AwsUser,
+		User: awsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -219,6 +225,9 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 		return "", stderrStr, errssh
 	}
 
+	LogLevel("debug", "stdoutStr: %s", stdoutStr)
+	LogLevel("debug", "stderrStr: %s", stderrStr)
+
 	return stdoutStr, stderrStr, nil
 }
 
@@ -228,6 +237,10 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	conn := connPool.connClient[host]
 	connPool.Unlock()
 
+	LogLevel("debug", "host: %s", host)
+	LogLevel("debug", "connPool: %v", connPool.connClient)
+
+	LogLevel("debug", "conn: %v", conn)
 	// if there is an existing connection, check if it's still valid.
 	// if not, remove it from the pool.
 	if conn != nil {

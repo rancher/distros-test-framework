@@ -696,6 +696,8 @@ func AddProductCfg() *config.Env {
 		LogLevel("error", "error adding env vars: %w\n", err)
 	}
 
+	LogLevel("debug", "cfg: %v", cfg)
+
 	return cfg
 }
 
