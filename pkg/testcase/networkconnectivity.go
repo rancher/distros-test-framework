@@ -27,7 +27,7 @@ func TestInternodeConnectivityMixedOS(cluster *shared.Cluster, applyWorkload, de
 		[]string{"client-curl", "windows-app-svc"},
 		[]string{"8080", "3000"},
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "Error testing cross node service: %v", err)
 
 	if deleteWorkload {
 		workloadErr = shared.ManageWorkload("delete",
@@ -75,6 +75,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 		cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", svc1,
 			shared.KubeConfigFile, svc2, port)
 
+		shared.LogLevel("debug", "checking cmd: %v", cmd)
 		for {
 			select {
 			case <-timeout:
@@ -82,6 +83,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 			case <-ticker.C:
 				result, err := shared.RunCommandHost(cmd)
 				if err != nil {
+					shared.LogLevel("debug", "result: %v\nerror: %v", result, err)
 					return err
 				}
 				if strings.Contains(result, expected) {

@@ -27,7 +27,7 @@ func TestTarball(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 		shared.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
 		_, err = support.GetArtifacts(cluster, "windows", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 		Expect(err).To(BeNil(), err)
-		
+
 		shared.LogLevel("info", "Copy assets on Windows airgap nodes...")
 		err = support.CopyAssetsOnNodesWindows(cluster, support.Tarball)
 		Expect(err).To(BeNil(), err)
