@@ -26,6 +26,7 @@ type FlagConfig struct {
 	AirgapFlag         airgapFlag
 	S3Flags            s3ConfigFlag
 	SelinuxTest        selinuxTestFlag
+	SecretsEncrypt     secretsEncryptFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -214,4 +215,8 @@ func (s *selinuxTestFlag) Set(value string) error {
 
 func (s *selinuxTestFlag) String() string {
 	return fmt.Sprintf("%v", *s)
+}
+
+type secretsEncryptFlag struct {
+	Method string
 }
