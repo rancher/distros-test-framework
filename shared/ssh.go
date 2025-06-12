@@ -66,7 +66,7 @@ func CmdNodeRetryCfg() RetryCfg {
 
 // RunCommandOnNodeWithRetry runs a command on a node with error retry config logic.
 func RunCommandOnNodeWithRetry(cmd, ip string, cfg *RetryCfg) (string, error) {
-	LogLevel("info", "Running command on node with ssh error retry %s: %s\ncfg: %+v\n", ip, cmd, cfg)
+	LogLevel("debug", "Running command on node with ssh error retry %s: %s\ncfg: %+v\n", ip, cmd, cfg)
 
 	if cfg == nil {
 		tmp := defaultRetryCfg
