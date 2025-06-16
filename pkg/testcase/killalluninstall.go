@@ -25,17 +25,17 @@ const (
 func TestKillAllUninstall(cluster *shared.Cluster, cfg *config.Env) {
 	productDataDir := "/var/lib/rancher/" + cluster.Config.Product
 
-	ipsToExport := []string{cluster.ServerIPs[0]}
+	exportToIPs := []string{cluster.ServerIPs[0]}
 	if len(cluster.AgentIPs) > 0 {
-		ipsToExport = append(ipsToExport, cluster.AgentIPs[0])
+		exportToIPs = append(exportToIPs, cluster.AgentIPs[0])
 	}
 	// exporting binary directories to only one server node and one agent if available,
 	// so when script test runs, it can already have the paths needed.
-	for _, ip := range ipsToExport {
+	for _, ip := range exportToIPs {
 		Expect(ip).NotTo(BeEmpty(), "IP address cannot be empty")
 
 		exportDirErr := exportBinDirs(ip, "crictl", "kubectl", "ctr")
-		Expect(exportDirErr).NotTo(HaveOccurred(), "failed to export binary directories: %v", exportDirErr)
+		Expect(exportDirErr).NotTo(HaveOccurred(), "failed to export binary directories: %v on ip: %s", exportDirErr, ip)
 	}
 
 	scpTestScripts(cluster)
