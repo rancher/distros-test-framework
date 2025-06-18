@@ -250,7 +250,7 @@ test_umounted_dirs() {
     fi
 }
 
-# Check if a test passed or failed.
+###################    Auxiliary functions    #####################
 check_result() {
     result="$1"
     if [ "$result" -eq 0 ]; then
