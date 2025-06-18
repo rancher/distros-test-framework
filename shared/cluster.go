@@ -75,7 +75,8 @@ func applyWorkload(workload, filename string) error {
 		}
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
-	LogLevel("info", "Workload applied: %v", out)
+	LogLevel("info", "Workload applied: %v", filename)
+	LogLevel("debug", "Workload apply response: \n%v", out)
 
 	out, err = RunCommandHost("kubectl get all -A " + " --kubeconfig=" + KubeConfigFile)
 	if err != nil {
