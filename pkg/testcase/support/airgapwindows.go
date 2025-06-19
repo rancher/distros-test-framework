@@ -116,7 +116,7 @@ func copyAssetsOnWindows(cluster *shared.Cluster, airgapMethod, ip string) (err 
 	}
 
 	cmd += fmt.Sprintf(
-		"sudo %v windows_install.ps1 %v@%v:C:/Users/Administrator",
+		"sudo %v rke2-install.ps1 windows_install.ps1 %v@%v:C:/Users/Administrator",
 		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		windowsUser, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
