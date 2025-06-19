@@ -99,12 +99,12 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 
 	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
 	if err != nil {
-		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action), err)
+		return "", ReturnLogError("%s secrets-encrypt %s failed on node: %s!\n%v", product, action, ip, err)
 	}
 	if strings.Contains(secretsEncryptStdOut, "fatal") {
 		return "", ReturnLogError("secrets-encryption %s action failed", action)
 	}
-	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
+	LogLevel("debug", "%s secrets-encrypt %s output on node: %s\n %s", product, action, ip, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
 }
