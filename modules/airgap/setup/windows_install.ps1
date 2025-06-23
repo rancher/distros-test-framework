@@ -51,4 +51,4 @@ Write-Host "Add rke2 service..."
 C:/usr/local/bin/rke2.exe agent service --add
 Write-Host "Start rke2 service..."
 Start-Service rke2
-Start-Sleep -Seconds 30
+

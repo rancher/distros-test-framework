@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/shared"
@@ -30,6 +31,9 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
+
+	shared.LogLevel("info", "Sleep for 30 seconds while Windows node joins...")
+	time.Sleep(30 * time.Second)
 }
 
 // ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
