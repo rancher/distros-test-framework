@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Test:", func() {
@@ -67,7 +68,8 @@ var _ = Describe("Test:", func() {
 	}
 
 	It("Upgrade Manual", func() {
-		_ = testcase.TestUpgradeClusterManual(cluster, k8sClient, flags.InstallMode.String())
+		upgradeErr := testcase.TestUpgradeClusterManual(cluster, k8sClient, flags.InstallMode.String())
+		Expect(upgradeErr).To(BeNil(), "Error upgrading cluster: %v", upgradeErr)
 	})
 
 	It("Checks Node Status after upgrade and validate version", func() {

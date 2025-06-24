@@ -84,12 +84,22 @@ func validateRancher() {
 		}
 	}
 
+	// Install helm
+	res, err := shared.InstallHelm()
+	if err != nil {
+		shared.LogLevel("debug", "helm install response:\n%v", res)
+		shared.LogLevel("error", "Error while installing helm %v\n", err)
+		os.Exit(1)
+	}
+	shared.LogLevel("debug", "helm version: %v", res)
+
 	// Check chart repo
-	res, err := shared.CheckHelmRepo(
+	res, err = shared.CheckHelmRepo(
 		flags.Charts.RepoName,
 		flags.Charts.RepoUrl,
 		flags.Charts.Version)
 	if err != nil {
+		shared.LogLevel("debug", "helm repo check response:\n%v", res)
 		shared.LogLevel("error", "Error while checking helm repo %v\n", err)
 		os.Exit(1)
 	}
