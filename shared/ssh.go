@@ -215,7 +215,7 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 	stderrStr = stderrBuf.String()
 
 	if errssh != nil {
-		LogLevel("warn", "%v\n", stderrStr)
+		LogLevel("debug", "error from runsshCommand():\n%v\nand stderror %s", errssh, stderrStr)
 		return "", stderrStr, errssh
 	}
 

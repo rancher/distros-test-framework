@@ -50,16 +50,18 @@ func TestKillAllUninstall(cluster *shared.Cluster, cfg *config.Env) {
 	shared.LogLevel("info", "running uninstall script and tests after kill all already ran")
 	uninstallValidations(cluster, true)
 
-	shared.LogLevel("info", "reinstalling product after uninstall")
+	shared.LogLevel("info", "reinstalling product on first server only after uninstall")
 	reInstallServerProduct(cluster, cfg)
 
 	shared.LogLevel("info", "running uninstall tests without mounting any data dir after reinstall")
+	// agent is false here meaning that we are not testing on agent anymore, because it was already tested and to avoid
+	// time and resource consuming, we just reinstall and test again on server only.
 	uninstallValidations(cluster, false)
 
 	shared.LogLevel("info", "reinstalling again to test uninstall script alone with file removal safety")
 	reInstallServerProduct(cluster, cfg)
 
-	// for now only rke2 will support this test.
+	// for now only rke2 will support this file safety removal test.
 	// since now we needed to mount a fake remote fs, we will handle uninstall tests based on that, because
 	// the uninstall script will try to remove the kubelet dir and return device or resource busy error.
 	// ( this is expected and handled in the test script )
@@ -97,19 +99,16 @@ func exportBinDirs(ip string, binaries ...string) error {
 }
 
 func scpTestScripts(cluster *shared.Cluster) {
-	// scp test kill all script.
 	killAllLocalPath := shared.BasePath() + "/scripts/kill-all_test.sh"
 	killAllRemotePath := "/var/tmp/kill-all_test.sh"
 	scpErr := shared.RunScp(cluster, cluster.ServerIPs[0], []string{killAllLocalPath}, []string{killAllRemotePath})
 	Expect(scpErr).NotTo(HaveOccurred(), "failed to scp kill all test script to server")
 
-	// scp test kill all scrip to agent if any.
 	if len(cluster.AgentIPs) > 0 {
 		scpAgentErr := shared.RunScp(cluster, cluster.AgentIPs[0], []string{killAllLocalPath}, []string{killAllRemotePath})
 		Expect(scpAgentErr).NotTo(HaveOccurred(), "failed to scp kill all test script to agent")
 	}
 
-	// scp test uninstal script to server.
 	uninstallLocalPath := shared.BasePath() + "/scripts/uninstall_test.sh"
 	uninstallRemotePath := "/var/tmp/uninstall_test.sh"
 	scpUninstallErr := shared.RunScp(
@@ -120,7 +119,6 @@ func scpTestScripts(cluster *shared.Cluster) {
 	)
 	Expect(scpUninstallErr).NotTo(HaveOccurred(), "failed to scp uninstall test script to server")
 
-	// scp test uninstall script to agent if any.
 	if len(cluster.AgentIPs) > 0 {
 		scpUninstallAgentErr := shared.RunScp(
 			cluster,
@@ -142,9 +140,8 @@ func mountBindDataDir(cluster *shared.Cluster, productDataDir string) {
 		}
 	}
 
-	// mount bind for agent IPs if any.
 	if len(cluster.AgentIPs) > 0 {
-		err = shared.MountBind(cluster.AgentIPs, productDataDir+"/agent", productDataDir+"/agent")
+		err = shared.MountBind([]string{cluster.AgentIPs[0]}, productDataDir+"/agent", productDataDir+"/agent")
 		if err != nil {
 			if strings.Contains(err.Error(), " mount point does not exist") {
 				shared.LogLevel("info", "data dir not mounted on agent, mount point does not exist: %v", err)
@@ -156,75 +153,172 @@ func mountBindDataDir(cluster *shared.Cluster, productDataDir string) {
 }
 
 func umountDataDir(cluster *shared.Cluster, productDataDir string) {
-	umountAllProductDir(productDataDir, cluster.ServerIPs[0], "server")
+	err := umountAllProductDir(productDataDir, cluster.ServerIPs[0], "server")
+	Expect(err).NotTo(HaveOccurred(), "failed to umount %s on server node %s",
+		productDataDir, cluster.ServerIPs[0])
 
 	if len(cluster.AgentIPs) > 0 {
-		umountAllProductDir(productDataDir, cluster.AgentIPs[0], "agent")
+		umountAgentErr := umountAllProductDir(productDataDir, cluster.AgentIPs[0], "agent")
+		Expect(umountAgentErr).NotTo(HaveOccurred(), "failed to umount %s on agent node %s",
+			productDataDir, cluster.AgentIPs[0])
 	}
 }
 
-func umountAllProductDir(productDataDir, nodeIP, nodeType string) {
-	forceUmountCmd := "sudo umount -f -R " + productDataDir + "/server/" + " && " +
-		"sudo umount -f -R " + productDataDir + "/agent/"
+func umountAllProductDir(productDataDir, nodeIP, nodeType string) error {
+	forceUmountCmd := "sudo umount -f -R " + productDataDir + "/server/"
 
 	if nodeType == "agent" {
 		forceUmountCmd = "sudo umount -f -R " + productDataDir + "/agent/"
 	}
-	ures, err := shared.RunCommandOnNode(forceUmountCmd, nodeIP)
+	umountRes, umountErr := shared.RunCommandOnNode(forceUmountCmd, nodeIP)
+	if umountErr != nil {
+		if !isExpectedMountError(umountErr, productDataDir, nodeIP) {
+			return fmt.Errorf("umount failed on node ATTEMPT 1 %s: %v", nodeIP, umountErr)
+		}
+		shared.LogLevel("debug", "not mounted %s on node %s, mount point does not exist: %v",
+			productDataDir, nodeIP, umountErr)
+	}
+	Expect(umountRes).To(BeEmpty(), "failed to umount on node %s", nodeIP)
+
+	activeMountsErr := umountActiveMounts(productDataDir, nodeIP)
+	Expect(activeMountsErr).NotTo(HaveOccurred(), "failed to find and umount active mount points")
+
+	findMountPatternsErr := findMountByPatterns(productDataDir, nodeIP)
+	Expect(findMountPatternsErr).NotTo(HaveOccurred(), "failed to find mount and umount by patterns on node %s", nodeIP)
+
+	shared.LogLevel("info", "umount completed for %s on node %s type %s", productDataDir, nodeIP, nodeType)
+
+	return nil
+}
+
+func findMountByPatterns(path, nodeIP string) error {
+	patterns := "find " + path + " \\( " +
+		"-path '*/containerd/tmpmounts*' -o " +
+		"-path '*/crio/tmpmounts*' -o " +
+		"-path '*/docker/tmpmounts*' -o " +
+		"-path '*/kubelet/tmpmounts*' -o " +
+		"-name 'tmpmount*' -o " +
+		"-name '*-mount*' " +
+		"\\) -type d 2>/dev/null || true"
+
+	mountPath, findMountErr := shared.RunCommandOnNode(patterns, nodeIP)
+	if findMountErr != nil {
+		return fmt.Errorf("failed to find mount paths on node %s: %v", nodeIP, findMountErr)
+	}
+
+	if mountPath == "" {
+		shared.LogLevel("info", "no mount paths found on node %s", nodeIP)
+		return nil
+	}
+
+	shared.LogLevel("info", "found mount paths on node %s:\n%s", nodeIP, mountPath)
+	mountPaths := strings.Split(strings.TrimSpace(mountPath), "\n")
+	for _, p := range mountPaths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		checkMountCmd := "mount | grep -E '^[^ ]+ " + p + " ' || grep -E '^[^ ]+ " + p + " ' /proc/mounts || true"
+		mountCheck, checkMountErr := shared.RunCommandOnNode(checkMountCmd, nodeIP)
+		if checkMountErr != nil {
+			return fmt.Errorf("failed to find for mount pattern on node %s: %v", nodeIP, checkMountErr)
+		}
+
+		if mountCheck == "" {
+			shared.LogLevel("info", "no active mount found on node %s for path %s", nodeIP, p)
+			continue
+		}
+
+		shared.LogLevel("info", "found active mount on node %s: %s\nmount: %s", nodeIP, p, mountCheck)
+
+		umountCmd := "sudo umount -f -R " + p + " 2>/dev/null || sudo umount -l " + p + " 2>/dev/null || true"
+		res, umountErr := shared.RunCommandOnNode(umountCmd, nodeIP)
+		if !isExpectedMountError(umountErr, p, nodeIP) {
+			return fmt.Errorf("failed to umount %s on node %s: %v", p, nodeIP, umountErr)
+		}
+		shared.LogLevel("debug", "not mounted %s on node %s, mount point does not exist: %v",
+			p, nodeIP, umountErr)
+
+		Expect(res).To(BeEmpty(), "failed to umount %s on node %s", p, nodeIP)
+	}
+
+	return nil
+}
+
+func umountActiveMounts(path, nodeIP string) error {
+	findActiveMountsCmd := "mount | grep -E ' " + path + ".*tmpmount| " + path +
+		".*-mount' | awk '{print $3}' || grep -E ' " + path + ".*tmpmount| " + path +
+		".*-mount' /proc/mounts | awk '{print $2}' || true"
+
+	activeMounts, err := shared.RunCommandOnNode(findActiveMountsCmd, nodeIP)
 	if err != nil {
-		var exitError *ssh.ExitError
-		if errors.As(err, &exitError) {
-			errMsg := exitError.Msg()
-			if strings.Contains(errMsg, errNotMounted) ||
-				strings.Contains(errMsg, errMount) ||
-				strings.Contains(errMsg, errNoMount) ||
-				strings.Contains(errMsg, errDirNotFound) ||
-				strings.Contains(errMsg, errMountNotFound) {
-				shared.LogLevel("warn", "not mounted %s on node %s, mount point does not exist: %v",
-					productDataDir, nodeIP, err)
-			}
+		return fmt.Errorf("failed to find active mount points on node %s: %v", nodeIP, err)
+	}
+
+	if activeMounts == "" {
+		shared.LogLevel("info", "no active mount points found on node %s for path %s", nodeIP, path)
+		return nil
+	}
+
+	mountPoints := strings.Split(strings.TrimSpace(activeMounts), "\n")
+	for _, mountPoint := range mountPoints {
+		mountPoint = strings.TrimSpace(mountPoint)
+		if mountPoint == "" {
+			shared.LogLevel("info", "skipping, empty mount point on node %s", nodeIP)
+			continue
 		}
+
+		shared.LogLevel("info", "found additional active mount point on node %s: %s", nodeIP, mountPoint)
+
+		umountCmd := "sudo umount -f " + mountPoint + " 2>/dev/null || sudo umount -l " + mountPoint +
+			" 2>/dev/null || true"
+		umountRes, umountErr := shared.RunCommandOnNode(umountCmd, nodeIP)
+		if !isExpectedMountError(umountErr, path, nodeIP) {
+			return fmt.Errorf("failed to umount additional mount point %s on node %s: %v\nresponse: %v",
+				mountPoint, nodeIP, umountErr, umountRes)
+		}
+		shared.LogLevel("debug", "not mounted %s on node %s, mount point does not exist: %v",
+			mountPoint, nodeIP, umountErr)
+	}
+
+	return nil
+}
+
+func isExpectedMountError(err error, path, nodeIP string) bool {
+	var errMsg string
+	var exitError *ssh.ExitError
+	if errors.As(err, &exitError) {
+		errMsg = exitError.Msg()
 	} else {
-		Expect(err).NotTo(HaveOccurred(),
-			"failed to umount on node %s: %v", nodeIP, err)
+		errMsg = err.Error()
 	}
-	Expect(ures).To(BeEmpty(), "failed to umount on node %s", nodeIP)
 
-	findMountsCmd := "find " + productDataDir + " -path '*/containerd/tmpmounts/containerd-mount*' " +
-		" -type d 2>/dev/null || true"
-	path, _ := shared.RunCommandOnNode(findMountsCmd, nodeIP)
-	if path != "" {
-		path = strings.TrimSpace(path)
-		shared.LogLevel("info", "umounting all containerd mounts on node %s: %s", nodeIP, path)
+	expectedErrors := []string{
+		errNotMounted,
+		errMount,
+		errNoMount,
+		errDirNotFound,
+		errMountNotFound,
+	}
 
-		umountCmd := "sudo umount -f " + path + " 2>/dev/null || sudo umount -l " + path + " 2>/dev/null || true"
-		ures, err = shared.RunCommandOnNode(umountCmd, nodeIP)
-		if err != nil {
-			var exitError *ssh.ExitError
-			if errors.As(err, &exitError) {
-				errMsg := exitError.Msg()
-				if strings.Contains(errMsg, errNotMounted) ||
-					strings.Contains(errMsg, errMount) ||
-					strings.Contains(errMsg, errNoMount) ||
-					strings.Contains(errMsg, errDirNotFound) ||
-					strings.Contains(errMsg, errMountNotFound) {
-					shared.LogLevel("warn", "not mounted %s on node %s, mount point does not exist: %v",
-						productDataDir+"/agent/tmpmounts", nodeIP, errMsg)
-				}
-			} else {
-				Expect(err).NotTo(HaveOccurred(),
-					"failed to umount on node %s: %v", nodeIP, err)
-			}
+	for _, expectedErr := range expectedErrors {
+		if strings.Contains(errMsg, expectedErr) {
+			shared.LogLevel("warn", "expected mount error for %s on node %s: %v", path, nodeIP, errMsg)
+
+			return false
 		}
 	}
-	Expect(ures).To(BeEmpty(), "failed to umount %s on node %s", productDataDir+"/tmp", nodeIP)
+
+	shared.LogLevel("error", "mount error for %s on node %s: %v", path, nodeIP, errMsg)
+
+	return true
 }
 
 func killAllValidations(cluster *shared.Cluster, mount string, agent bool) {
 	killAllErr := shared.ManageProductCleanup(cluster.Config.Product, "server", cluster.ServerIPs[0], "killall")
 	Expect(killAllErr).NotTo(HaveOccurred(), "failed to run killall for product: %v server", cluster.Config.Product)
 
-	// Wait for killall process to complete
 	killallPattern := fmt.Sprintf("%s.*killall|killall.*%s", cluster.Config.Product, cluster.Config.Product)
 	waitErr := shared.CheckProcessCompletion(cluster.ServerIPs[0], killallPattern, 10, 10*time.Second)
 	Expect(waitErr).NotTo(HaveOccurred(), "failed waiting for killall process to complete: %v", waitErr)
@@ -242,7 +336,6 @@ func killAllValidations(cluster *shared.Cluster, mount string, agent bool) {
 		killAllAgentErr := shared.ManageProductCleanup(cluster.Config.Product, "agent", cluster.AgentIPs[0], "killall")
 		Expect(killAllAgentErr).NotTo(HaveOccurred(), "failed to run killall for product: %v agent", cluster.Config.Product)
 
-		// Wait for agent killall process to complete
 		waitAgentErr := shared.CheckProcessCompletion(cluster.AgentIPs[0], killallPattern, 10, 10*time.Second)
 		Expect(waitAgentErr).NotTo(HaveOccurred(), "failed waiting for agent killall process to complete: %v", waitAgentErr)
 
@@ -261,7 +354,6 @@ func uninstallValidations(cluster *shared.Cluster, agent bool) {
 	uninstalErr := shared.ManageProductCleanup(cluster.Config.Product, "server", cluster.ServerIPs[0], "uninstall")
 	Expect(uninstalErr).NotTo(HaveOccurred(), "failed to run uninstall for product: %v server", cluster.Config.Product)
 
-	// Wait for uninstall process to complete
 	uninstallPattern := fmt.Sprintf("%s.*uninstall|uninstall.*%s", cluster.Config.Product, cluster.Config.Product)
 	waitErr := shared.CheckProcessCompletion(cluster.ServerIPs[0], uninstallPattern, 10, 10*time.Second)
 	Expect(waitErr).NotTo(HaveOccurred(), "failed waiting for uninstall process to complete: %v", waitErr)

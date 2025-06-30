@@ -73,8 +73,6 @@ test_config_removal() {
 
     config_dirs=(
         "/etc/rancher/${PRODUCT}"
-        "/etc/cni"
-        "/opt/cni/bin"
         "${PRODUCT_ROOT}/share/${PRODUCT}"
         "/tmp/*_kubeconfig_*"
         "/var/lib/rancher/${PRODUCT}/agent/etc"
@@ -82,7 +80,11 @@ test_config_removal() {
     )
 
     if [ "$PRODUCT" == "rke2" ]; then
-       config_dirs+=("/etc/rancher/node")
+       config_dirs+=(
+        "/etc/rancher/node"
+        "/etc/cni"
+        "/opt/cni/bin"
+       )
     fi
 
     # Check for config directories with wildcards.

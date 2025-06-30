@@ -57,8 +57,11 @@ Please set the server_flags in .tfvars file for k3s:
 server_flags   = "secrets-encryption: true\n"
 ```
 
-For versions 1.26 and 1.27 - we run the traditional tests only: prepare/rotate/reencrypt (TEST_TYPE gets set to 'classic' in env var. We use this to determine which tests to run.)
-For versions 1.28 and greater - we run both the traditional tests and new method - rotate-keys (TEST_TYPE gets set to 'both' in env var)
+The test tag `secretsEncryptMethod` is optional which is set to `both` by default, which performs both `prepare/rotate/reencrypt` and `rotate-keys` operations. Other values that is accepted are `classic`, which performs `prepare/rotate/reencrypt` operations and `rotate-keys` which performs only `rotate-keys` operations.
+Additionally starting v1.30.12 and above, support for secretbox has been added only for `rotate-keys` and below can be added on the `server_flags` to test that feature.
+```
+secrets-encryption-provider: secretbox
+```
 
 Note/TODO: k3s external db fails working with etcd only node. Refer: https://docs.k3s.io/datastore/ha
 
@@ -325,7 +328,9 @@ we are not directly umounting the data dir, which is the behavior tests scripts 
 
 - Optionally we can pass `-killallUninstall true` to run kill all-uninstall tests on the end of ValidateCluster tests.
 
-## Selinux tests. 
+- Despite number of severs/agents those tests are always running only in one server/agent node if any, to avoid unecessary extra time and resources consumption.
+
+## Selinux tests.
 These tests are enabled in 3 test suites: 
 1. Selinux test suite
 2. Validate cluster test suite

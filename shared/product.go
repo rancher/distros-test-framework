@@ -99,12 +99,12 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 
 	secretsEncryptStdOut, err := RunCommandOnNode(secretEncryptCmd[action], ip)
 	if err != nil {
-		return "", ReturnLogError(fmt.Sprintf("secrets-encryption %s action failed", action), err)
+		return "", ReturnLogError("%s secrets-encrypt %s failed on node: %s!\n%v", product, action, ip, err)
 	}
 	if strings.Contains(secretsEncryptStdOut, "fatal") {
 		return "", ReturnLogError("secrets-encryption %s action failed", action)
 	}
-	LogLevel("debug", "%s output:\n %s", action, secretsEncryptStdOut)
+	LogLevel("debug", "%s secrets-encrypt %s output on node: %s\n %s", product, action, ip, secretsEncryptStdOut)
 
 	return secretsEncryptStdOut, nil
 }
@@ -213,15 +213,8 @@ func execAction(product, script, ip string) error {
 
 	cmd := "sudo " + execPath
 	res, execErr := RunCommandOnNode(cmd, ip)
-	fmt.Printf("Res from command !!!!!!!!!!!!!!@@@@@@@@@@@@@@@@@@@ \n%s: %s\n", execPath, res)
-	// here we should check if its not empty because scripts ran here, will always return output.
-	if strings.TrimSpace(res) == "" {
-		return fmt.Errorf("failed to run command: %s", execPath)
-	}
 	if execErr != nil {
-		// return fmt.Errorf("failed to run command: %s, error: %w", execPath, execErr)
-		fmt.Printf("Failed to run command %s: %s", execPath, execErr)
-		fmt.Printf("Command output: %s\n", res)
+		return fmt.Errorf("failed to run command: %s, error: %w\nresponse: %v", execPath, execErr, res)
 	}
 
 	return nil
