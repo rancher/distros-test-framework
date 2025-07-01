@@ -33,6 +33,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
+	It("Validate Metrics Server pre-upgrade", func() {
+		testcase.TestNodeMetricsServer(true, true)
+	})
+
 	It("Verifies ClusterIP Service pre-upgrade", func() {
 		testcase.TestServiceClusterIP(true, false)
 	})
@@ -85,6 +89,10 @@ var _ = Describe("Test:", func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
+	})
+
+	It("Validate Metrics Server after upgrade", func() {
+		testcase.TestNodeMetricsServer(true, true)
 	})
 
 	It("Verifies ClusterIP Service after upgrade", func() {

@@ -72,13 +72,12 @@ func TestKillAllUninstall(cluster *shared.Cluster, cfg *config.Env) {
 	uninstallValidations(cluster, false)
 }
 
-// exportBinDirs finds and exports binary paths to all specified nodes.
+// exportBinDirs finds and exports binary paths to the specified node.
 func exportBinDirs(ip string, binaries ...string) error {
 	if ip == "" {
 		return errors.New("need at least one IP address")
 	}
 
-	// ips[0] to only use one node to find the binaries.
 	binPaths, err := shared.FindBinaries(ip, binaries...)
 	if err != nil {
 		return fmt.Errorf("failed to find binaries: %w", err)
