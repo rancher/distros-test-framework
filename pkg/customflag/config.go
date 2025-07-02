@@ -27,6 +27,7 @@ type FlagConfig struct {
 	S3Flags            s3ConfigFlag
 	SelinuxTest        selinuxTestFlag
 	SecretsEncrypt     secretsEncryptFlag
+	K3KCli             k3kCliFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -219,4 +220,8 @@ func (s *selinuxTestFlag) String() string {
 
 type secretsEncryptFlag struct {
 	Method string
+}
+
+type k3kCliFlag struct {
+	CreateArgs string
 }
