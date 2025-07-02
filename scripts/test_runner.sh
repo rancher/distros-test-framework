@@ -15,7 +15,8 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall|\
+       k3k)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -138,7 +139,9 @@ if [ -n "${TEST_DIR}" ]; then
     elif [ "${TEST_DIR}" = "killalluninstall" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
     elif [ "${TEST_DIR}" = "nvidia" ]; then
-       go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
+        go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
+    elif [ "${TEST_DIR}" = "k3k" ]; then
+        go test -timeout=60m -v -count=1 ./entrypoint/k3k/... -destroy "${DESTROY}"
     fi
 fi
 }
