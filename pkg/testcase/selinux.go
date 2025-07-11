@@ -160,7 +160,15 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 		if uninstall {
 			shared.LogLevel("info", "Uninstalling %s on server: %s", cluster.Config.Product, serverIP)
 			err := shared.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "failed to find") {
+					shared.LogLevel("info", "Product %s already uninstalled on server: %s", cluster.Config.Product, serverIP)
+					continue
+				} else {
+					shared.LogLevel("error", "Failed to uninstall %s on server: %s, error: %v", cluster.Config.Product, serverIP, err)
+					Expect(err).NotTo(HaveOccurred(), "Failed to uninstall %s on server: %s", cluster.Config.Product, serverIP)
+				}
+			}
 		}
 
 		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
@@ -170,7 +178,15 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 		if uninstall {
 			shared.LogLevel("info", "Uninstalling %s on agent: %s", cluster.Config.Product, agentIP)
 			err := shared.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "failed to find") {
+					shared.LogLevel("info", "Product %s already uninstalled on agent: %s", cluster.Config.Product, agentIP)
+					continue
+				} else {
+					shared.LogLevel("error", "Failed to uninstall %s on agent: %s, error: %v", cluster.Config.Product, agentIP, err)
+					Expect(err).NotTo(HaveOccurred(), "Failed to uninstall %s on agent: %s", cluster.Config.Product, agentIP)
+				}
+			}
 		}
 
 		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"

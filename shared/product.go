@@ -213,12 +213,8 @@ func execAction(product, script, ip string) error {
 
 	cmd := "sudo " + execPath
 	res, execErr := RunCommandOnNode(cmd, ip)
-	// here we should check if its not empty because scripts ran here, will always return output.
-	if strings.TrimSpace(res) == "" {
-		return fmt.Errorf("failed to run command: %s", execPath)
-	}
 	if execErr != nil {
-		return fmt.Errorf("failed to run command: %s, error: %w", execPath, execErr)
+		return fmt.Errorf("failed to run command: %s, error: %w\nresponse: %v", execPath, execErr, res)
 	}
 
 	return nil

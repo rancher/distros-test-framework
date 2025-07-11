@@ -734,7 +734,7 @@ func ExtractKubeImageVersion() string {
 }
 
 // InstallProduct installs the product on the server node only.
-// TODO: add support for installing on all nodes.
+// TODO: add support for installing on all nodes with all necessary flags.
 func InstallProduct(cluster *Cluster, publicIP, version string) error {
 	err := setConfigFile(cluster, publicIP)
 	if err != nil {
