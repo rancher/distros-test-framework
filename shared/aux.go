@@ -732,14 +732,12 @@ func CheckProcessCompletion(nodeIP, processPattern string, attempts int, delay t
 		RetryableErrorSubString:    []string{"connection", "timeout", "temporary"},
 		NonRetryableErrorSubString: []string{},
 	}
-
 	// First check if process is already finished or not running.
 	checkCmd := fmt.Sprintf("pgrep -f '%s' 2>/dev/null || echo 'not_found'", processPattern)
 	result, err := RunCommandOnNode(checkCmd, nodeIP)
 	if err != nil {
 		LogLevel("debug", "Initial process check failed: %v", err)
 	}
-
 	result = strings.TrimSpace(result)
 	if result == "not_found" || result == "" {
 		LogLevel("info", "Process matching '%s' is not currently running on node %s", processPattern, nodeIP)
@@ -749,7 +747,6 @@ func CheckProcessCompletion(nodeIP, processPattern string, attempts int, delay t
 
 	LogLevel("info", "Process '%s' is running on node %s (PIDs: %s), waiting for completion",
 		processPattern, nodeIP, result)
-
 	initialPIDs := strings.Fields(result)
 	checkProcesscmd := fmt.Sprintf(`
 		stillRunning=false

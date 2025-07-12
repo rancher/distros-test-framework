@@ -30,6 +30,18 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
+
+	shared.LogLevel("info", "Waiting while Windows node joins...")
+	nodeCount := cluster.NumServers + cluster.NumAgents + cluster.NumWinAgents
+	Eventually(func(g Gomega) {
+		res, err := GetNodesViaBastion(cluster)
+		g.Expect(res).NotTo(BeEmpty())
+		g.Expect(err).NotTo(HaveOccurred(), err)
+
+		nodes := shared.ParseNodes(res)
+		g.Expect(nodes).NotTo(BeEmpty())
+		g.Expect(len(nodes)).To(Equal(nodeCount))
+	}, "300s", "15s").Should(Succeed(), "Node count is not matching")
 }
 
 // ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
@@ -116,7 +128,7 @@ func copyAssetsOnWindows(cluster *shared.Cluster, airgapMethod, ip string) (err 
 	}
 
 	cmd += fmt.Sprintf(
-		"sudo %v windows_install.ps1 %v@%v:C:/Users/Administrator",
+		"sudo %v rke2-install.ps1 windows_install.ps1 %v@%v:C:/Users/Administrator",
 		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		windowsUser, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)

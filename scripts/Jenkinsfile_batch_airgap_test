@@ -53,7 +53,7 @@ node {
 
               if ((test_name == "privateregistry") || (test_name == "systemdefaultregistry")) {
                 job_test_args = job_test_args + " -tags=${test_name}"
-              } else if (test_name == "tarball") {
+              } else if (test_name.contains("tarball")) {
                 job_test_args = job_test_args + " -tags=tarball -tarballType tar.zst"
               }
 
@@ -86,6 +86,9 @@ node {
                   break
                 case "privateregistry_windows":
                   jobs[test_name] = { build job: "rke2_private_registry_windows", parameters: install_params }
+                  break
+                case "tarball_windows":
+                  jobs[test_name] = { build job: "rke2_tarball_windows", parameters: install_params }
                   break
                 } // switch case
             } // for each test_dir loop

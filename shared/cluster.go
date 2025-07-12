@@ -69,13 +69,14 @@ func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
-	fmt.Println(out)
 	if err != nil || out == "" {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
+	LogLevel("info", "Workload applied: %v", filename)
+	LogLevel("debug", "Workload apply response: \n%v", out)
 
 	out, err = RunCommandHost("kubectl get all -A " + " --kubeconfig=" + KubeConfigFile)
 	if err != nil {

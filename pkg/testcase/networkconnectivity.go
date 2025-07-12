@@ -21,13 +21,23 @@ func TestInternodeConnectivityMixedOS(cluster *shared.Cluster, applyWorkload, de
 		Expect(workloadErr).NotTo(HaveOccurred(), "workload pod_client and/or windows not deployed")
 	}
 
+	checkPodsRunning := "kubectl get pods -n default -l app=client" +
+		" --field-selector=status.phase=Running --kubeconfig="
+	err := assert.ValidateOnHost(checkPodsRunning+shared.KubeConfigFile, statusRunning)
+	Expect(err).NotTo(HaveOccurred(), err)
+
+	checkPodsRunning = "kubectl get pods -n default -l app=windows-app" +
+		" --field-selector=status.phase=Running  --kubeconfig="
+	err = assert.ValidateOnHost(checkPodsRunning+shared.KubeConfigFile, statusRunning)
+	Expect(err).NotTo(HaveOccurred(), err)
+
 	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
-	err := testCrossNodeService(
+	err = testCrossNodeService(
 		[]string{"client-curl", "windows-app-svc"},
 		[]string{"8080", "3000"},
 		[]string{"Welcome to nginx", "Welcome to PSTools"})
-	Expect(err).NotTo(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred(), "Error testing cross node service: %v", err)
 
 	if deleteWorkload {
 		workloadErr = shared.ManageWorkload("delete",
@@ -57,8 +67,8 @@ func testIPsInCIDRRange(cluster *shared.Cluster, label, svc string) {
 // expected	Slice Takes the expected substring from the curl response.
 func testCrossNodeService(services, ports, expected []string) error {
 	var cmd string
-	timeout := time.After(220 * time.Second)
-	ticker := time.NewTicker(10 * time.Second)
+	timeout := time.After(300 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	delay := time.After(160 * time.Second)
 
 	if len(services) != len(ports) && len(ports) != len(expected) {
@@ -75,6 +85,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 		cmd = fmt.Sprintf("kubectl exec svc/%s --kubeconfig=%s -- curl -m7 %s:%s", svc1,
 			shared.KubeConfigFile, svc2, port)
 
+		shared.LogLevel("debug", "checking cmd: %v", cmd)
 		for {
 			select {
 			case <-timeout:
@@ -82,6 +93,7 @@ func testCrossNodeService(services, ports, expected []string) error {
 			case <-ticker.C:
 				result, err := shared.RunCommandHost(cmd)
 				if err != nil {
+					shared.LogLevel("debug", "result: %v\nerror: %v", result, err)
 					return err
 				}
 				if strings.Contains(result, expected) {
