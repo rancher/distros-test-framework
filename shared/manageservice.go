@@ -61,7 +61,6 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 	if err != nil {
 		return "", fmt.Errorf("action validation failed for %s: %w", ip, err)
 	}
-
 	for _, act := range actions {
 		LogLevel("info", "Running %s %s service on node: %s", act.Action, act.Service, ip)
 		if act.Action == rotate {
@@ -73,7 +72,6 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 
 			continue
 		}
-
 		var svcName string
 		var svcNameErr error
 		if strings.Contains(act.Service, rke2) || strings.Contains(act.Service, k3s) {
@@ -94,7 +92,6 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 			LogLevel("info", "Waiting for %v before running systemctl %s %s on node: %s", delay, act.Action, svcName, ip)
 			<-time.After(delay)
 		}
-
 		LogLevel("debug", "Command: %s on node: %s", cmd, ip)
 		output, execErr := ms.execute(cmd, act.Action, ip)
 		if execErr != nil {
@@ -105,7 +102,6 @@ func (ms *ManageService) ManageService(ip string, actions []ServiceAction) (stri
 			LogLevel("debug", "service %s output: \n %s", act.Action, output)
 			return strings.TrimSpace(output), nil
 		}
-
 		LogLevel("info", "Finished running systemctl %s %s on node: %s\n", act.Action, svcName, ip)
 		if output != "" {
 			LogLevel("warn", "Output: %s", strings.TrimSpace(output))

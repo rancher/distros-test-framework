@@ -19,12 +19,15 @@ var (
 	qaseReport = os.Getenv("REPORT_TO_QASE")
 	kubeconfig string
 	cluster    *shared.Cluster
+	flags      *customflag.FlagConfig
 	cfg        *config.Env
 	err        error
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.SecretsEncrypt.Method, "secretsEncryptMethod", "both", "method to perform secrets encryption")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -58,6 +61,12 @@ func validateSecretsEncryptFlag() {
 			shared.LogLevel("error", "Add secrets-encryption:true to server_flags for this test")
 			os.Exit(1)
 		}
+	}
+
+	if strings.Contains(os.Getenv("server_flags"), "secretbox") &&
+		flags.SecretsEncrypt.Method != "rotate-keys" {
+		shared.LogLevel("info", "secretbox provider is supported only with rotate-keys operation")
+		flags.SecretsEncrypt.Method = "rotate-keys"
 	}
 }
 

@@ -42,6 +42,16 @@ func ManageWorkload(action string, workloads ...string) error {
 	return nil
 }
 
+// ApplyWorkloadURL applies a workload from a URL.
+func ApplyWorkloadURL(url string) error {
+	applyWorkloadErr := applyWorkload("apply", url)
+	if applyWorkloadErr != nil {
+		return ReturnLogError("failed to apply workload: %s\n", applyWorkloadErr)
+	}
+
+	return nil
+}
+
 func handleWorkload(action, resourceDir, workload string) error {
 	filename := filepath.Join(resourceDir, workload)
 
@@ -724,7 +734,7 @@ func ExtractKubeImageVersion() string {
 }
 
 // InstallProduct installs the product on the server node only.
-// TODO: add support for installing on all nodes.
+// TODO: add support for installing on all nodes with all necessary flags.
 func InstallProduct(cluster *Cluster, publicIP, version string) error {
 	err := setConfigFile(cluster, publicIP)
 	if err != nil {

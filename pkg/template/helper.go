@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/assert"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
@@ -103,7 +104,7 @@ func addTestCaseMap(cluster *shared.Cluster) map[string]testCase {
 			testcase.TestCertRotate(cluster)
 		},
 		"TestSecretsEncryption": func(applyWorkload, deleteWorkload bool) {
-			testcase.TestSecretsEncryption(cluster)
+			testcase.TestSecretsEncryption(cluster, &customflag.ServiceFlag)
 		},
 		"TestRestartService": func(applyWorkload, deleteWorkload bool) {
 			testcase.TestRestartService(cluster)
