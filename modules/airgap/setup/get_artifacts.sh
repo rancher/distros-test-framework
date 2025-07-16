@@ -100,7 +100,7 @@ get_assets() {
       if [ -n "$tarball_type" ]; then
         download_retry "wget $url/rke2-images-core.linux-$arch.$tarball_type"
       fi
-    elif [[ -z "$server_flags" ]]; then
+    elif [[ -z "$server_flags" ]] || [[ "$server_flags" != *"cni"* ]]; then
       download_retry "wget $url/rke2-images.linux-$arch.txt"
       if [ -n "$tarball_type" ]; then
         download_retry "wget $url/rke2-images.linux-$arch.$tarball_type"
