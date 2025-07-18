@@ -15,19 +15,20 @@ var (
 
 // FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
-	InstallMode          installModeFlag
-	TestTemplateConfig   templateConfigFlag
-	Destroy              destroyFlag
-	SUCUpgradeVersion    sucUpgradeVersionFlag
-	Channel              channelFlag
-	External             externalFlag
-	CertManager          certManagerFlag
-	Charts               helmChartsFlag
-	AirgapFlag           airgapFlag
-	S3Flags              s3ConfigFlag
-	SelinuxTest          selinuxTestFlag
-	KillAllUninstallTest killalluninstallTestFlag
-	SecretsEncrypt       secretsEncryptFlag
+	InstallMode        		installModeFlag
+	TestTemplateConfig 		templateConfigFlag
+	Destroy            		destroyFlag
+	SUCUpgradeVersion  		sucUpgradeVersionFlag
+	Channel            		channelFlag
+	External           		externalFlag
+	CertManager        		certManagerFlag
+	Charts             		helmChartsFlag
+	AirgapFlag         		airgapFlag
+	S3Flags            		s3ConfigFlag
+	SelinuxTest        		selinuxTestFlag
+	SecretsEncrypt     		secretsEncryptFlag
+	KillAllUninstallTest   	killalluninstallTestFlag
+	K3KCli             		k3kCliFlag
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -236,4 +237,7 @@ func (d *killalluninstallTestFlag) Set(value string) error {
 	*d = killalluninstallTestFlag(v)
 
 	return nil
+}
+type k3kCliFlag struct {
+	CreateArgs string
 }
