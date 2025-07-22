@@ -197,7 +197,6 @@ func TestPlatformTypeWithMocks(t *testing.T) {
 				hnsFunc: func(name string) (*mockHNSNetwork, error) {
 					return nil, errors.New("network not found")
 				},
-				// ec2Response and GCEResponse should be nil here.
 				ec2Response: nil,
 				ec2Timeout:  false,
 				gceResponse: nil,
