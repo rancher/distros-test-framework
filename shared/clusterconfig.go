@@ -35,32 +35,40 @@ type Cluster struct {
 }
 
 type AwsConfig struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	Region          string
+	AccessKeyID      string
+	SecretAccessKey  string
+	Region           string
+	VPCID            string
+	AvailabilityZone string
+	SgId             string
+	Subnets          string
 	EC2
 }
 
 type EC2 struct {
-	AccessKey        string
-	AwsUser          string
-	Ami              string
-	VolumeSize       string
-	InstanceClass    string
-	Subnets          string
-	AvailabilityZone string
-	SgId             string
-	KeyName          string
+	AccessKey     string
+	AwsUser       string
+	Ami           string
+	VolumeSize    string
+	InstanceClass string
+	KeyName       string
 }
 
 type clusterConfig struct {
-	RenderedTemplate string
-	ExternalDb       string
-	DataStore        string
-	Product          string
-	Arch             string
-	Version          string
-	ServerFlags      string
+	DataStore           string
+	Product             string
+	Channel             string
+	InstallMethod       string
+	InstallMode         string
+	Arch                string
+	Version             string
+	ServerFlags         string
+	WorkerFlags         string
+	ExternalDbEndpoint  string
+	ExternalDb          string
+	ExternalDbVersion   string
+	ExternalDbGroupName string
+	ExternalDbNodeType  string
 }
 
 type bastionConfig struct {
@@ -129,9 +137,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			},
 		}, nil
 	}
-
 	var serverIPs, agentIPs []string
-
 	for i := range nodes {
 		if nodes[i].Roles == "<none>" && nodes[i].Roles != "control-plane" {
 			agentIPs = append(agentIPs, nodes[i].ExternalIP)
@@ -147,28 +153,32 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
 		Aws: AwsConfig{
-			Region: os.Getenv("region"),
+			Region:           os.Getenv("region"),
+			Subnets:          os.Getenv("subnets"),
+			SgId:             os.Getenv("sg_id"),
+			AvailabilityZone: os.Getenv("availability_zone"),
 			EC2: EC2{
-				AccessKey:        os.Getenv("access_key"),
-				AwsUser:          os.Getenv("aws_user"),
-				Ami:              os.Getenv("aws_ami"),
-				VolumeSize:       os.Getenv("volume_size"),
-				InstanceClass:    os.Getenv("ec2_instance_class"),
-				Subnets:          os.Getenv("subnets"),
-				AvailabilityZone: os.Getenv("availability_zone"),
-				SgId:             os.Getenv("sg_id"),
-				KeyName:          os.Getenv("key_name"),
+				AccessKey:     os.Getenv("access_key"),
+				AwsUser:       os.Getenv("aws_user"),
+				Ami:           os.Getenv("aws_ami"),
+				VolumeSize:    os.Getenv("volume_size"),
+				InstanceClass: os.Getenv("ec2_instance_class"),
+				KeyName:       os.Getenv("key_name"),
 			},
 		},
 		Config: clusterConfig{
-			Product:          os.Getenv("ENV_PRODUCT"),
-			RenderedTemplate: os.Getenv("rendered_template"),
-			DataStore:        os.Getenv("datastore_type"),
-			ExternalDb:       os.Getenv("external_db"),
-			Arch:             os.Getenv("arch"),
+			Product:             os.Getenv("ENV_PRODUCT"),
+			DataStore:           os.Getenv("datastore_type"),
+			ExternalDb:          os.Getenv("external_db"),
+			ExternalDbVersion:   os.Getenv("external_db_version"),
+			ExternalDbGroupName: os.Getenv("db_group_name"),
+			ExternalDbNodeType:  os.Getenv("instance_class"),
+			ExternalDbEndpoint:  os.Getenv("rendered_template"),
+			Arch:                os.Getenv("arch"),
 		},
 		BastionConfig: bastionConfig{
 			PublicIPv4Addr: os.Getenv("BASTION_IP"),
+			PublicDNS:      os.Getenv("bastion_dns"),
 		},
 		NodeOS: os.Getenv("node_os"),
 	}, nil
@@ -197,6 +207,7 @@ func newCluster(product, module string) (*Cluster, error) {
 	numBastion, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_bastion_nodes")
 	if err != nil {
 		LogLevel("debug", "no_of_bastion_nodes not found in tfvars")
+		c.NumBastion = 0
 	} else {
 		c.NumBastion, _ = strconv.Atoi(numBastion)
 	}

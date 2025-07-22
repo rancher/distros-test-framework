@@ -18,14 +18,18 @@ import (
 )
 
 var (
-	qaseReport = os.Getenv("REPORT_TO_QASE")
-	cluster    *shared.Cluster
-	cfg        *config.Env
-	err        error
+	qaseReport    = os.Getenv("REPORT_TO_QASE")
+	flags         = &customflag.ServiceFlag
+	cluster       *shared.Cluster
+	cfg           *config.Env
+	reportSummary string
+	reportErr     error
+	err           error
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -59,7 +63,12 @@ var _ = ReportAfterSuite("Reboot Instances Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+		reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+		if reportErr != nil {
+			shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+		}
+
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

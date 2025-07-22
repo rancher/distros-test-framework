@@ -96,6 +96,10 @@ resource "aws_instance" "master" {
     "kubernetes.io/cluster/clusterid" = "owned"
   }
 
+  provisioner "local-exec" {
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}"
+  }
+
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",

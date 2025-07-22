@@ -121,6 +121,8 @@ func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 		if err != nil {
 			return fmt.Errorf("error adding system default registry: %w", err)
 		}
+	default:
+		shared.LogLevel("error", "Invalid airgap method or not yet implemented: %s", airgapMethod)
 	}
 
 	shared.LogLevel("info", "Perform image pull/tag/push...")
@@ -205,9 +207,11 @@ func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType
 				if err != nil {
 					errChan <- shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
 				}
+			default:
+				shared.LogLevel("error", "Invalid airgap method: %s", airgapMethod)
 			}
 			shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
-			err = makeExecs(cluster, nodeIP)
+			err = makeExecutable(cluster, nodeIP)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
 			}
@@ -305,19 +309,25 @@ func copyRegistry(cluster *shared.Cluster, ip string) (err error) {
 }
 
 // CmdForPrivateNode command to run on private node via bastion.
-func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err error) {
+func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (string, error) {
 	awsUser := cluster.Aws.AwsUser
 	if HasWindowsAgent(cluster) {
 		if slices.Contains(cluster.WinAgentIPs, ip) {
 			awsUser = "Administrator"
 		}
 	}
+
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
 		ShCmdPrefix("ssh", cluster.Aws.KeyName),
 		awsUser, ip, cmd)
 	shared.LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
-	res, err = shared.RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
+
+	res, err := shared.RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		shared.LogLevel("error", "Error running command on private node %v: %v", ip, err)
+		return "", fmt.Errorf("error running command on private node %v: %w", ip, err)
+	}
 
 	return res, err
 }
@@ -343,8 +353,8 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 	return res, err
 }
 
-// makeExecs gives permission to files that makes them executable.
-func makeExecs(cluster *shared.Cluster, ip string) (err error) {
+// makeExecutable gives permission to files that makes them executable.
+func makeExecutable(cluster *shared.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
 	if cluster.Config.Product == "k3s" {
 		cmd += "; sudo cp k3s /usr/local/bin/k3s; " +

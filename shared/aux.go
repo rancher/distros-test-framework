@@ -154,20 +154,20 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			remotePath,
 		)
 
-		LogLevel("debug", "running scp command: %s\n", scp)
+		LogLevel("debug", "Running scp command: %s\n", scp)
 		res, cmdErr := RunCommandHost(scp)
 		if res != "" {
-			LogLevel("warn", "scp output: %s\n", res)
+			LogLevel("warn", "SCP output: %s\n", res)
 		}
 		if cmdErr != nil {
-			LogLevel("error", "failed to run scp: %v\n", cmdErr)
+			LogLevel("error", "Failed to run scp: %v\n", cmdErr)
 			return cmdErr
 		}
 
 		chmod := "sudo chmod +wx " + remotePath
 		_, cmdErr = RunCommandOnNode(chmod, ip)
 		if cmdErr != nil {
-			LogLevel("error", "failed to run chmod: %v\n", cmdErr)
+			LogLevel("error", "Failed to run chmod: %v\n", cmdErr)
 			return cmdErr
 		}
 	}

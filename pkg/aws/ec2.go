@@ -307,8 +307,8 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
 				DeviceIndex:              aws.Int64(0),
-				SubnetId:                 aws.String(c.infra.Aws.EC2.Subnets),
-				Groups:                   aws.StringSlice([]string{c.infra.Aws.EC2.SgId}),
+				SubnetId:                 aws.String(c.infra.Aws.Subnets),
+				Groups:                   aws.StringSlice([]string{c.infra.Aws.SgId}),
 			},
 		},
 		BlockDeviceMappings: []*ec2.BlockDeviceMapping{
@@ -321,7 +321,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 			},
 		},
 		Placement: &ec2.Placement{
-			AvailabilityZone: aws.String(c.infra.Aws.EC2.AvailabilityZone),
+			AvailabilityZone: aws.String(c.infra.Aws.AvailabilityZone),
 		},
 		TagSpecifications: []*ec2.TagSpecification{
 			{

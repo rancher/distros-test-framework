@@ -16,12 +16,14 @@ import (
 )
 
 var (
-	qaseReport = os.Getenv("REPORT_TO_QASE")
-	kubeconfig string
-	cluster    *shared.Cluster
-	flags      *customflag.FlagConfig
-	cfg        *config.Env
-	err        error
+	qaseReport    = os.Getenv("REPORT_TO_QASE")
+	kubeconfig    string
+	cluster       *shared.Cluster
+	flags         *customflag.FlagConfig
+	cfg           *config.Env
+	reportSummary string
+	reportErr     error
+	err           error
 )
 
 func TestMain(m *testing.M) {
@@ -64,7 +66,12 @@ var _ = ReportAfterSuite("Create Mixed OS Cluster Test Suite", func(report Repor
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+		reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+		if reportErr != nil {
+			shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+		}
+
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}

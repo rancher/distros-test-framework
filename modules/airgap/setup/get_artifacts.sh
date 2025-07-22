@@ -100,7 +100,7 @@ get_assets() {
       if [ -n "$tarball_type" ]; then
         download_retry "wget $url/rke2-images-core.linux-$arch.$tarball_type"
       fi
-    elif [[ -z "$server_flags" ]]; then
+    elif [[ -z "$server_flags" ]] || [[ "$server_flags" != *"cni"* ]]; then
       download_retry "wget $url/rke2-images.linux-$arch.txt"
       if [ -n "$tarball_type" ]; then
         download_retry "wget $url/rke2-images.linux-$arch.$tarball_type"
@@ -140,11 +140,13 @@ get_cni_assets() {
 
 get_windows_assets() {
   url=$(get_url)
+  echo "Download Windows assets using url: $url"
+  download_retry "wget $url/sha256sum-amd64.txt"
   download_retry "wget $url/rke2-images.windows-amd64.txt"
-  download_retry "wget $url/rke2-windows-amd64.exe"
   download_retry "wget $url/rke2.windows-amd64.tar.gz"
   if [ -n "$tarball_type" ]; then
-     download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
+    download_retry "wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/master/install.ps1"
+    download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
   fi
   # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
 }
@@ -155,7 +157,7 @@ save_to_directory() {
     folder="$folder-windows"
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
-    sudo cp -r ./*windows-amd64* "$folder"
+    sudo cp -r ./*windows-* sha256sum-amd64.txt "$folder"
   else
     echo "Saving $product dependencies in directory $folder..."
     sudo mkdir "$folder"
@@ -176,6 +178,6 @@ main() {
       save_to_directory
     fi
   fi
-  
+
 }
 main "$@"

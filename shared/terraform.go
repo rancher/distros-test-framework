@@ -76,14 +76,26 @@ func loadTFconfig(
 	c.Config.Arch = terraform.GetVariableAsStringFromVarFile(t, varDir, "arch")
 	c.Config.Product = product
 	c.Config.ServerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "server_flags")
+	c.Config.WorkerFlags = terraform.GetVariableAsStringFromVarFile(t, varDir, "worker_flags")
 	c.Config.DataStore = terraform.GetVariableAsStringFromVarFile(t, varDir, "datastore_type")
 	if c.Config.DataStore == "external" {
-		c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
-		c.Config.RenderedTemplate = terraform.Output(t, terraformOptions, "rendered_template")
+		loadExternalDb(t, varDir, c, terraformOptions)
 	}
+
 	if module == "airgap" || module == "ipv6only" {
+		// TODO: this needs to be fixed, locally we dont have 'install_version' in tfvars file.
+
 		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+	} else {
+		c.Config.Version = os.Getenv("INSTALL_VERSION")
 	}
+
+	channel := c.Config.Product + "_channel"
+	c.Config.Channel = terraform.GetVariableAsStringFromVarFile(t, varDir, channel)
+	if c.Config.Product == "rke2" {
+		c.Config.InstallMethod = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_method")
+	}
+	c.Config.InstallMode = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_mode")
 
 	return c, nil
 }
@@ -92,6 +104,10 @@ func loadAws(t *testing.T, varDir string, c *Cluster) {
 	c.Aws.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+	c.Aws.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
+	c.Aws.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
+	c.Aws.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
+	c.Aws.VPCID = terraform.GetVariableAsStringFromVarFile(t, varDir, "vpc_id")
 }
 
 func loadEC2(t *testing.T, varDir string, c *Cluster) {
@@ -100,10 +116,15 @@ func loadEC2(t *testing.T, varDir string, c *Cluster) {
 	c.Aws.EC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
 	c.Aws.EC2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
 	c.Aws.EC2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
-	c.Aws.EC2.Subnets = terraform.GetVariableAsStringFromVarFile(t, varDir, "subnets")
-	c.Aws.EC2.AvailabilityZone = terraform.GetVariableAsStringFromVarFile(t, varDir, "availability_zone")
-	c.Aws.EC2.SgId = terraform.GetVariableAsStringFromVarFile(t, varDir, "sg_id")
 	c.Aws.EC2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
+}
+
+func loadExternalDb(t *testing.T, varDir string, c *Cluster, terraformOptions *terraform.Options) {
+	c.Config.ExternalDbEndpoint = terraform.Output(t, terraformOptions, "rendered_template")
+	c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
+	c.Config.ExternalDbVersion = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db_version")
+	c.Config.ExternalDbGroupName = terraform.GetVariableAsStringFromVarFile(t, varDir, "db_group_name")
+	c.Config.ExternalDbNodeType = terraform.GetVariableAsStringFromVarFile(t, varDir, "instance_class")
 }
 
 func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {
