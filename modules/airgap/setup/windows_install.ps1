@@ -8,7 +8,6 @@ param (
 
 # Create dirs
 New-Item -Type Directory C:/etc/rancher/rke2 -Force
-New-Item -Type Directory C:/var/lib/rancher/rke2/agent/images/ -Force
 
 # Setting config
 Write-Host "Set config.yaml..."
@@ -35,14 +34,21 @@ if ($airgapMethod -like "private_registry") {
     Copy-Item C:/Users/Administrator/registries-windows.yaml C:/etc/rancher/rke2/registries.yaml
 }
 if ($airgapMethod -like "tarball") {
-    Write-Host "Copy tarball images..."
+    Write-Host "Copy tarball artifacts..."
+    New-Item -Type Directory C:/var/lib/rancher/rke2/agent/images -Force
     Copy-Item C:/Users/Administrator/rke2-windows-ltsc2022-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
+    New-Item -Type Directory C:/Users/Administrator/rke2-windows-artifacts
+    # TODO: for windows 2019
+    #Copy-Item C:/Users/Administrator/rke2-windows-1809-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
 }
 
-# Copying assets and starting rke2 service
-Write-Host "Copy agent image..."
-Copy-Item C:/Users/Administrator/rke2.windows-amd64.tar.gz C:/var/lib/rancher/rke2/agent/images/
+Copy-Item C:/Users/Administrator/rke2.windows-amd64.tar.gz C:/Users/Administrator/rke2-windows-artifacts/
+Copy-Item C:/Users/Administrator/sha256sum-amd64.txt C:/Users/Administrator/rke2-windows-artifacts/
+C:/Users/Administrator/rke2-install.ps1 -ArtifactPath C:/Users/Administrator/rke2-windows-artifacts
+
+# Starting rke2 service
 Write-Host "Add rke2 service..."
-C:/Users/Administrator/rke2-windows-amd64.exe agent service --add
+C:/usr/local/bin/rke2.exe agent service --add
 Write-Host "Start rke2 service..."
 Start-Service rke2
+

@@ -81,6 +81,7 @@ issues:
   exclude-files:
     - "pkg/testcase/selinux.go"
     - ".*_suite_test.go"
+    - "pkg/testcase/unit/rke2windowsutils_test.go"
   exclude-rules:
     - linters: [typecheck]
       text: "command-line-arguments"

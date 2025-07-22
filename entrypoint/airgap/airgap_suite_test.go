@@ -60,11 +60,6 @@ func validateAirgap() {
 		os.Exit(1)
 	}
 
-	if os.Getenv("arch") == "arm" {
-		shared.LogLevel("error", "airgap with arm architecture is not supported\n")
-		os.Exit(1)
-	}
-
 	if strings.Contains(os.Getenv("install_mode"), "COMMIT") {
 		shared.LogLevel("error", "airgap with commit installs is not supported\n")
 		os.Exit(1)

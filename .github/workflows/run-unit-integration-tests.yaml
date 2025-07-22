@@ -1,0 +1,70 @@
+name: Run Unit/Integration Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      testType:
+        description: 'Test type to run (unit or integration)'
+        required: true
+        default: ''
+      testName:
+        description: 'Test names to run (comma-separated, e.g., "TestA,TestB" or single test "TestA"). If blank, runs all tests in directory'
+        required: false
+        default: ''
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Cache Go Modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Go
+        uses: actions/setup-go@v5 
+        with:
+          go-version: '1.23.6'
+
+      - name: Run Go tests
+        env:
+          TEST_TYPE: "${{ inputs.testType }}"
+          TEST_NAME: "${{ inputs.testName }}"
+        run: |
+          TEST_DIR="./pkg/testcase/$TEST_TYPE"
+          echo "TEST_DIR: $TEST_DIR"
+          echo "TEST_NAME: $TEST_NAME"
+          echo "TEST_TYPE: $TEST_TYPE"
+
+          if [ -z "$TEST_NAME" ]; then
+            echo "Running all tests in $TEST_DIR"
+            go test -v "$TEST_DIR/..." 2>&1 | grep -v "coverage:" | tee test_output.txt
+          else
+            if [[ "$TEST_NAME" == *","* ]]; then
+              PATTERN="^($(echo "$TEST_NAME" | sed 's/,/|/g'))$"
+              echo "Running tests matching: '$PATTERN' in $TEST_DIR"
+            else
+              PATTERN="^${TEST_NAME}$"
+              echo "Running single test: '$PATTERN' in $TEST_DIR"
+            fi
+            
+            go test -v -run "$PATTERN" "$TEST_DIR" 2>&1 | grep -v "coverage:" | tee test_output.txt
+          fi
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ inputs.testType }}
+          path: test_output.txt
+          retention-days: 1
+
