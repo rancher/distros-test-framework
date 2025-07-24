@@ -102,7 +102,7 @@ resource "aws_instance" "master" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/optional_write_files.sh"
@@ -136,7 +136,7 @@ resource "aws_instance" "master" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
@@ -245,7 +245,7 @@ resource "aws_instance" "master2-ha" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/optional_write_files.sh"
@@ -279,7 +279,7 @@ resource "aws_instance" "master2-ha" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
