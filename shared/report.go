@@ -8,11 +8,11 @@ import (
 )
 
 type summaryReportData struct {
-	registries     string
-	registriesInfo string
-	configYaml     string
-	osReleaseData  string
-	summaryData    strings.Builder
+	registries    string
+	airgapInfo    string
+	configYaml    string
+	osReleaseData string
+	summaryData   strings.Builder
 }
 
 // SummaryReportData retrieves the config.yaml and os-release data from the cluster node and sends it to spec report.
@@ -27,11 +27,6 @@ func SummaryReportData(c *Cluster, flags *customflag.FlagConfig) (string, error)
 		if airgapDataErr := airgapNodeSummaryData(c, flags, &data); airgapDataErr != nil {
 			return "", fmt.Errorf("error retrieving airgap summary data: %w", airgapDataErr)
 		}
-	}
-
-	kernelErr := addKernelInfo(&data, c.ServerIPs[0])
-	if kernelErr != nil {
-		LogLevel("warn", "error retrieving kernel info: %v", kernelErr)
 	}
 
 	return data.summaryData.String(), nil
@@ -56,8 +51,8 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + data.configYaml)
 	data.summaryData.WriteString("\n")
 
-	// for now only gather info from RPM based if not airgap.
-	if IsRPMBasedOS(data.osReleaseData) {
+	// for now only gather selinux info from RPM based and not airgap nodes.
+	if isRPMBasedOS(data.osReleaseData) {
 		selinuxInfo := getSELinuxInfo(
 			c.Config.Product,
 			c.Config.InstallMethod,
@@ -71,59 +66,112 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 		}
 	}
 
+	// Kernel version from server node.
+	unameOutput, err := RunCommandOnNode("uname -r", c.ServerIPs[0])
+	if err != nil {
+		unameOutput = "Kernel version not found " + fmt.Sprintf("error: %v", err)
+		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
+
+		LogLevel("warn", "Kernel version not found on node %s", c.ServerIPs[0])
+	}
+	unameOutput = strings.TrimSpace(unameOutput)
+	if unameOutput != "" {
+		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
+	}
+
 	return nil
 }
 
 func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// config.yaml from server via bastion node.
-	chmod := fmt.Sprintf("sudo chmod 400 /tmp/%v.pem ", c.Aws.KeyName)
-	bastionPrefix := fmt.Sprintf(
-		"%s && ssh -i /tmp/%v.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes", chmod, c.Aws.KeyName)
-
-	target := fmt.Sprintf(" %s@%s 'cat /etc/rancher/%s/config.yaml'", c.Aws.AwsUser, c.ServerIPs[0], c.Config.Product)
-	cmd := bastionPrefix + target
-	LogLevel("debug", "Cmd on bastion node: %s", cmd)
-	res, err := RunCommandOnNode(cmd, c.BastionConfig.PublicIPv4Addr)
+	cfgCmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
+	cfg, err := remoteExec(c.Aws.KeyName, c.Aws.AwsUser, c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, cfgCmd)
 	if err != nil {
-		return fmt.Errorf("error retrieving config.yaml from server: %s, via bastion:%s, %w",
-			c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, err)
+		return fmt.Errorf("retrieving config.yaml: %w", err)
 	}
-	data.configYaml = strings.TrimSpace(res)
+	data.configYaml = strings.TrimSpace(cfg)
 
-	data.registriesInfo = fmt.Sprintf(
+	// registries.yaml from bastion node id tag is privateregistry.
+	if c.TestConfig.Tag == "privateregistry" {
+		pvRg := getPrivateRegistries(c.BastionConfig.PublicIPv4Addr, data)
+		if pvRg != nil {
+			return fmt.Errorf("error retrieving private registries: %w", pvRg)
+		}
+	}
+
+	// /etc/os-release from server via bastion node.
+	osRelease, osReleaseErr := remoteExec(
+		c.Aws.KeyName,
+		c.Aws.AwsUser,
+		c.ServerIPs[0],
+		c.BastionConfig.PublicIPv4Addr,
+		"cat /etc/os-release",
+	)
+	if osReleaseErr != nil {
+		return fmt.Errorf("retrieving os-release: %w", osReleaseErr)
+	}
+	data.osReleaseData = strings.TrimSpace(osRelease)
+
+	// Kernel version from server node via bastion node.
+	unameOutput, unameErr := remoteExec(
+		c.Aws.KeyName,
+		c.Aws.AwsUser,
+		c.ServerIPs[0],
+		c.BastionConfig.PublicIPv4Addr,
+		"uname -r",
+	)
+	if unameErr != nil {
+		unameOutput = "Kernel version not found " + fmt.Sprint("error: %w", unameErr)
+		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
+
+		LogLevel("warn", "Kernel version not found on node %s via bastion %s: %v",
+			c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, unameErr)
+	}
+	unameOutput = strings.TrimSpace(unameOutput)
+
+	// airgap info from environment variables/flags.
+	data.airgapInfo = fmt.Sprintf(
 		"\nurl: %s\nhost: %s\nusername: %s\npassword: %s",
 		flags.AirgapFlag.ImageRegistryUrl,
 		c.BastionConfig.PublicDNS,
 		flags.AirgapFlag.RegistryUsername,
 		flags.AirgapFlag.RegistryPassword,
 	)
-
-	// registries.yaml on bastion node itself.
-	regs, regErr := RunCommandOnNode("cat registries.yaml", c.BastionConfig.PublicIPv4Addr)
-	if regErr != nil {
-		return fmt.Errorf("error retrieving registries.yaml from bastion node: %s, %w",
-			c.BastionConfig.PublicIPv4Addr, regErr)
-	}
-	data.registries = strings.TrimSpace(regs)
-
-	// /etc/os-release from server via bastion node.
-	osRelease, osReleaseErr := RunCommandOnNode("cat /etc/os-release", c.BastionConfig.PublicIPv4Addr)
-	if osReleaseErr != nil {
-		return fmt.Errorf("error retrieving os-release from server: %s, via bastion:%s, %w",
-			c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, osReleaseErr)
-	}
-	data.osReleaseData = strings.TrimSpace(osRelease)
-
-	data.summaryData.WriteString("\n" + "***Registries***" + "\n" + data.registries + "\n")
-	data.summaryData.WriteString("\n" + "**Airgap-Info**" + "\n" + data.registriesInfo + "\n")
-	data.summaryData.WriteString("\n" + "**OS Release**" + "\n" + data.osReleaseData + "\n")
 	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + data.configYaml + "\n")
+	data.summaryData.WriteString("\n" + "**OS Release**" + "\n" + data.osReleaseData + "\n")
+	data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
+	data.summaryData.WriteString("\n" + "**Airgap-Info**" + data.airgapInfo + "\n")
 
 	return nil
 }
 
-// IsRPMBasedOS checks if the operating system is RPM-based by examining the OS release data.
-func IsRPMBasedOS(osReleaseData string) bool {
+func getPrivateRegistries(bastionIP string, data *summaryReportData) error {
+	// registries.yaml on bastion node itself.
+	privateRegistries, regErr := RunCommandOnNode("cat registries.yaml", bastionIP)
+	if regErr != nil {
+		return fmt.Errorf("error retrieving registries.yaml from bastion node: %s, %w",
+			bastionIP, regErr)
+	}
+	data.registries = strings.TrimSpace(privateRegistries)
+	data.summaryData.WriteString("\n" + "Registries" + "\n" + data.registries + "\n")
+
+	return nil
+}
+
+// remoteExec little helper that executes a command on a remote server.
+func remoteExec(keyName, user, serverIP, bastionIP, cmd string) (string, error) {
+	chmod := fmt.Sprintf("sudo chmod 400 /tmp/%s.pem", keyName)
+	ssh := fmt.Sprintf(
+		"ssh -i /tmp/%s.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes %s@%s",
+		keyName, user, serverIP,
+	)
+	targetCmd := fmt.Sprintf("%s && %s '%s'", chmod, ssh, cmd)
+
+	return RunCommandOnNode(targetCmd, bastionIP)
+}
+
+// isRPMBasedOS checks if the operating system is RPM-based by examining the OS release data.
+func isRPMBasedOS(osReleaseData string) bool {
 	rpmBasedDistros := []string{
 		"rhel", "centos", "fedora", "rocky", "opensuse", "sles", "micro",
 	}
@@ -198,22 +246,4 @@ func getSELinuxInfo(product, installMethod, nodeIP string) string {
 	}
 
 	return selinuxInfo.String()
-}
-
-// addKernelInfo adds kernel information to the summary report data.
-func addKernelInfo(data *summaryReportData, nodeIP string) error {
-	unameCmd := "uname -r"
-	unameOutput, err := RunCommandOnNode(unameCmd, nodeIP)
-	if err != nil {
-		return fmt.Errorf("failed to run command '%s' on node %s: %w", unameCmd, nodeIP, err)
-	}
-
-	unameOutput = strings.TrimSpace(unameOutput)
-	if unameOutput != "" {
-		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
-	} else {
-		unameOutput = "Kernel version not found"
-	}
-
-	return nil
 }

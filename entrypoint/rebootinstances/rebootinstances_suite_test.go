@@ -63,11 +63,6 @@ var _ = ReportAfterSuite("Reboot Instances Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
-		if reportErr != nil {
-			shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
-		}
-
 		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
@@ -75,6 +70,11 @@ var _ = ReportAfterSuite("Reboot Instances Test Suite", func(report Report) {
 })
 
 var _ = AfterSuite(func() {
+	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())

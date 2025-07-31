@@ -29,8 +29,9 @@ var (
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.Var(&customflag.ServiceFlag.SelinuxTest, "selinux", "Run selinux test")
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.Var(&flags.SelinuxTest, "selinux", "Run selinux test")
+	flag.Var(&flags.KillAllUninstallTest, "killalluninstall", "Run killall-uninstall test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -73,11 +74,6 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
-		if reportErr != nil {
-			shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
-		}
-
 		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
@@ -85,17 +81,24 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 })
 
 var _ = AfterSuite(func() {
+	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
 	if customflag.ServiceFlag.Destroy {
-		shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
-		testcase.TestKillAllUninstall(cluster, cfg)
+		if customflag.ServiceFlag.KillAllUninstallTest {
+			if !strings.Contains(os.Getenv("server_flags"), "docker: true") {
+				shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
+				testcase.TestKillAllUninstall(cluster, cfg)
+			}
+		}
 
 		if customflag.ServiceFlag.SelinuxTest {
-			shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
 			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+				shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
 				testcase.TestUninstallPolicy(cluster, false)
 			}
-		} else {
-			shared.LogLevel("info", "Skipping selinux tests")
 		}
 
 		status, err := shared.DestroyCluster(cfg)

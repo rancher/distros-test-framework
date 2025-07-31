@@ -32,6 +32,7 @@ type Cluster struct {
 	Aws           AwsConfig
 	BastionConfig bastionConfig
 	NodeOS        string
+	TestConfig    testConfig
 }
 
 type AwsConfig struct {
@@ -69,6 +70,10 @@ type clusterConfig struct {
 	ExternalDbVersion   string
 	ExternalDbGroupName string
 	ExternalDbNodeType  string
+}
+
+type testConfig struct {
+	Tag string
 }
 
 type bastionConfig struct {

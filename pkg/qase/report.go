@@ -311,7 +311,6 @@ func formatClusterConfig(c *shared.Cluster) string {
 		{"Datastore", c.Config.DataStore},
 		{"Architecture", c.Config.Arch},
 		{"Node OS", c.NodeOS},
-		{"", ""},
 	}
 
 	return formatSection("Cluster Configuration", clusterInfo)

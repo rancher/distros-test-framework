@@ -7,8 +7,8 @@ exec 2> podman_cmds.log
 # echo "$@"
 
 # Perform image pull/tag/push/validate operations on listed images
-# Usage: ./podman_cmds product hostdns username password registry_url
-# Usage: ./podman_cmds k3s ec2-host.com testuser testpass example.registry.com
+# Usage: ./podman_cmds.sh "product" "platform" "hostdns" "username" "password" "registry_url"
+# Usage: ./podman_cmds.sh "k3s" "ec2-host.com" "testuser" "testpass" "example.registry.com"
 
 # Define the input file
 product=${1}

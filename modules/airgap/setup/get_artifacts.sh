@@ -178,6 +178,6 @@ main() {
       save_to_directory
     fi
   fi
-
 }
+
 main "$@"

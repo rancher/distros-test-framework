@@ -58,6 +58,11 @@ func loadTFconfig(
 	LogLevel("info", "Loading tfvars in to ec2 config....")
 	loadEC2(t, varDir, c)
 
+	err := loadTestConfig(&c.TestConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error loading test config: %w", err)
+	}
+
 	if product == "rke2" {
 		numWinAgents, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_windows_worker_nodes")
 		if err != nil {
@@ -82,13 +87,7 @@ func loadTFconfig(
 		loadExternalDb(t, varDir, c, terraformOptions)
 	}
 
-	if module == "airgap" || module == "ipv6only" {
-		// TODO: this needs to be fixed, locally we dont have 'install_version' in tfvars file.
-
-		c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
-	} else {
-		c.Config.Version = os.Getenv("INSTALL_VERSION")
-	}
+	loadVersion(t, c, module, varDir)
 
 	channel := c.Config.Product + "_channel"
 	c.Config.Channel = terraform.GetVariableAsStringFromVarFile(t, varDir, channel)
@@ -98,6 +97,18 @@ func loadTFconfig(
 	c.Config.InstallMode = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_mode")
 
 	return c, nil
+}
+
+func loadVersion(t *testing.T, c *Cluster, module, varDir string) {
+	if module == "airgap" || module == "ipv6only" {
+		installVersion := terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
+		if installVersion != "" {
+			c.Config.Version = installVersion
+		} else {
+			version := c.Config.Product + "_version"
+			c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, version)
+		}
+	}
 }
 
 func loadAws(t *testing.T, varDir string, c *Cluster) {
@@ -125,6 +136,40 @@ func loadExternalDb(t *testing.T, varDir string, c *Cluster, terraformOptions *t
 	c.Config.ExternalDbVersion = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db_version")
 	c.Config.ExternalDbGroupName = terraform.GetVariableAsStringFromVarFile(t, varDir, "db_group_name")
 	c.Config.ExternalDbNodeType = terraform.GetVariableAsStringFromVarFile(t, varDir, "instance_class")
+}
+
+func loadTestConfig(tc *testConfig) error {
+	// extracting test tag from environment variables.
+	// should pull from jenkins or local env.
+	// for now only dealing with test tag.
+	argsFromJenkins := os.Getenv("TEST_ARGS")
+	if argsFromJenkins != "" {
+		cmdStart := strings.Index(argsFromJenkins, "-tags=")
+		if cmdStart == -1 {
+			LogLevel("debug", "tags value not found in test args %v", argsFromJenkins)
+			return nil
+		}
+		testTag := strings.TrimSpace(argsFromJenkins[cmdStart+len("-tags="):])
+		// take the first word after -tags=.
+		testTag = strings.Split(testTag, " ")[0]
+		if testTag != "" {
+			tc.Tag = testTag
+			LogLevel("debug", "Test tag extracted from Jenkins: %s", tc.Tag)
+			return nil
+		}
+		LogLevel("debug", "No test tag found in Jenkins args: %v", argsFromJenkins)
+
+		return nil
+	}
+
+	if tag := os.Getenv("TEST_TAG"); tag != "" {
+		tc.Tag = tag
+		LogLevel("debug", "Test tag extracted from local env: %s", tc.Tag)
+
+		return nil
+	}
+
+	return nil
 }
 
 func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {

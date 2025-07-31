@@ -69,6 +69,11 @@ func TestClusterResetRestoreSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
+	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
@@ -81,11 +86,6 @@ var _ = ReportAfterSuite("Cluster Reset Restore Test Suite", func(report Report)
 	if strings.ToLower(qaseReport) == "true" {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
-
-		reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
-		if reportErr != nil {
-			shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
-		}
 
 		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
