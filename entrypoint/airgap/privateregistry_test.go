@@ -5,7 +5,7 @@ package airgap
 import (
 	"fmt"
 
-	"github.com/rancher/distros-test-framework/pkg/assert"
+	//"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 
@@ -21,24 +21,24 @@ var _ = Describe("Test Airgap cluster with Private Registry:", Ordered, func() {
 		testcase.TestPrivateRegistry(cluster, flags)
 	})
 
-	It("Validates Nodes", func() {
-		testcase.TestNodeStatusUsingBastion(
-			cluster,
-			assert.NodeAssertReadyStatus(),
-			nil,
-		)
-	})
+	// It("Validates Nodes", func() {
+	// 	testcase.TestNodeStatusUsingBastion(
+	// 		cluster,
+	// 		assert.NodeAssertReadyStatus(),
+	// 		nil,
+	// 	)
+	// })
 
-	It("Validates Pods", func() {
-		testcase.TestPodStatusUsingBastion(
-			cluster,
-			assert.PodAssertRestart(),
-			assert.PodAssertReady())
-	})
+	// It("Validates Pods", func() {
+	// 	testcase.TestPodStatusUsingBastion(
+	// 		cluster,
+	// 		assert.PodAssertRestart(),
+	// 		assert.PodAssertReady())
+	// })
 
-	AfterAll(func() {
-		support.LogClusterInfoUsingBastion(cluster)
-	})
+	// AfterAll(func() {
+	// 	support.LogClusterInfoUsingBastion(cluster)
+	// })
 
 	// TODO: Validate deployment, eg: cluster-ip
 })

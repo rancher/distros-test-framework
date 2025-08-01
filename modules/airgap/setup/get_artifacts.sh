@@ -144,8 +144,8 @@ get_windows_assets() {
   download_retry "wget $url/sha256sum-amd64.txt"
   download_retry "wget $url/rke2-images.windows-amd64.txt"
   download_retry "wget $url/rke2.windows-amd64.tar.gz"
+  download_retry "wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/master/install.ps1"
   if [ -n "$tarball_type" ]; then
-    download_retry "wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/master/install.ps1"
     download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
   fi
   # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
