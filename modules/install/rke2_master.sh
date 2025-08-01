@@ -106,6 +106,12 @@ disable_cloud_setup() {
       echo -e "$workaround" >>/etc/NetworkManager/conf.d/canal.conf
     fi
   fi
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      sysctl -w net.ipv6.conf.all.accept_ra=2
+    fi
+  fi
 }
 
 cis_setup() {
