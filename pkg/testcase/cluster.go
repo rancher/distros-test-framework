@@ -25,7 +25,7 @@ func TestBuildCluster(cluster *shared.Cluster) {
 		cmd := fmt.Sprintf("sudo grep \"datastore-endpoint\" /etc/rancher/%s/config.yaml", cluster.Config.Product)
 		res, err := shared.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
-		Expect(res).Should(ContainSubstring(cluster.Config.RenderedTemplate))
+		Expect(res).Should(ContainSubstring(cluster.Config.ExternalDbEndpoint))
 	}
 
 	shared.LogLevel("info", "KUBECONFIG: ")
@@ -43,7 +43,7 @@ func TestBuildCluster(cluster *shared.Cluster) {
 
 	support.LogAgentNodeIPs(cluster.NumAgents, cluster.AgentIPs, false)
 
-	if cluster.Config.Product == "rke2" {
+	if cluster.Config.Product == "rke2" && cluster.NumWinAgents > 0 {
 		support.LogAgentNodeIPs(cluster.NumWinAgents, cluster.WinAgentIPs, true)
 	}
 }

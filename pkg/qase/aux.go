@@ -122,3 +122,16 @@ func formatTotalTime(start, end time.Time) string {
 
 	return fmt.Sprintf("%dm:%ds", minutes, seconds)
 }
+
+// formatSection is a helper function to format a configuration section.
+func formatSection(title string, items []struct{ labelKey, value string }) string {
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString("**" + strings.TrimSpace(title) + "**:" + "\n")
+	sb.WriteString("\n")
+	for _, item := range items {
+		sb.WriteString(fmt.Sprintf("- **%s:** %s\n", item.labelKey, item.value))
+	}
+
+	return sb.String()
+}

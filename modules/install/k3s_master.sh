@@ -116,6 +116,13 @@ disable_cloud_setup() {
 }
 
 install_k3s() {
+  if [[ "$node_os" == *"sles"* ]] || [[ "$node_os" == *"slemicro"* ]]; then
+      echo "Checking for package manager locks if so, removing them."
+      pkill -f zypper 2>/dev/null || true
+      rm -f /var/run/zypp.pid 2>/dev/null || true
+      sleep 2
+  fi
+
   url="https://get.k3s.io"
   params="$install_mode=$version"
 

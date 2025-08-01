@@ -135,6 +135,13 @@ EOF
 }
 
 install_rke2() {
+  if [[ "$node_os" == *"sles"* ]]; then
+     echo "Checking for package manager locks if so, removing them."
+     pkill -f zypper 2>/dev/null || true
+     rm -f /var/run/zypp.pid 2>/dev/null || true
+     sleep 2
+  fi
+
   url="https://get.rke2.io"
   params="$install_mode=$version"
   

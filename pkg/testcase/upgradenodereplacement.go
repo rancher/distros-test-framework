@@ -302,7 +302,7 @@ func buildK3sCmd(
 			installEnableOrBoth,
 		)
 	} else {
-		datastoreEndpoint := cluster.Config.RenderedTemplate
+		datastoreEndpoint := cluster.Config.ExternalDb
 		cmd = fmt.Sprintf(
 			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
@@ -356,7 +356,7 @@ func buildRke2Cmd(
 			installEnableOrBoth,
 		)
 	} else {
-		datastoreEndpoint := cluster.Config.RenderedTemplate
+		datastoreEndpoint := cluster.Config.ExternalDb
 		arguments := fmt.Sprintf(
 			"'%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			cluster.NodeOS,

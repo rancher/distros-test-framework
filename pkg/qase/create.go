@@ -106,7 +106,8 @@ func (c Client) createTestResult(ctx context.Context, req *createResultRequest) 
 		return fmt.Errorf("failed to create test result: %w, response: %v", err, httpRes)
 	}
 
-	shared.LogLevel("info", "Test result created: %v\n", &res.Status)
+	shared.LogLevel("info", "Test result created: %t for project: %s, run: %d",
+		res.GetStatus(), req.projectID, req.runID)
 
 	return nil
 }
@@ -136,7 +137,8 @@ func (c Client) createBulkTestResult(reqs []createResultRequest) error {
 		return fmt.Errorf("failed to create test result: %w, response: %v", err, httpRes)
 	}
 
-	shared.LogLevel("debug", "Test result created: %v\n", &res)
+	shared.LogLevel("debug", "Test result created: %t, for project: %s, run: %d",
+		res.GetStatus(), projectID, reqs[0].runID)
 
 	return nil
 }

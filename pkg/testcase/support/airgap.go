@@ -3,7 +3,6 @@ package support
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -38,9 +37,8 @@ func BuildAirgapCluster(cluster *shared.Cluster) {
 }
 
 func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
-	serverFlags := os.Getenv("server_flags")
-	if airgapMethod == SystemDefaultRegistry && !strings.Contains(serverFlags, "system-default-registry") {
-		serverFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+	if airgapMethod == SystemDefaultRegistry && !strings.Contains(cluster.Config.ServerFlags, "system-default-registry") {
+		cluster.Config.ServerFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 	}
 
 	for idx, serverIP := range cluster.ServerIPs {
@@ -50,7 +48,7 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
 					`sudo ./install_product.sh "%v" "" "" "server" "%v" "%v"`,
-				cluster.Config.Product, serverIP, serverFlags)
+				cluster.Config.Product, serverIP, cluster.Config.ServerFlags)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 
@@ -67,7 +65,7 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 			cmd := fmt.Sprintf(
 				"sudo chmod +x install_product.sh; "+
 					`sudo ./install_product.sh "%v" "%v" "%v" "server" "%v" "%v"`,
-				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP, serverFlags)
+				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP, cluster.Config.ServerFlags)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
 			Expect(err).To(BeNil(), err)
 		}
@@ -82,10 +80,10 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 }
 
 func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
-	agentFlags := os.Getenv("worker_flags")
 	if cluster.Config.Product == "rke2" {
-		if airgapMethod == SystemDefaultRegistry && !strings.Contains(agentFlags, "system-default-registry") {
-			agentFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
+		if airgapMethod == SystemDefaultRegistry &&
+			!strings.Contains(cluster.Config.WorkerFlags, "system-default-registry") {
+			cluster.Config.WorkerFlags += "\nsystem-default-registry: " + cluster.BastionConfig.PublicDNS
 		}
 	}
 
@@ -94,7 +92,7 @@ func InstallOnAirgapAgents(cluster *shared.Cluster, airgapMethod string) {
 		cmd := fmt.Sprintf(
 			"sudo chmod +x install_product.sh; "+
 				`sudo ./install_product.sh "%v" "%v" "%v" "agent" "%v" "%v"`,
-			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP, agentFlags)
+			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP, cluster.Config.WorkerFlags)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
@@ -121,6 +119,8 @@ func SetupAirgapRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig, 
 		if err != nil {
 			return fmt.Errorf("error adding system default registry: %w", err)
 		}
+	default:
+		shared.LogLevel("error", "Invalid airgap method or not yet implemented: %s", airgapMethod)
 	}
 
 	shared.LogLevel("info", "Perform image pull/tag/push...")
@@ -205,9 +205,11 @@ func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType
 				if err != nil {
 					errChan <- shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
 				}
+			default:
+				shared.LogLevel("error", "Invalid airgap method: %s", airgapMethod)
 			}
 			shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
-			err = makeExecs(cluster, nodeIP)
+			err = makeExecutable(cluster, nodeIP)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
 			}
@@ -312,19 +314,23 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 			awsUser = "Administrator"
 		}
 	}
+
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
 		ShCmdPrefix("ssh", cluster.Aws.KeyName),
 		awsUser, ip, cmd)
 	shared.LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
+
 	res, err = shared.RunCommandOnNode(serverCmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		return "", fmt.Errorf("error running command on private node %v: %w", ip, err)
+	}
 
 	return res, err
 }
 
 // GetArtifacts executes get_artifacts.sh script.
 func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType string) (res string, err error) {
-	serverFlags := os.Getenv("server_flags")
 	version := cluster.Config.Version
 	if platform == "" {
 		platform = "linux"
@@ -337,14 +343,14 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 		"sudo chmod +x get_artifacts.sh && "+
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, version, platform,
-		cluster.Config.Arch, registryURL, serverFlags, tarballType)
+		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
 }
 
-// makeExecs gives permission to files that makes them executable.
-func makeExecs(cluster *shared.Cluster, ip string) (err error) {
+// makeExecutable gives necessary permission to files through chmod.
+func makeExecutable(cluster *shared.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
 	if cluster.Config.Product == "k3s" {
 		cmd += "; sudo cp k3s /usr/local/bin/k3s; " +

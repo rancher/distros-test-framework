@@ -25,6 +25,11 @@ resource "aws_instance" "worker" {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
     Team                 = local.resource_tag
   }
+
+  provisioner "local-exec" {
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}"
+  }
+
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
