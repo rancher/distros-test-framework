@@ -55,6 +55,11 @@ install_kubectl() {
 install_podman() {
   [ -r /etc/os-release ] && . /etc/os-release
   if [ "$(expr "${ID_LIKE}" : ".*suse.*")" != 0 ]; then
+    echo "Checking for package manager locks if so, removing them."
+    pkill -f zypper 2>/dev/null || true
+    rm -f /var/run/zypp.pid 2>/dev/null || true
+    sleep 2
+    
     echo "Installing podman using zypper..."
     zypper install -y podman
   else
