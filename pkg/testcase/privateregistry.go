@@ -21,27 +21,27 @@ func TestPrivateRegistry(cluster *shared.Cluster, flags *customflag.FlagConfig) 
 	err = support.CopyAssetsOnNodes(cluster, support.PrivateRegistry, nil)
 	Expect(err).To(BeNil(), err)
 
-	// shared.LogLevel("info", "Install %v on airgap nodes...", cluster.Config.Product)
-	// support.InstallOnAirgapServers(cluster, support.PrivateRegistry)
-	// shared.LogLevel("info", "%v install on airgap servers: Completed!", cluster.Config.Product)
+	shared.LogLevel("info", "Install %v on airgap nodes...", cluster.Config.Product)
+	support.InstallOnAirgapServers(cluster, support.PrivateRegistry)
+	shared.LogLevel("info", "%v install on airgap servers: Completed!", cluster.Config.Product)
 
-	// support.InstallOnAirgapAgents(cluster, support.PrivateRegistry)
-	// shared.LogLevel("info", "%v install on airgap agents: Completed!", cluster.Config.Product)
+	support.InstallOnAirgapAgents(cluster, support.PrivateRegistry)
+	shared.LogLevel("info", "%v install on airgap agents: Completed!", cluster.Config.Product)
 
-	// if support.HasWindowsAgent(cluster) {
-	// 	shared.LogLevel("info", "Configure registry for Windows...")
-	// 	err = support.ConfigureRegistryWindows(cluster, flags)
-	// 	Expect(err).To(BeNil(), err)
+	if support.HasWindowsAgent(cluster) {
+		shared.LogLevel("info", "Configure registry for Windows...")
+		err = support.ConfigureRegistryWindows(cluster, flags)
+		Expect(err).To(BeNil(), err)
 
-	// 	shared.LogLevel("info", "Update and copy registries.yaml for Windows on bastion...")
-	// 	err = support.UpdateRegistryFileWindows(cluster, flags)
-	// 	Expect(err).To(BeNil(), err)
+		shared.LogLevel("info", "Update and copy registries.yaml for Windows on bastion...")
+		err = support.UpdateRegistryFileWindows(cluster, flags)
+		Expect(err).To(BeNil(), err)
 
-	// 	shared.LogLevel("info", "Copy assets on Windows airgap nodes...")
-	// 	err = support.CopyAssetsOnNodesWindows(cluster, support.PrivateRegistry)
-	// 	Expect(err).To(BeNil(), err)
+		shared.LogLevel("info", "Copy assets on Windows airgap nodes...")
+		err = support.CopyAssetsOnNodesWindows(cluster, support.PrivateRegistry)
+		Expect(err).To(BeNil(), err)
 
-	// 	support.InstallOnAirgapAgentsWindows(cluster, support.PrivateRegistry)
-	// 	shared.LogLevel("info", "%v install on airgap Windows agents: Completed!", cluster.Config.Product)
-	// }
+		support.InstallOnAirgapAgentsWindows(cluster, support.PrivateRegistry)
+		shared.LogLevel("info", "%v install on airgap Windows agents: Completed!", cluster.Config.Product)
+	}
 }
