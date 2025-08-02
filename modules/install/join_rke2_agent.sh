@@ -155,7 +155,8 @@ disable_cloud_setup() {
   if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
     if [ -n "$ipv6_ip" ]; then
       echo "Configuring sysctl for ipv6"
-      sysctl -w net.ipv6.conf.all.accept_ra=2
+      echo "net.ipv6.conf.all.accept_ra=2" > /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
     fi
   fi
 }
