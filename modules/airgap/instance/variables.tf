@@ -35,10 +35,10 @@ variable "enable_ipv6" {
   default = false
 }
 variable "install_mode" {}
-variable "install_version" {}
-variable "install_channel" {
-  default = "testing"
-}
+# variable "install_version" {}
+# variable "install_channel" {
+#   default = "testing"
+# }
 variable "install_method" {
   default = ""
 }

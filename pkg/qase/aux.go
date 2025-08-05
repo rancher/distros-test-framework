@@ -129,9 +129,13 @@ func formatSection(title string, items []struct{ labelKey, value string }) strin
 	sb.WriteString("\n")
 	sb.WriteString("**" + strings.TrimSpace(title) + "**:" + "\n")
 	sb.WriteString("\n")
+
 	for _, item := range items {
 		sb.WriteString(fmt.Sprintf("- **%s:** %s\n", item.labelKey, item.value))
 	}
+
+	sb.WriteString("\n")
+	sb.WriteString("\n")
 
 	return sb.String()
 }

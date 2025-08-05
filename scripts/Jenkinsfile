@@ -72,11 +72,11 @@ node {
                     def version_param_name = "${env.PRODUCT_NAME}_version"
                     def channel_param_name = "${env.PRODUCT_NAME}_channel"
                     //for airgap, remove after standarization
-                    if (env.MODULE) {
-                       data += "ENV_MODULE=${env.MODULE}\n"
-                       version_param_name = "install_version"
-                       channel_param_name = "install_channel"
-                    }
+//                     if (env.MODULE) {
+//                        data += "ENV_MODULE=${env.MODULE}\n"
+//                        version_param_name = "install_version"
+//                        channel_param_name = "install_channel"
+//                     }
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
                   //update tfvars file

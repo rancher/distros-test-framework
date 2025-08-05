@@ -194,7 +194,7 @@ func parseResults(
 				codeLocationLink, updatedFullStackTrace,
 			)
 		}
-		testResSummary += fmt.Sprintf("\n\n"+"Failed sub-tests:\n%s"+"\n", comments)
+		testResSummary += fmt.Sprintf("\n"+"\n"+"Failed sub-tests:\n%s"+"\n", comments)
 		req.comment = newNullableString(testResSummary)
 	} else {
 		req.status = passStatus
@@ -248,7 +248,6 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 		finalStatus := passStatus
 		var totalElapsed int64
 		var commentBuilder strings.Builder
-
 		commentBuilder.WriteString("Version Tested: Latest master commit ,see link above on description!")
 
 		for _, tc := range group {
@@ -290,10 +289,8 @@ func tcResultSummary(c *shared.Cluster, reportSummary string) string {
 	reportSummaryBuilder.WriteString(reportSummary)
 
 	reportSummaryBuilder.WriteString(formatClusterConfig(c))
-	reportSummaryBuilder.WriteString("\n")
 
 	reportSummaryBuilder.WriteString(formatAWSConfig(c))
-	reportSummaryBuilder.WriteString("\n")
 
 	reportSummaryBuilder.WriteString(formatOptionalConfigs(c))
 

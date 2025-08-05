@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
@@ -39,7 +41,10 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 		return fmt.Errorf("error retrieving os-release from server: %s, %w", c.ServerIPs[0], err)
 	}
 	data.osReleaseData = strings.TrimSpace(res)
-	data.summaryData.WriteString("\n" + "**OS Release**" + "\n" + data.osReleaseData + "\n\n")
+	data.summaryData.WriteString("\n" + "**OS Release**" + "\n\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.osReleaseData)
+	data.summaryData.WriteString("\n```\n")
 
 	// config.yaml from server node.
 	cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
@@ -48,8 +53,10 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 		return fmt.Errorf("error retrieving config.yaml from server: %s, %w", c.ServerIPs[0], configYamlErr)
 	}
 	data.configYaml = strings.TrimSpace(catConfigYaml)
-	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + data.configYaml)
-	data.summaryData.WriteString("\n")
+	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.configYaml)
+	data.summaryData.WriteString("\n```\n")
 
 	// for now only gather selinux info from RPM based and not airgap nodes.
 	if isRPMBasedOS(data.osReleaseData) {
@@ -58,7 +65,6 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 			c.Config.InstallMethod,
 			c.ServerIPs[0],
 		)
-
 		if selinuxInfo != "" {
 			data.summaryData.WriteString("\n")
 			data.summaryData.WriteString("\n" + "**SELinux Information**" + "\n" + selinuxInfo)
@@ -76,12 +82,22 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 	}
 	unameOutput = strings.TrimSpace(unameOutput)
 	if unameOutput != "" {
-		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
+		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n")
+		data.summaryData.WriteString("```yaml\n")
+		data.summaryData.WriteString(unameOutput)
+		data.summaryData.WriteString("\n```\n")
+	}
+
+	// TODO: ADD split roles data once on airgap is supported.
+	if c.Config.SplitRoles.Add {
+		splitRoleData := getSplitRoleData(&c.Config, c.ServerIPs)
+		data.summaryData.WriteString(splitRoleData)
 	}
 
 	return nil
 }
 
+//nolint:funlen // yep, but this makes more clear being one function.
 func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// config.yaml from server via bastion node.
 	cfgCmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
@@ -90,7 +106,6 @@ func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summa
 		return fmt.Errorf("retrieving config.yaml: %w", err)
 	}
 	data.configYaml = strings.TrimSpace(cfg)
-
 	// registries.yaml from bastion node id tag is privateregistry.
 	if c.TestConfig.Tag == "privateregistry" {
 		pvRg := getPrivateRegistries(c.BastionConfig.PublicIPv4Addr, data)
@@ -137,10 +152,26 @@ func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summa
 		flags.AirgapFlag.RegistryUsername,
 		flags.AirgapFlag.RegistryPassword,
 	)
-	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + data.configYaml + "\n")
-	data.summaryData.WriteString("\n" + "**OS Release**" + "\n" + data.osReleaseData + "\n")
-	data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
-	data.summaryData.WriteString("\n" + "**Airgap-Info**" + data.airgapInfo + "\n")
+
+	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.configYaml)
+	data.summaryData.WriteString("\n```\n")
+
+	data.summaryData.WriteString("\n" + "**OS Release**" + "\n" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.osReleaseData)
+	data.summaryData.WriteString("\n```\n")
+
+	data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(unameOutput)
+	data.summaryData.WriteString("\n```\n")
+
+	data.summaryData.WriteString("\n" + "**Airgap-Info**" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.airgapInfo)
+	data.summaryData.WriteString("\n```\n")
 
 	return nil
 }
@@ -152,8 +183,12 @@ func getPrivateRegistries(bastionIP string, data *summaryReportData) error {
 		return fmt.Errorf("error retrieving registries.yaml from bastion node: %s, %w",
 			bastionIP, regErr)
 	}
+
 	data.registries = strings.TrimSpace(privateRegistries)
-	data.summaryData.WriteString("\n" + "Registries" + "\n" + data.registries + "\n")
+	data.summaryData.WriteString("\n" + "Registries" + "\n" + "\n")
+	data.summaryData.WriteString("```yaml\n")
+	data.summaryData.WriteString(data.registries)
+	data.summaryData.WriteString("\n```\n")
 
 	return nil
 }
@@ -191,59 +226,172 @@ func isRPMBasedOS(osReleaseData string) bool {
 
 // getSELinuxInfo retrieves SELinux status and package information from an RPM-based system.
 func getSELinuxInfo(product, installMethod, nodeIP string) string {
-	var selinuxInfo strings.Builder
+	var selinuxData strings.Builder
 
-	sestatus, err := RunCommandOnNode("sestatus 2>/dev/null || echo 'sestatus command not found'", nodeIP)
-	if err != nil {
-		LogLevel("debug", "Failed to get sestatus: %v", err)
-		sestatus = "Failed to retrieve sestatus"
-	}
-	sestatus = strings.TrimSpace(sestatus)
-	if sestatus != "" {
-		selinuxInfo.WriteString("\n" + "\n")
-		selinuxInfo.WriteString("**SELinux Status:**\n" + sestatus + "\n\n")
-		selinuxInfo.WriteString("\n")
+	cmdOutput := func(title, command string) {
+		output, err := RunCommandOnNode(command, nodeIP)
+		if err != nil {
+			LogLevel("debug", "Failed to get %s: %v", title, err)
+			output = "Failed to retrieve " + strings.ToLower(title)
+		}
+
+		output = strings.TrimSpace(output)
+		if output != "" {
+			selinuxData.WriteString(fmt.Sprintf("\n\n**%s**\n\n", title))
+			selinuxData.WriteString("```yaml\n")
+			selinuxData.WriteString(output)
+			selinuxData.WriteString("\n```\n")
+		}
 	}
 
-	// SELinux packages
-	selinuxPkgs, err := RunCommandOnNode("rpm -qa | grep selinux 2>/dev/null || "+
-		" echo 'No SELinux packages found'", nodeIP)
-	if err != nil {
-		LogLevel("debug", "Failed to get SELinux packages: %v", err)
-		selinuxPkgs = "Failed to retrieve SELinux packages"
-	}
-	selinuxPkgs = strings.TrimSpace(selinuxPkgs)
-	if selinuxPkgs != "" {
-		selinuxInfo.WriteString("\n" + "\n" + "**SELinux Packages:**\n" + selinuxPkgs + "\n" + "\n")
-		selinuxInfo.WriteString("\n")
-	}
+	cmdOutput("SELinux Status:",
+		"sestatus 2>/dev/null || echo 'sestatus command not found'")
+
+	cmdOutput("SELinux Packages:",
+		"rpm -qa | grep selinux 2>/dev/null || echo 'No SELinux packages found'")
 
 	if product == "rke2" && installMethod == "rpm" {
-		rke2Selinux, err := RunCommandOnNode("rpm -q rke2-selinux 2>/dev/null || "+
-			" echo 'rke2-selinux package not installed'", nodeIP)
+		cmdOutput("RKE2 SELinux Package:",
+			"rpm -q rke2-selinux 2>/dev/null || echo 'rke2-selinux package not installed'")
+	}
+
+	cmdOutput("Container SELinux Package:",
+		"rpm -q container-selinux 2>/dev/null || echo 'container-selinux package not installed'")
+
+	return selinuxData.String()
+}
+
+// getSplitRoleData retrieves the split roles data from the cluster nodes and formats it for the report.
+//
+//nolint:funlen // yep, but this makes more clear being one function.
+func getSplitRoleData(config *clusterConfig, serverIps []string) string {
+	var splitRoleData strings.Builder
+
+	splitRoleData.WriteString("\n" + "\n")
+	splitRoleData.WriteString("**Split Roles Configuration**:\n")
+	splitRoleData.WriteString(fmt.Sprintf(
+		"CP-only=%d,"+
+			" CP-worker=%d, "+
+			"Etcd-only=%d, "+
+			"Etcd-CP=%d, "+
+			"Etcd-worker=%d\n",
+		config.SplitRoles.ControlPlaneOnly,
+		config.SplitRoles.ControlPlaneWorker,
+		config.SplitRoles.EtcdOnly,
+		config.SplitRoles.EtcdCP,
+		config.SplitRoles.EtcdWorker))
+	splitRoleData.WriteString("\n")
+
+	splitRoleData.WriteString("**Split Roles Data**:\n")
+	splitRoleData.WriteString("\n")
+
+	for _, ip := range serverIps {
+		cmd := fmt.Sprintf("sudo cat /etc/rancher/%s/config.yaml.d/role_config.yaml", config.Product)
+		configYaml, err := RunCommandOnNode(cmd, ip)
 		if err != nil {
-			LogLevel("debug", "Failed to get rke2-selinux version: %v", err)
-			rke2Selinux = "Failed to retrieve rke2-selinux version"
+			LogLevel("warn", "Error retrieving config.yaml from node %s: %v", ip, err)
+			splitRoleData.WriteString(fmt.Sprintf("**Node %s**: Error retrieving config\n\n", ip))
+			continue
 		}
-		rke2Selinux = strings.TrimSpace(rke2Selinux)
-		if rke2Selinux != "" {
-			selinuxInfo.WriteString("\n" + "**RKE2 SELinux Package:**\n" + rke2Selinux + "\n\n")
-			selinuxInfo.WriteString("\n")
+
+		role, err := determineRoleFromConfig(configYaml)
+		if err != nil {
+			LogLevel("warn", "Error determining role for node %s: %v", ip, err)
+			role = nodeTypeUnknown
 		}
+
+		splitRoleData.WriteString(fmt.Sprintf("**Node %s** (Role: %s)\n", ip, role))
+		splitRoleData.WriteString("```yaml\n")
+		splitRoleData.WriteString(strings.TrimSpace(configYaml))
+		splitRoleData.WriteString("\n```\n")
 	}
 
-	// specific container-selinux version
-	containerSelinux, err := RunCommandOnNode("rpm -q container-selinux 2>/dev/null || "+
-		" echo 'container-selinux package not installed'", nodeIP)
+	return splitRoleData.String()
+}
+
+type NodeType string
+
+const (
+	nodeTypeAllRoles   NodeType = "all-roles"
+	nodeTypeEtcdOnly   NodeType = "etcd-only"
+	nodeTypeEtcdCP     NodeType = "etcd-cp"
+	nodeTypeEtcdWorker NodeType = "etcd-worker"
+	nodeTypeCPOnly     NodeType = "cp-only"
+	nodeTypeCPWorker   NodeType = "cp-worker"
+	nodeTypeWorkerOnly NodeType = "worker-only"
+	nodeTypeUnknown    NodeType = "unknown"
+)
+
+type nodeConfig struct {
+	DisableAPIServer         bool     `yaml:"disable-apiserver,omitempty"`
+	DisableControllerManager bool     `yaml:"disable-controller-manager,omitempty"`
+	DisableScheduler         bool     `yaml:"disable-scheduler,omitempty"`
+	DisableETCD              bool     `yaml:"disable-etcd,omitempty"`
+	NodeTaint                []string `yaml:"node-taint,omitempty"`
+	NodeLabel                []string `yaml:"node-label,omitempty"`
+}
+
+// determineRoleFromConfig determines the node role based on the provided config content.
+// also reflecting node_role script logic.
+func determineRoleFromConfig(configContent string) (NodeType, error) {
+	var config nodeConfig
+	err := yaml.Unmarshal([]byte(configContent), &config)
 	if err != nil {
-		LogLevel("debug", "Failed to get container-selinux version: %v", err)
-		containerSelinux = "Failed to retrieve container-selinux version"
-	}
-	containerSelinux = strings.TrimSpace(containerSelinux)
-	if containerSelinux != "" {
-		selinuxInfo.WriteString("\n" + "\n" + "**Container SELinux Package:**\n" + containerSelinux + "\n" + "\n")
-		selinuxInfo.WriteString("\n")
+		return nodeTypeUnknown, fmt.Errorf("error unmarshalling config content: %w", err)
 	}
 
-	return selinuxInfo.String()
+	hasEtcdLabel := hasLabel(config.NodeLabel, "role-etcd=true")
+	hasCPLabel := hasLabel(config.NodeLabel, "role-control-plane=true")
+	hasWorkerLabel := hasLabel(config.NodeLabel, "role-worker=true")
+	noExecuteTaint := hasTaint(config.NodeTaint, "node-role.kubernetes.io/etcd:NoExecute")
+	noScheduleTaint := hasTaint(config.NodeTaint, "node-role.kubernetes.io/control-plane:NoSchedule")
+
+	switch {
+	case config.DisableAPIServer && config.DisableControllerManager && config.DisableScheduler &&
+		hasEtcdLabel && !hasCPLabel && !hasWorkerLabel && noExecuteTaint:
+		return nodeTypeEtcdOnly, nil
+
+	case !config.DisableAPIServer && !config.DisableControllerManager && !config.DisableScheduler &&
+		hasEtcdLabel && hasCPLabel && !hasWorkerLabel && noExecuteTaint && noScheduleTaint:
+		return nodeTypeEtcdCP, nil
+
+	case config.DisableAPIServer && config.DisableControllerManager && config.DisableScheduler &&
+		hasEtcdLabel && !hasCPLabel && hasWorkerLabel && !noExecuteTaint:
+		return nodeTypeEtcdWorker, nil
+
+	case config.DisableETCD && !noScheduleTaint &&
+		!hasEtcdLabel && hasCPLabel && hasWorkerLabel:
+		return nodeTypeCPWorker, nil
+
+	case config.DisableETCD && noScheduleTaint &&
+		!hasEtcdLabel && hasCPLabel && !hasWorkerLabel:
+		return nodeTypeCPOnly, nil
+
+	case !config.DisableETCD && !config.DisableAPIServer && !config.DisableControllerManager && !config.DisableScheduler &&
+		hasEtcdLabel && hasCPLabel && hasWorkerLabel:
+		return nodeTypeAllRoles, nil
+
+	default:
+		return nodeTypeWorkerOnly, nil
+	}
+}
+
+func hasLabel(labels []string, label string) bool {
+	for _, l := range labels {
+		if l == label {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasTaint(taints []string, taint string) bool {
+	for _, t := range taints {
+		if t == taint {
+			return true
+		}
+	}
+
+	return false
 }

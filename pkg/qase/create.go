@@ -106,8 +106,8 @@ func (c Client) createTestResult(ctx context.Context, req *createResultRequest) 
 		return fmt.Errorf("failed to create test result: %w, response: %v", err, httpRes)
 	}
 
-	shared.LogLevel("info", "Test result created: %t for project: %s, run: %d",
-		res.GetStatus(), req.projectID, req.runID)
+	shared.LogLevel("info", "Test result created: %t for project: %s run: %d case: %d",
+		res.GetStatus(), req.projectID, req.runID, req.caseID)
 
 	return nil
 }

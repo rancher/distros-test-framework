@@ -38,6 +38,7 @@ func RunCommandHost(cmds ...string) (string, error) {
 
 		err := c.Run()
 		if err != nil {
+			LogLevel("error", "Command '%s' failed with error: %v\n %v", cmd, err, c.Stderr.(*bytes.Buffer).String())
 			return c.Stderr.(*bytes.Buffer).String(), err
 		}
 	}

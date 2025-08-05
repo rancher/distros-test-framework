@@ -87,10 +87,10 @@ func loadTFconfig(
 		loadExternalDb(t, varDir, c, terraformOptions)
 	}
 
-	loadVersion(t, c, module, varDir)
+	LogLevel("info", "Loading Version and Channel...")
+	loadVersion(t, c, varDir)
+	loadChannel(t, c, module, varDir)
 
-	channel := c.Config.Product + "_channel"
-	c.Config.Channel = terraform.GetVariableAsStringFromVarFile(t, varDir, channel)
 	if c.Config.Product == "rke2" {
 		c.Config.InstallMethod = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_method")
 	}
@@ -99,15 +99,46 @@ func loadTFconfig(
 	return c, nil
 }
 
-func loadVersion(t *testing.T, c *Cluster, module, varDir string) {
-	if module == "airgap" || module == "ipv6only" {
-		installVersion := terraform.GetVariableAsStringFromVarFile(t, varDir, "install_version")
-		if installVersion != "" {
-			c.Config.Version = installVersion
-		} else {
-			version := c.Config.Product + "_version"
-			c.Config.Version = terraform.GetVariableAsStringFromVarFile(t, varDir, version)
+// TODO: aux functions for loading data while we dont standardize from one source of truth,
+//
+// this is being really messy and painful. remove after.
+func loadVersion(t *testing.T, c *Cluster, varDir string) {
+	if install := os.Getenv("INSTALL_VERSION"); install != "" {
+		c.Config.Version = install
+		LogLevel("info", "Using install version from env: %s", install)
+		return
+	}
+
+	version := c.Config.Product + "_version"
+	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, version); tf != "" {
+		c.Config.Version = tf
+		LogLevel("info", "Using install version from tfvars: %s", tf)
+		return
+	}
+}
+
+func loadChannel(t *testing.T, c *Cluster, module, varDir string) {
+	tfChannel := c.Config.Product + "_channel"
+
+	if module != "airgap" && module != "ipv6only" {
+		if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfChannel); tf != "" {
+			c.Config.Channel = tf
+			LogLevel("info", "Using install channel from tfvars: %s", tf)
+			return
 		}
+	}
+
+	if install := os.Getenv("install_channel"); install != "" {
+		c.Config.Channel = install
+		LogLevel("info", "Using install channel from env install_channel: %s", install)
+		return
+	}
+
+	channelUp := strings.ToUpper(tfChannel)
+	if env := os.Getenv(channelUp); env != "" {
+		c.Config.Channel = env
+		LogLevel("info", "Using install channel from env %s: %s", channelUp, env)
+		return
 	}
 }
 
@@ -190,51 +221,57 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	}
 }
 
-func addSplitRole(t *testing.T, varDir string, numServers int) (int, error) {
-	splitRoles := terraform.GetVariableAsStringFromVarFile(t, varDir, "split_roles")
-	if splitRoles == "true" {
-		etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			t,
-			varDir,
-			"etcd_only_nodes",
-		))
-		if err != nil {
-			return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
-		}
-		etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			t,
-			varDir,
-			"etcd_cp_nodes",
-		))
-		if err != nil {
-			return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
-		}
-		etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			t,
-			varDir,
-			"etcd_worker_nodes",
-		))
-		if err != nil {
-			return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
-		}
-		cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			t,
-			varDir,
-			"cp_only_nodes",
-		))
-		if err != nil {
-			return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
-		}
-		cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-			t,
-			varDir,
-			"cp_worker_nodes",
-		))
-		if err != nil {
-			return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
-		}
-		numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
+func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers int) (int, error) {
+	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_only_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
 	}
+	etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_cp_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
+	}
+	etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_worker_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
+	}
+	cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"cp_only_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
+	}
+	cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"cp_worker_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
+	}
+
+	numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
+
+	sp.Add = true
+	sp.ControlPlaneOnly = cpNodes
+	sp.EtcdOnly = etcdNodes
+	sp.EtcdCP = etcdCpNodes
+	sp.EtcdWorker = etcdWorkerNodes
+	sp.ControlPlaneWorker = cpWorkerNodes
+	sp.NumServers = numServers
 
 	return numServers, nil
 }
