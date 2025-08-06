@@ -107,7 +107,7 @@ func (c Client) createTestResult(ctx context.Context, req *createResultRequest) 
 	}
 
 	shared.LogLevel("info", "Test result created: %t for project: %s run: %d case: %d",
-		res.GetStatus(), req.projectID, req.runID, req.caseID)
+		res.GetStatus(), req.projectID, req.runID, &req.caseID)
 
 	return nil
 }
