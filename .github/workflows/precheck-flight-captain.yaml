@@ -28,7 +28,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq curl skopeo # Installs necessary packages
 
       - name: Make script executable (if needed)
-        run: chmod +x .scripts/captain.sh # Grants execute permission to the script
+        working-directory: ./scripts
+        run: chmod +x ./captain.sh # Grants execute permission to the script
 
       - name: Run the shell script
-        run: .scripts/captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"# Executes the shell script
+        working-directory: ./scripts
+        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"# Executes the shell script
