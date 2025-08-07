@@ -206,4 +206,3 @@ do
     verify_prime_registry "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
     echo "===================== DONE ==========================\n"
 done
-# exit
