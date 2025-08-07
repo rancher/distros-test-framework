@@ -31,4 +31,4 @@ jobs:
         run: chmod +x .scripts/captain.sh # Grants execute permission to the script
 
       - name: Run the shell script
-        run: .scripts/captain.sh -v "${{ github.event.inputs.versions }}"  -d -p "${{ github.event.inputs.page_size }}"# Executes the shell script
+        run: .scripts/captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"# Executes the shell script
