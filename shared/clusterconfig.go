@@ -258,7 +258,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			Version:             getVersion(),
 			ServerFlags:         getFlags("server"),
 			WorkerFlags:         getFlags("worker"),
-			Channel:             getChanell(product),
+			Channel:             getChannel(product),
 			InstallMethod:       os.Getenv("install_method"),
 			InstallMode:         os.Getenv("install_mode"),
 			DataStore:           os.Getenv("datastore_type"),
@@ -290,6 +290,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 	}, nil
 }
 
+// getVersion retrieves the install version from environment variables.
+// used for addClusterFromKubeConfig().
 func getVersion() string {
 	installVersion := os.Getenv("install_version")
 	installVersionEnv := os.Getenv("INSTALL_VERSION")
@@ -305,6 +307,8 @@ func getVersion() string {
 	return ""
 }
 
+// getFlags retrieves the flags for a given node type from environment variables.
+// used for addClusterFromKubeConfig().
 func getFlags(nodeType string) string {
 	flags := os.Getenv(nodeType + "_flags")
 	flagsEnv := os.Getenv(nodeType + "_FLAGS")
@@ -320,7 +324,9 @@ func getFlags(nodeType string) string {
 	return ""
 }
 
-func getChanell(product string) string {
+// getChannel retrieves the install channel for a given product from environment variables.
+// used for addClusterFromKubeConfig().
+func getChannel(product string) string {
 	c := os.Getenv("install_channel")
 	if c != "" {
 		return c
@@ -331,7 +337,7 @@ func getChanell(product string) string {
 		return channel
 	}
 
-	return "stable"
+	return "testing"
 }
 
 // parseEnvInt helper that parses an environment variable as an integer.

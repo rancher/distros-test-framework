@@ -41,7 +41,7 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 	deleteOldNodes(cluster)
 	postValidationRestore(k8sClient)
 	updateClusterIPs(cluster, newServerIP)
-	cleanS3Snapshot(awsClient, flags, onDemandPath)
+	deleteS3Snapshot(awsClient, flags, onDemandPath)
 }
 
 // s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
@@ -185,7 +185,7 @@ func updateClusterIPs(cluster *shared.Cluster, newServerIP string) {
 	cluster.AgentIPs = []string{}
 }
 
-func cleanS3Snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, name string) {
+func deleteS3Snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, name string) {
 	shared.LogLevel("info", "cleaning s3 snapshots")
 
 	err := awsClient.DeleteS3Object(flags.S3Flags.Bucket, flags.S3Flags.Folder, name)
