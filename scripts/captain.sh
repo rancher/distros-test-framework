@@ -131,19 +131,16 @@ verify_rke2_packaging () {
     # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
     echo "\n==== SELINUX RKE2 PACKAGING CHECK: $1 $2 $3: ===="
     RKE2_PKG_FILE="rke2_pkg_${RANDOM}"
-    if [ "${DEBUG}" = true ]; then
-        echo "
-Note - this query produces only 30 size limit. So a fail could be a false negative.
-This may pass for the latest/higher major versions but fail for lower major versions. Ex: pass for 1.33 but fail for v.1.30 due to output size limit.\n"
-    fi
-    if echo $2 | grep -q "rc"; then
-        debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags | jq '.[].name' | grep $2 | grep $3 | tee -a ${RKE2_PKG_FILE}"
-        curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags | jq '.[].name' | grep $2 | grep $3 | tee -a "${RKE2_PKG_FILE}"
-    else
-        debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags | jq '.[].name' | grep $2 | grep $3 | grep -v rc | tee -a ${RKE2_PKG_FILE}"
-        curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags | jq '.[].name' | grep $2 | grep $3 | grep -v rc | tee -a "${RKE2_PKG_FILE}"
-    fi
-    CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | wc -l)
+    for p in {1..2}; do
+        if echo $2 | grep -q "rc"; then
+            debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\=${p}\&per_page\=100 | jq '.[].name' >> ${RKE2_PKG_FILE}"
+            curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\="${p}"\&per_page\=100 | jq '.[].name' >> "${RKE2_PKG_FILE}" 2>&1
+        else
+            debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\=${p}\&per_page\=100 | jq '.[].name' >> ${RKE2_PKG_FILE}"
+            curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\="${p}"\&per_page\=100 | jq '.[].name' >> "${RKE2_PKG_FILE}" 2>&1
+        fi
+    done
+    CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 | wc -l)
     verify_count  "${CHANNEL_COUNT}" "1" "RKE2 packaging versions"
     rm -rf "${RKE2_PKG_FILE}"
 }
