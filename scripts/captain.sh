@@ -127,6 +127,22 @@ verify_releases () {
     rm -rf "${RELEASES_FILE}"
 }
 
+verify_release_asset_count_rke2 () {
+    # $1 Version under test
+    echo "\n==== VERIFY ASSET COUNT FOR RKE2 VERSION: $1 ===="
+    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/rancher/rke2/releases/tags/${1}\" | jq '.assets | length'"
+    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/rancher/rke2/releases/tags/${1}" | jq '.assets | length')
+    verify_count "${ASSET_COUNT}" "74" "RKE2 release Asset count"
+}
+
+verify_release_asset_count_k3s () {
+    # $1 Version under test
+    echo "\n==== VERIFY ASSET COUNT FOR K3S VERSION: $1 ===="
+    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/k3s-io/k3s/releases/tags/${1}\" | jq '.assets | length'"
+    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/k3s-io/k3s/releases/tags/${1}" | jq '.assets | length')
+    verify_count "${ASSET_COUNT}" "19" "K3S release Asset count"
+}
+
 verify_rke2_packaging () {
     # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
     echo "\n==== SELINUX RKE2 PACKAGING CHECK: $1 $2 $3: ===="
@@ -140,7 +156,14 @@ verify_rke2_packaging () {
             curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\="${p}"\&per_page\=100 | jq '.[].name' >> "${RKE2_PKG_FILE}" 2>&1
         fi
     done
-    CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 | wc -l)
+    if echo "$2" | grep -q "rc"; then
+        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 | wc -l)
+        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 )
+    else
+        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 | grep -v "rc" | wc -l)
+        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep $2 | grep $3 | grep -v "rc")
+    fi
+    debug_log "\nOutput:\n ${OUTPUT}"
     verify_count  "${CHANNEL_COUNT}" "1" "RKE2 packaging versions"
     rm -rf "${RKE2_PKG_FILE}"
 }
@@ -181,24 +204,27 @@ verify_prime_registry () {
 
 # Main script execution starts here
 VERSIONS=$(echo "${INPUT}" | tr "," "\n")
-for i in $VERSIONS
+for V in $VERSIONS
 do
     echo "==========================================================================
-        TESTING VERSION: $i 
+        TESTING VERSION: $V 
 =========================================================================="
-    if echo $i | grep -q "rke2"; then
+    if echo $V | grep -q "rke2"; then
         PRODUCT="rke2"
     else
         PRODUCT="k3s"
     fi
-    VERSION_PREFIX=$(echo $i | cut -d+ -f1)
-    VERSION_SUFFIX=$(echo $i | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
-    echo "Version under test: $i ; Prefix: $VERSION_PREFIX Suffix: $VERSION_SUFFIX"
+    VERSION_PREFIX=$(echo $V | cut -d+ -f1)
+    VERSION_SUFFIX=$(echo $V | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
+    echo "Version under test: $V ; Prefix: $VERSION_PREFIX Suffix: $VERSION_SUFFIX"
     verify_system_agent_installers "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
     verify_upgrade_images "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
     verify_releases "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
     if [ "${PRODUCT}" = "rke2" ]; then
         verify_rke2_packaging "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
+        verify_release_asset_count_rke2 "${V}"
+    else
+        verify_release_asset_count_k3s "${V}"
     fi
     verify_prime_registry "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
     echo "===================== DONE ==========================\n"
