@@ -131,7 +131,7 @@ verify_rke2_packaging () {
     # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
     echo "\n==== SELINUX RKE2 PACKAGING CHECK: $1 $2 $3: ===="
     RKE2_PKG_FILE="rke2_pkg_${RANDOM}"
-    for p in {1..2}; do
+    for p in {1..3}; do
         if echo $2 | grep -q "rc"; then
             debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\=${p}\&per_page\=100 | jq '.[].name' >> ${RKE2_PKG_FILE}"
             curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\="${p}"\&per_page\=100 | jq '.[].name' >> "${RKE2_PKG_FILE}" 2>&1
