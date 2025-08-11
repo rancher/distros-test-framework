@@ -18,19 +18,19 @@ on:
 
 jobs:
   run-script-job:
-    runs-on: ubuntu-latest # Specifies the operating system for the runner
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Action to check out the repository content
+        uses: actions/checkout@v4
       
-      - name: Update and install dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo # Installs necessary packages
+      - name: Update and install necessary packages
+        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
 
-      - name: Make script executable (if needed)
+      - name: Change permissions and make script executable (if needed)
         working-directory: ./scripts
-        run: chmod +x ./captain.sh # Grants execute permission to the script
+        run: chmod +x ./captain.sh
 
-      - name: Run the shell script
+      - name: Run the captain shell script
         working-directory: ./scripts
-        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}" # Executes the shell script
+        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
