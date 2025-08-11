@@ -33,7 +33,6 @@ func TestPodStatus(
 		res, _ := shared.RunCommandHost(cmd + " --kubeconfig=" + shared.KubeConfigFile)
 		if res != "" {
 			shared.LogLevel("debug", "Waiting for pod status to be Running or Completed... \n%s", res)
-			return false
 		}
 		for i := range pods {
 			processPodStatus(cluster, g, &pods[i], podAssertRestarts, podAssertReady)

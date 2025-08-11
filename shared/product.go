@@ -116,7 +116,7 @@ func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
 	product := cluster.Config.Product
 	nodeOS := cluster.NodeOS
 
-	channel := getChannel(cluster.Config.Product)
+	channel := getChannelFlag(product)
 
 	if strings.HasPrefix(installType, "v") {
 		installFlag = fmt.Sprintf("INSTALL_%s_VERSION=%s", strings.ToUpper(product), installType)
@@ -150,7 +150,7 @@ func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
 	return fmt.Sprintf(installCmd, installFlag, channel)
 }
 
-func getChannel(product string) string {
+func getChannelFlag(product string) string {
 	defaultChannel := fmt.Sprintf("INSTALL_%s_CHANNEL=%s", strings.ToUpper(product), "testing")
 
 	if customflag.ServiceFlag.Channel.String() != "" {

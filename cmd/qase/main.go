@@ -34,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	reportErr := qaseClient.ReportRun(fileName, product)
+	reportErr := qaseClient.ReportE2ETestRun(fileName, product)
 	if reportErr != nil {
 		shared.LogLevel("error", "error reporting test data to qase: %w\n", reportErr)
 		os.Exit(1)

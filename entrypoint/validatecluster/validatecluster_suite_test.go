@@ -17,12 +17,14 @@ import (
 )
 
 var (
-	qaseReport = os.Getenv("REPORT_TO_QASE")
-	kubeconfig string
-	cluster    *shared.Cluster
-	cfg        *config.Env
-	flags      *customflag.FlagConfig
-	err        error
+	qaseReport    = os.Getenv("REPORT_TO_QASE")
+	kubeconfig    string
+	flags         *customflag.FlagConfig
+	cluster       *shared.Cluster
+	cfg           *config.Env
+	reportSummary string
+	reportErr     error
+	err           error
 )
 
 func TestMain(m *testing.M) {
@@ -72,13 +74,18 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 		qaseClient, err := qase.AddQase()
 		Expect(err).ToNot(HaveOccurred(), "error adding qase")
 
-		qaseClient.SpecReportTestResults(qaseClient.Ctx, &report, cfg.InstallVersion)
+		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
 		shared.LogLevel("info", "Qase reporting is not enabled")
 	}
 })
 
 var _ = AfterSuite(func() {
+	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
 	if customflag.ServiceFlag.Destroy {
 		if customflag.ServiceFlag.KillAllUninstallTest {
 			if !strings.Contains(os.Getenv("server_flags"), "docker: true") {
