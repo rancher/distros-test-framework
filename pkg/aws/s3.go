@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -23,37 +22,36 @@ func (c Client) GetObjects(bucket string) ([]*s3.Object, error) {
 	return output.Contents, nil
 }
 
-func (c Client) DeleteS3Object(bucket, folder string) error {
-	input := &s3.ListObjectsV2Input{
+func (c Client) DeleteS3Object(bucket, folder, objectName string) error {
+	var key string
+	if folder != "" {
+		key = fmt.Sprintf("%s/%s", folder, objectName)
+	} else {
+		key = objectName
+	}
+
+	headInput := &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
-		Prefix: aws.String(folder),
+		Key:    aws.String(key),
 	}
 
-	objList, err := c.s3.ListObjectsV2(input)
-	if err != nil {
-		return fmt.Errorf("failed to list objects: %w", err)
+	_, headErr := c.s3.HeadObject(headInput)
+	if headErr != nil {
+		shared.LogLevel("info", "object %s doesn't exist in bucket %s (already deleted)", key, bucket)
+		return nil
 	}
 
-	if len(objList.Contents) == 0 {
-		return fmt.Errorf("no objects found with prefix %s", *input.Prefix)
-	}
-
-	sort.Slice(objList.Contents, func(i, j int) bool {
-		return objList.Contents[i].LastModified.After(*objList.Contents[j].LastModified)
-	})
-
-	key := aws.StringValue(objList.Contents[0].Key)
 	delInput := &s3.DeleteObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	}
 
-	_, delErr := c.s3.DeleteObject(delInput)
-	if delErr != nil {
-		return fmt.Errorf("failed to delete object %s: %w", key, delErr)
+	output, err := c.s3.DeleteObject(delInput)
+	if err != nil {
+		return fmt.Errorf("failed to delete object %s: %w", key, err)
 	}
 
-	shared.LogLevel("info", "deleted object %s from bucket %s", key, bucket)
+	shared.LogLevel("info", "deleted specific object %s with key %s from bucket %s", output, key, bucket)
 
 	return nil
 }

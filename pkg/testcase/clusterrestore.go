@@ -41,6 +41,7 @@ func TestClusterRestore(cluster *shared.Cluster, awsClient *aws.Client, cfg *con
 	deleteOldNodes(cluster)
 	postValidationRestore(k8sClient)
 	updateClusterIPs(cluster, newServerIP)
+	deleteS3Snapshot(awsClient, flags, onDemandPath)
 }
 
 // s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
@@ -67,10 +68,10 @@ func takeS3Snapshot(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 		"--s3-folder=%s --s3-region=%s --s3-access-key=%s --s3-secret-key=%s",
 		productLocationCmd, flags.S3Flags.Bucket, flags.S3Flags.Folder, cluster.Aws.Region,
 		cluster.Aws.AccessKeyID, cluster.Aws.SecretAccessKey)
-	_, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
+	snapshotResponse, takeSnapshotErr := shared.RunCommandOnNode(takeSnapshotCmd, cluster.ServerIPs[0])
 	Expect(takeSnapshotErr).NotTo(HaveOccurred())
 
-	shared.LogLevel("info", "snapshot taken in s3")
+	shared.LogLevel("info", "snapshot taken in s3: %s", snapshotResponse)
 }
 
 func validateS3snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, onDemandPath string) {
@@ -83,7 +84,7 @@ func validateS3snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, onD
 		}
 	}
 
-	shared.LogLevel("info", "successfully validated s3 snapshot save in s3")
+	shared.LogLevel("info", "successfully validated snapshot save in s3: %s/%s", flags.S3Flags.Bucket, onDemandPath)
 }
 
 func stopInstances(cluster *shared.Cluster, ec2 *aws.Client) {
@@ -182,4 +183,13 @@ func updateClusterIPs(cluster *shared.Cluster, newServerIP string) {
 	cluster.NumServers = 1
 	cluster.NumAgents = 0
 	cluster.AgentIPs = []string{}
+}
+
+func deleteS3Snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, name string) {
+	shared.LogLevel("info", "cleaning s3 snapshots")
+
+	err := awsClient.DeleteS3Object(flags.S3Flags.Bucket, flags.S3Flags.Folder, name)
+	if err != nil {
+		shared.LogLevel("error", "error deleting object: %v", err)
+	}
 }
