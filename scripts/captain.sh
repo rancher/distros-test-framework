@@ -57,22 +57,17 @@ verify_count () {
 }
 
 verify_system_agent_installers () {
-    # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
-    PRDT="$1"
-    V_PREFIX="$2"
-    V_SUFFIX="$3"
-
     SAI_OUTPUT_FILE="sys_agent_installers_${RANDOM}"
-    SYSTEM_AGENT_INSTALLER_URL="https://registry.hub.docker.com/v2/repositories/rancher/system-agent-installer-${PRDT}/tags?page_size=${PAGE_SIZE}"
+    SYSTEM_AGENT_INSTALLER_URL="https://registry.hub.docker.com/v2/repositories/rancher/system-agent-installer-${PRODUCT}/tags?page_size=${PAGE_SIZE}"
     
-    echo "\n==== VERIFY SYSTEM AGENT INSTALLER FOR prdt: ${PRDT} version prefix: ${V_PREFIX}  version suffix: ${V_SUFFIX}: ===="
+    echo "\n==== VERIFY SYSTEM AGENT INSTALLER FOR PRODUCT: ${PRODUCT} version prefix: ${VERSION_PREFIX}  version suffix: ${VERSION_SUFFIX}: ===="
 
-    if echo "${V_PREFIX}" | grep -q "rc"; then
-        debug_log "curl -L -s \"${SYSTEM_AGENT_INSTALLER_URL}\" | jq -r \".results[].name\" | grep ${V_PREFIX} | grep ${V_SUFFIX} | tee -a \"${SAI_OUTPUT_FILE}\""
-        curl -L -s "${SYSTEM_AGENT_INSTALLER_URL}" | jq -r ".results[].name" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | tee -a "${SAI_OUTPUT_FILE}"
+    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+        debug_log "curl -L -s \"${SYSTEM_AGENT_INSTALLER_URL}\" | jq -r \".results[].name\" | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a \"${SAI_OUTPUT_FILE}\""
+        curl -L -s "${SYSTEM_AGENT_INSTALLER_URL}" | jq -r ".results[].name" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SAI_OUTPUT_FILE}"
     else
-        debug_log "curl -L -s \"${SYSTEM_AGENT_INSTALLER_URL}\" | jq -r \".results[].name\" | grep ${V_PREFIX} | grep ${V_SUFFIX} | grep -v \"rc\" | tee -a \"${SAI_OUTPUT_FILE}\""
-        curl -L -s "${SYSTEM_AGENT_INSTALLER_URL}" | jq -r ".results[].name" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v "rc" | tee -a "${SAI_OUTPUT_FILE}"
+        debug_log "curl -L -s \"${SYSTEM_AGENT_INSTALLER_URL}\" | jq -r \".results[].name\" | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | grep -v \"rc\" | tee -a \"${SAI_OUTPUT_FILE}\""
+        curl -L -s "${SYSTEM_AGENT_INSTALLER_URL}" | jq -r ".results[].name" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v "rc" | tee -a "${SAI_OUTPUT_FILE}"
     fi
 
     SAI_COUNT=$(cat "${SAI_OUTPUT_FILE}" | wc -l)
@@ -80,7 +75,7 @@ verify_system_agent_installers () {
     LINUX_ARM_COUNT=$(cat "${SAI_OUTPUT_FILE}" | grep "linux-arm64" | wc -l)
     LINUX_AMD_COUNT=$(cat "${SAI_OUTPUT_FILE}" | grep "linux-amd64" | wc -l)
     
-    if [ "${PRDT}" = "rke2" ]; then
+    if [ "${PRODUCT}" = "rke2" ]; then
         verify_count "${SAI_COUNT}" "5" "Total images"
         verify_count "${WINDOWS_COUNT}" "2" "Windows images"
     else
@@ -94,22 +89,17 @@ verify_system_agent_installers () {
 }
 
 verify_upgrade_images () {
-    # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
-    PRDT="$1"
-    V_PREFIX="$2"
-    V_SUFFIX="$3"
-
     UPG_OUTPUT_FILE="upgrade_images_${RANDOM}"
-    UPGRADE_IMAGES_URL="https://registry.hub.docker.com/v2/repositories/rancher/${PRDT}-upgrade/tags?page_size=${PAGE_SIZE}"
+    UPGRADE_IMAGES_URL="https://registry.hub.docker.com/v2/repositories/rancher/${PRODUCT}-upgrade/tags?page_size=${PAGE_SIZE}"
     
-    echo "\n==== VERIFY UPGRADE IMAGES FOR ${PRDT} ${V_PREFIX}: ===="
+    echo "\n==== VERIFY UPGRADE IMAGES FOR ${PRODUCT} ${VERSION_PREFIX}: ===="
 
     if echo $2 | grep -q "rc"; then
-        debug_log "curl -L -s ${UPGRADE_IMAGES_URL} | jq -r \".results[].name\" | grep ${V_PREFIX} | grep "${V_SUFFIX}""
-        curl -L -s "${UPGRADE_IMAGES_URL}" | jq -r ".results[].name" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | tee -a "${UPG_OUTPUT_FILE}"
+        debug_log "curl -L -s ${UPGRADE_IMAGES_URL} | jq -r \".results[].name\" | grep ${VERSION_PREFIX} | grep "${VERSION_SUFFIX}""
+        curl -L -s "${UPGRADE_IMAGES_URL}" | jq -r ".results[].name" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${UPG_OUTPUT_FILE}"
     else
-        debug_log "curl -L -s ${UPGRADE_IMAGES_URL} | jq -r \".results[].name\" | grep ${V_PREFIX} | grep "${V_SUFFIX}" | grep -v \"rc\""
-        curl -L -s "${UPGRADE_IMAGES_URL}" | jq -r ".results[].name" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v "rc" | tee -a "${UPG_OUTPUT_FILE}"
+        debug_log "curl -L -s ${UPGRADE_IMAGES_URL} | jq -r \".results[].name\" | grep ${VERSION_PREFIX} | grep "${VERSION_SUFFIX}" | grep -v \"rc\""
+        curl -L -s "${UPGRADE_IMAGES_URL}" | jq -r ".results[].name" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v "rc" | tee -a "${UPG_OUTPUT_FILE}"
     fi
     
     UPGRADE_COUNT=$(cat "${UPG_OUTPUT_FILE}" | wc -l)
@@ -119,28 +109,22 @@ verify_upgrade_images () {
 }
 
 verify_releases () {
-    # useless unless we can check on the asset count.
-    # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
-    PRDT="$1"
-    V_PREFIX="$2"
-    V_SUFFIX="$3"
-
     RELEASES_FILE="releases_${RANDOM}"
     
-    echo "\n==== VERIFY RELEASES FOR ${PRDT} ${V_PREFIX} ${V_SUFFIX}: ===="
+    echo "\n==== VERIFY RELEASES FOR ${PRODUCT} ${VERSION_PREFIX} ${VERSION_SUFFIX}: ===="
 
-    if [ "${PRDT}" = "rke2" ]; then
+    if [ "${PRODUCT}" = "rke2" ]; then
         RELEASES_URL="https://api.github.com/repos/rancher/rke2/releases"
     else
         RELEASES_URL="https://api.github.com/repos/k3s-io/k3s/releases"
     fi
 
-    if echo "${V_PREFIX}" | grep -q "rc"; then
-        debug_log "curl -s -H \"Accept: application/vnd.github+json\" ${RELEASES_URL} | jq '.[].tag_name' | grep ${V_PREFIX} | grep ${V_SUFFIX}"
-        curl -s -H "Accept: application/vnd.github+json" "${RELEASES_URL}" | jq '.[].tag_name' | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | tee -a "${RELEASES_FILE}"
+    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+        debug_log "curl -s -H \"Accept: application/vnd.github+json\" ${RELEASES_URL} | jq '.[].tag_name' | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX}"
+        curl -s -H "Accept: application/vnd.github+json" "${RELEASES_URL}" | jq '.[].tag_name' | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${RELEASES_FILE}"
     else
-        debug_log "curl -s -H \"Accept: application/vnd.github+json\" ${RELEASES_URL} | jq '.[].tag_name' | grep ${V_PREFIX} | grep ${V_SUFFIX} | grep -v \"rc\""
-        curl -s -H "Accept: application/vnd.github+json" "${RELEASES_URL}" | jq '.[].tag_name' | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v "rc" | tee -a "${RELEASES_FILE}"
+        debug_log "curl -s -H \"Accept: application/vnd.github+json\" ${RELEASES_URL} | jq '.[].tag_name' | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | grep -v \"rc\""
+        curl -s -H "Accept: application/vnd.github+json" "${RELEASES_URL}" | jq '.[].tag_name' | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v "rc" | tee -a "${RELEASES_FILE}"
     fi
 
     RELEASES_COUNT=$(cat "${RELEASES_FILE}" | wc -l)
@@ -150,39 +134,28 @@ verify_releases () {
 }
 
 verify_release_asset_count_rke2 () {
-    # $1 Version under test(VUT)
-    VUT="$1"
-
-    echo "\n==== VERIFY ASSET COUNT FOR RKE2 VERSION: ${VUT} ===="
-    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/rancher/rke2/releases/tags/${VUT}\" | jq '.assets | length'"
+    echo "\n==== VERIFY ASSET COUNT FOR RKE2 VERSION: ${VERSION} ===="
+    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/rancher/rke2/releases/tags/${VERSION}\" | jq '.assets | length'"
     
-    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/rancher/rke2/releases/tags/${VUT}" | jq '.assets | length')
+    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/rancher/rke2/releases/tags/${VERSION}" | jq '.assets | length')
     verify_count "${ASSET_COUNT}" "74" "RKE2 release Asset count"
 }
 
 verify_release_asset_count_k3s () {
-    # $1 Version under test(VUT)
-    VUT="$1"
-
-    echo "\n==== VERIFY ASSET COUNT FOR K3S VERSION: ${VUT} ===="
-    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/k3s-io/k3s/releases/tags/${VUT}\" | jq '.assets | length'"
+    echo "\n==== VERIFY ASSET COUNT FOR K3S VERSION: ${VERSION} ===="
+    debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/k3s-io/k3s/releases/tags/${VERSION}\" | jq '.assets | length'"
     
-    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/k3s-io/k3s/releases/tags/${VUT}" | jq '.assets | length')
+    ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/k3s-io/k3s/releases/tags/${VERSION}" | jq '.assets | length')
     verify_count "${ASSET_COUNT}" "19" "K3S release Asset count"
 }
 
 verify_rke2_packaging () {
-    # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
-    PRDT="$1"
-    V_PREFIX="$2"
-    V_SUFFIX="$3"
-
     RKE2_PKG_FILE="rke2_pkg_${RANDOM}"
     
-    echo "\n==== SELINUX RKE2 PACKAGING CHECK: ${PRDT} ${V_PREFIX} ${V_SUFFIX}: ===="
+    echo "\n==== SELINUX RKE2 PACKAGING CHECK: ${PRODUCT} ${VERSION_PREFIX} ${VERSION_SUFFIX}: ===="
 
     for p in {1..3}; do
-        if echo "${V_PREFIX}" | grep -q "rc"; then
+        if echo "${VERSION_PREFIX}" | grep -q "rc"; then
             debug_log "curl -s -H \"Accept: application/vnd.github+json\" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\=${p}\&per_page\=100 | jq '.[].name' >> ${RKE2_PKG_FILE}"
             curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/rancher/rke2-packaging/tags\?page\="${p}"\&per_page\=100 | jq '.[].name' >> "${RKE2_PKG_FILE}" 2>&1
         else
@@ -191,12 +164,12 @@ verify_rke2_packaging () {
         fi
     done
 
-    if echo "${V_PREFIX}" | grep -q "rc"; then
-        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | wc -l)
-        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" )
+    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | wc -l)
+        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" )
     else
-        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v "rc" | wc -l)
-        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v "rc")
+        CHANNEL_COUNT=$(cat "${RKE2_PKG_FILE}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v "rc" | wc -l)
+        OUTPUT=$(cat "${RKE2_PKG_FILE}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v "rc")
     fi
 
     debug_log "\nOutput:\n ${OUTPUT}"
@@ -206,34 +179,30 @@ verify_rke2_packaging () {
 }
 
 verify_prime_registry () {
-    # $1 product $2 version_prefix (Ex: v1.31.2-rc4) $3 version_suffix (Ex: rke2r1 or k3s1)
-    PRDT="$1"
-    V_PREFIX="$2"
-    V_SUFFIX="$3"
     SYS_AGENT_OUTFILE="sys_agent_${RANDOM}"
     RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM}"
-    echo "\n==== VERIFY PRIME REGISTRY FOR ${PRDT} ${V_PREFIX} ${V_SUFFIX}: ===="
+    echo "\n==== VERIFY PRIME REGISTRY FOR ${PRODUCT} ${VERSION_PREFIX} ${VERSION_SUFFIX}: ===="
 
-    if [ "${PRDT}" = "rke2" ]; then
+    if [ "${PRODUCT}" = "rke2" ]; then
         RKE2_RUNTIME_URL="docker://registry.rancher.com/rancher/rke2-runtime"
         if echo $2 | grep -q "rc"; then
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${V_PREFIX} | grep ${V_SUFFIX} | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | tee -a "${RKE2_RUNTIME_OUTFILE}"
+            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${RKE2_RUNTIME_OUTFILE}"
+            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${RKE2_RUNTIME_OUTFILE}"
         else
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${V_PREFIX} | grep ${V_SUFFIX} | grep -v rc | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | grep -v rc | tee -a "${RKE2_RUNTIME_OUTFILE}"
+            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | grep -v rc | tee -a ${RKE2_RUNTIME_OUTFILE}"
+            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v rc | tee -a "${RKE2_RUNTIME_OUTFILE}"
         fi
     
         RKE2_RUNTIME_COUNT=$(cat "${RKE2_RUNTIME_OUTFILE}" | wc -l)
         verify_count "${RKE2_RUNTIME_COUNT}" "1" "RKE2 Runtime(in prime registry)"
     fi
 
-    SYS_AGENT_INSTALLER_URL="docker://registry.rancher.com/rancher/system-agent-installer-${PRDT}"
-    debug_log "skopeo list-tags ${SYS_AGENT_INSTALLER_URL} | grep ${V_PREFIX} | grep ${V_SUFFIX} | tee -a ${SYS_AGENT_OUTFILE}"
-    skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${V_PREFIX}" | grep "${V_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
+    SYS_AGENT_INSTALLER_URL="docker://registry.rancher.com/rancher/system-agent-installer-${PRODUCT}"
+    debug_log "skopeo list-tags ${SYS_AGENT_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${SYS_AGENT_OUTFILE}"
+    skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
     
     SYS_AGENT_COUNT=$(cat "${SYS_AGENT_OUTFILE}" | wc -l)
-    verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRDT} (in prime registry)"
+    verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
 
     rm -rf "${SYS_AGENT_OUTFILE}"
     rm -rf "${RKE2_RUNTIME_OUTFILE}"
@@ -241,32 +210,32 @@ verify_prime_registry () {
 
 # Main script execution starts here
 VERSIONS=$(echo "${INPUT}" | tr "," "\n")
-for V in $VERSIONS
+for VERSION in $VERSIONS
 do
     echo "==========================================================================
-        TESTING VERSION: ${V} 
+        TESTING VERSION: ${VERSION} 
 =========================================================================="
-    if echo "${V}" | grep -q "rke2"; then
+    if echo "${VERSION}" | grep -q "rke2"; then
         PRODUCT="rke2"
     else
         PRODUCT="k3s"
     fi
 
-    VERSION_PREFIX=$(echo "${V}" | cut -d+ -f1)
-    VERSION_SUFFIX=$(echo "${V}" | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
+    VERSION_PREFIX=$(echo "${VERSION}" | cut -d+ -f1)
+    VERSION_SUFFIX=$(echo "${VERSION}" | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
     
-    echo "Version under test: ${V} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
+    echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
 
-    verify_system_agent_installers "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
-    verify_upgrade_images "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
-    verify_releases "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
+    verify_system_agent_installers
+    verify_upgrade_images
+    verify_releases
     if [ "${PRODUCT}" = "rke2" ]; then
-        verify_rke2_packaging "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
-        verify_release_asset_count_rke2 "${V}"
+        verify_rke2_packaging
+        verify_release_asset_count_rke2
     else
-        verify_release_asset_count_k3s "${V}"
+        verify_release_asset_count_k3s
     fi
-    verify_prime_registry "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
+    verify_prime_registry
     
     echo "===================== DONE ==========================\n"
 done
