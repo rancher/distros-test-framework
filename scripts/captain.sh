@@ -231,16 +231,16 @@ do
     
     echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
 
-    # verify_system_agent_installers
-    # verify_upgrade_images
-    # verify_releases
+    verify_system_agent_installers
+    verify_upgrade_images
+    verify_releases
     if [ "${PRODUCT}" = "rke2" ]; then
         verify_rke2_packaging
         verify_release_asset_count_rke2
     else
         verify_release_asset_count_k3s
     fi
-    # verify_prime_registry
+    verify_prime_registry
     
     printf "===================== DONE ==========================\n"
 done
