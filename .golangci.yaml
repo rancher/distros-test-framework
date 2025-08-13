@@ -97,3 +97,5 @@ issues:
       text: 'continue with no blank line before'
     - linters: [revive]
       text: 'should not use dot imports '
+    - linters: [ revive ]
+      text: 'Unhandled error in call to function strings\.Builder\.WriteString'

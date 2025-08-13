@@ -32,35 +32,59 @@ type Cluster struct {
 	Aws           AwsConfig
 	BastionConfig bastionConfig
 	NodeOS        string
+	TestConfig    testConfig
 }
 
 type AwsConfig struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	Region          string
+	AccessKeyID      string
+	SecretAccessKey  string
+	Region           string
+	VPCID            string
+	AvailabilityZone string
+	SgId             string
+	Subnets          string
 	EC2
 }
 
 type EC2 struct {
-	AccessKey        string
-	AwsUser          string
-	Ami              string
-	VolumeSize       string
-	InstanceClass    string
-	Subnets          string
-	AvailabilityZone string
-	SgId             string
-	KeyName          string
+	AccessKey     string
+	AwsUser       string
+	Ami           string
+	VolumeSize    string
+	InstanceClass string
+	KeyName       string
 }
 
 type clusterConfig struct {
-	RenderedTemplate string
-	ExternalDb       string
-	DataStore        string
-	Product          string
-	Arch             string
-	Version          string
-	ServerFlags      string
+	DataStore           string
+	Product             string
+	Channel             string
+	InstallMethod       string
+	InstallMode         string
+	Arch                string
+	Version             string
+	ServerFlags         string
+	WorkerFlags         string
+	ExternalDbEndpoint  string
+	ExternalDb          string
+	ExternalDbVersion   string
+	ExternalDbGroupName string
+	ExternalDbNodeType  string
+	SplitRoles          splitRolesConfig
+}
+
+type splitRolesConfig struct {
+	Add                bool
+	NumServers         int
+	ControlPlaneOnly   int
+	ControlPlaneWorker int
+	EtcdOnly           int
+	EtcdCP             int
+	EtcdWorker         int
+}
+
+type testConfig struct {
+	Tag string
 }
 
 type bastionConfig struct {
@@ -117,63 +141,6 @@ func ClusterConfig(envCfg *config.Env) *Cluster {
 	return cluster
 }
 
-func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
-	// if it is configureSSH() call then return the cluster with only aws key/user.
-	if nodes == nil {
-		return &Cluster{
-			Aws: AwsConfig{
-				EC2: EC2{
-					AccessKey: os.Getenv("access_key"),
-					AwsUser:   os.Getenv("aws_user"),
-				},
-			},
-		}, nil
-	}
-
-	var serverIPs, agentIPs []string
-
-	for i := range nodes {
-		if nodes[i].Roles == "<none>" && nodes[i].Roles != "control-plane" {
-			agentIPs = append(agentIPs, nodes[i].ExternalIP)
-		} else {
-			serverIPs = append(serverIPs, nodes[i].ExternalIP)
-		}
-	}
-
-	return &Cluster{
-		Status:     "cluster created",
-		ServerIPs:  serverIPs,
-		AgentIPs:   agentIPs,
-		NumAgents:  len(agentIPs),
-		NumServers: len(serverIPs),
-		Aws: AwsConfig{
-			Region: os.Getenv("region"),
-			EC2: EC2{
-				AccessKey:        os.Getenv("access_key"),
-				AwsUser:          os.Getenv("aws_user"),
-				Ami:              os.Getenv("aws_ami"),
-				VolumeSize:       os.Getenv("volume_size"),
-				InstanceClass:    os.Getenv("ec2_instance_class"),
-				Subnets:          os.Getenv("subnets"),
-				AvailabilityZone: os.Getenv("availability_zone"),
-				SgId:             os.Getenv("sg_id"),
-				KeyName:          os.Getenv("key_name"),
-			},
-		},
-		Config: clusterConfig{
-			Product:          os.Getenv("ENV_PRODUCT"),
-			RenderedTemplate: os.Getenv("rendered_template"),
-			DataStore:        os.Getenv("datastore_type"),
-			ExternalDb:       os.Getenv("external_db"),
-			Arch:             os.Getenv("arch"),
-		},
-		BastionConfig: bastionConfig{
-			PublicIPv4Addr: os.Getenv("BASTION_IP"),
-		},
-		NodeOS: os.Getenv("node_os"),
-	}, nil
-}
-
 // newCluster creates a new cluster and returns his values from terraform config and vars.
 func newCluster(product, module string) (*Cluster, error) {
 	c := &Cluster{}
@@ -197,6 +164,7 @@ func newCluster(product, module string) (*Cluster, error) {
 	numBastion, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, "no_of_bastion_nodes")
 	if err != nil {
 		LogLevel("debug", "no_of_bastion_nodes not found in tfvars")
+		c.NumBastion = 0
 	} else {
 		c.NumBastion, _ = strconv.Atoi(numBastion)
 	}
@@ -208,11 +176,12 @@ func newCluster(product, module string) (*Cluster, error) {
 	}
 	LogLevel("debug", "Applying Terraform config completed!\n")
 
-	if os.Getenv("split_roles") == "true" {
+	splitRoles := terraform.GetVariableAsStringFromVarFile(t, varDir, "split_roles")
+	if splitRoles == "true" || os.Getenv("split_roles") == "true" {
 		LogLevel("debug", "Checking and adding split roles...")
-		numServers, err = addSplitRole(t, varDir, numServers)
+		numServers, err = addSplitRole(t, &c.Config.SplitRoles, varDir, numServers)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error adding split roles: %w", err)
 		}
 	}
 	c.NumServers = numServers
@@ -221,7 +190,7 @@ func newCluster(product, module string) (*Cluster, error) {
 	LogLevel("debug", "Loading TF Configs...")
 	c, err = loadTFconfig(t, c, product, module, varDir, terraformOptions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading TF config: %w", err)
 	}
 	c.Status = "cluster created"
 	LogLevel("debug", "Cluster has been created successfully...")
@@ -238,4 +207,147 @@ func DestroyCluster(cfg *config.Env) (string, error) {
 	terraform.Destroy(&testing.T{}, terraformOptions)
 
 	return "cluster destroyed", nil
+}
+
+//nolint:funlen // yep, but this makes more clear being one function.
+func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
+	// if it is configureSSH() call then return the cluster with only aws key/user.
+	if nodes == nil {
+		return &Cluster{
+			Aws: AwsConfig{
+				EC2: EC2{
+					AccessKey: os.Getenv("access_key"),
+					AwsUser:   os.Getenv("aws_user"),
+				},
+			},
+		}, nil
+	}
+	var serverIPs, agentIPs []string
+	for i := range nodes {
+		if nodes[i].Roles == "<none>" && nodes[i].Roles != "control-plane" {
+			agentIPs = append(agentIPs, nodes[i].ExternalIP)
+		} else {
+			serverIPs = append(serverIPs, nodes[i].ExternalIP)
+		}
+	}
+
+	product := os.Getenv("ENV_PRODUCT")
+
+	return &Cluster{
+		Status:     "cluster created",
+		ServerIPs:  serverIPs,
+		AgentIPs:   agentIPs,
+		NumAgents:  len(agentIPs),
+		NumServers: len(serverIPs),
+		Aws: AwsConfig{
+			Region:           os.Getenv("region"),
+			Subnets:          os.Getenv("subnets"),
+			SgId:             os.Getenv("sg_id"),
+			AvailabilityZone: os.Getenv("availability_zone"),
+			EC2: EC2{
+				AccessKey:     os.Getenv("access_key"),
+				AwsUser:       os.Getenv("aws_user"),
+				Ami:           os.Getenv("aws_ami"),
+				VolumeSize:    os.Getenv("volume_size"),
+				InstanceClass: os.Getenv("ec2_instance_class"),
+				KeyName:       os.Getenv("key_name"),
+			},
+		},
+		Config: clusterConfig{
+			Product:             product,
+			Version:             getVersion(),
+			ServerFlags:         getFlags("server"),
+			WorkerFlags:         getFlags("worker"),
+			Channel:             getChannel(product),
+			InstallMethod:       os.Getenv("install_method"),
+			InstallMode:         os.Getenv("install_mode"),
+			DataStore:           os.Getenv("datastore_type"),
+			ExternalDb:          os.Getenv("external_db"),
+			ExternalDbVersion:   os.Getenv("external_db_version"),
+			ExternalDbGroupName: os.Getenv("db_group_name"),
+			ExternalDbNodeType:  os.Getenv("instance_class"),
+			ExternalDbEndpoint:  os.Getenv("rendered_template"),
+			Arch:                os.Getenv("arch"),
+			SplitRoles: splitRolesConfig{
+				Add: os.Getenv("split_roles") == "true",
+				NumServers: parseEnvInt("etcd_only_nodes", 0) +
+					parseEnvInt("etcd_cp_nodes", 0) +
+					parseEnvInt("etcd_worker_nodes", 0) +
+					parseEnvInt("cp_only_nodes", 0) +
+					parseEnvInt("cp_worker_nodes", 0),
+				ControlPlaneOnly:   parseEnvInt("cp_only_nodes", 0),
+				ControlPlaneWorker: parseEnvInt("cp_worker_nodes", 0),
+				EtcdOnly:           parseEnvInt("etcd_only_nodes", 0),
+				EtcdCP:             parseEnvInt("etcd_cp_nodes", 0),
+				EtcdWorker:         parseEnvInt("etcd_worker_nodes", 0),
+			},
+		},
+		BastionConfig: bastionConfig{
+			PublicIPv4Addr: os.Getenv("BASTION_IP"),
+			PublicDNS:      os.Getenv("bastion_dns"),
+		},
+		NodeOS: os.Getenv("node_os"),
+	}, nil
+}
+
+// getVersion retrieves the install version from environment variables.
+// used for addClusterFromKubeConfig().
+func getVersion() string {
+	installVersion := os.Getenv("install_version")
+	installVersionEnv := os.Getenv("INSTALL_VERSION")
+
+	if installVersion != "" {
+		return installVersion
+	}
+
+	if installVersionEnv != "" {
+		return installVersionEnv
+	}
+
+	return ""
+}
+
+// getFlags retrieves the flags for a given node type from environment variables.
+// used for addClusterFromKubeConfig().
+func getFlags(nodeType string) string {
+	flags := os.Getenv(nodeType + "_flags")
+	flagsEnv := os.Getenv(nodeType + "_FLAGS")
+
+	if flags != "" {
+		return flags
+	}
+
+	if flagsEnv != "" {
+		return flagsEnv
+	}
+
+	return ""
+}
+
+// getChannel retrieves the install channel for a given product from environment variables.
+// used for addClusterFromKubeConfig().
+func getChannel(product string) string {
+	c := os.Getenv("install_channel")
+	if c != "" {
+		return c
+	}
+
+	channel := os.Getenv(product + "_channel")
+	if channel != "" {
+		return channel
+	}
+
+	return "testing"
+}
+
+// parseEnvInt helper that parses an environment variable as an integer.
+// If the variable is not set or cannot be parsed, it returns the default value.
+func parseEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if value, err := strconv.Atoi(val); err == nil {
+			return value
+		}
+	}
+
+	return defaultValue
 }

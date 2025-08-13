@@ -42,13 +42,18 @@ resource "aws_instance" "worker" {
     Team                 = local.resource_tag
     "kubernetes.io/cluster/clusterid" = "owned"
   }
+
+  provisioner "local-exec" {
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}"
+  }
+
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source = "../install/join_rke2_agent.sh"
@@ -62,7 +67,7 @@ resource "aws_instance" "worker" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [<<-EOT
