@@ -132,6 +132,9 @@ EOF
       useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
     fi
   fi
+  if [ -n "$server_flags" ] && [[ "$server_flags" == *"etcd"* ]]; then
+    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+  fi
 }
 
 install_rke2() {
