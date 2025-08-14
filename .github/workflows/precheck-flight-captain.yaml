@@ -34,3 +34,4 @@ jobs:
       - name: Run the captain shell script
         working-directory: ./scripts
         run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        shell: sh
