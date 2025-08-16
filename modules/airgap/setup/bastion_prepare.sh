@@ -58,7 +58,7 @@ install_podman() {
     echo "Checking for package manager locks if so, removing them."
     pkill -f zypper 2>/dev/null || true
     rm -f /var/run/zypp.pid 2>/dev/null || true
-    sleep 2
+    sleep 10
     
     echo "Installing podman using zypper..."
     zypper install -y podman
