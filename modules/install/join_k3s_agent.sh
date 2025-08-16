@@ -97,6 +97,13 @@ disable_cloud_setup() {
       echo "nm-cloud-setup.timer not found or not enabled"
     fi
   fi
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+    fi
+  fi
 }
 
 install_k3s() {

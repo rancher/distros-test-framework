@@ -38,6 +38,11 @@ func TestMain(m *testing.M) {
 		shared.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+	
+	if cfg.Module == "" {
+		shared.LogLevel("error", "ENV_MODULE is not set, should be ipv6only\n")
+		os.Exit(1)
+	}
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
