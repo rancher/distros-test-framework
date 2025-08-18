@@ -74,7 +74,7 @@ process() {
                 QASE_TEST_PLAN_ID='14'
                 IDENTIFIER='rke2r1'
             elif [ "$product" == "k3s" ]; then
-                QASE_TEST_PLAN_ID='15'
+                QASE_TEST_PLAN_ID='20'
                 IDENTIFIER='k3s1'
             fi
 
