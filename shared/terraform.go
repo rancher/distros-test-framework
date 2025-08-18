@@ -89,7 +89,7 @@ func loadTFconfig(
 
 	LogLevel("info", "Loading Version and Channel...")
 	loadVersion(t, c, varDir)
-	loadChannel(t, c, module, varDir)
+	loadChannel(t, c, varDir)
 
 	if c.Config.Product == "rke2" {
 		c.Config.InstallMethod = terraform.GetVariableAsStringFromVarFile(t, varDir, "install_method")
@@ -103,6 +103,7 @@ func loadTFconfig(
 //
 // this is being really messy and painful. remove after.
 func loadVersion(t *testing.T, c *Cluster, varDir string) {
+	// defaults first always to get from env, because both local and jenkins we update this file
 	if install := os.Getenv("INSTALL_VERSION"); install != "" {
 		c.Config.Version = install
 		LogLevel("info", "Using install version from env: %s", install)
@@ -117,15 +118,20 @@ func loadVersion(t *testing.T, c *Cluster, varDir string) {
 	}
 }
 
-func loadChannel(t *testing.T, c *Cluster, module, varDir string) {
+func loadChannel(t *testing.T, c *Cluster, varDir string) {
+	// defaults first always to get from env, because both local and jenkins we update this file
+	if envInstallChannel := os.Getenv("INSTALL_CHANNEL"); envInstallChannel != "" {
+		c.Config.Channel = envInstallChannel
+		LogLevel("info", "Using install channel from env INSTALL_CHANNEL: %s", envInstallChannel)
+		return
+	}
+
 	tfChannel := c.Config.Product + "_channel"
 
-	if module != "airgap" && module != "ipv6only" {
-		if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfChannel); tf != "" {
-			c.Config.Channel = tf
-			LogLevel("info", "Using install channel from tfvars: %s", tf)
-			return
-		}
+	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfChannel); tf != "" {
+		c.Config.Channel = tf
+		LogLevel("info", "Using install channel from tfvars: %s", tf)
+		return
 	}
 
 	if install := os.Getenv("install_channel"); install != "" {
