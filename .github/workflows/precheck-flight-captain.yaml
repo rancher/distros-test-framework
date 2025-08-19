@@ -40,6 +40,7 @@ jobs:
 
       - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
+        id: k3s_verify
         if: ${{ github.event.inputs.k3s_versions != '' }}
         run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
@@ -47,6 +48,7 @@ jobs:
 
       - name: Verify RKE2 versions - run captain shell script
         working-directory: ./scripts
+        id: rke2_verify
         if: ${{ github.event.inputs.rke2_versions != '' }}
         run: ./captain.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
@@ -54,12 +56,13 @@ jobs:
 
       - name: Verify LTS RKE2 versions - run captain shell script
         working-directory: ./scripts
+        id: rke2_lts_verify
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
         run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
 
       - name: Check for previous failures
-        if: failure()
+        if: steps.k3s_verify.outcome == 'failure' || steps.rke2_verify.outcome == 'failure' || steps.rke2_lts_verify.outcome == 'failure'
         run: |
           echo "One or more steps failed, marking job as failed."
           exit 1
