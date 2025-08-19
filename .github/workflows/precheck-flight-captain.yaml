@@ -35,12 +35,21 @@ jobs:
         working-directory: ./scripts
         run: chmod +x ./captain.sh
 
-      - name: Run the captain shell script
+      - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
-        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        if: ${{ github.event.inputs.k3s_versions != '' }}
+        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
+        continue-on-error: true
 
-      - name: Run the captain shell script for LTS RKE2 versions
+      - name: Verify RKE2 versions - run captain shell script
+        working-directory: ./scripts
+        if: ${{ github.event.inputs.rke2_versions != '' }}
+        run: ./captain.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        shell: sh
+        continue-on-error: true
+
+      - name: Verify LTS RKE2 versions - run captain shell script
         working-directory: ./scripts
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
         run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
