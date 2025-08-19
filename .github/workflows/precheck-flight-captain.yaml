@@ -13,7 +13,7 @@ on:
         default: 'v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1'
       rke2_lts_versions:
         description: 'Provide the list of rke2 lts versions to test prime registry (comma separated)'
-        required: true
+        required: false
         default: 'v1.30.14-rc1+rke2r3'
       page_size:
         description: 'Page size for API queries'
