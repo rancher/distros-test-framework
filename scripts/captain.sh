@@ -39,6 +39,7 @@ fi
 
 SEED=$(date +%s)
 RANDOM_INT=$(awk -v seed="${SEED}" 'BEGIN { srand(seed); print int(rand() * 100) }')
+FAILURE_FILE="failure_results_${RANDOM_INT}"
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then
@@ -55,7 +56,7 @@ verify_count () {
     if [ "${COUNT}" -eq "${EXPECTED_COUNT}" ] || [ "${COUNT}" -gt "${EXPECTED_COUNT}" ]; then
         echo "PASS: ${DESCRIPTION} Count is ${COUNT}."
     else
-        echo "FAIL: Not found enough ${DESCRIPTION}. Expected count ${EXPECTED_COUNT} but got ${COUNT}."
+        echo "FAIL: ${VERSION}: Not found enough ${DESCRIPTION}. Expected count ${EXPECTED_COUNT} but got ${COUNT}." | tee -a "${FAILURE_FILE}"
     fi
 }
 
@@ -241,6 +242,20 @@ do
         verify_release_asset_count_k3s
     fi
     verify_prime_registry
-    
+
     printf "===================== DONE ==========================\n"
 done
+
+printf "==========================================================================
+                    FAILURE SUMMARY 
+==========================================================================\n"
+cat "${FAILURE_FILE}"
+printf "===================== DONE ==========================\n"
+
+if [ "$(grep -c "FAIL" "${FAILURE_FILE}")" -gt 0  ]; then
+    echo "Found failures. Exiting with status 1"
+    rm -rf "${FAILURE_FILE}"
+    exit 1
+fi
+
+rm -rf "${FAILURE_FILE}"
