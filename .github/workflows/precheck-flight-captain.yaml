@@ -10,7 +10,11 @@ on:
       rke2_versions:
         description: 'Provide the list of rke2 versions (comma separated)'
         required: true
-        default: 'v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1,v1.30.14-rc1+rke2r3'
+        default: 'v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1'
+      rke2_lts_versions:
+        description: 'Provide the list of rke2 lts versions to test prime registry (comma separated)'
+        required: true
+        default: 'v1.30.14-rc1+rke2r3'
       page_size:
         description: 'Page size for API queries'
         required: false
@@ -34,4 +38,10 @@ jobs:
       - name: Run the captain shell script
         working-directory: ./scripts
         run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        shell: sh
+
+      - name: Run the captain shell script for LTS RKE2 versions
+        working-directory: ./scripts
+        if: ${{ github.event.inputs.rke2_lts_versions != '' }}
+        run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
