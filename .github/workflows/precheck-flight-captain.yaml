@@ -57,3 +57,10 @@ jobs:
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
         run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
+
+      - name: Check for previous failures
+        if: failure()
+        run: |
+          echo "One or more steps failed, marking job as failed."
+          exit 1
+
