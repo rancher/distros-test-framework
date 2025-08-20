@@ -37,13 +37,13 @@ if ($airgapMethod -like "tarball") {
     Write-Host "Copy tarball artifacts..."
     New-Item -Type Directory C:/var/lib/rancher/rke2/agent/images -Force
     Copy-Item C:/Users/Administrator/rke2-windows-ltsc2022-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
-    New-Item -Type Directory C:/Users/Administrator/rke2-windows-artifacts
+    # New-Item -Type Directory C:/Users/Administrator/rke2-windows-artifacts
     # TODO: for windows 2019
     #Copy-Item C:/Users/Administrator/rke2-windows-1809-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
 }
 
-Copy-Item C:/Users/Administrator/rke2.windows-amd64.tar.gz C:/Users/Administrator/rke2-windows-artifacts/
-Copy-Item C:/Users/Administrator/sha256sum-amd64.txt C:/Users/Administrator/rke2-windows-artifacts/
+# Install rke2 service
+Write-Host "Install rke2 service..."
 C:/Users/Administrator/rke2-install.ps1 -ArtifactPath C:/Users/Administrator/rke2-windows-artifacts
 
 # Starting rke2 service
