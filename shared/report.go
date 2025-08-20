@@ -34,6 +34,7 @@ func SummaryReportData(c *Cluster, flags *customflag.FlagConfig) (string, error)
 	return data.summaryData.String(), nil
 }
 
+//nolint:funlen // yep, but this makes more clear being one function.
 func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 	// os-release data from the first server node.
 	res, err := RunCommandOnNode("cat /etc/os-release", c.ServerIPs[0])
