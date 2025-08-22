@@ -1,10 +1,17 @@
 #!/bin/sh
 
-while getopts v:p:dh OPTION
+while getopts v:l:p:dh OPTION
 do 
     case "${OPTION}"
         in
-        v) INPUT=${OPTARG};;
+        v) 
+            INPUT=${OPTARG}
+            LTS="false"
+        ;;
+        l) 
+            INPUT=${OPTARG}
+            LTS="true"
+        ;;
         p) PAGE_SIZE=${OPTARG};;
         d) DEBUG="true"
            echo "DEBUG mode is ON"
@@ -17,6 +24,7 @@ do
 
             -d: debug. If flag is used, debug mode is ON and prints the curl commands executed.
             -v: version to test. Ex: v1.31.6-rc1+rke2r1,v1.31.6-rc1+k3s1,v1.31.5+rke2r1
+            -l: LTS version to test. Ex: v1.30.14-rc6+rke2r3
             -p: page size for curl commands to fetch data from docker hub or github. Default is 200.
             -h: help - usage is displayed
             "
@@ -39,6 +47,7 @@ fi
 
 SEED=$(date +%s)
 RANDOM_INT=$(awk -v seed="${SEED}" 'BEGIN { srand(seed); print int(rand() * 100) }')
+FAILURE_FILE="failure_results_${RANDOM_INT}"
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then
@@ -55,7 +64,7 @@ verify_count () {
     if [ "${COUNT}" -eq "${EXPECTED_COUNT}" ] || [ "${COUNT}" -gt "${EXPECTED_COUNT}" ]; then
         echo "PASS: ${DESCRIPTION} Count is ${COUNT}."
     else
-        echo "FAIL: Not found enough ${DESCRIPTION}. Expected count ${EXPECTED_COUNT} but got ${COUNT}."
+        echo "FAIL: ${VERSION}: Not found enough ${DESCRIPTION}. Expected count ${EXPECTED_COUNT} but got ${COUNT}." | tee -a "${FAILURE_FILE}"
     fi
 }
 
@@ -151,6 +160,34 @@ verify_release_asset_count_k3s () {
     verify_count "${ASSET_COUNT}" "19" "K3S release Asset count"
 }
 
+verify_asset_count_rke2_packaging () {
+     # expect 60 cause 2 assets are the zipped and tar.gz source code
+    EXPECTED_ASSETS_COUNT="${EXPECTED_ASSETS_COUNT:-60}"
+
+    printf '\n==== VERIFY RKE2 PACKAGING ASSETS FOR RKE2 VERSION: %s ====\n' "${VERSION}"
+
+    JSON=$(
+      curl -sS -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/rancher/rke2-packaging/releases?per_page=100"
+    )
+
+    TAG=$(printf '%s' "$JSON" | jq -r --arg p "$VERSION" '
+      [ .[] | select((.tag_name | startswith($p)) and (.tag_name | test("\\.testing\\.[0-9]+$"))) ][0].tag_name
+    ')
+    debug_log "TAG: ${TAG}"
+
+    if [ -z "$TAG" ]; then
+        echo "FAIL: ${VERSION}: packaging release tag not found (looking for ${VERSION}.testing)." | tee -a "${FAILURE_FILE}"
+        echo "Please ensure the version is correct and the release exists." | tee -a "${FAILURE_FILE}"
+    fi
+
+    ASSET_COUNT=$(printf '%s' "$JSON" | jq --arg tag "$TAG" '
+      [.[] | select(.tag_name == $tag)][0].assets | length
+    ')
+
+    verify_count "${ASSET_COUNT}" "${EXPECTED_ASSETS_COUNT}" "RKE2 packaging assets"
+}
+
 verify_rke2_packaging () {
     RKE2_PKG_FILE="rke2_pkg_${RANDOM_INT}"
     
@@ -207,10 +244,27 @@ verify_prime_registry () {
     skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
     
     SYS_AGENT_COUNT=$(wc -l < "${SYS_AGENT_OUTFILE}")
-    verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
 
+    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+        verify_count "${SYS_AGENT_COUNT}" "0" "System Agent Installer for ${PRODUCT} (in prime registry)"
+    else
+        verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
+    fi
+    
     rm -rf "${SYS_AGENT_OUTFILE}"
     rm -rf "${RKE2_RUNTIME_OUTFILE}"
+}
+
+verify_lts () {
+    LTS_OUT_FILE="lts_output_${RANDOM_INT}"
+    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+        LTS_URL="https://prime.ribs.rancher.io/index-prerelease.html"
+    else
+        LTS_URL="https://prime.ribs.rancher.io"
+    fi
+    curl "${LTS_URL}" > "${LTS_OUT_FILE}"
+    LTS_COUNT=$(grep -cE "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${LTS_OUT_FILE}")
+    verify_count "${LTS_COUNT}" "76" "LTS count check against Prime registry"
 }
 
 # Main script execution starts here
@@ -231,16 +285,34 @@ do
     
     echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
 
-    verify_system_agent_installers
-    verify_upgrade_images
-    verify_releases
-    if [ "${PRODUCT}" = "rke2" ]; then
-        verify_rke2_packaging
-        verify_release_asset_count_rke2
+    if [ "${LTS}" = "false" ]; then
+        verify_system_agent_installers
+        verify_upgrade_images
+        verify_releases
+        if [ "${PRODUCT}" = "rke2" ]; then
+            verify_rke2_packaging
+            verify_release_asset_count_rke2
+            verify_asset_count_rke2_packaging
+        else
+            verify_release_asset_count_k3s
+        fi
+        verify_prime_registry
     else
-        verify_release_asset_count_k3s
+        verify_lts
     fi
-    verify_prime_registry
-    
+
     printf "===================== DONE ==========================\n"
 done
+
+if [ -f $FAILURE_FILE ]; then
+    printf "==========================================================================
+                        FAILURE SUMMARY 
+==========================================================================\n"
+    cat "${FAILURE_FILE}"
+    printf "===================== DONE ==========================\n"
+    echo "Found failures. Exiting with status 1"
+    rm -rf "${FAILURE_FILE}"
+    exit 1
+fi
+
+rm -rf "${FAILURE_FILE}"
