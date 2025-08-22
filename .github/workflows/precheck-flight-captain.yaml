@@ -4,13 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       k3s_versions:
-        description: 'Provide the list of k3s versions (comma separated)'
-        required: true
-        default: 'v1.34.0-rc1+k3s1,v1.33.4-rc1+k3s1,v1.32.8-rc1+k3s1,v1.31.12-rc1+k3s1'
+        description: |
+          'Provide the list of k3s versions (comma separated)
+          Ex: v1.34.0-rc1+k3s1,v1.33.4-rc1+k3s1,v1.32.8-rc1+k3s1,v1.31.12-rc1+k3s1'
+        required: false
       rke2_versions:
-        description: 'Provide the list of rke2 versions (comma separated)'
-        required: true
-        default: 'v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1,v1.30.14-rc1+rke2r3'
+        description: |
+          'Provide the list of rke2 versions (comma separated)
+          Ex: v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1'
+        required: false
+      rke2_lts_versions:
+        description: |
+          'Provide the list of rke2 lts versions to test prime registry (comma separated)
+          Ex: v1.30.14-rc1+rke2r3'
+        required: false
       page_size:
         description: 'Page size for API queries'
         required: false
@@ -31,7 +38,32 @@ jobs:
         working-directory: ./scripts
         run: chmod +x ./captain.sh
 
-      - name: Run the captain shell script
+      - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
-        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}","${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        id: k3s_verify
+        if: ${{ github.event.inputs.k3s_versions != '' }}
+        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
+        continue-on-error: true
+
+      - name: Verify RKE2 versions - run captain shell script
+        working-directory: ./scripts
+        id: rke2_verify
+        if: ${{ github.event.inputs.rke2_versions != '' }}
+        run: ./captain.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        shell: sh
+        continue-on-error: true
+
+      - name: Verify LTS RKE2 versions - run captain shell script
+        working-directory: ./scripts
+        id: rke2_lts_verify
+        if: ${{ github.event.inputs.rke2_lts_versions != '' }}
+        run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
+        shell: sh
+
+      - name: Check for previous failures
+        if: steps.k3s_verify.outcome == 'failure' || steps.rke2_verify.outcome == 'failure' || steps.rke2_lts_verify.outcome == 'failure'
+        run: |
+          echo "One or more steps failed, marking job as failed."
+          exit 1
+
