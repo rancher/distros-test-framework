@@ -84,11 +84,11 @@ if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != "false") {
     addStrParam(param, 'REPORT_TO_QASE',    env.REPORT_TO_QASE)
     addStrParam(param, 'QASE_PROJECT_ID',   env.QASE_PROJECT_ID)
     addStrParam(param, 'QASE_RUN_ID',       env.QASE_RUN_ID)
-    def qaseId =  ""
+    def tcId =  ""
      if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != "false") {
-       qaseId = qaseTcIdResolver(product, arch, ch)
+       tcId = qaseTcIdResolver(product, arch, ch)
      }
-    param << string(name: 'QASE_TEST_CASE_ID', value:  qaseId)
+    param << string(name: 'QASE_TEST_CASE_ID', value:  tcId)
 
     // values that differ per arch.
     if (arch == "arm") {
@@ -179,11 +179,9 @@ if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != "false") {
                     }
                   }
                 }
-
                 idx++
               }
             }
-
             echo "Planned executions: ${jobs.size()}"
             parallel jobs
           } // stage
