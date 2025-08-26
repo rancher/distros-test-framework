@@ -42,7 +42,7 @@ jobs:
         working-directory: ./scripts
         id: k3s_verify
         if: ${{ github.event.inputs.k3s_versions != '' }}
-        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        run: ./release_checks.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
         continue-on-error: true
 
@@ -50,7 +50,7 @@ jobs:
         working-directory: ./scripts
         id: rke2_verify
         if: ${{ github.event.inputs.rke2_versions != '' }}
-        run: ./captain.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        run: ./release_checks.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
         continue-on-error: true
 
@@ -58,7 +58,7 @@ jobs:
         working-directory: ./scripts
         id: rke2_lts_verify
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
-        run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
+        run: ./release_checks.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
 
       - name: Check for previous failures
