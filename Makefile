@@ -93,6 +93,12 @@ test-version-bump:
 	$(if ${APPLY_WORKLOAD},-applyWorkload ${APPLY_WORKLOAD}) \
 	$(if ${DELETE_WORKLOAD},-deleteWorkload ${DELETE_WORKLOAD})
 
+test-chartsversions-bump:
+	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=chartsversions \
+	-expectedValue ${EXPECTED_VALUE} \
+	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
+	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT})
+
 test-components-bump:
 	@go test -timeout=45m -v -count=1 ./entrypoint/versionbump/... -tags=components \
 	-expectedValue ${EXPECTED_VALUE} \

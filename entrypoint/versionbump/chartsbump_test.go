@@ -1,3 +1,5 @@
+//go:build chartsbump
+
 package versionbump
 
 import (
@@ -67,7 +69,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 	cilium := fmt.Sprintf("%s/rke2-cilium.yaml | grep rke2-cilium ", getCharts)
 	flannel := fmt.Sprintf("%s/rke2-flannel.yaml | grep rke2-flannel ", getCharts)
 	ingressController := fmt.Sprintf("%s/rke2-ingress-nginx.yaml | grep rke2-ingress-nginx ", getCharts)
-	metricsServer := fmt.Sprintf("%s/rke2-metrics-server.yaml | grep rke2-metrics-server ", getCharts)
+	metrics := fmt.Sprintf("%s/rke2-metrics-server.yaml | grep rke2-metrics-server ", getCharts)
 	multus := fmt.Sprintf("%s/rke2-multus.yaml | grep rke2-multus ", getCharts)
 	runtimeClasses := fmt.Sprintf("%s/rke2-runtimeclasses.yaml | grep rke2-runtimeclasses ", getCharts)
 	snapshotController := fmt.Sprintf("%s/rke2-snapshot-controller* | grep rke2-snapshot ", getCharts)
@@ -91,7 +93,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 		"\n12-traefik\n13-harvester Cloud Provider\n14-harvester Csi Driver" +
 		"\n15-rancher Vsphere Cpi\n16-rancher Vsphere Csi"
 
-	cmd := calico + canal + cilium + coredns + flannel + ingressController + metricsServer +
+	cmd := calico + canal + cilium + coredns + flannel + ingressController + metrics +
 		multus + runtimeClasses + snapshotController + snapshotValidation + traefik +
 		harvesterCloud + harvesterCsi + rancherVsphereCpi + rancherVsphereCsi
 

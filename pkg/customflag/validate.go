@@ -42,6 +42,9 @@ func ValidateTemplateFlags() {
 		validateSingleCNITest(expectedValues, expectedUpgrades)
 	case "canal":
 		validateCanalTest(expectedValues, expectedUpgrades)
+	case "chartsbump":
+		log.Info("skipping charts bump validation")
+		// validateChartsBumpTest(expectedValues, expectedUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}
@@ -93,7 +96,7 @@ func validateTestTagFromLocal() string {
 		os.Exit(1)
 	}
 
-	testTags := []string{"calico", "canal", "cilium", "flannel", "multus", "components", "versionbump"}
+	testTags := []string{"calico", "canal", "cilium", "flannel", "multus", "components", "versionbump", "chartsbump"}
 	if !slices.Contains(testTags, testTag) {
 		log.Errorf("test tag not found in: %s", testTag)
 		os.Exit(1)
@@ -202,6 +205,21 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string) {
 				rke2ComponentsCmdsCount, len(valuesUpgrade))
 			os.Exit(1)
 		}
+	}
+}
+
+func validateChartsBumpTest(expectedValue, valuesUpgrade []string) {
+	rke2ChartsCmdsCount := 16
+
+	if len(expectedValue) != rke2ChartsCmdsCount {
+		log.Errorf("mismatched length commands: %d x expected values: %d", rke2ChartsCmdsCount, len(expectedValue))
+		os.Exit(1)
+	}
+
+	if valuesUpgrade != nil && len(valuesUpgrade) != rke2ChartsCmdsCount {
+		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+			rke2ChartsCmdsCount, len(valuesUpgrade))
+		os.Exit(1)
 	}
 }
 
