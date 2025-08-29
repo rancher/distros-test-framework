@@ -43,8 +43,8 @@ func ValidateTemplateFlags() {
 	case "canal":
 		validateCanalTest(expectedValues, expectedUpgrades)
 	case "chartsbump":
-		log.Info("skipping charts bump validation")
-		// validateChartsBumpTest(expectedValues, expectedUpgrades)
+		// log.Info("skipping charts bump validation")
+		validateChartsBumpTest(expectedValues, expectedUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}

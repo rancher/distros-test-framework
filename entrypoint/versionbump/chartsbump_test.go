@@ -9,31 +9,31 @@ import (
 	. "github.com/rancher/distros-test-framework/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/pkg/template"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
 )
 
-// const (
-// 	calico             = getCharts + "rke2-calico* | grep rke2-calico "
-// 	canal              = getCharts + "rke2-canal.yaml | grep rke2-canal "
-// 	coredns            = getCharts + "rke2-coredns.yaml | grep rke2-coredns "
-// 	cilium             = getCharts + "rke2-cilium.yaml | grep rke2-cilium "
-// 	flannel            = getCharts + "rke2-flannel.yaml | grep rke2-flannel "
-// 	ingressController  = getCharts + "rke2-ingress-nginx.yaml | grep rke2-ingress-nginx "
-// 	metricsServer      = getCharts + "rke2-metrics-server.yaml | grep rke2-metrics-server "
-// 	multus             = getCharts + "rke2-multus.yaml | grep rke2-multus "
-// 	runtimeClasses     = getCharts + "rke2-runtimeclasses.yaml | grep rke2-runtimeclasses "
-// 	snapshotController = getCharts + "rke2-snapshot-controller* | grep rke2-snapshot "
-// 	snapshotValidation = getCharts + "rke2-snapshot-validation-webhook.yaml | grep rke2-snapshot-validation-webhook "
-// 	traefik            = getCharts + "rke2-traefik* | grep rke2-traefik "
-// 	harvesterCloud     = getCharts + "/harvester-cloud-provider.yaml | grep cloud-provider "
-// 	harvesterCsi       = getCharts + "/harvester-csi-driver.yaml | grep csi "
-// 	rancherVsphereCpi  = getCharts + "/rancher-vsphere-cpi.yaml | grep cpi "
-// 	rancherVsphereCsi   = getCharts + "/rancher-vsphere-csi.yaml | grep csi "
-// )
+const (
+	getCharts          = "sudo cat /var/lib/rancher/rke2/data/v*/charts/*"
+	calico             = getCharts + " | grep 'rke2-calico', "
+	canal              = getCharts + " | grep 'rke2-canal', "
+	coredns            = getCharts + " | grep 'rke2-coredns', "
+	cilium             = getCharts + " | grep 'rke2-cilium', "
+	flannel            = getCharts + " | grep 'rke2-flannel', "
+	ingressController  = getCharts + " | grep 'rke2-ingress-nginx', "
+	metrics            = getCharts + " | grep 'rke2-metrics-server', "
+	multus             = getCharts + " | grep 'rke2-multus', "
+	runtimeClasses     = getCharts + " | grep 'rke2-runtimeclasses', "
+	snapshotController = getCharts + " | grep 'rke2-snapshot-controller', "
+	snapshotValidation = getCharts + " | grep 'rke2-snapshot-validation-webhook', "
+	traefik            = getCharts + " | grep 'rke2-traefik', "
+	harvesterCloud     = getCharts + " | grep 'harvester-cloud-provider', "
+	harvesterCsi       = getCharts + " | grep 'harvester-csi-driver', "
+	rancherVsphereCpi  = getCharts + " | grep 'vsphere-cpi', "
+	rancherVsphereCsi  = getCharts + " | grep 'vsphere-csi' "
+)
 
-var _ = Describe("Components Version Upgrade:", func() {
+var _ = Describe("Charts Version Upgrade:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
 	})
@@ -56,29 +56,28 @@ var _ = Describe("Components Version Upgrade:", func() {
 	// 	testcase.TestChartsVersions(true, true)
 	// })
 
-	locationCharts, err := shared.RunCommandOnNode("find /var/lib/rancher/rke2/data/v*", cluster.ServerIPs[0])
-	if err != nil {
-		fmt.Print("failed to get location of charts versions")
-		return
-	}
-	getCharts := fmt.Sprintf("sudo cat %s/charts", locationCharts)
+	// locationCharts, err := shared.RunCommandOnNode("find /var/lib/rancher/rke2/data/v*/charts", cluster.ServerIPs[0])
+	// if err != nil {
+	// 	fmt.Print("failed to get location of charts versions")
+	// 	return
+	// }
 
-	calico := fmt.Sprintf("%s/rke2-calico* | grep rke2-calico ", getCharts)
-	canal := fmt.Sprintf("%s/rke2-canal.yaml | grep rke2-canal ", getCharts)
-	coredns := fmt.Sprintf("%s/rke2-coredns.yaml | grep rke2-coredns ", getCharts)
-	cilium := fmt.Sprintf("%s/rke2-cilium.yaml | grep rke2-cilium ", getCharts)
-	flannel := fmt.Sprintf("%s/rke2-flannel.yaml | grep rke2-flannel ", getCharts)
-	ingressController := fmt.Sprintf("%s/rke2-ingress-nginx.yaml | grep rke2-ingress-nginx ", getCharts)
-	metrics := fmt.Sprintf("%s/rke2-metrics-server.yaml | grep rke2-metrics-server ", getCharts)
-	multus := fmt.Sprintf("%s/rke2-multus.yaml | grep rke2-multus ", getCharts)
-	runtimeClasses := fmt.Sprintf("%s/rke2-runtimeclasses.yaml | grep rke2-runtimeclasses ", getCharts)
-	snapshotController := fmt.Sprintf("%s/rke2-snapshot-controller* | grep rke2-snapshot ", getCharts)
-	snapshotValidation := fmt.Sprintf("%s/rke2-snapshot-validation-webhook.yaml | grep rke2-snapshot ", getCharts)
-	traefik := fmt.Sprintf("%s/rke2-traefik* | grep rke2-traefik ", getCharts)
-	harvesterCloud := fmt.Sprintf("%s/harvester-cloud-provider.yaml | grep cloud-provider ", getCharts)
-	harvesterCsi := fmt.Sprintf("%s/harvester-csi-driver.yaml | grep csi ", getCharts)
-	rancherVsphereCpi := fmt.Sprintf("%s/rancher-vsphere-cpi.yaml | grep cpi ", getCharts)
-	rancherVsphereCsi := fmt.Sprintf("%s/rancher-vsphere-csi.yaml | grep csi ", getCharts)
+	// calico := fmt.Sprintf("sudo cat %s/rke2-calico* : | grep 'rke2-calico' ", getCharts)
+	// canal := fmt.Sprintf("sudo cat %s/rke2-canal.yaml | grep 'rke2-canal' ", getCharts)
+	// coredns := fmt.Sprintf("sudo cat %s/rke2-coredns.yaml | grep 'rke2-coredns' ", getCharts)
+	// cilium := fmt.Sprintf("sudo cat %s/rke2-cilium.yaml | grep 'rke2-cilium' ", getCharts)
+	// flannel := fmt.Sprintf("sudo cat %s/rke2-flannel.yaml | grep 'rke2-flannel' ", getCharts)
+	// ingressController := fmt.Sprintf("sudo cat %s/rke2-ingress-nginx.yaml | grep 'rke2-ingress-nginx' ", getCharts)
+	// metrics := fmt.Sprintf("sudo cat %s/rke2-metrics-server.yaml | grep 'rke2-metrics-server' ", getCharts)
+	// multus := fmt.Sprintf("sudo cat %s/rke2-multus.yaml | grep 'rke2-multus' ", getCharts)
+	// runtimeClasses := fmt.Sprintf("sudo cat %s/rke2-runtimeclasses.yaml | grep 'rke2-runtimeclasses' ", getCharts)
+	// snapshotController := fmt.Sprintf("sudo cat %s/rke2-snapshot-controller* | grep 'rke2-snapshot' ", getCharts)
+	// snapshotValidation := fmt.Sprintf("sudo cat %s/rke2-snapshot-validation-webhook.yaml | grep 'rke2-snapshot' ", getCharts)
+	// traefik := fmt.Sprintf("sudo cat %s/rke2-traefik* | grep rke2-traefik ", getCharts)
+	// harvesterCloud := fmt.Sprintf("sudo cat %s/harvester-cloud-provider.yaml | grep 'cloud-provider' ", getCharts)
+	// harvesterCsi := fmt.Sprintf("sudo cat %s/harvester-csi-driver.yaml | grep 'csi' ", getCharts)
+	// rancherVsphereCpi := fmt.Sprintf("sudo cat %s/rancher-vsphere-cpi.yaml | grep 'cpi' ", getCharts)
+	// rancherVsphereCsi := fmt.Sprintf("sudo cat %s/rancher-vsphere-csi.yaml | grep 'csi' ", getCharts)
 
 	// runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;) , ", cluster.Config.Product)
 	// crictl := "sudo /var/lib/rancher/rke2/bin/crictl -v, "
