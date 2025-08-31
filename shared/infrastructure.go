@@ -23,7 +23,7 @@ type InfraProvider string
 const (
 	// LegacyProvider uses the existing modules/ (now infrastructure/legacy/) approach
 	LegacyProvider InfraProvider = "legacy"
-	// QAInfraProvider uses the qa-infra-automation approach
+	// QAInfraProvider uses the qa-infra-automation approach (supports AWS, vSphere, etc.)
 	QAInfraProvider InfraProvider = "qa-infra"
 )
 
@@ -192,6 +192,11 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 		return nil, fmt.Errorf("failed to copy main.tf: %w", err)
 	}
 
+	// Update main.tf to use the correct infrastructure module (AWS vs vSphere)
+	if err := updateMainTfModuleSource(mainTfDst); err != nil {
+		return nil, fmt.Errorf("failed to update main.tf module source: %w", err)
+	}
+
 	// Copy variable schema and values into temp workdir (schema: variables.tf, values: vars.tfvars)
 	if data, err := os.ReadFile(filepath.Join(rootDir, "infrastructure/qa-infra/variables.tf")); err == nil {
 		_ = os.WriteFile(filepath.Join(nodeSource, "variables.tf"), data, 0644)
@@ -254,9 +259,6 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	// Determine the product-specific ansible path
-	LogLevel("info", "Product from config: '%s'", config.Product)
-
 	var ansiblePath string
 	switch config.Product {
 	case "k3s":
@@ -267,11 +269,12 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 		LogLevel("info", "Using RKE2 ansible path")
 	}
 
-	// Use add-k3s-support branch from fmoral2 fork for all products
+	// Use add.vsphere branch from fmoral2 fork for all products
 	// Clone only the ansible directory we need from the appropriate repository and branch
-	gitBranch := "add-k3s-support"
+	gitBranch := "add.vsphere"
 	repoURL := "https://github.com/fmoral2/qa-infra-automation.git"
-	if err := runCmd(ctx, rootDir, "git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch", gitBranch, repoURL, tempDir); err != nil {
+	if err := runCmd(ctx, rootDir, "git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
+		gitBranch, repoURL, tempDir); err != nil {
 		return nil, fmt.Errorf("git clone failed: %w", err)
 	}
 
@@ -365,6 +368,8 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 		return nil, fmt.Errorf("failed to get node information from state: %w", err)
 	}
 
+	LogLevel("debug", "NODES FROM getAllNodesFromState() ===  STATE: %v", nodes)
+
 	// Extract workspace name from the state file path
 	stateFilePattern := regexp.MustCompile(`terraform\.tfstate\.d/([^/]+)/terraform\.tfstate`)
 	matches := stateFilePattern.FindStringSubmatch(stateFile)
@@ -380,8 +385,6 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 	os.Setenv("TERRAFORM_NODE_SOURCE", nodeSource)
 	LogLevel("info", "Set TF_WORKSPACE=%s, TERRAFORM_NODE_SOURCE=%s", workspace, nodeSource)
 
-	// Determine the correct playbook name based on product
-	LogLevel("info", "Selecting playbook for product: '%s'", config.Product)
 	var playbookName string
 	switch config.Product {
 	case "k3s":
@@ -418,8 +421,15 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 	os.Setenv("KUBECONFIG", kubeconfigPath)
 	KubeConfigFile = kubeconfigPath
 
+	// Set architecture for workload tests
+	if tempCluster.Config.Arch != "" {
+		os.Setenv("arch", tempCluster.Config.Arch)
+	} else {
+		os.Setenv("arch", "amd64") // Default to amd64
+	}
+
 	// Use absolute path for kubeconfig to avoid path resolution issues
-	LogLevel("info", "Passing kubeconfig path to Ansible: %s", kubeconfigPath)
+	LogLevel("debug", "Passing kubeconfig path to Ansible: %s", kubeconfigPath)
 	args := []string{"-i", inventoryPath, playbookName,
 		"--extra-vars", fmt.Sprintf("kubeconfig_file=%s", kubeconfigPath),
 	}
@@ -450,11 +460,11 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 	// Pass server and worker flags separately with proper quoting for multi-line values
 	if serverFlagsVal != "" {
 		args = append(args, "--extra-vars", fmt.Sprintf("server_flags=%q", serverFlagsVal))
-		LogLevel("info", "Passing server flags to Ansible: %s", serverFlagsVal)
+		LogLevel("debug", "Passing server flags to Ansible: %s", serverFlagsVal)
 	}
 	if workerFlagsVal != "" {
 		args = append(args, "--extra-vars", fmt.Sprintf("worker_flags=%q", workerFlagsVal))
-		LogLevel("info", "Passing worker flags to Ansible: %s", workerFlagsVal)
+		LogLevel("debug", "Passing worker flags to Ansible: %s", workerFlagsVal)
 	}
 
 	// Pass channel if specified (for K3s/RKE2 release channel)
@@ -464,16 +474,43 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 	}
 	if channelVal != "" {
 		args = append(args, "--extra-vars", fmt.Sprintf("channel=%s", channelVal))
-		LogLevel("info", "Passing channel to Ansible: %s", channelVal)
+		LogLevel("debug", "Passing channel to Ansible: %s", channelVal)
 	}
 
 	installMethod := strings.TrimSpace(os.Getenv("INSTALL_METHOD"))
 	if strings.Contains(config.Product, "rke2") {
-		installMethod = strings.TrimSpace(tempCluster.Config.InstallMethod)
+		// For RKE2, prefer tempCluster config if set, otherwise use environment variable
+		if tempCluster.Config.InstallMethod != "" {
+			installMethod = strings.TrimSpace(tempCluster.Config.InstallMethod)
+		}
 	}
 	if installMethod != "" {
 		args = append(args, "--extra-vars", fmt.Sprintf("install_method=%s", installMethod))
-		LogLevel("info", "Passing install method to Ansible: %s", installMethod)
+		LogLevel("debug", "Passing install method to Ansible: %s", installMethod)
+	}
+
+	// For RKE2, extract CNI from server_flags and pass it as a separate variable
+	if strings.Contains(config.Product, "rke2") {
+		var cniValue string
+
+		// Check if CNI environment variable is explicitly set and not empty
+		envCNI := os.Getenv("CNI")
+		if envCNI != "" {
+			cniValue = strings.TrimSpace(envCNI)
+			LogLevel("debug", "Using CNI from environment variable: %s", cniValue)
+		} else {
+
+			cniValue = extractCNIFromFlags(serverFlagsVal)
+			if cniValue != "" {
+				LogLevel("debug", "Extracted CNI from server_flags: %s", cniValue)
+			} else {
+				cniValue = "canal"
+				LogLevel("debug", "Using default CNI for RKE2: %s", cniValue)
+			}
+		}
+
+		args = append(args, "--extra-vars", fmt.Sprintf("cni=%s", cniValue))
+		LogLevel("debug", "Passing CNI to RKE2 Ansible: %s", cniValue)
 	}
 
 	// Run ansible-playbook with timeout
@@ -531,6 +568,31 @@ func provisionQAInfra(config InfraConfig) (*Cluster, error) {
 	LogLevel("info", "Ansible playbooks downloaded to: %s", tempDir)
 
 	return c, nil
+}
+
+// extractCNIFromFlags extracts the CNI value from YAML-formatted server flags
+func extractCNIFromFlags(serverFlags string) string {
+	if serverFlags == "" {
+		return ""
+	}
+
+	// Parse YAML-style server flags to extract CNI
+	lines := strings.Split(serverFlags, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "cni:") {
+			// Extract value after "cni:"
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				cni := strings.TrimSpace(parts[1])
+				// Remove quotes if present
+				cni = strings.Trim(cni, `"'`)
+				return cni
+			}
+		}
+	}
+
+	return ""
 }
 
 // destroyQAInfra destroys qa-infra infrastructure
@@ -837,19 +899,33 @@ func preflightInventory(ctx context.Context, workingDir, inventoryPath string) e
 	return nil
 }
 
-// updateVarsFileWithUniqueID updates the vars.tfvars file with unique resource names
+// updateVarsFileWithUniqueID updates the vars.tfvars file with unique resource names and replaces product variables
 func updateVarsFileWithUniqueID(varsFilePath, uniqueID string) error {
 	content, err := os.ReadFile(varsFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read vars file: %w", err)
 	}
 
-	// Generate unique hostname prefix
 	varsContent := string(content)
-	uniquePrefix := fmt.Sprintf("fmoral-qa-%s", uniqueID)
 
+	// Get the actual product value from environment
+	product := strings.ToLower(strings.TrimSpace(os.Getenv("ENV_PRODUCT")))
+	if product == "" {
+		product = "k3s" // Default fallback
+	}
+
+	// Generate unique hostname prefix
+	uniquePrefix := fmt.Sprintf("fmoral-qa-%s-%s", uniqueID, product)
+
+	// Update aws_hostname_prefix with unique ID
 	re := regexp.MustCompile(`aws_hostname_prefix\s*=\s*"[^"]*"`)
 	varsContent = re.ReplaceAllString(varsContent, fmt.Sprintf(`aws_hostname_prefix = "%s"`, uniquePrefix))
+
+	// Update user_id to include product
+	userIdRe := regexp.MustCompile(`user_id\s*=\s*"[^"]*"`)
+	varsContent = userIdRe.ReplaceAllString(varsContent, fmt.Sprintf(`user_id = "distros-qa-fmoral-%s"`, product))
+
+	LogLevel("debug", "Updated vars.tfvars: product=%s, uniquePrefix=%s", product, uniquePrefix)
 
 	// Write back the updated content
 	if err := os.WriteFile(varsFilePath, []byte(varsContent), 0644); err != nil {
@@ -1003,15 +1079,27 @@ func patchPlaybook(ansibleDir, product string) error {
 
 	contentStr := string(content)
 
+	LogLevel("debug", "Content of playbook: %s", contentStr)
+
 	// Check if the required variables are already present in the upstream playbook
 	hasServerFlags := strings.Contains(contentStr, "SERVER_FLAGS")
 	hasWorkerFlags := strings.Contains(contentStr, "WORKER_FLAGS")
 	hasChannel := strings.Contains(contentStr, "CHANNEL")
+	hasInstallMethod := strings.Contains(contentStr, "INSTALL_METHOD")
 
-	if hasServerFlags && hasWorkerFlags {
+	// For RKE2, also check INSTALL_METHOD
+	requiredVarsPresent := hasServerFlags && hasWorkerFlags
+	if product == "rke2" {
+		requiredVarsPresent = requiredVarsPresent && hasInstallMethod
+	}
+
+	if requiredVarsPresent {
 		LogLevel("info", "Playbook already contains required environment variables (SERVER_FLAGS, WORKER_FLAGS), no patching needed")
 		if hasChannel {
 			LogLevel("info", "Playbook also includes CHANNEL variable support")
+		}
+		if product == "rke2" && hasInstallMethod {
+			LogLevel("info", "Playbook also includes INSTALL_METHOD variable support for RKE2")
 		}
 		return nil
 	}
@@ -1022,23 +1110,62 @@ func patchPlaybook(ansibleDir, product string) error {
 	}
 
 	// Add missing environment variables to the environment section for master hosts
-	// Find the environment section and add SERVER_FLAGS, WORKER_FLAGS, and CHANNEL
-	patchedContent := strings.ReplaceAll(contentStr,
-		`      environment:
-        KUBERNETES_VERSION: "{{ kubernetes_version }}"
-        KUBE_API_HOST: "{{ kube_api_host }}"
-        FQDN: "{{ fqdn }}"
-        NODE_ROLE: "{{ ansible_role }}"`,
-		`      environment:
+	// Find the environment section and add SERVER_FLAGS, WORKER_FLAGS, CHANNEL, and INSTALL_METHOD (for RKE2)
+	var envVarsToAdd string
+	if product == "rke2" {
+		envVarsToAdd = `      environment:
         KUBERNETES_VERSION: "{{ kubernetes_version }}"
         KUBE_API_HOST: "{{ kube_api_host }}"
         FQDN: "{{ fqdn }}"
         NODE_ROLE: "{{ ansible_role }}"
         SERVER_FLAGS: "{{ server_flags | default('') }}"
         WORKER_FLAGS: "{{ worker_flags | default('') }}"
-        CHANNEL: "{{ channel | default('') }}"`)
+        CHANNEL: "{{ channel | default('') }}"
+        INSTALL_METHOD: "{{ install_method | default('') }}"`
+	} else {
+		envVarsToAdd = `      environment:
+        KUBERNETES_VERSION: "{{ kubernetes_version }}"
+        KUBE_API_HOST: "{{ kube_api_host }}"
+        FQDN: "{{ fqdn }}"
+        NODE_ROLE: "{{ ansible_role }}"
+        SERVER_FLAGS: "{{ server_flags | default('') }}"
+        WORKER_FLAGS: "{{ worker_flags | default('') }}"
+        CHANNEL: "{{ channel | default('') }}"`
+	}
+
+	patchedContent := strings.ReplaceAll(contentStr,
+		`      environment:
+        KUBERNETES_VERSION: "{{ kubernetes_version }}"
+        KUBE_API_HOST: "{{ kube_api_host }}"
+        FQDN: "{{ fqdn }}"
+        NODE_ROLE: "{{ ansible_role }}"`,
+		envVarsToAdd)
 
 	// Also patch the "all" hosts section for init-server.sh
+	var allHostsEnvVars string
+	if product == "rke2" {
+		allHostsEnvVars = `      environment:
+        KUBERNETES_VERSION: "{{ kubernetes_version }}"
+        KUBE_API_HOST: "{{ kube_api_host }}"
+        FQDN: "{{ fqdn }}"
+        NODE_TOKEN: "{{ node_token }}"
+        NODE_ROLE: "{{ ansible_role }}"
+        SERVER_FLAGS: "{{ server_flags | default('') }}"
+        WORKER_FLAGS: "{{ worker_flags | default('') }}"
+        CHANNEL: "{{ channel | default('') }}"
+        INSTALL_METHOD: "{{ install_method | default('') }}"`
+	} else {
+		allHostsEnvVars = `      environment:
+        KUBERNETES_VERSION: "{{ kubernetes_version }}"
+        KUBE_API_HOST: "{{ kube_api_host }}"
+        FQDN: "{{ fqdn }}"
+        NODE_TOKEN: "{{ node_token }}"
+        NODE_ROLE: "{{ ansible_role }}"
+        SERVER_FLAGS: "{{ server_flags | default('') }}"
+        WORKER_FLAGS: "{{ worker_flags | default('') }}"
+        CHANNEL: "{{ channel | default('') }}"`
+	}
+
 	patchedContent = strings.ReplaceAll(patchedContent,
 		`      environment:
         KUBERNETES_VERSION: "{{ kubernetes_version }}"
@@ -1046,15 +1173,7 @@ func patchPlaybook(ansibleDir, product string) error {
         FQDN: "{{ fqdn }}"
         NODE_TOKEN: "{{ node_token }}"
         NODE_ROLE: "{{ ansible_role }}"`,
-		`      environment:
-        KUBERNETES_VERSION: "{{ kubernetes_version }}"
-        KUBE_API_HOST: "{{ kube_api_host }}"
-        FQDN: "{{ fqdn }}"
-        NODE_TOKEN: "{{ node_token }}"
-        NODE_ROLE: "{{ ansible_role }}"
-        SERVER_FLAGS: "{{ server_flags | default('') }}"
-        WORKER_FLAGS: "{{ worker_flags | default('') }}"
-        CHANNEL: "{{ channel | default('') }}"`)
+		allHostsEnvVars)
 
 	// Write the patched content back
 	if patchedContent != contentStr {
@@ -1062,7 +1181,11 @@ func patchPlaybook(ansibleDir, product string) error {
 			LogLevel("warn", "Failed to write patched playbook: %v", err)
 			return nil // Don't fail the entire process
 		}
-		LogLevel("info", "Applied legacy patch to %s playbook (SERVER_FLAGS, WORKER_FLAGS, CHANNEL added)", product)
+		if product == "rke2" {
+			LogLevel("info", "Applied legacy patch to %s playbook (SERVER_FLAGS, WORKER_FLAGS, CHANNEL, INSTALL_METHOD added)", product)
+		} else {
+			LogLevel("info", "Applied legacy patch to %s playbook (SERVER_FLAGS, WORKER_FLAGS, CHANNEL added)", product)
+		}
 	}
 
 	return nil
@@ -1146,9 +1269,6 @@ func calculateNodeCounts(nodeSource string) (int, int) {
 func loadQAInfraConfig(nodeSource string, c *Cluster, product string) error {
 	varsFile := filepath.Join(nodeSource, "vars.tfvars")
 
-	// Read the root config file for additional variables
-	rootVarsFile := filepath.Join(nodeSource, "..", "..", "config", "rke2.tfvars")
-
 	// Load AWS configuration
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -1158,20 +1278,15 @@ func loadQAInfraConfig(nodeSource string, c *Cluster, product string) error {
 		return fmt.Errorf("failed to load qa-infra vars: %w", err)
 	}
 
-	// Load additional config from root tfvars
-	if err := loadVarsFromFile(rootVarsFile, c); err != nil {
-		LogLevel("debug", "Failed to load root tfvars (optional): %v", err)
-	}
-
 	// Set product from parameter
 	if product != "" {
 		c.Config.Product = product
 	} else if c.Config.Product == "" {
-		c.Config.Product = "rke2" // Default fallback
+		c.Config.Product = "rke2"
 	}
 
 	if c.Config.DataStore == "" {
-		c.Config.DataStore = "etcd" // Default for qa-infra
+		c.Config.DataStore = "etcd"
 	}
 
 	LogLevel("info", "Loaded comprehensive cluster configuration for qa-infra")
@@ -1275,5 +1390,60 @@ func generatePublicKeyFromPrivate(privateKeyPath, publicKeyPath string) error {
 	}
 
 	LogLevel("info", "Generated public key: %s", publicKeyPath)
+	return nil
+}
+
+// updateMainTfModuleSource updates main.tf to use the correct infrastructure module based on INFRA_MODULE env var
+func updateMainTfModuleSource(mainTfPath string) error {
+	infraModule := os.Getenv("INFRA_MODULE")
+	if infraModule == "" {
+		infraModule = "aws"
+	}
+
+	LogLevel("info", "Using infrastructure module: %s", infraModule)
+
+	// Read current main.tf content
+	content, err := os.ReadFile(mainTfPath)
+	if err != nil {
+		return fmt.Errorf("failed to read main.tf: %w", err)
+	}
+
+	contentStr := string(content)
+
+	// Update module source to use add.vsphere branch and correct module path
+	placeholder := "placeholder-for-remote-module"
+	fmoralBranch := "add.vsphere"
+	modulePath := infraModule + "/modules/cluster_nodes"
+
+	srcModule := fmt.Sprintf("github.com/fmoral2/qa-infra-automation//tofu/%s?ref=%s", modulePath, fmoralBranch)
+	contentStr = strings.ReplaceAll(contentStr, placeholder, srcModule)
+
+	// Write updated content back to file
+	if err := os.WriteFile(mainTfPath, []byte(contentStr), 0644); err != nil {
+		return fmt.Errorf("failed to write updated main.tf: %w", err)
+	}
+
+	// switch infraModule {
+	// case "aws":
+	// 	// Update to use add.vsphere branch for AWS module
+	// 	newSource := fmt.Sprintf("github.com/fmoral2/qa-infra-automation//tofu/%s?ref=%s", awsModulePath, fmoralBranch)
+	// 	contentStr = strings.ReplaceAll(contentStr, placeholder, newSource)
+	// 	LogLevel("info", "Updated AWS module source to add.vsphere branch: %s", newSource)
+
+	// case "vsphere":
+	// 	// Update module source to point to vSphere module on add.vsphere branch
+	// 	newSource := fmt.Sprintf("github.com/fmoral2/qa-infra-automation//tofu/%s?ref=%s", vsphereModulePath, fmoralBranch)
+	// 	contentStr = strings.ReplaceAll(contentStr, placeholder, newSource)
+	// 	LogLevel("info", "Updated module source to vSphere: %s", newSource)
+
+	// 	contentStr = strings.ReplaceAll(contentStr, awsProvider, vsphereProvider)
+	// 	LogLevel("debug", "Updated terraform providers to use vSphere provider")
+
+	// default:
+	// 	return fmt.Errorf("unsupported infrastructure module: %s (supported: aws, vsphere)", infraModule)
+	// }
+
+	LogLevel("debug", "Successfully updated main.tf for %s infrastructure", infraModule)
+
 	return nil
 }

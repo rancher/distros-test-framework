@@ -9,7 +9,6 @@ source ./config/.env
 # Derive mount target filename from ACCESS_KEY_LOCAL so we don't hardcode key names
 KEY_BASENAME="$(basename "${ACCESS_KEY_LOCAL}")"
 KEY_CONTAINER_PATH="/go/src/github.com/rancher/distros-test-framework/config/.ssh/${KEY_BASENAME}"
-PUB_KEY_CONTAINER_PATH="${KEY_CONTAINER_PATH}.pub"
 
 if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"

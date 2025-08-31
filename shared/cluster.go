@@ -356,15 +356,50 @@ func GetNodesByRoles(roles ...string) ([]Node, error) {
 			return nil, ReturnLogError("invalid role: %s", role)
 		}
 
-		cmd := "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
-			" --no-headers --kubeconfig=" + KubeConfigFile +
-			" -l role-" + role
+		var cmd string
+		switch role {
+		case "worker":
+			// For worker nodes, get all nodes and filter out master/control-plane in parsing
+			// This handles K3s where worker nodes typically have no role labels
+			cmd = "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+				" --no-headers --kubeconfig=" + KubeConfigFile
+		case "control-plane":
+			// For control-plane nodes, use the standard Kubernetes label
+			cmd = "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+				" --no-headers --kubeconfig=" + KubeConfigFile +
+				" -l node-role.kubernetes.io/control-plane"
+		case "etcd":
+			// For etcd nodes, try multiple possible labels
+			cmd = "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+				" --no-headers --kubeconfig=" + KubeConfigFile +
+				" -l 'node-role.kubernetes.io/etcd'"
+		default:
+			// Fallback to original logic for any other roles
+			cmd = "kubectl get nodes -o wide --sort-by '{.metadata.name}'" +
+				" --no-headers --kubeconfig=" + KubeConfigFile +
+				" -l role-" + role
+		}
+
+		LogLevel("debug", "GetNodesByRoles: Running command for role '%s': %s", role, cmd)
 		res, err := RunCommandHost(cmd)
 		if err != nil {
 			return nil, err
 		}
 
-		matchedNodes = append(matchedNodes, ParseNodes(res)...)
+		LogLevel("debug", "GetNodesByRoles: Found nodes for role '%s': %s", role, res)
+		allNodes := ParseNodes(res)
+
+		// Filter nodes based on role for worker case
+		if role == "worker" {
+			for _, node := range allNodes {
+				// Worker nodes in K3s typically have Roles as "<none>" or don't contain "master"/"control-plane"
+				if node.Roles == "<none>" || (!strings.Contains(node.Roles, "master") && !strings.Contains(node.Roles, "control-plane")) {
+					matchedNodes = append(matchedNodes, node)
+				}
+			}
+		} else {
+			matchedNodes = append(matchedNodes, allNodes...)
+		}
 	}
 
 	for i := range matchedNodes {

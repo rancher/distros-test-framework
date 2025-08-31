@@ -15,5 +15,3 @@ workloads/*/dynamic-ingressroute.yaml
 tmp/
 entrypoint/conformance/my-sonobuoy-plugins
 entrypoint/conformance/*.tar.gz
-
-qa-infra-automation/

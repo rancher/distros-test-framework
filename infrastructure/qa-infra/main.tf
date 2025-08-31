@@ -1,5 +1,4 @@
- 
-terraform {
+ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -13,14 +12,15 @@ terraform {
       source  = "ansible/ansible"
       version = "1.3.0"
     }
+    vsphere = {
+		source  = "hashicorp/vsphere"
+		version = "~> 2.0"
+	  }
   }
 }
 
-// cluster_nodes module from qa-infra-automation remote module.
 module "cluster_nodes" {
-  source = "github.com/fmoral2/qa-infra-automation//tofu/aws/modules/cluster_nodes?ref=add-k3s-support"
-
-  # Pass through all the variables
+  source = "placeholder-for-remote-module"
   user_id            = var.user_id
   public_ssh_key     = var.public_ssh_key
   aws_access_key     = var.aws_access_key
