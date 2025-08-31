@@ -375,7 +375,7 @@ func UpdateRegistryFile(cluster *shared.Cluster, flags *customflag.FlagConfig) (
 		"$HOMEDIR":     pwd,
 	}
 
-	path := shared.BasePath() + "/modules/airgap/setup"
+	path := shared.BasePath() + "/infrastructure/legacy/airgap/setup"
 	err = shared.CopyFileContents(path+"/registries.yaml.example", path+"/registries.yaml")
 	if err != nil {
 		return fmt.Errorf("error copying registries.yaml contents: %w", err)

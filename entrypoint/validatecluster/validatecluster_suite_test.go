@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var (
@@ -22,6 +22,7 @@ var (
 	flags         *customflag.FlagConfig
 	cluster       *shared.Cluster
 	cfg           *config.Env
+	infraConfig   shared.InfraConfig
 	reportSummary string
 	reportErr     error
 	err           error
@@ -53,10 +54,19 @@ func TestMain(m *testing.M) {
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")
 	if kubeconfig == "" {
-		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig(cfg)
+		infraConfig = shared.InfraConfig{
+			Product: cfg.Product,
+			Module:  cfg.Module,
+			// Provider will be determined automatically from INFRA_PROVIDER env var
+		}
+
+		cluster, err = shared.ProvisionInfrastructure(infraConfig)
+		if err != nil {
+			shared.LogLevel("error", "error provisioning infrastructure: %w\n", err)
+			os.Exit(1)
+		}
 	} else {
-		// gets a cluster from kubeconfig.
+		// gets a cluster from existing kubeconfig.
 		cluster = shared.KubeConfigCluster(kubeconfig)
 	}
 
@@ -101,9 +111,16 @@ var _ = AfterSuite(func() {
 			}
 		}
 
-		status, err := shared.DestroyCluster(cfg)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(status).To(Equal("cluster destroyed"))
+		// Destroy infrastructure using the same config used for provisioning
+		if kubeconfig == "" {
+			err := shared.DestroyInfrastructure(infraConfig)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			// For existing kubeconfig, use the legacy destroy method
+			status, err := shared.DestroyCluster(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(status).To(Equal("cluster destroyed"))
+		}
 	}
 })
 

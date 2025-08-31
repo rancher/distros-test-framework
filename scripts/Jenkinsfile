@@ -9,24 +9,24 @@ node {
 
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
-  def envFile = ".env"
-  def qaseEnvFile = ".qase.env"
-  def branch = "main"
-  if (env.BRANCH && env.BRANCH != "null") {
+  def envFile = '.env'
+  def qaseEnvFile = '.qase.env'
+  def branch = 'main'
+  if (env.BRANCH && env.BRANCH != 'null') {
     branch = env.BRANCH
   }
 
   def repo = scm.userRemoteConfigs
-  if (env.REPO && env.REPO != "null") {
+  if (env.REPO && env.REPO != 'null') {
     repo = [[url: env.REPO]]
   }
-  def timeout = "60m"
-  if (env.TIMEOUT && env.TIMEOUT != "null") {
+  def timeout = '60m'
+  if (env.TIMEOUT && env.TIMEOUT != 'null') {
     timeout = env.TIMEOUT
   }
 
-  def module = ""
-  if (env.MODULE && env.MODULE != "null") {
+  def module = ''
+  if (env.MODULE && env.MODULE != 'null') {
     module = env.MODULE
   }
 
@@ -74,7 +74,9 @@ node {
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
                   "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
-                   "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
+                   "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n" +
+                   "INFRA_PROVIDER=${env.INFRA_PROVIDER ?: 'legacy'}\nAWS_SSH_USER=${env.AWS_SSH_USER ?: 'ec2-user'}\n" +
+                   'ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\n'
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
 

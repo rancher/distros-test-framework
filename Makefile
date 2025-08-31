@@ -41,8 +41,11 @@ test-env-clean:
 
 #========================= Run acceptance tests locally =========================#
 remove-tf-state:
-	@rm -rf ./modules/${ENV_PRODUCT}/.terraform
-	@rm -rf ./modules/${ENV_PRODUCT}/.terraform.lock.hcl ./modules/${ENV_PRODUCT}/terraform.tfstate ./modules/${ENV_PRODUCT}/terraform.tfstate.backup
+	@rm -rf ./infrastructure/legacy/${ENV_PRODUCT}/.terraform
+	@rm -rf ./infrastructure/legacy/${ENV_PRODUCT}/.terraform.lock.hcl ./infrastructure/legacy/${ENV_PRODUCT}/terraform.tfstate ./infrastructure/legacy/${ENV_PRODUCT}/terraform.tfstate.backup
+	@rm -rf ./infrastructure/qa-infra/.terraform
+	@rm -rf ./infrastructure/qa-infra/terraform.tfstate*
+	@rm -rf ./tmp/qa-infra-ansible
 
 ## use this to skip tests
 test-skip:
@@ -133,6 +136,6 @@ go-check:
 	@golangci-lint run --tests ./...
 
 shell-check:
-	@shellcheck modules/airgap/setup/*.sh
-	@shellcheck modules/ipv6only/scripts/*.sh
+	@shellcheck infrastructure/legacy/airgap/setup/*.sh
+	@shellcheck infrastructure/legacy/ipv6only/scripts/*.sh
 	@shellcheck scripts/*.sh

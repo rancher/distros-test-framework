@@ -1,18 +1,22 @@
 FROM golang:alpine
 
 ARG TF_VERSION=1.5.7
+ARG TOFU_VERSION=1.6.2
 ENV TERRAFORM_VERSION=$TF_VERSION
+ENV TOFU_VERSION=$TOFU_VERSION
 
 RUN apk update && \
     apk upgrade --update-cache --available && \
-    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli && \
+    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli python3 py3-pip gettext && \
     rm -rf /var/cache/apk/* && \
     if [ "$(uname -m)" = "aarch64" ]; then \
         KUBE_ARCH="linux/arm64" && \
-        TF_ARCH="linux_arm64"; \
+        TF_ARCH="linux_arm64" && \
+        TOFU_ARCH="linux_arm64"; \
     else \
         KUBE_ARCH="linux/amd64" && \
-        TF_ARCH="linux_amd64"; \
+        TF_ARCH="linux_amd64" && \
+        TOFU_ARCH="linux_amd64"; \
     fi && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/${KUBE_ARCH}/kubectl" && \
     chmod +x ./kubectl && \
@@ -21,10 +25,20 @@ RUN apk update && \
     curl "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TF_ARCH}.zip" -o tmp/terraform.zip && \
     unzip tmp/terraform.zip -d /usr/local/bin && \
     chmod +x /usr/local/bin/terraform && \
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tmp/tofu.zip && \
+    unzip tmp/tofu.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/tofu && \
     export VERIFY_CHECKSUM=false && \
     rm -rf tmp && \
     mkdir -p /root/.ssh && \
-    mkdir -p /root/.aws
+    mkdir -p /root/.aws && \
+    echo "StrictHostKeyChecking no" > /root/.ssh/config && \
+    echo "UserKnownHostsFile /dev/null" >> /root/.ssh/config && \
+    chmod 600 /root/.ssh/config
+
+# Install Ansible and required collections/packages
+RUN pip3 install --break-system-packages ansible kubernetes && \
+    ansible-galaxy collection install cloud.terraform
 
 # Just to make sure its installed alright
 RUN aws --version   

@@ -1,25 +1,28 @@
 ## Development
 
+### First Steps - prep your setup to run tests
 
-### First Steps - prep your setup to run tests:
 1. Fork your own git copy, clone it and create a branch in your local git repo.
 
    Please note that example files can be found under `config/examples` directory for your reference.
-2. Create the following files in 'config' directory path: 
+2. Create the following files in 'config' directory path:
 
     a. `k3s.tfvars`: Copy over `docs/examples/k3s.tfvars.example` file into `config/k3s.tfvars` and edit it.
 
     b. `rke2.tfvars`: Copy over `docs/examples/rke2.tfvars.example` file into `config/rke2.tfvars` and edit it.
 
-3.  Edit the following vars in the tfvars file:
+3. Edit the following vars in the tfvars file:
 
     i. Generic variables:
+
     ```
     resource_name = "<name of aws resource you will create - your prefix name>"
     key_name      = "jenkins-rke-validation"   # or your own aws key pair for the .pem file you used in previous step. 
     access_key    = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
     ```
-    ii. AWS related mandatory variable values: 
+
+    ii. AWS related mandatory variable values:
+
     ```
     vpc_id             = "<vpc_id>"
     subnets            = "<subnet_id>"
@@ -28,44 +31,54 @@
     aws_ami            = "<ami_id>"
     windows_aws_ami    = "<ami-id>"    # rke2.tfvars file only
     ```
+
     iii. Sensitive variables to edit in tfvars file:
+
     ```
     password      = "<password>"   # Note - this is needed if we run test locally using go test. Not needed from jenkins runs. 
     db_username   = "<db_user>"
     db_password   = "<db_password>"   
     ```
+
 4. Create `config/.env` file with contents:
+
    ```
    ENV_PRODUCT={{PRODUCT}}
    ENV_TFVARS={{PRODUCT}}.tfvars
    ```
+
    Please use `examples/.env.example` for reference.
    Note to set the "{{PRODUCT}}" value to k3s or rke2 as in the example above.
 
-5.  Export the following variables:
+5. Export the following variables:
+
     ```
     export AWS_ACCESS_KEY_ID=xxx
     export AWS_SECRET_ACCESS_KEY=xxxx
     export ACCESS_KEY_LOCAL=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
     ```
+
 6. Run these commands:
 
     ````
     cd config; mkdir .ssh; touch config/.ssh/aws_key.pem; chmod 600 config/.ssh/aws_key.pem;
     ````
+
    Copy over contents of `jenkins-rke-validation.pem` file, or you own `.pem` file content. An example file can be found with permissions set.
    There should be a corresponding AWS key pair in AWS cloud. Make sure the name of which pair, you have used, is added into the tfvars file `key_name` variable.
    Also, note the `access_key` var in tfvars file, is referring to your .pem file path we create in this step.
    Ensure permissions to this file is set so no one else has access to the same.
 
-You are now set to use make commands or the go test commands 
+You are now set to use make commands or the go test commands
 
 ### Environment Setup
+
 - Before running the tests, you should create a file in `config/{product}.tfvars`. There is some information in the examples here to get you started. **DO NOT MODIFY THE EXAMPLES.** Only add your file to the `config` directory. You can copy and paste the example files there, but the empty variables should be filled in appropriately per your AWS environment.
 
 - Also before running, in `config/config.yaml` add your product name and tfvars product name.
 
 - Please make sure to export your correct AWS credentials before running the tests. e.g:
+
 ```bash
 export AWS_ACCESS_KEY_ID=<YOUR_AWS_ACCESS_KEY_ID>
 export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
@@ -74,6 +87,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 - The local.tfvars split roles section should be strictly followed to not cause any false positives or negatives on tests
 
 - For running tests with "etcd" cluster type, you should add the value "etcd" to the variable "datastore_type". You also need have those variables at least empty:
+
 ```
 - external_db       
 - external_db_version
@@ -87,6 +101,7 @@ export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_SECRET_ACCESS_KEY>
 
 - For running tests on a RKE2 cluster with Windows agent, additional vars are required to create the Windows instance in AWS and join the node as agent
 - In `rke2.tfvars` file, add the below vars:
+
 ```
 server_flags                = "cni: calico"
 windows_ec2_instance_class  = "<use t3.xlarge or higher>"
@@ -94,13 +109,15 @@ windows_aws_ami             = "<windows ami>"
 no_of_windows_worker_nodes  = <count of Windows node>
 ```
 
-#### NOTES: 
-- The sonobuoy test runs outside of the cluster, so if running the test locally, user have to clean up sonobouy manually. 
+#### NOTES
+
+- The sonobuoy test runs outside of the cluster, so if running the test locally, user have to clean up sonobouy manually.
 - The MixedOS test is not supported with split-roles (TBA later) or Hardened cluster (Not supported in Windows)
 
 ### Test Execution
 
 Tests can be run individually per package:
+
 ```bash
 go test -timeout=45m -v ./entrypoint/${PACKAGE_NAME}/...
 
@@ -112,6 +129,7 @@ go test -timeout=45m -v -tags=upgradesuc ./entrypoint/upgradecluster/... -upgrad
 ```
 
 Test flags:
+
 ```
 ${installVersionOrCommit} type of installation (version or commit) + desired value
 
@@ -123,12 +141,12 @@ ${upgradeVersion} version to upgrade to as SUC
 ```
 
 Test tags rke2:
+
 ```
  -tags=upgradesuc
 ```
 
-
-### Run with `Makefile` locally:
+### Run with `Makefile` locally
 
 On the first run each time with make and docker please delete your .terraform folder, terraform.tfstate and terraform.hcl.lock file
 
@@ -169,7 +187,8 @@ $ make test-suite                      # runs all testcase locally in sequence n
 $ make pre-commit                      # runs go fmt,imports,vet and lint
 ```
 
-### Examples with docker:
+### Examples with docker
+
 ```
 - Create an image tagged
 $ make test-env-up TAGNAME=ubuntu
@@ -193,7 +212,8 @@ DELETEWORKLOAD=false \
 WORKLOADNAME="someWorkload.yaml"
 ```
 
-### Examples to run locally:
+### Examples to run locally
+
 ```
 - Run create cluster test:
 $ make test-create
@@ -219,27 +239,30 @@ $ make tf-logs IMGNAME=1
 $ make vet-lint TESTDIR=upgradecluster
 ```
 
-### Running tests in parallel:
+### Running tests in parallel
 
 - You can play around and have a lot of different test combinations like:
+
 ```
 - Build docker image with different TAGNAME="OS`s" + with different configurations( resource_name, node_os, versions, install type, nodes and etc) and have unique "IMGNAMES"
 
 - And in the meanwhile run also locally with different configuration while your dockers TAGNAME and IMGNAMES are running
 ```
 
-### In between tests:
-- If you want to run with same cluster do not delete ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file after each test.
+### In between tests
 
-- if you want to use new resources then make sure to delete the ./modules/{product}/terraform.tfstate + .terraform.lock.hcl file if you want to create a new cluster.
+- If you want to run with same cluster do not delete ./infrastructure/legacy/{product}/terraform.tfstate + .terraform.lock.hcl file after each test.
+
+- if you want to use new resources then make sure to delete the ./infrastructure/legacy/{product}/terraform.tfstate + .terraform.lock.hcl file if you want to create a new cluster.
 
 - You can even use these files when running via docker! Follow these steps after your first run:
+
 ```sh
 # Remove terraform and tmp directories
-$ rm -rf modules/ tmp/
+$ rm -rf infrastructure/legacy/ tmp/
 
 # Copy terraform directories from the previous container to the local filesystem. This will include the relevant tfstate and lock files in order to reuse the same cluster and resources
-$ docker cp <container_name>:/go/src/github.com/rancher/distros-test-framework/modules/ modules/
+$ docker cp <container_name>:/go/src/github.com/rancher/distros-test-framework/infrastructure/legacy/ infrastructure/legacy/
 
 # Copy /tmp directory which contains the kubeconfig and token
 $ docker cp <container_name>:/tmp/ tmp/
@@ -251,12 +274,13 @@ $ docker build . -q -f ./scripts/Dockerfile.jenkins -t ${TAG_NAME}
 $ -v /path/to/distros-test-framework/tmp/:/tmp
 
 # Example full commands:
-$ rm -rf modules/ tmp/ && docker cp at1:/go/src/github.com/rancher/distros-test-framework/modules/ modules/ && docker cp at1:/tmp/ tmp/
+$ rm -rf infrastructure/legacy/ tmp/ && docker cp at1:/go/src/github.com/rancher/distros-test-framework/infrastructure/legacy/ infrastructure/legacy/ && docker cp at1:/tmp/ tmp/
 $ docker build . -q -f ./scripts/Dockerfile.jenkins -t ${TAG_NAME}
 $ docker run -dt --name at2 -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -v ${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem -v /Users/fakeuser/gh-repos/distros-test-framework/tmp/:/tmp --env-file ./config/.env ${TAG_NAME} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=30m -v ./validatecluster/..."
 ```
 
 ### Debugging
+
 ````
 To focus individual runs on specific test clauses, you can prefix with `F`. For example, in the [create cluster test](../tests/acceptance/entrypoint/createcluster_test.go), you can update the initial creation to be: `FIt("Starts up with no issues", func() {` in order to focus the run on only that clause.
 Or use break points in your IDE.
@@ -264,7 +288,8 @@ Or use break points in your IDE.
 
 ### Custom Reporting: WIP
 
-### Debugging:
+### Debugging
+
 ````
 The cluster and VMs can be retained after a test by passing `-destroy=false`. 
 To focus individual runs on specific test clauses, you can prefix with `F`. For example, in the [create cluster test](../tests/terraform/cases/createcluster_test.go), you can update the initial creation to be: `FIt("Starts up with no issues", func() {` in order to focus the run on only that clause.

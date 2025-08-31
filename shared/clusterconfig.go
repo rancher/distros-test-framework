@@ -18,6 +18,11 @@ var (
 	cluster *Cluster
 )
 
+// SetGlobalCluster sets the global cluster variable to prevent legacy ClusterConfig from being called
+func SetGlobalCluster(c *Cluster) {
+	cluster = c
+}
+
 type Cluster struct {
 	Status        string
 	ServerIPs     []string

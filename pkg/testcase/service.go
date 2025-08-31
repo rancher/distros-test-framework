@@ -56,8 +56,11 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 
 	expectedPodName := "test-nodeport"
 	for _, ip := range nodeExternalIP {
+		if ip == "" {
+			continue
+		}
 		err = assert.ValidateOnHost(
-			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
+			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
 			expectedPodName)
 	}
 	Expect(err).NotTo(HaveOccurred(), err)

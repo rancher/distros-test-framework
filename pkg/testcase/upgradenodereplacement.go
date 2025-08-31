@@ -102,7 +102,7 @@ func scpRke2Files(cluster *shared.Cluster, nodeType, ip string) error {
 	if nodeType != master && nodeType != agent {
 		return shared.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
-	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
+	joinLocalPath := shared.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
 
 	if err := shared.RunScp(cluster, ip, []string{joinLocalPath}, []string{joinRemotePath}); err != nil {
@@ -129,10 +129,10 @@ func scpK3sFiles(cluster *shared.Cluster, nodeType, ip string) error {
 }
 
 func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
-	cisWorkerLocalPath := shared.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
+	cisWorkerLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/worker/cis_worker_config.yaml"
 	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
 
-	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
+	joinLocalPath := shared.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_k3s_%s.sh", agent)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", agent)
 
 	return shared.RunScp(
@@ -144,22 +144,22 @@ func k3sAgentSCP(cluster *shared.Cluster, ip string) error {
 }
 
 func k3sServerSCP(cluster *shared.Cluster, ip string) error {
-	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
+	cisMasterLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
-	clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
+	clusterLevelpssLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/master/cluster-level-pss.yaml"
 	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
 
-	auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
+	auditLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/master/audit.yaml"
 	auditRemotePath := "/tmp/audit.yaml"
 
-	policyLocalPath := shared.BasePath() + "/modules/k3s/master/policy.yaml"
+	policyLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/master/policy.yaml"
 	policyRemotePath := "/tmp/policy.yaml"
 
-	ingressPolicyLocalPath := shared.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
+	ingressPolicyLocalPath := shared.BasePath() + "/infrastructure/legacy/k3s/master/ingresspolicy.yaml"
 	ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
 
-	joinLocalPath := shared.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
+	joinLocalPath := shared.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_k3s_%s.sh", master)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", master)
 
 	return shared.RunScp(

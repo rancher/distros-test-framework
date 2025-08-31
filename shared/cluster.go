@@ -228,6 +228,30 @@ func FetchNodeExternalIPs() []string {
 	nodeExternalIP := strings.Trim(res, " ")
 	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
 
+	// If no external IPs found via kubectl, use cluster server and agent IPs as fallback
+	if len(nodeExternalIPs) == 1 && nodeExternalIPs[0] == "" {
+		if cluster != nil {
+			var allNodeIPs []string
+			allNodeIPs = append(allNodeIPs, cluster.ServerIPs...)
+			allNodeIPs = append(allNodeIPs, cluster.AgentIPs...)
+
+			// Remove duplicates
+			uniqueIPs := make([]string, 0)
+			seen := make(map[string]bool)
+			for _, ip := range allNodeIPs {
+				if ip != "" && !seen[ip] {
+					uniqueIPs = append(uniqueIPs, ip)
+					seen[ip] = true
+				}
+			}
+
+			if len(uniqueIPs) > 0 {
+				LogLevel("debug", "No ExternalIP addresses found in cluster, using stored node IPs: %v", uniqueIPs)
+				return uniqueIPs
+			}
+		}
+	}
+
 	return nodeExternalIPs
 }
 

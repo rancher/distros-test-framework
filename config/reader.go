@@ -23,6 +23,7 @@ type Env struct {
 	Product        string
 	InstallVersion string
 	Module         string
+	InfraProvider  string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the environment configuration.
@@ -54,15 +55,18 @@ func loadEnv() (*Env, error) {
 		Product:        os.Getenv("ENV_PRODUCT"),
 		InstallVersion: os.Getenv("INSTALL_VERSION"),
 		Module:         os.Getenv("ENV_MODULE"),
+		InfraProvider:  os.Getenv("INFRA_PROVIDER"),
 	}
 
 	validateInitVars(env)
 
-	// set the environment variables from the tfvars file.
-	tfPath := fmt.Sprintf("%s/config/%s", dir, env.TFVars)
-	if err := setEnv(tfPath); err != nil {
-		log.Errorf("failed to set environment variables: %v\n", err)
-		return nil, err
+	// set the environment variables from the tfvars file (legacy provider only)
+	if env.InfraProvider == "legacy" && env.TFVars != "" {
+		tfPath := fmt.Sprintf("%s/config/%s", dir, env.TFVars)
+		if err := setEnv(tfPath); err != nil {
+			log.Errorf("failed to set environment variables: %v\n", err)
+			return nil, err
+		}
 	}
 
 	return env, nil
@@ -74,8 +78,12 @@ func validateInitVars(env *Env) {
 		os.Exit(1)
 	}
 
-	if env.TFVars == "" || (env.TFVars != "k3s.tfvars" && env.TFVars != "rke2.tfvars") {
-		log.Errorf("unknown tfvars: %s\n", env.TFVars)
+	// For qa-infra provider, TFVars can be empty (uses vars.tfvars internally)
+	// For legacy provider, TFVars must be k3s.tfvars or rke2.tfvars
+	if env.InfraProvider == "legacy" && (env.TFVars == "" ||
+		(env.TFVars != "k3s.tfvars" && env.TFVars != "rke2.tfvars")) {
+		log.Errorf("legacy provider requires tfvars to be k3s.tfvars or rke2.tfvars, "+
+			"got: %s\n", env.TFVars)
 		os.Exit(1)
 	}
 

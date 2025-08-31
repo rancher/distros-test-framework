@@ -168,8 +168,14 @@ func configureSSH(host string) (*ssh.Client, error) {
 	// get access key and user from cluster config.
 	kubeConfig := os.Getenv("KUBE_CONFIG")
 	if kubeConfig == "" {
-		productCfg := AddProductCfg()
-		cluster = ClusterConfig(productCfg)
+		// Check if the global cluster is already set from qa-infra provisioning
+		if cluster != nil {
+			// Use the existing global cluster from qa-infra
+			// LogLevel("debug", "Using existing global cluster configuration for SSH")
+		} else {
+			productCfg := AddProductCfg()
+			cluster = ClusterConfig(productCfg)
+		}
 	} else {
 		cluster, err = addClusterFromKubeConfig(nil)
 		if err != nil {
@@ -177,13 +183,17 @@ func configureSSH(host string) (*ssh.Client, error) {
 		}
 	}
 
-	authMethod, err := publicKey(cluster.Aws.AccessKey)
+	// Debug SSH configuration
+	LogLevel("debug", "SSH Key Path: %s", cluster.Aws.EC2.AccessKey)
+	LogLevel("debug", "SSH User: %s", cluster.Aws.EC2.AwsUser)
+
+	authMethod, err := publicKey(cluster.Aws.EC2.AccessKey)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.AwsUser,
+		User: cluster.Aws.EC2.AwsUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},

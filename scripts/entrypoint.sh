@@ -1,9 +1,9 @@
 #!/bin/sh
 
+if [ "$INFRAPROVIDER" = "legacy" ]; then
 ENV_PATH="/go/src/github.com/rancher/distros-test-framework/config/.env"
 [ -n "$ENV_PRODUCT" ] && sed -i "s/ENV_PRODUCT=.*/ENV_PRODUCT=$ENV_PRODUCT/" "$ENV_PATH"
 [ -n "$ENV_TFVARS" ] && sed -i "s/ENV_TFVARS=.*/ENV_TFVARS=$ENV_TFVARS/" "$ENV_PATH"
-
 
 CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PRODUCT}.tfvars"
 [ -n "$INSTALL_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
@@ -20,7 +20,8 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 [ -n "$AWS_AMI" ] && sed -i "s/aws_ami\s*=\s*.*/aws_ami = \"$AWS_AMI\"/" "$CONFIG_PATH"
 [ -n "$AWS_USER" ] && sed -i "s/aws_user\s*=\s*.*/aws_user = \"$AWS_USER\"/" "$CONFIG_PATH"
 [ -n "$DATASTORE_TYPE" ] && sed -i "s/datastore_type\s*=\s*.*/datastore_type = \"$DATASTORE_TYPE\"/" "$CONFIG_PATH"
-
-awk '!/^#|^$|access_key|key_name|username|password|region|qa_space/' "$CONFIG_PATH"
+ 
+    awk '!/^#|^$|access_key|key_name|username|password|region|qa_space/' "$CONFIG_PATH"
+fi
 
 exec bash ./scripts/test_runner.sh "$@"

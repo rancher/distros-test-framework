@@ -28,7 +28,7 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 		module = product
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + module)
+	tfDir, err := filepath.Abs(dir + "/infrastructure/legacy/" + module)
 	LogLevel("info", "Using module dir: %v", tfDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("no module found: %s", module)
@@ -222,8 +222,20 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	}
 
 	c.ServerIPs = strings.Split(terraform.Output(t, terraformOptions, "master_ips"), ",")
-	if c.NumAgents > 0 {
-		c.AgentIPs = strings.Split(terraform.Output(t, terraformOptions, "worker_ips"), ",")
+
+	// Always try to get worker IPs and update NumAgents accordingly
+	workerIPsOutput := terraform.Output(t, terraformOptions, "worker_ips")
+	if workerIPsOutput != "" {
+		c.AgentIPs = strings.Split(workerIPsOutput, ",")
+		// Filter out empty strings
+		var validAgentIPs []string
+		for _, ip := range c.AgentIPs {
+			if strings.TrimSpace(ip) != "" {
+				validAgentIPs = append(validAgentIPs, strings.TrimSpace(ip))
+			}
+		}
+		c.AgentIPs = validAgentIPs
+		c.NumAgents = len(c.AgentIPs)
 	}
 }
 
