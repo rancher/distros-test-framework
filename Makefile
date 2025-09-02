@@ -1,4 +1,4 @@
-include ./config/.env
+include ./shared/config/.env
 
 #========================= Run acceptance tests in docker =========================#
 

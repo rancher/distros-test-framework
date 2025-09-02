@@ -253,34 +253,34 @@ func trustCert(cluster *shared.Cluster, ip string) (err error) {
 // copyAssets copies assets from bastion to private node.
 func copyAssets(cluster *shared.Cluster, airgapMethod, ip string) (err error) {
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
 	switch cluster.Config.Product {
 	case "rke2":
 		cmd += fmt.Sprintf(
 			"sudo %v -r artifacts %v@%v:~/ && ",
-			ShCmdPrefix("scp", cluster.Aws.KeyName),
-			cluster.Aws.AwsUser, ip)
+			ShCmdPrefix("scp", cluster.SSH.KeyName),
+			cluster.SSH.User, ip)
 	case "k3s":
 		cmd += fmt.Sprintf(
 			"sudo %v %v* %v@%v:~/ && ",
-			ShCmdPrefix("scp", cluster.Aws.KeyName),
+			ShCmdPrefix("scp", cluster.SSH.KeyName),
 			cluster.Config.Product,
-			cluster.Aws.AwsUser, ip)
+			cluster.SSH.User, ip)
 	}
 
 	if airgapMethod != "tarball" {
 		cmd += fmt.Sprintf(
 			"sudo %v certs/* %v@%v:~/ && ",
-			ShCmdPrefix("scp", cluster.Aws.KeyName),
-			cluster.Aws.AwsUser, ip)
+			ShCmdPrefix("scp", cluster.SSH.KeyName),
+			cluster.SSH.User, ip)
 	}
 
 	cmd += fmt.Sprintf(
 		"sudo %v install_product.sh %v-install.sh %v@%v:~/",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
 		cluster.Config.Product,
-		cluster.Aws.AwsUser, ip)
+		cluster.SSH.User, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return err
@@ -290,8 +290,8 @@ func copyAssets(cluster *shared.Cluster, airgapMethod, ip string) (err error) {
 func copyRegistry(cluster *shared.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
-		cluster.Aws.AwsUser, ip)
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
+		cluster.SSH.User, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		return fmt.Errorf("error scp-ing registries.yaml on airgapped node: %v, \nerr: %w", ip, err)
@@ -308,7 +308,7 @@ func copyRegistry(cluster *shared.Cluster, ip string) (err error) {
 
 // CmdForPrivateNode command to run on private node via bastion.
 func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err error) {
-	awsUser := cluster.Aws.AwsUser
+	awsUser := cluster.SSH.User
 	if HasWindowsAgent(cluster) {
 		if slices.Contains(cluster.WinAgentIPs, ip) {
 			awsUser = "Administrator"
@@ -317,7 +317,7 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 
 	serverCmd := fmt.Sprintf(
 		"%v %v@%v '%v'",
-		ShCmdPrefix("ssh", cluster.Aws.KeyName),
+		ShCmdPrefix("ssh", cluster.SSH.KeyName),
 		awsUser, ip, cmd)
 	shared.LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
 
@@ -409,8 +409,8 @@ func processKubeconfigOnBastion(cluster *shared.Cluster) (err error) {
 
 	cmd := fmt.Sprintf(
 		`sudo %[1]v %[2]v@%[3]v:/etc/rancher/%[4]v/%[4]v.yaml %[5]v && `,
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
-		cluster.Aws.AwsUser, serverIP,
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
+		cluster.SSH.User, serverIP,
 		cluster.Config.Product, kcFileName,
 	)
 
@@ -429,7 +429,7 @@ func processKubeconfigOnBastion(cluster *shared.Cluster) (err error) {
 // LogClusterInfoUsingBastion executes and prints kubectl get nodes,pods on bastion.
 func LogClusterInfoUsingBastion(cluster *shared.Cluster) {
 	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
-		cluster.Aws.KeyName, cluster.Aws.AwsUser,
+		cluster.SSH.KeyName, cluster.SSH.User,
 		cluster.BastionConfig.PublicIPv4Addr)
 
 	cmd := fmt.Sprintf(

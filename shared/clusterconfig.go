@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
@@ -17,11 +16,6 @@ var (
 	once    sync.Once
 	cluster *Cluster
 )
-
-// SetGlobalCluster sets the global cluster variable to prevent legacy ClusterConfig from being called
-func SetGlobalCluster(c *Cluster) {
-	cluster = c
-}
 
 type Cluster struct {
 	Status        string
@@ -38,6 +32,7 @@ type Cluster struct {
 	BastionConfig bastionConfig
 	NodeOS        string
 	TestConfig    testConfig
+	SSH           SSHConfig
 }
 
 type AwsConfig struct {
@@ -51,11 +46,18 @@ type AwsConfig struct {
 	EC2
 }
 
+type SSHConfig struct {
+	KeyPath string
+	PubKey  string
+	PrivKey string
+	KeyName string
+	User    string
+}
+
 type EC2 struct {
-	AccessKey     string
-	AwsUser       string
 	Ami           string
 	VolumeSize    string
+	VolumeType    string
 	InstanceClass string
 	KeyName       string
 }
@@ -121,15 +123,15 @@ type Pod struct {
 }
 
 // ClusterConfig returns a singleton cluster with all terraform config and vars.
-func ClusterConfig(envCfg *config.Env) *Cluster {
+func ClusterConfig(product, module string) *Cluster {
 	once.Do(func() {
 		var err error
-		cluster, err = newCluster(envCfg.Product, envCfg.Module)
+		cluster, err = newCluster(product, module)
 		if err != nil {
 			LogLevel("error", "error getting cluster: %w\n", err)
 			if customflag.ServiceFlag.Destroy {
 				LogLevel("info", "\nmoving to start destroy operation\n")
-				status, destroyErr := DestroyCluster(envCfg)
+				status, destroyErr := DestroyInfrastructure(product, module)
 				if destroyErr != nil {
 					LogLevel("error", "error destroying cluster: %w\n", destroyErr)
 					os.Exit(1)
@@ -151,7 +153,7 @@ func newCluster(product, module string) (*Cluster, error) {
 	c := &Cluster{}
 	t := &testing.T{}
 
-	terraformOptions, varDir, err := setTerraformOptions(product, module)
+	terraformOptions, varDir, err := setTerraformOptionsLegacy(product, module)
 	if err != nil {
 		return nil, err
 	}
@@ -203,27 +205,15 @@ func newCluster(product, module string) (*Cluster, error) {
 	return c, nil
 }
 
-// DestroyCluster destroys the cluster and returns it.
-func DestroyCluster(cfg *config.Env) (string, error) {
-	terraformOptions, _, err := setTerraformOptions(cfg.Product, cfg.Module)
-	if err != nil {
-		return "", err
-	}
-	terraform.Destroy(&testing.T{}, terraformOptions)
-
-	return "cluster destroyed", nil
-}
-
 //nolint:funlen // yep, but this makes more clear being one function.
 func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
-	// if it is configureSSH() call then return the cluster with only aws key/user.
+	// if it is configureSSH() call then return the cluster with only key/user.
 	if nodes == nil {
 		return &Cluster{
-			Aws: AwsConfig{
-				EC2: EC2{
-					AccessKey: os.Getenv("access_key"),
-					AwsUser:   os.Getenv("aws_user"),
-				},
+			SSH: SSHConfig{
+				KeyPath: os.Getenv("access_key"),
+				// TODO: this should be added option to load any user, not only aws_user.
+				User: os.Getenv("aws_user"),
 			},
 		}, nil
 	}
@@ -237,21 +227,24 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 	}
 
 	product := os.Getenv("ENV_PRODUCT")
-
 	return &Cluster{
 		Status:     "cluster created",
 		ServerIPs:  serverIPs,
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
+		SSH: SSHConfig{
+			KeyPath: os.Getenv("access_key"),
+			User:    os.Getenv("aws_user"),
+		},
+
 		Aws: AwsConfig{
 			Region:           os.Getenv("region"),
 			Subnets:          os.Getenv("subnets"),
 			SgId:             os.Getenv("sg_id"),
 			AvailabilityZone: os.Getenv("availability_zone"),
 			EC2: EC2{
-				AccessKey:     os.Getenv("access_key"),
-				AwsUser:       os.Getenv("aws_user"),
+
 				Ami:           os.Getenv("aws_ami"),
 				VolumeSize:    os.Getenv("volume_size"),
 				InstanceClass: os.Getenv("ec2_instance_class"),
@@ -355,4 +348,59 @@ func parseEnvInt(key string, defaultValue int) int {
 	}
 
 	return defaultValue
+}
+
+func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers int) (int, error) {
+	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_only_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
+	}
+	etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_cp_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
+	}
+	etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"etcd_worker_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
+	}
+	cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"cp_only_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
+	}
+	cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
+		t,
+		varDir,
+		"cp_worker_nodes",
+	))
+	if err != nil {
+		return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
+	}
+
+	numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
+
+	sp.Add = true
+	sp.ControlPlaneOnly = cpNodes
+	sp.EtcdOnly = etcdNodes
+	sp.EtcdCP = etcdCpNodes
+	sp.EtcdWorker = etcdWorkerNodes
+	sp.ControlPlaneWorker = cpWorkerNodes
+	sp.NumServers = numServers
+
+	return numServers, nil
 }

@@ -120,12 +120,12 @@ func InstallOnIPv6Agents(cluster *shared.Cluster) {
 // copyConfigureScript Copies configure.sh script on the nodes.
 func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
 	cmd += fmt.Sprintf(
 		"sudo %v configure.sh %v@%v:~/",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
-		cluster.Aws.AwsUser, shared.EncloseSqBraces(ip))
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
+		cluster.SSH.User, shared.EncloseSqBraces(ip))
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 	var script string
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
 	if slices.Contains(cluster.ServerIPs, ip) {
 		if slices.Index(cluster.ServerIPs, ip) == 0 {
@@ -155,8 +155,8 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 	}
 	cmd += fmt.Sprintf(
 		"sudo %v %v %v@%v:~/",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
-		script, cluster.Aws.AwsUser, ip)
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
+		script, cluster.SSH.User, ip)
 	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 	if err != nil {
 		return err

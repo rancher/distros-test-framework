@@ -65,18 +65,18 @@ node {
             try {
               stage('Configure and Build') {
                 if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
-                  dir('./config/.ssh') {
+                  dir('./shared/config/.ssh') {
                     def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
                     writeFile file: 'aws_key.pem', text: decoded
                   }
                 }
-                dir('./config') {
+                dir('./shared/config') {
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
                   "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
                    "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n" +
                    "INFRA_PROVIDER=${env.INFRA_PROVIDER ?: 'legacy'}\nAWS_SSH_USER=${env.AWS_SSH_USER ?: 'ec2-user'}\n" +
-                   'ACCESS_KEY_LOCAL=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\n'
+                   'SSH_KEY_PATH=/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem\n'
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
 
@@ -91,7 +91,7 @@ node {
                        "\ninstall_mode = \"${INSTALL_MODE}\"" +
                        '\npassword = \"' + RKE2_RHEL_PASSWORD + '\"' +
                        '\nkey_name = \"' + AWS_SSH_KEY_NAME + '\"' +
-                       '\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"' +
+                       '\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem\"' +
                        '\nresource_name = \"' + HOSTNAME_PREFIX + '\"' +
                        "\nproduct = \"${env.PRODUCT_NAME}\""
                   def testdata = readFile(file: filename)
@@ -107,10 +107,10 @@ node {
                     sh """
                     docker run --name ${testContainer} -t \
                         --env-file ${envFile} \
-                        --env-file ./config/.env \
+                        --env-file ./shared/config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
-                        ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
+                        ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem && \
                          cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
               }

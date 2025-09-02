@@ -12,12 +12,12 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-func setTerraformOptions(product, module string) (*terraform.Options, string, error) {
+func setTerraformOptionsLegacy(product, module string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", product))
+		fmt.Sprintf("/shared/config/%s.tfvars", product))
 	LogLevel("info", "Using tfvars in: %v", varDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid product: %s", product)
@@ -54,6 +54,7 @@ func loadTFconfig(
 
 	LogLevel("info", "Loading tfvars in to aws config....")
 	loadAws(t, varDir, c)
+	loadSSH(t, varDir, c)
 
 	LogLevel("info", "Loading tfvars in to ec2 config....")
 	loadEC2(t, varDir, c)
@@ -158,9 +159,15 @@ func loadAws(t *testing.T, varDir string, c *Cluster) {
 	c.Aws.VPCID = terraform.GetVariableAsStringFromVarFile(t, varDir, "vpc_id")
 }
 
+func loadSSH(t *testing.T, varDir string, c *Cluster) {
+	c.SSH.KeyPath = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
+	if c.SSH.KeyPath == "" && isRunningInContainer() {
+		c.SSH.KeyPath = "/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem"
+	}
+	c.SSH.User = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
+}
+
 func loadEC2(t *testing.T, varDir string, c *Cluster) {
-	c.Aws.EC2.AccessKey = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
-	c.Aws.EC2.AwsUser = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
 	c.Aws.EC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
 	c.Aws.EC2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
 	c.Aws.EC2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
@@ -237,59 +244,4 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 		c.AgentIPs = validAgentIPs
 		c.NumAgents = len(c.AgentIPs)
 	}
-}
-
-func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers int) (int, error) {
-	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_only_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
-	}
-	etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_cp_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
-	}
-	etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_worker_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
-	}
-	cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"cp_only_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
-	}
-	cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"cp_worker_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
-	}
-
-	numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
-
-	sp.Add = true
-	sp.ControlPlaneOnly = cpNodes
-	sp.EtcdOnly = etcdNodes
-	sp.EtcdCP = etcdCpNodes
-	sp.EtcdWorker = etcdWorkerNodes
-	sp.ControlPlaneWorker = cpWorkerNodes
-	sp.NumServers = numServers
-
-	return numServers, nil
 }

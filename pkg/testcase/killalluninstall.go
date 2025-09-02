@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/shared"
+	"github.com/rancher/distros-test-framework/shared/config"
 
 	. "github.com/onsi/gomega"
 )

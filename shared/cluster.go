@@ -11,7 +11,7 @@ import (
 
 	"github.com/avast/retry-go"
 
-	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/shared/config"
 )
 
 // ManageWorkload applies or deletes a workload based on the action: apply or delete.
@@ -21,8 +21,11 @@ func ManageWorkload(action string, workloads ...string) error {
 	}
 
 	arch := os.Getenv("arch")
-	resourceDir := BasePath() + "/workloads/" + arch
+	if arch == "" {
+		arch = "amd64"
+	}
 
+	resourceDir := BasePath() + "/workloads/" + arch
 	files, readErr := os.ReadDir(resourceDir)
 	if readErr != nil {
 		return ReturnLogError("Unable to read resource manifest file for: %s\n with error:%w", resourceDir, readErr)
@@ -819,6 +822,8 @@ func InstallProduct(cluster *Cluster, publicIP, version string) error {
 	return nil
 }
 
+// setConfigFile sets the config file for the cluster, using vars from the .tfvars file.
+// todo: needs to be refactored to be used with qa-infra provider.
 func setConfigFile(cluster *Cluster, publicIP string) error {
 	serverFlags := os.Getenv("server_flags")
 	if serverFlags == "" {

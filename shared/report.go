@@ -101,7 +101,7 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// config.yaml from server via bastion node.
 	cfgCmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
-	cfg, err := remoteExec(c.Aws.KeyName, c.Aws.AwsUser, c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, cfgCmd)
+	cfg, err := remoteExec(c.SSH.KeyName, c.SSH.User, c.ServerIPs[0], c.BastionConfig.PublicIPv4Addr, cfgCmd)
 	if err != nil {
 		return fmt.Errorf("retrieving config.yaml: %w", err)
 	}
@@ -116,8 +116,8 @@ func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summa
 
 	// /etc/os-release from server via bastion node.
 	osRelease, osReleaseErr := remoteExec(
-		c.Aws.KeyName,
-		c.Aws.AwsUser,
+		c.SSH.KeyName,
+		c.SSH.User,
 		c.ServerIPs[0],
 		c.BastionConfig.PublicIPv4Addr,
 		"cat /etc/os-release",
@@ -129,8 +129,8 @@ func airgapNodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summa
 
 	// Kernel version from server node via bastion node.
 	unameOutput, unameErr := remoteExec(
-		c.Aws.KeyName,
-		c.Aws.AwsUser,
+		c.SSH.KeyName,
+		c.SSH.User,
 		c.ServerIPs[0],
 		c.BastionConfig.PublicIPv4Addr,
 		"uname -r",

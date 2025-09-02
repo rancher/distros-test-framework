@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
+	"github.com/rancher/distros-test-framework/shared/config"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,11 +18,10 @@ import (
 
 var (
 	qaseReport    = os.Getenv("REPORT_TO_QASE")
-	kubeconfig    string
 	flags         *customflag.FlagConfig
 	cluster       *shared.Cluster
-	cfg           *config.Env
 	infraConfig   shared.InfraConfig
+	cfg           *config.Env
 	reportSummary string
 	reportErr     error
 	err           error
@@ -41,36 +40,57 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Check if selinux test is enabled
-	if customflag.ServiceFlag.SelinuxTest {
-		if !strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-			shared.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
-			os.Exit(1)
-		}
-		shared.LogLevel("info", "Running selinux test")
-	} else {
-		shared.LogLevel("info", "Skipping selinux test")
-	}
+	checkSelinuxTest()
 
-	kubeconfig = os.Getenv("KUBE_CONFIG")
-	if kubeconfig == "" {
-		infraConfig = shared.InfraConfig{
-			Product: cfg.Product,
-			Module:  cfg.Module,
-			// Provider will be determined automatically from INFRA_PROVIDER env var
-		}
-
-		cluster, err = shared.ProvisionInfrastructure(infraConfig)
-		if err != nil {
-			shared.LogLevel("error", "error provisioning infrastructure: %w\n", err)
-			os.Exit(1)
-		}
-	} else {
-		// gets a cluster from existing kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
+	setupCluster()
 
 	os.Exit(m.Run())
+}
+
+func checkSelinuxTest() {
+	if !customflag.ServiceFlag.SelinuxTest {
+		shared.LogLevel("info", "Skipping selinux test")
+		return
+	}
+
+	if !strings.Contains(os.Getenv("server_flags"), "selinux: true") {
+		shared.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
+		os.Exit(1)
+	}
+	shared.LogLevel("info", "Running selinux test")
+}
+
+func setupCluster() {
+	kubeconfig := os.Getenv("KUBE_CONFIG")
+	if kubeconfig != "" {
+		// gets a cluster from existing kubeconfig.
+		cluster = shared.KubeConfigCluster(kubeconfig)
+		shared.LogLevel("info", "Using existing cluster from kubeconfig")
+
+		return
+	}
+
+	infraConfig = shared.InfraConfig{
+		Product:        cfg.Product,
+		Module:         cfg.Module,
+		ResourceName:   cfg.ResourceName,
+		InfraProvider:  cfg.InfraProvider,
+		InstallVersion: cfg.InstallVersion,
+		TFVars:         cfg.TFVars,
+		QAInfraModule:  cfg.QAInfraModule,
+		QAInfraConfig: &shared.QAInfraConfig{
+			SSHConfig: shared.SSHConfig{
+				User:    cfg.SSHUser,
+				KeyPath: cfg.SSHKeyPath,
+			},
+		},
+	}
+
+	cluster, err = shared.ProvisionInfrastructure(infraConfig, cluster)
+	if err != nil {
+		shared.LogLevel("error", "error provisioning infrastructure: %w\n", err)
+		os.Exit(1)
+	}
 }
 
 func TestValidateClusterSuite(t *testing.T) {
@@ -111,16 +131,9 @@ var _ = AfterSuite(func() {
 			}
 		}
 
-		// Destroy infrastructure using the same config used for provisioning
-		if kubeconfig == "" {
-			err := shared.DestroyInfrastructure(infraConfig)
-			Expect(err).NotTo(HaveOccurred())
-		} else {
-			// For existing kubeconfig, use the legacy destroy method
-			status, err := shared.DestroyCluster(cfg)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(status).To(Equal("cluster destroyed"))
-		}
+		status, err := shared.DestroyInfrastructure(infraConfig.Product, infraConfig.Module)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(status).To(Equal("cluster destroyed"))
 	}
 })
 

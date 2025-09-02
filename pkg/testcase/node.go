@@ -42,9 +42,10 @@ func TestNodeStatus(
 		Expect(err).NotTo(HaveOccurred())
 		shared.LogLevel("info", "Journal logs from server node-1: %v\n", cluster.ServerIPs[0])
 		logs := shared.GetJournalLogs("error", cluster.ServerIPs[0])
-		shared.LogLevel("info", "Journal logs from agent node-1: %v\n", cluster.AgentIPs[0])
+
 		if cluster.NumAgents > 0 {
 			logs += shared.GetJournalLogs("error", cluster.AgentIPs[0])
+			shared.LogLevel("info", "Journal logs from agent node-1: %v\n", cluster.AgentIPs[0])
 		}
 
 		return logs

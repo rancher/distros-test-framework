@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
+	"github.com/rancher/distros-test-framework/shared/config"
 )
 
 // Product returns the distro product and its current version.

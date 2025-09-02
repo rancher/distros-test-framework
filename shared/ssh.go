@@ -165,35 +165,18 @@ func configureSSH(host string) (*ssh.Client, error) {
 		err error
 	)
 
-	// get access key and user from cluster config.
-	kubeConfig := os.Getenv("KUBE_CONFIG")
-	if kubeConfig == "" {
-		// Check if the global cluster is already set from qa-infra provisioning
-		if cluster != nil {
-			// Use the existing global cluster from qa-infra
-			// LogLevel("debug", "Using existing global cluster configuration for SSH")
-		} else {
-			productCfg := AddProductCfg()
-			cluster = ClusterConfig(productCfg)
-		}
-	} else {
-		cluster, err = addClusterFromKubeConfig(nil)
-		if err != nil {
-			return nil, ReturnLogError("failed to get cluster from kubeconfig: %w", err)
-		}
+	sshUser, sshKeyPath, err := resolveSSHConfig()
+	if err != nil {
+		return nil, ReturnLogError("failed to resolve SSH config: %w", err)
 	}
 
-	// Debug SSH configuration
-	LogLevel("debug", "SSH Key Path: %s", cluster.Aws.EC2.AccessKey)
-	LogLevel("debug", "SSH User: %s", cluster.Aws.EC2.AwsUser)
-
-	authMethod, err := publicKey(cluster.Aws.EC2.AccessKey)
+	authMethod, err := publicKey(sshKeyPath)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
-		User: cluster.Aws.EC2.AwsUser,
+		User: sshUser,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
@@ -206,6 +189,33 @@ func configureSSH(host string) (*ssh.Client, error) {
 	}
 
 	return conn, nil
+}
+
+func resolveSSHConfig() (string, string, error) {
+	var sshUser, sshKeyPath string
+	infraProvider := os.Getenv("INFRA_PROVIDER")
+
+	switch infraProvider {
+	case "legacy", "":
+		sshKeyPath = os.Getenv("access_key")
+		if sshKeyPath == "" && isRunningInContainer() {
+			sshKeyPath = "/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem"
+		}
+		sshUser = os.Getenv("aws_user")
+
+		return sshUser, sshKeyPath, nil
+	case "qa-infra":
+		sshKeyPath = os.Getenv("SSH_KEY_PATH")
+		sshUser = os.Getenv("SSH_USER")
+
+		if isRunningInContainer() {
+			sshKeyPath = "/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem"
+		}
+
+		return sshUser, sshKeyPath, nil
+	default:
+		return "", "", ReturnLogError("unknown infrastructure provider: %s", infraProvider)
+	}
 }
 
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {

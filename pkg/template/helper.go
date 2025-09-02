@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
+	"github.com/rancher/distros-test-framework/shared/config"
 )
 
 // upgradeVersion upgrades the product version.
@@ -19,7 +19,8 @@ func upgradeVersion(template TestTemplate, k8sClient *k8s.Client, version string
 		return fmt.Errorf("error adding env vars: %w", cfgErr)
 	}
 
-	cluster := shared.ClusterConfig(cfg)
+	// TODO: FIX THIS, We should not call the whole stuff just to pass some data to manual upgrade.
+	cluster := shared.ClusterConfig(cfg.Product, cfg.Module)
 	err := testcase.TestUpgradeClusterManual(cluster, k8sClient, version)
 	if err != nil {
 		return err

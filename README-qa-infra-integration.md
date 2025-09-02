@@ -47,7 +47,7 @@ AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 
 # SSH Configuration
-ACCESS_KEY_LOCAL="/path/to/private/key.pem"  # Host path to private key
+SSH_KEY_PATH="/path/to/private/key.pem"  # Host path to private key
 
 # Test Configuration
 TEST_DIR=validatecluster
@@ -96,7 +96,7 @@ make test-build-run
 The `scripts/docker_run.sh` script:
 
 - Builds the Docker image with Go, OpenTofu, and Ansible
-- Mounts SSH keys dynamically based on `ACCESS_KEY_LOCAL`
+- Mounts SSH keys dynamically based on `SSH_KEY_PATH`
 - Passes environment variables into the container
 - Sets up the testing environment
 
@@ -206,7 +206,7 @@ make test-build-run
 3. **Update .env file**:
 
    ```bash
-   ACCESS_KEY_LOCAL="/absolute/path/to/your/private/key.pem"
+   SSH_KEY_PATH="/absolute/path/to/your/private/key.pem"
    ```
 
 ## Debugging
@@ -248,7 +248,7 @@ The framework creates debug output showing:
    - Check AWS CLI: `aws sts get-caller-identity`
 
 3. **Docker Mount Issues**:
-   - Ensure ACCESS_KEY_LOCAL points to a file, not directory
+   - Ensure SSH_KEY_PATH points to a file, not directory
    - Verify the .pub file exists alongside the private key
 
 ## File Structure

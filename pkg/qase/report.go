@@ -314,13 +314,13 @@ func formatClusterConfig(c *shared.Cluster) string {
 }
 
 func formatAWSConfig(c *shared.Cluster) string {
-	accessKey := os.Getenv("ACCESS_KEY_LOCAL")
+	accessKey := os.Getenv("SSH_KEY_PATH")
 	accessKeyName := filepath.Base(accessKey)
 
 	awsInfo := []struct{ labelKey, value string }{
 		{"Access key", accessKeyName},
-		{"User", c.Aws.EC2.AwsUser},
-		{"Key name", c.Aws.EC2.KeyName},
+		{"User", c.SSH.User},
+		{"Key name", c.SSH.KeyName},
 		{"Region", c.Aws.Region},
 		{"Availability zone", c.Aws.AvailabilityZone},
 		{"AMI", c.Aws.EC2.Ami},

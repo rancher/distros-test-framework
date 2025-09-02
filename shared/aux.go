@@ -149,9 +149,9 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
 				"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
-			c.Aws.AccessKey,
+			c.SSH.KeyPath,
 			localPath,
-			c.Aws.AwsUser,
+			c.SSH.User,
 			remotePath,
 		)
 
@@ -779,55 +779,3 @@ func CheckProcessCompletion(nodeIP, processPattern string, attempts int, delay t
 
 	return nil
 }
-
-// // GetPublicIPForNode maps an internal/private IP to its corresponding public IP
-// // by checking nodes and finding the one with matching internal IP
-// func GetPublicIPForNode(internalIP string) (string, error) {
-// 	// Get all nodes with their internal and external IPs
-// 	cmd := "kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type==\"InternalIP\")].address}{\" \"}{.status.addresses[?(@.type==\"ExternalIP\")].address}{\"\\n\"}{end}' --kubeconfig=" + KubeConfigFile
-
-// 	output, err := RunCommandHost(cmd)
-// 	if err != nil {
-// 		LogLevel("debug", "Failed to get node IP mapping from kubectl: %v", err)
-// 		// Fallback: try to use cluster configuration
-// 		return tryClusterConfigMapping(internalIP)
-// 	}
-
-// 	// Parse the output to build internal->external IP mapping
-// 	lines := strings.Split(strings.TrimSpace(output), "\n")
-// 	for _, line := range lines {
-// 		parts := strings.Fields(line)
-// 		if len(parts) >= 2 {
-// 			nodeInternalIP := parts[0]
-// 			nodeExternalIP := parts[1]
-
-// 			if nodeInternalIP == internalIP && nodeExternalIP != "<none>" && nodeExternalIP != "" {
-// 				LogLevel("debug", "Mapped internal IP %s to external IP %s via kubectl", internalIP, nodeExternalIP)
-// 				return nodeExternalIP, nil
-// 			}
-// 		}
-// 	}
-
-// 	// If no external IP found via kubectl, try cluster config
-// 	return tryClusterConfigMapping(internalIP)
-// }
-
-// // tryClusterConfigMapping attempts to find public IP from stored cluster config
-// func tryClusterConfigMapping(internalIP string) (string, error) {
-// 	// Try to get mapping from current cluster configuration
-// 	if cluster != nil && cluster.Status != "" {
-// 		// For qa-infra provider, we store public IPs in ServerIPs and AgentIPs
-// 		// This is a reasonable fallback when kubectl doesn't have external IPs
-// 		allIPs := append(cluster.ServerIPs, cluster.AgentIPs...)
-// 		if len(allIPs) > 0 {
-// 			// Simple heuristic: return the first available public IP
-// 			// In a more robust implementation, you'd store the internal->public mapping
-// 			LogLevel("debug", "Using cluster config fallback, returning first public IP: %s", allIPs[0])
-// 			return allIPs[0], nil
-// 		}
-// 	}
-
-// 	// Final fallback: return the internal IP (might work in some network setups)
-// 	LogLevel("warn", "No public IP mapping found for %s, using internal IP as fallback", internalIP)
-// 	return internalIP, nil
-// }

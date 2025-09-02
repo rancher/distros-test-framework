@@ -8,7 +8,7 @@ no_of_server_nodes = 3
 no_of_worker_nodes = 1
 resource_name  = "<prefix_name_for_your_resources>"
 key_name       = "jenkins-rke-validation"
-access_key     = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
+access_key     = "/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem"
 
 install_mode   = "INSTALL_K3S_VERSION"
 # INSTALL_K3S_VERSION or INSTALL_K3S_COMMIT
