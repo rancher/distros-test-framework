@@ -42,8 +42,6 @@ func ValidateTemplateFlags() {
 		validateSingleCNITest(expectedValues, expectedUpgrades)
 	case "canal":
 		validateCanalTest(expectedValues, expectedUpgrades)
-	case "chartsbump":
-		validateChartsBumpTest(expectedValues, expectedUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}
@@ -95,7 +93,7 @@ func validateTestTagFromLocal() string {
 		os.Exit(1)
 	}
 
-	testTags := []string{"calico", "canal", "cilium", "flannel", "multus", "components", "versionbump", "chartsbump"}
+	testTags := []string{"calico", "canal", "cilium", "flannel", "multus", "components", "versionbump"}
 	if !slices.Contains(testTags, testTag) {
 		log.Errorf("test tag not found in: %s", testTag)
 		os.Exit(1)
@@ -119,7 +117,7 @@ func validateVersionBumpTest(expectedValue, expectedUpgrade []string, cmd string
 }
 
 func validateCiliumTest(expectedValue, valuesUpgrade []string) {
-	cmdCount := 2
+	cmdCount := 3
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -134,7 +132,7 @@ func validateCiliumTest(expectedValue, valuesUpgrade []string) {
 
 func validateCanalTest(expectedValue, valuesUpgrade []string) {
 	// calico + flannel
-	cmdCount := 2
+	cmdCount := 3
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -148,7 +146,7 @@ func validateCanalTest(expectedValue, valuesUpgrade []string) {
 }
 
 func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
-	cmdCount := 1
+	cmdCount := 2
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -162,7 +160,7 @@ func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
 }
 
 func validateMultusTest(expectedValue, valuesUpgrade []string) {
-	cmdCount := 4
+	cmdCount := 5
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -177,7 +175,7 @@ func validateMultusTest(expectedValue, valuesUpgrade []string) {
 
 func validateComponentsTest(expectedValue, valuesUpgrade []string) {
 	k3sComponentsCmdsCount := 10
-	rke2ComponentsCmdsCount := 7
+	rke2ComponentsCmdsCount := 18
 
 	product := os.Getenv("ENV_PRODUCT")
 	switch product {
@@ -204,21 +202,6 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string) {
 				rke2ComponentsCmdsCount, len(valuesUpgrade))
 			os.Exit(1)
 		}
-	}
-}
-
-func validateChartsBumpTest(expectedValue, valuesUpgrade []string) {
-	rke2ChartsCmdsCount := 16
-
-	if len(expectedValue) != rke2ChartsCmdsCount {
-		log.Errorf("mismatched length commands: %d x expected values: %d", rke2ChartsCmdsCount, len(expectedValue))
-		os.Exit(1)
-	}
-
-	if valuesUpgrade != nil && len(valuesUpgrade) != rke2ChartsCmdsCount {
-		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			rke2ChartsCmdsCount, len(valuesUpgrade))
-		os.Exit(1)
 	}
 }
 
