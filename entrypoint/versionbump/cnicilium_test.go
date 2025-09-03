@@ -38,7 +38,7 @@ var _ = Describe("Cilium Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	cmd = ciliumCmd + cniPluginsCmd + ciliumChartsCmd
+	cmd := ciliumCmd + cniPluginsCmd + ciliumChartsCmd
 
 	It("Test Bump version", func() {
 		Template(TestTemplate{

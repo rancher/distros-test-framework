@@ -37,7 +37,7 @@ var _ = Describe("Calico Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	cmd = calicoCmd + calicoChartCmd
+	cmd := calicoCmd + calicoChartCmd
 
 	It("Test Calico version", func() {
 		Template(TestTemplate{

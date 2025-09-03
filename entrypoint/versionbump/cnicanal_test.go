@@ -38,7 +38,7 @@ var _ = Describe("Canal Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	cmd = calicoCmd + flannelCmd + canalChartCmd
+	cmd := calicoCmd + flannelCmd + canalChartCmd
 
 	It("Test Calico and Flannel version", func() {
 		Template(TestTemplate{
