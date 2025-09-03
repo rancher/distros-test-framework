@@ -15,7 +15,7 @@ import (
 
 const (
 	kgn                      = "kubectl get node -o yaml"
-	getCharts                = "sudo cat /var/lib/rancher/rke2/data/v*/charts/*"
+	getCharts                = "sudo cat /var/lib/rancher/rke2/data/*/charts/*"
 	metricsServer            = kgn + " : | grep 'metrics-server' -A1, "
 	containerd               = kgn + " : | grep containerd -A1, "
 	localPath                = kgn + " : | grep local-path -A1, "
