@@ -41,13 +41,12 @@ var _ = Describe("Flannel Version bump:", func() {
 		if cluster.Config.Product == "k3s" {
 			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
 		}
-		cmd := flannelCmd + flannelChartCmd
 
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  cmd,
+						Cmd:                  flannelCommand + flannelChartCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

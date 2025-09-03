@@ -14,25 +14,25 @@ import (
 )
 
 const (
-	kgn                      = "kubectl get node -o yaml"
-	getCharts                = "sudo cat /var/lib/rancher/rke2/data/*/charts/*"
-	metricsServer            = kgn + " : | grep 'metrics-server' -A1, "
-	containerd               = kgn + " : | grep containerd -A1, "
-	localPath                = kgn + " : | grep local-path -A1, "
-	traefik                  = kgn + " : | grep traefik  -A1, "
-	klipperLB                = kgn + " : | grep klipper -A5"
-	ingressController        = kgn + " : | grep 'nginx-ingress-controller' -A1,"
-	corednsCharts            = getCharts + " | grep 'rke2-coredns', "
-	ingressControllerCharts  = getCharts + " | grep 'rke2-ingress-nginx', "
-	metricsCharts            = getCharts + " | grep 'rke2-metrics-server', "
-	runtimeClassesCharts     = getCharts + " | grep 'rke2-runtimeclasses', "
-	snapshotControllerCharts = getCharts + " | grep 'rke2-snapshot-controller', "
-	snapshotValidationCharts = getCharts + " | grep 'rke2-snapshot-validation-webhook', "
-	traefikCharts            = getCharts + " | grep 'rke2-traefik', "
-	harvesterCloudCharts     = getCharts + " | grep 'harvester-cloud-provider', "
-	harvesterCsiCharts       = getCharts + " | grep 'harvester-csi-driver', "
-	rancherVsphereCpiCharts  = getCharts + " | grep 'vsphere-cpi', "
-	rancherVsphereCsiCharts  = getCharts + " | grep 'vsphere-csi' "
+	kgn                     = "kubectl get node -o yaml"
+	getCharts               = "sudo cat /var/lib/rancher/rke2/data/*/charts/*"
+	metricsServer           = kgn + " : | grep 'metrics-server' -A1, "
+	containerd              = kgn + " : | grep containerd -A1, "
+	localPath               = kgn + " : | grep local-path -A1, "
+	traefik                 = kgn + " : | grep traefik  -A1, "
+	klipperLB               = kgn + " : | grep klipper -A5"
+	ingressController       = kgn + " : | grep 'nginx-ingress-controller' -A1,"
+	corednsCharts           = getCharts + " | grep 'rke2-coredns', "
+	ingressControllerCharts = getCharts + " | grep 'rke2-ingress-nginx', "
+	metricsCharts           = getCharts + " | grep 'rke2-metrics-server', "
+	runtimeClasses          = getCharts + " | grep 'rke2-runtimeclasses', "
+	snapshotController      = getCharts + " | grep 'rke2-snapshot-controller', "
+	snapshotValidation      = getCharts + " | grep 'rke2-snapshot-validation-webhook', "
+	traefikCharts           = getCharts + " | grep 'rke2-traefik', "
+	harvesterCloud          = getCharts + " | grep 'harvester-cloud-provider', "
+	harvesterCsi            = getCharts + " | grep 'harvester-csi-driver', "
+	vSphereCpi              = getCharts + " | grep 'vsphere-cpi', "
+	vSphereCsi              = getCharts + " | grep 'vsphere-csi' "
 )
 
 var _ = Describe("Components Version Upgrade:", func() {
@@ -66,12 +66,11 @@ var _ = Describe("Components Version Upgrade:", func() {
 		"\n9-ingress Controller Charts\n10-metrics Server Charts\n11-runtime Classes Charts" +
 		"\n12-snapshot Controller Charts\n13-snapshot Validation Webhook Charts" +
 		"\n14-traefik Charts\n15-harvester Cloud Provider Charts\n16-harvester Csi Driver Charts" +
-		"\n17-rancher Vsphere Cpi Charts\n18-rancher Vsphere Csi Charts"
+		"\n17-vSphere Cpi Charts\n18-vSphere Csi Charts"
 
 	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController + corednsCharts +
-		ingressControllerCharts + metricsCharts + runtimeClassesCharts + snapshotControllerCharts +
-		snapshotValidationCharts + traefikCharts + harvesterCloudCharts + harvesterCsiCharts +
-		rancherVsphereCpiCharts + rancherVsphereCsiCharts
+		ingressControllerCharts + metricsCharts + runtimeClasses + snapshotController +
+		snapshotValidation + traefikCharts + harvesterCloud + harvesterCsi + vSphereCpi + vSphereCsi
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
