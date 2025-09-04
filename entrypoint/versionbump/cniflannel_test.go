@@ -36,17 +36,21 @@ var _ = Describe("Flannel Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
+	string cmd
+
 	It("Test flannel version bump", func() {
 		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1,"
 		if cluster.Config.Product == "k3s" {
 			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
+			cmd = flannelCommand
 		}
+		cmd = flannelCommand + flannelChartCmd
 
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  flannelCommand + flannelChartCmd,
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},

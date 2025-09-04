@@ -146,17 +146,38 @@ func validateCanalTest(expectedValue, valuesUpgrade []string) {
 }
 
 func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
-	cmdCount := 2
-	if len(expectedValue) != cmdCount {
-		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
-		os.Exit(1)
+	k3sCmdsCount := 1
+	rke2CmdsCount := 2
+
+	product := os.Getenv("ENV_PRODUCT")
+	serverFlags := os.Getenv("server_flags")
+
+	if product == "k3s" && strings.Contains(serverFlags, "flannel") {
+		if len(expectedValue) != k3sCmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", k3sCmdsCount, len(expectedValue))
+			os.Exit(1)
+		}
+
+		if valuesUpgrade != nil && len(valuesUpgrade) != k3sCmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				k3sCmdsCount, len(valuesUpgrade))
+			os.Exit(1)
+		}
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
-		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			cmdCount, len(valuesUpgrade))
-		os.Exit(1)
+	if product == "rke2" {
+		if len(expectedValue) != rke2CmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", rke2CmdsCount, len(expectedValue))
+			os.Exit(1)
+		}
+
+		if valuesUpgrade != nil && len(valuesUpgrade) != rke2CmdsCount {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				rke2CmdsCount, len(valuesUpgrade))
+			os.Exit(1)
+		}
 	}
+
 }
 
 func validateMultusTest(expectedValue, valuesUpgrade []string) {
