@@ -36,7 +36,9 @@ var _ = Describe("Flannel Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	string cmd
+	var (
+		cmd string
+	)
 
 	It("Test flannel version bump", func() {
 		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1,"
