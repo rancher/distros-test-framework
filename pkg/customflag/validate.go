@@ -150,9 +150,8 @@ func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
 	rke2CmdsCount := 2
 
 	product := os.Getenv("ENV_PRODUCT")
-	serverFlags := os.Getenv("server_flags")
 
-	if product == "k3s" && strings.Contains(serverFlags, "flannel") {
+	if product == "k3s" {
 		if len(expectedValue) != k3sCmdsCount {
 			log.Errorf("mismatched length commands: %d x expected values: %d", k3sCmdsCount, len(expectedValue))
 			os.Exit(1)
