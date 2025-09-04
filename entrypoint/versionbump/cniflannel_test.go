@@ -42,11 +42,11 @@ var _ = Describe("Flannel Version bump:", func() {
 
 	It("Test flannel version bump", func() {
 		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1,"
+		cmd = flannelCommand + flannelChartCmd
 		if cluster.Config.Product == "k3s" {
 			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
 			cmd = flannelCommand
 		}
-		cmd = flannelCommand + flannelChartCmd
 
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
