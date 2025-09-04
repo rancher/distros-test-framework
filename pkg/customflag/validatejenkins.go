@@ -51,11 +51,8 @@ func extractExpectedValues(testArgs string) (expectedValues, valuesUpgrades []st
 }
 
 func extractCmds(testArgs string) string {
-	log.Info("testArgs: ", testArgs)
 	cmdStart := strings.Index(testArgs, "-cmd=")
-	log.Info("cmdStart: ", cmdStart)
 	cmdEnd := strings.Index(testArgs, "-expectedValue=")
-	log.Info("cmdEnd: ", cmdEnd)
 	if cmdStart == -1 || cmdEnd == -1 {
 		log.Debugf("cmd or expected value not found in test args %v", testArgs)
 		return ""
