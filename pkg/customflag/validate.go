@@ -177,7 +177,6 @@ func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
 			os.Exit(1)
 		}
 	}
-
 }
 
 func validateMultusTest(expectedValue, valuesUpgrade []string) {
