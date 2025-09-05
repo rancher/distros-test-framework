@@ -30,7 +30,7 @@ The new approach uses [remote modules from qa-infra-automation](https://github.c
   **Set environment variable:**
 
    ```bash
-   export INFRA_PROVIDER="qa-infra"
+   export INFR_PROVIONER="qa-infra"
    # Or source the env file:
    source infrastructure/qa-infra.env
    ```

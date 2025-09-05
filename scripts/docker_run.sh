@@ -4,9 +4,9 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
-source ./shared/config/.env
+source ./config/.env
 
-KEY_CONTAINER_PATH="/go/src/github.com/rancher/distros-test-framework/shared/config/.ssh/aws_key.pem"
+KEY_CONTAINER_PATH="/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 
 if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"

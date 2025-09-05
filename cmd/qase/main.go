@@ -4,8 +4,8 @@ import (
 	"flag"
 	"os"
 
+	"github.com/rancher/distros-test-framework/internal/logging"
 	"github.com/rancher/distros-test-framework/pkg/qase"
-	"github.com/rancher/distros-test-framework/shared"
 )
 
 var (
@@ -19,24 +19,24 @@ func main() {
 	flag.Parse()
 
 	if product == "" {
-		shared.LogLevel("error", "-p flag is required")
+		logging.LogLevel("error", "-p flag is required")
 		os.Exit(1)
 	}
 
 	if fileName == "" {
-		shared.LogLevel("error", "-f flag is required")
+		logging.LogLevel("error", "-f flag is required")
 		os.Exit(1)
 	}
 
 	qaseClient, err := qase.AddQase()
 	if err != nil {
-		shared.LogLevel("error", "error adding qase: %w\n", err)
+		logging.LogLevel("error", "error adding qase: %w\n", err)
 		os.Exit(1)
 	}
 
 	reportErr := qaseClient.ReportE2ETestRun(fileName, product)
 	if reportErr != nil {
-		shared.LogLevel("error", "error reporting test data to qase: %w\n", reportErr)
+		logging.LogLevel("error", "error reporting test data to qase: %w\n", reportErr)
 		os.Exit(1)
 	}
 }

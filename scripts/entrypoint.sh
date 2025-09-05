@@ -1,11 +1,11 @@
 #!/bin/sh
 
-if [ "$INFRA_PROVIDER" = "legacy" ] || [ -z "$INFRA_PROVIDER" ]; then
-ENV_PATH="/go/src/github.com/rancher/distros-test-framework/shared/config/.env"
+if [ "$PROVISIONER" = "legacy" ] || [ -z "$PROVISIONER" ]; then
+ENV_PATH="/go/src/github.com/rancher/distros-test-framework/config/.env"
 [ -n "$ENV_PRODUCT" ] && sed -i "s/ENV_PRODUCT=.*/ENV_PRODUCT=$ENV_PRODUCT/" "$ENV_PATH"
 [ -n "$ENV_TFVARS" ] && sed -i "s/ENV_TFVARS=.*/ENV_TFVARS=$ENV_TFVARS/" "$ENV_PATH"
 
-CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/shared/config/${ENV_PRODUCT}.tfvars"
+CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PRODUCT}.tfvars"
 [ -n "$INSTALL_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
 [ -n "$INSTALL_VERSION" ] && sed -i "s/rke2_version\s*=\s*.*/rke2_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
 [ -n "$INSTALL_MODE" ] && sed -i "s/install_mode\s*=\s*.*/install_mode = \"$INSTALL_MODE\"/" "$CONFIG_PATH"

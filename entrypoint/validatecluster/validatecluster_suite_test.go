@@ -6,11 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/qase"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/shared"
-	"github.com/rancher/distros-test-framework/shared/config"
+	"github.com/rancher/distros-test-framework/config"
+
+	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/pkg/qase"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
+	"github.com/rancher/distros-test-framework/internal/provisioning"
+	"github.com/rancher/distros-test-framework/internal/report"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,8 +22,8 @@ import (
 var (
 	qaseReport    = os.Getenv("REPORT_TO_QASE")
 	flags         *customflag.FlagConfig
-	cluster       *shared.Cluster
-	infraConfig   shared.InfraConfig
+	cluster       *resources.Cluster
+	infraConfig   provisioning.Config
 	cfg           *config.Env
 	reportSummary string
 	reportErr     error
@@ -36,7 +39,7 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddEnv()
 	if err != nil {
-		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
 
@@ -49,46 +52,46 @@ func TestMain(m *testing.M) {
 
 func checkSelinuxTest() {
 	if !customflag.ServiceFlag.SelinuxTest {
-		shared.LogLevel("info", "Skipping selinux test")
+		resources.LogLevel("info", "Skipping selinux test")
 		return
 	}
 
 	if !strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-		shared.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
+		resources.LogLevel("error", "selinux test is enabled but server_flags does not contain selinux: true")
 		os.Exit(1)
 	}
-	shared.LogLevel("info", "Running selinux test")
+	resources.LogLevel("info", "Running selinux test")
 }
 
 func setupCluster() {
 	kubeconfig := os.Getenv("KUBE_CONFIG")
 	if kubeconfig != "" {
 		// gets a cluster from existing kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-		shared.LogLevel("info", "Using existing cluster from kubeconfig")
+		cluster = resources.KubeConfigCluster(kubeconfig)
+		resources.LogLevel("info", "Using existing cluster from kubeconfig")
 
 		return
 	}
 
-	infraConfig = shared.InfraConfig{
+	infraConfig = provisioning.Config{
 		Product:        cfg.Product,
 		Module:         cfg.Module,
 		ResourceName:   cfg.ResourceName,
-		InfraProvider:  cfg.InfraProvider,
+		Provisioner:    cfg.InfraProvider,
 		InstallVersion: cfg.InstallVersion,
 		TFVars:         cfg.TFVars,
 		QAInfraModule:  cfg.QAInfraModule,
-		QAInfraConfig: &shared.QAInfraConfig{
-			SSHConfig: shared.SSHConfig{
+		QAInfraConfig: &provisioning.QAInfraConfig{
+			SSHConfig: resources.SSHConfig{
 				User:    cfg.SSHUser,
 				KeyPath: cfg.SSHKeyPath,
 			},
 		},
 	}
 
-	cluster, err = shared.ProvisionInfrastructure(infraConfig, cluster)
+	cluster, err = provisioning.ProvisionInfrastructure(infraConfig, cluster)
 	if err != nil {
-		shared.LogLevel("error", "error provisioning infrastructure: %w\n", err)
+		resources.LogLevel("error", "error provisioning infrastructure: %w\n", err)
 		os.Exit(1)
 	}
 }
@@ -106,32 +109,32 @@ var _ = ReportAfterSuite("Validate Cluster Test Suite", func(report Report) {
 
 		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
-		shared.LogLevel("info", "Qase reporting is not enabled")
+		resources.LogLevel("info", "Qase reporting is not enabled")
 	}
 })
 
 var _ = AfterSuite(func() {
-	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	reportSummary, reportErr = report.SummaryReportData(cluster, flags)
 	if reportErr != nil {
-		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+		resources.LogLevel("error", "error getting report summary data: %v\n", reportErr)
 	}
 
 	if customflag.ServiceFlag.Destroy {
 		if customflag.ServiceFlag.KillAllUninstallTest {
 			if !strings.Contains(os.Getenv("server_flags"), "docker: true") {
-				shared.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
+				resources.LogLevel("info", "Running kill all and uninstall tests before destroying the cluster")
 				testcase.TestKillAllUninstall(cluster, cfg)
 			}
 		}
 
 		if customflag.ServiceFlag.SelinuxTest {
 			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-				shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
+				resources.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
 				testcase.TestUninstallPolicy(cluster, false)
 			}
 		}
 
-		status, err := shared.DestroyInfrastructure(infraConfig.Product, infraConfig.Module)
+		status, err := resources.DestroyInfrastructure(infraConfig.Product, infraConfig.Module)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

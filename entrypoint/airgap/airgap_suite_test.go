@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/pkg/qase"
-	"github.com/rancher/distros-test-framework/shared"
-	"github.com/rancher/distros-test-framework/shared/config"
+	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/pkg/qase"
+	"github.com/rancher/distros-test-framework/internal/report"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,7 +19,7 @@ import (
 var (
 	qaseReport    = os.Getenv("REPORT_TO_QASE")
 	flags         *customflag.FlagConfig
-	cluster       *shared.Cluster
+	cluster       *resources.Cluster
 	cfg           *config.Env
 	reportSummary string
 	reportErr     error
@@ -36,14 +37,14 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddEnv()
 	if err != nil {
-		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
 
 	validateAirgap()
 
 	// TODO: Implement using kubeconfig for airgap setup
-	cluster = shared.ClusterConfig(cfg.Product, cfg.Module)
+	cluster = resources.ClusterConfig(cfg.Product, cfg.Module)
 
 	os.Exit(m.Run())
 }
@@ -53,41 +54,41 @@ func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
 	cniSlice := []string{"calico", "flannel"}
 	if cfg.Module == "" {
-		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
+		resources.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
 		os.Exit(1)
 	}
 
 	if os.Getenv("no_of_bastion_nodes") == "0" {
-		shared.LogLevel("error", "no_of_bastion_nodes is not set, should be 1\n")
+		resources.LogLevel("error", "no_of_bastion_nodes is not set, should be 1\n")
 		os.Exit(1)
 	}
 
 	if strings.Contains(os.Getenv("install_mode"), "COMMIT") {
-		shared.LogLevel("error", "airgap with commit installs is not supported\n")
+		resources.LogLevel("error", "airgap with commit installs is not supported\n")
 		os.Exit(1)
 	}
 
 	if cfg.Product == "k3s" {
 		if strings.Contains(serverFlags, "protect") {
-			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
+			resources.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
 		}
 		if flags.AirgapFlag.ImageRegistryUrl != "" {
-			shared.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
+			resources.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
 			flags.AirgapFlag.ImageRegistryUrl = ""
 		}
 	}
 
 	if cfg.Product == "rke2" {
 		if strings.Contains(serverFlags, "profile") {
-			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
+			resources.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
 		}
 		if os.Getenv("no_of_windows_worker_nodes") != "0" {
-			if !shared.SliceContainsString(cniSlice, serverFlags) ||
+			if !resources.SliceContainsString(cniSlice, serverFlags) ||
 				strings.Contains(serverFlags, "multus") {
-				shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
-				shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
+				resources.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
+				resources.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 				os.Exit(1)
 			}
 		}
@@ -107,18 +108,18 @@ var _ = ReportAfterSuite("Create Airgap Cluster Test Suite", func(report Report)
 
 		qaseClient.SpecReportTestResults(qaseClient.Ctx, cluster, &report, reportSummary)
 	} else {
-		shared.LogLevel("info", "Qase reporting is not enabled")
+		resources.LogLevel("info", "Qase reporting is not enabled")
 	}
 })
 
 var _ = AfterSuite(func() {
-	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	reportSummary, reportErr = report.SummaryReportData(cluster, flags)
 	if reportErr != nil {
-		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+		resources.LogLevel("error", "error getting report summary data: %v\n", reportErr)
 	}
 
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyInfrastructure(cfg.Product, cfg.Module)
+		status, err := resources.DestroyInfrastructure(cfg.Product, cfg.Module)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}
