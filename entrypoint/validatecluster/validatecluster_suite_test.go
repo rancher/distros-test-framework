@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/internal/provisioning"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/qase"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
-	"github.com/rancher/distros-test-framework/internal/provisioning"
+	"github.com/rancher/distros-test-framework/internal/provisioning/qainfra"
 	"github.com/rancher/distros-test-framework/internal/report"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
@@ -23,7 +24,7 @@ var (
 	qaseReport    = os.Getenv("REPORT_TO_QASE")
 	flags         *customflag.FlagConfig
 	cluster       *resources.Cluster
-	infraConfig   provisioning.Config
+	infraConfig   qainfra.Config
 	cfg           *config.Env
 	reportSummary string
 	reportErr     error
@@ -73,7 +74,7 @@ func setupCluster() {
 		return
 	}
 
-	infraConfig = provisioning.Config{
+	infraConfig = qainfra.Config{
 		Product:        cfg.Product,
 		Module:         cfg.Module,
 		ResourceName:   cfg.ResourceName,
@@ -81,7 +82,7 @@ func setupCluster() {
 		InstallVersion: cfg.InstallVersion,
 		TFVars:         cfg.TFVars,
 		QAInfraModule:  cfg.QAInfraModule,
-		QAInfraConfig: &provisioning.QAInfraConfig{
+		InfraProvisionerConfig: &qainfra.InfraProvisionerConfig{
 			SSHConfig: resources.SSHConfig{
 				User:    cfg.SSHUser,
 				KeyPath: cfg.SSHKeyPath,
@@ -134,7 +135,7 @@ var _ = AfterSuite(func() {
 			}
 		}
 
-		status, err := resources.DestroyInfrastructure(infraConfig.Product, infraConfig.Module)
+		status, err := provisioning.DestroyInfrastructure(infraConfig.Provisioner, infraConfig.Product, infraConfig.Module)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

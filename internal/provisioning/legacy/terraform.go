@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
@@ -46,11 +47,11 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 
 func loadTFconfig(
 	t *testing.T,
-	c *Cluster,
+	c *provisioning.Cluster,
 	product, module,
 	varDir string,
 	terraformOptions *terraform.Options,
-) (*Cluster, error) {
+) (*provisioning.Cluster, error) {
 	resources.LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
 
@@ -101,7 +102,7 @@ func loadTFconfig(
 	return c, nil
 }
 
-func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {
+func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *provisioning.Cluster, module string) {
 	if module == "" {
 		resources.KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
 		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
@@ -119,7 +120,7 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 	}
 }
 
-func loadAws(t *testing.T, varDir string, c *Cluster) {
+func loadAws(t *testing.T, varDir string, c *provisioning.Cluster) {
 	c.Aws.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -129,7 +130,7 @@ func loadAws(t *testing.T, varDir string, c *Cluster) {
 	c.Aws.VPCID = terraform.GetVariableAsStringFromVarFile(t, varDir, "vpc_id")
 }
 
-func loadEC2(t *testing.T, varDir string, c *Cluster) {
+func loadEC2(t *testing.T, varDir string, c *provisioning.Cluster) {
 	c.Aws.AccessKeyID = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
 	c.SSH.User = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
 	c.Aws.EC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
@@ -138,7 +139,7 @@ func loadEC2(t *testing.T, varDir string, c *Cluster) {
 	c.Aws.EC2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
-func loadExternalDb(t *testing.T, varDir string, c *Cluster, terraformOptions *terraform.Options) {
+func loadExternalDb(t *testing.T, varDir string, c *provisioning.Cluster, terraformOptions *terraform.Options) {
 	c.Config.ExternalDbEndpoint = terraform.Output(t, terraformOptions, "rendered_template")
 	c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 	c.Config.ExternalDbVersion = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db_version")

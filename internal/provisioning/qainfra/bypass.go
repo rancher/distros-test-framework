@@ -7,10 +7,10 @@ import (
 )
 
 // BypassFunc defines the signature for system bypass functions
-type BypassFunc func(config *QAInfraConfig, nodes []InfraNode) error
+type BypassFunc func(config *InfraProvisionerConfig, nodes []InfraNode) error
 
 // ApplySystemBypasses applies various system-level bypasses before installation
-func ApplySystemBypasses(config *QAInfraConfig) error {
+func ApplySystemBypasses(config *InfraProvisionerConfig) error {
 	resources.LogLevel("info", "Applying system bypasses for compatibility...")
 
 	nodes, err := getAllNodesFromState(config.NodeSource)
@@ -20,7 +20,7 @@ func ApplySystemBypasses(config *QAInfraConfig) error {
 
 	// Define all bypass functions to apply
 	// To add a new bypass:
-	// 1. Create a function with signature: func(config *QAInfraConfig, nodes []InfraNode) error
+	// 1. Create a function with signature: func(config *InfraProvisionerConfig, nodes []InfraNode) error
 	// 2. Add it to the bypasses slice below with a descriptive name
 	bypasses := []struct {
 		name string
@@ -44,7 +44,7 @@ func ApplySystemBypasses(config *QAInfraConfig) error {
 	return nil
 }
 
-func disableNetworkManagerCloudSetupBypass(config *QAInfraConfig, nodes []InfraNode) error {
+func disableNetworkManagerCloudSetupBypass(config *InfraProvisionerConfig, nodes []InfraNode) error {
 	resources.LogLevel("debug", "Disabling NetworkManager cloud setup services on %d nodes", len(nodes))
 
 	for _, node := range nodes {
@@ -58,7 +58,7 @@ func disableNetworkManagerCloudSetupBypass(config *QAInfraConfig, nodes []InfraN
 }
 
 // disableCloudSetupOnNode disables cloud setup services on a single node
-func disableCloudSetupOnNode(config *QAInfraConfig, node InfraNode) error {
+func disableCloudSetupOnNode(config *InfraProvisionerConfig, node InfraNode) error {
 	resources.LogLevel("debug", "Disabling cloud setup on node: %s (%s)", node.Name, node.PublicIP)
 
 	// Commands to disable NetworkManager cloud setup

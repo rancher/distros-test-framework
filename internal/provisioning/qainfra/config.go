@@ -14,69 +14,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-// Config holds infrastructure configuration
-type Config struct {
-	Provisioner    string
-	ResourceName   string
-	Product        string
-	Module         string
-	InstallVersion string
-	TFVars         string
-	QAInfraModule  string
-	SSHKeyPath     string
-	SSHUser        string
-	*QAInfraConfig
-}
-
-// QAInfraProvider implements the Provider interface for qa-infra automation
-type QAInfraProvider struct{}
-
-// QAInfraConfig holds comprehensive configuration for qa-infra provisioning
-type QAInfraConfig struct {
-	Workspace      string
-	UniqueID       string
-	Product        string
-	InstallVersion string
-	IsContainer    bool
-	QAInfraModule  string
-	SSHConfig      resources.SSHConfig
-
-	RootDir        string
-	NodeSource     string
-	TempDir        string
-	KubeconfigPath string
-
-	Inventory
-	Ansible
-	Terraform
-
-	AirgapSetup bool
-	ProxySetup  bool
-}
-
-type Ansible struct {
-	Dir  string
-	Path string
-}
-
-type Terraform struct {
-	TFVarsPath string
-	MainTfPath string
-}
-
-type ProvisioningStep func(*QAInfraConfig) error
+type ProvisioningStep func(*InfraProvisionerConfig) error
 
 var (
-	qaCfg                  *QAInfraConfig
-	qaCluster              *resources.Cluster
+	qaCfg                  *InfraProvisionerConfig
+	qaCluster              *provisioning.Cluster
 	qaOnce                 sync.Once
 	defaultContainerKeyDir = "/go/src/github.com/rancher/distros-test-framework"
 )
 
-func addQAInfraEnv(infra Config, c *resources.Cluster) *QAInfraConfig {
+func addQAInfraEnv(infra Config, c *provisioning.Cluster) *InfraProvisionerConfig {
 	var err error
 	qaOnce.Do(func() {
 		qaCfg, err = loadQAInfra(infra, c)
@@ -89,7 +40,7 @@ func addQAInfraEnv(infra Config, c *resources.Cluster) *QAInfraConfig {
 }
 
 // loadQAInfra creates a configuration for qa-infra provisioning.
-func loadQAInfra(infra Config, c *resources.Cluster) (*QAInfraConfig, error) {
+func loadQAInfra(infra Config, c *provisioning.Cluster) (*InfraProvisionerConfig, error) {
 	workspace := fmt.Sprintf("dsf-%s", time.Now().Format("20060102150405"))
 	uniqueID := time.Now().Format("0102-1504")
 
@@ -99,7 +50,7 @@ func loadQAInfra(infra Config, c *resources.Cluster) (*QAInfraConfig, error) {
 	defaultKeyDir = filepath.Join(filepath.Dir(callerFilePath), "..", "..")
 
 	isContainer := false
-	if isRunningInContainer() {
+	if resources.IsRunningInContainer() {
 		isContainer = true
 		defaultKeyDir = defaultContainerKeyDir
 	}
@@ -134,13 +85,13 @@ func loadQAInfra(infra Config, c *resources.Cluster) (*QAInfraConfig, error) {
 
 	resources.LogLevel("info", "SSH Configuration - User: %s, KeyPath: %s", sshUser, sshKeyPath)
 
-	qaInfraConfig := &QAInfraConfig{
+	qaInfraConfig := &InfraProvisionerConfig{
 		Workspace:      workspace,
 		UniqueID:       uniqueID,
 		Product:        strings.ToLower(infra.Product),
 		InstallVersion: infra.InstallVersion,
 		QAInfraModule:  infra.QAInfraModule,
-		SSHConfig: resources.SSHConfig{
+		SSHConfig: provisioning.SSHConfig{
 			User:    sshUser,
 			KeyPath: sshKeyPath,
 		},
@@ -175,8 +126,8 @@ func loadQAInfra(infra Config, c *resources.Cluster) (*QAInfraConfig, error) {
 	return qaInfraConfig, nil
 }
 
-// QAInfraClusterConfig returns a singleton cluster configuration for qa-infra
-func QAInfraClusterConfig(infraConfig *QAInfraConfig, fqdn string) *resources.Cluster {
+// NewInfraClusterConfig returns a singleton cluster configuration for qa-infra
+func NewInfraClusterConfig(infraConfig *InfraProvisionerConfig, fqdn string) *provisioning.Cluster {
 	qaOnce.Do(func() {
 		var err error
 		qaCluster, err = buildClusterConfig(infraConfig, fqdn)
@@ -190,7 +141,7 @@ func QAInfraClusterConfig(infraConfig *QAInfraConfig, fqdn string) *resources.Cl
 }
 
 // buildClusterConfig creates the final cluster configuration
-func buildClusterConfig(infraConfig *QAInfraConfig, fqdn string) (*resources.Cluster, error) {
+func buildClusterConfig(infraConfig *InfraProvisionerConfig, fqdn string) (*provisioning.Cluster, error) {
 	// Get node counts from environment
 	serverCount, _ := strconv.Atoi(os.Getenv("NO_OF_SERVER_NODES"))
 	agentCount, _ := strconv.Atoi(os.Getenv("NO_OF_WORKER_NODES"))
@@ -216,18 +167,18 @@ func buildClusterConfig(infraConfig *QAInfraConfig, fqdn string) (*resources.Clu
 	}
 
 	// Create cluster configuration
-	cc := &resources.Cluster{
+	cc := &provisioning.Cluster{
 		Status:     "cluster created",
 		ServerIPs:  serverIPs,
 		AgentIPs:   agentIPs,
 		NumServers: serverCount,
 		NumAgents:  agentCount,
 		FQDN:       fqdn,
-		SSH: resources.SSHConfig{
+		SSH: provisioning.SSHConfig{
 			KeyPath: infraConfig.SSHConfig.KeyPath,
 			User:    infraConfig.SSHConfig.User,
 		},
-		Config: resources.Config{
+		Config: provisioning.Config{
 			Product: infraConfig.Product,
 			Version: infraConfig.InstallVersion,
 		},
@@ -237,7 +188,7 @@ func buildClusterConfig(infraConfig *QAInfraConfig, fqdn string) (*resources.Clu
 }
 
 // loadQAInfraTFVars loads comprehensive cluster configuration from vars.tfvars
-func loadQAInfraTFVars(nodeSource string, c *resources.Cluster) error {
+func loadQAInfraTFVars(nodeSource string, c *provisioning.Cluster) error {
 	varsFile := filepath.Join(nodeSource, "vars.tfvars")
 
 	// Load from qa-infra vars.tfvars
@@ -256,7 +207,7 @@ func loadQAInfraTFVars(nodeSource string, c *resources.Cluster) error {
 }
 
 // loadVarsFromFile loads variables from a vars.tfvars file into cluster config.
-func loadVarsFromFile(c *resources.Cluster, filename string) error {
+func loadVarsFromFile(c *provisioning.Cluster, filename string) error {
 	// those come from environment not from the file.
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -319,7 +270,7 @@ func loadVarsFromFile(c *resources.Cluster, filename string) error {
 }
 
 // Placeholder implementations for the provisioning steps
-func setupDirectories(config *QAInfraConfig) error {
+func setupDirectories(config *InfraProvisionerConfig) error {
 	directories := []string{
 		filepath.Join(config.RootDir, "tmp"),
 		config.NodeSource,
@@ -333,24 +284,6 @@ func setupDirectories(config *QAInfraConfig) error {
 	}
 
 	return nil
-}
-
-func isRunningInContainer() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-
-	if gopath := os.Getenv("GOPATH"); gopath == "/go" {
-		return true
-	}
-
-	if wd, err := os.Getwd(); err == nil {
-		if strings.HasPrefix(wd, "/go/src/github.com") {
-			return true
-		}
-	}
-
-	return false
 }
 
 // runCmdWithTimeout executes a command with a specific timeout

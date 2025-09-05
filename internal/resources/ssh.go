@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
 	"strings"
 	"sync"
 	"time"
@@ -223,7 +222,7 @@ func resolveSSHConfig() (string, string, error) {
 	switch infraProvider {
 	case "legacy", "":
 		sshKeyPath = os.Getenv("access_key")
-		if sshKeyPath == "" && isRunningInContainer() {
+		if sshKeyPath == "" && IsRunningInContainer() {
 			sshKeyPath = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 		}
 		sshUser = os.Getenv("aws_user")
@@ -233,7 +232,7 @@ func resolveSSHConfig() (string, string, error) {
 		sshKeyPath = os.Getenv("SSH_KEY_PATH")
 		sshUser = os.Getenv("SSH_USER")
 
-		if isRunningInContainer() {
+		if IsRunningInContainer() {
 			sshKeyPath = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 		}
 
@@ -311,12 +310,4 @@ func publicKey(path string) (ssh.AuthMethod, error) {
 		return nil, err
 	}
 	return ssh.PublicKeys(signer), nil
-}
-
-func isRunningInContainer() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-
-	return false
 }

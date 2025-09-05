@@ -31,7 +31,7 @@ type OpenTofuOutputs struct {
 }
 
 // executeOpenTofuOperations runs OpenTofu init, workspace, and apply operations
-func executeOpenTofuOperations(config *QAInfraConfig) error {
+func executeOpenTofuOperations(config *InfraProvisionerConfig) error {
 	resources.LogLevel("info", "Provisioning infrastructure with qa-infra remote modules...")
 
 	// Initialize OpenTofu
@@ -57,7 +57,7 @@ func executeOpenTofuOperations(config *QAInfraConfig) error {
 }
 
 // buildTofuApplyArgs builds arguments for tofu apply command
-func buildTofuApplyArgs(config *QAInfraConfig) []string {
+func buildTofuApplyArgs(config *InfraProvisionerConfig) []string {
 	args := []string{"apply", "-auto-approve", "-var-file=" + config.TFVarsPath}
 
 	// Add public SSH key if available
@@ -190,7 +190,7 @@ func extractNodesFromState(state *OpenTofuState) ([]InfraNode, error) {
 }
 
 // TerraformFiles copies and updates terraform configuration files
-func prepareTerraformFiles(config *QAInfraConfig) error {
+func prepareTerraformFiles(config *InfraProvisionerConfig) error {
 	// Copy main.tf
 	mainTfSrc := filepath.Join(config.RootDir, "infrastructure/qa-infra/main.tf")
 	if err := copyFile(mainTfSrc, config.Terraform.MainTfPath); err != nil {

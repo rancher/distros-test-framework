@@ -5,19 +5,22 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/config"
-	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/provisioning"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
+// Provision provisions infrastructure using the legacy terraform approach
+func Provision(product, module string) (*provisioning.Cluster, error) {
+	return ClusterConfig(product, module), nil
+}
+
 // newCluster creates a new cluster and returns his values from terraform config and vars.
-func newCluster(product, module string) (*Cluster, error) {
-	c := &Cluster{}
+func newCluster(product, module string) (*provisioning.Cluster, error) {
+	c := &provisioning.Cluster{}
 	t := &testing.T{}
 
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
@@ -73,11 +76,11 @@ func newCluster(product, module string) (*Cluster, error) {
 }
 
 //nolint:funlen // yep, but this makes more clear being one function.
-func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
+func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster, error) {
 	// if it is configureSSH() call then return the cluster with only aws key/user.
 	if nodes == nil {
-		return &Cluster{
-			SSH: SSHConfig{
+		return &provisioning.Cluster{
+			SSH: provisioning.SSHConfig{
 				KeyPath: os.Getenv("access_key"),
 				User:    os.Getenv("aws_user"),
 			},
@@ -94,29 +97,29 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 
 	product := os.Getenv("ENV_PRODUCT")
 
-	return &Cluster{
+	return &provisioning.Cluster{
 		Status:     "cluster created",
 		ServerIPs:  serverIPs,
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
-		SSH: SSHConfig{
+		SSH: provisioning.SSHConfig{
 			KeyPath: os.Getenv("access_key"),
 			User:    os.Getenv("aws_user"),
 		},
-		Aws: AwsConfig{
+		Aws: provisioning.AwsConfig{
 			Region:           os.Getenv("region"),
 			Subnets:          os.Getenv("subnets"),
 			SgId:             os.Getenv("sg_id"),
 			AvailabilityZone: os.Getenv("availability_zone"),
-			EC2: EC2{
+			EC2: provisioning.EC2{
 				Ami:           os.Getenv("aws_ami"),
 				VolumeSize:    os.Getenv("volume_size"),
 				InstanceClass: os.Getenv("ec2_instance_class"),
 				KeyName:       os.Getenv("key_name"),
 			},
 		},
-		Config: Config{
+		Config: provisioning.Config{
 			Product:             product,
 			Version:             getVersion(),
 			ServerFlags:         getFlags("server"),
@@ -131,7 +134,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			ExternalDbNodeType:  os.Getenv("instance_class"),
 			ExternalDbEndpoint:  os.Getenv("rendered_template"),
 			Arch:                os.Getenv("arch"),
-			SplitRoles: splitRolesConfig{
+			SplitRoles: provisioning.SplitRolesConfig{
 				Add: os.Getenv("split_roles") == "true",
 				NumServers: parseEnvInt("etcd_only_nodes", 0) +
 					parseEnvInt("etcd_cp_nodes", 0) +
@@ -145,7 +148,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 				EtcdWorker:         parseEnvInt("etcd_worker_nodes", 0),
 			},
 		},
-		Bastion: BastionConfig{
+		Bastion: provisioning.BastionConfig{
 			PublicIPv4Addr: os.Getenv("BASTION_IP"),
 			PublicDNS:      os.Getenv("bastion_dns"),
 		},
@@ -156,7 +159,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 // TODO: aux functions for loading data while we dont standardize from one source of truth,
 //
 // this is being really messy and painful. remove after.
-func loadVersion(t *testing.T, c *Cluster, varDir string) {
+func loadVersion(t *testing.T, c *provisioning.Cluster, varDir string) {
 	// defaults first always to get from env, because both local and jenkins we update this file
 	if install := os.Getenv("INSTALL_VERSION"); install != "" {
 		c.Config.Version = install
@@ -172,7 +175,7 @@ func loadVersion(t *testing.T, c *Cluster, varDir string) {
 	}
 }
 
-func loadChannel(t *testing.T, c *Cluster, varDir string) {
+func loadChannel(t *testing.T, c *provisioning.Cluster, varDir string) {
 	// defaults first always to get from env, because both local and jenkins we update this file
 	if envInstallChannel := os.Getenv("INSTALL_CHANNEL"); envInstallChannel != "" {
 		c.Config.Channel = envInstallChannel
@@ -263,7 +266,7 @@ func parseEnvInt(key string, defaultValue int) int {
 
 	return defaultValue
 }
-func loadTestConfig(tc *testConfig) error {
+func loadTestConfig(tc *provisioning.TestConfig) error {
 	// extracting test tag from environment variables.
 	// should pull from jenkins or local env.
 	// for now only dealing with test tag.
@@ -297,7 +300,7 @@ func loadTestConfig(tc *testConfig) error {
 	return nil
 }
 
-func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers int) (int, error) {
+func addSplitRole(t *testing.T, sp *provisioning.SplitRolesConfig, varDir string, numServers int) (int, error) {
 	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t,
 		varDir,
@@ -352,12 +355,7 @@ func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers 
 	return numServers, nil
 }
 
-// Provision provisions infrastructure using the legacy terraform approach
-func (p *LegacyProvider) Provision(config Config, c *resources.Cluster) (*resources.Cluster, error) {
-	return resources.ClusterConfig(config.Product, config.Module), nil
-}
-
-func (p *LegacyProvider) DestroyLegacy(product string, module string) (string, error) {
+func Destroy(product string, module string) (string, error) {
 	terraformOptions, _, err := setTerraformOptions(product, module)
 	if err != nil {
 		return "", err

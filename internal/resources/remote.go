@@ -3,6 +3,7 @@ package resources
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -62,4 +63,22 @@ func FindPath(name, ip string) (string, error) {
 	}
 
 	return strings.TrimSpace(fullPath), nil
+}
+
+func IsRunningInContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+
+	if gopath := os.Getenv("GOPATH"); gopath == "/go" {
+		return true
+	}
+
+	if wd, err := os.Getwd(); err == nil {
+		if strings.HasPrefix(wd, "/go/src/github.com") {
+			return true
+		}
+	}
+
+	return false
 }

@@ -11,11 +11,7 @@ import (
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-type Inventory struct {
-	Path string
-}
-
-func executeAnsiblePlaybook(config *QAInfraConfig) error {
+func executeAnsiblePlaybook(config *InfraProvisionerConfig) error {
 	playbookName, playbookNameErr := getPlaybookName(config.Product)
 	if playbookNameErr != nil {
 		return fmt.Errorf("failed to get playbook name: %w", playbookNameErr)
@@ -47,7 +43,7 @@ func executeAnsiblePlaybook(config *QAInfraConfig) error {
 }
 
 // setupAnsibleEnvironment clones ansible playbooks and sets up environment
-func setupAnsibleEnvironment(config *QAInfraConfig) error {
+func setupAnsibleEnvironment(config *InfraProvisionerConfig) error {
 	resources.LogLevel("info", "Downloading Ansible playbooks for %s installation...", config.Product)
 
 	fmoralBranch := "add.vsphere"
@@ -72,7 +68,7 @@ func setupAnsibleEnvironment(config *QAInfraConfig) error {
 }
 
 // generateInventory creates and validates the ansible inventory
-func generateInventory(config *QAInfraConfig) error {
+func generateInventory(config *InfraProvisionerConfig) error {
 	nodes, err := getAllNodesFromState(config.NodeSource)
 	if err != nil {
 		return fmt.Errorf("failed to get node information from state: %w", err)
@@ -202,7 +198,7 @@ func preflightInventory(workingDir, inventoryPath string) error {
 	return nil
 }
 
-func setupAnsibleEnvironmentVars(config *QAInfraConfig) error {
+func setupAnsibleEnvironmentVars(config *InfraProvisionerConfig) error {
 	envVars := map[string]string{
 		"TERRAFORM_NODE_SOURCE": config.NodeSource,
 		"ANSIBLE_CONFIG":        filepath.Join(config.Ansible.Dir, "ansible.cfg"),
@@ -247,7 +243,7 @@ func getPlaybookName(product string) (string, error) {
 }
 
 // buildAnsibleArgs builds arguments for ansible-playbook command
-func buildAnsibleArgs(config *QAInfraConfig, playbookName string) ([]string, error) {
+func buildAnsibleArgs(config *InfraProvisionerConfig, playbookName string) ([]string, error) {
 	installVersion := config.InstallVersion
 
 	// Build base arguments
