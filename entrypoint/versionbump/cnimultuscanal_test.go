@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	multusChartsCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus' "
+	multusChartsCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus', "
 )
 
 var _ = Describe("Multus + canal Version bump:", func() {
@@ -46,9 +46,24 @@ var _ = Describe("Multus + canal Version bump:", func() {
 							"| awk '{for(i=1;i<=NF;i++) if($i ~ /calico/) print $i}', " +
 							" kubectl -n kube-system get pods -l k8s-app=canal -o jsonpath=\"{..image}\" : " +
 							"| awk '{for(i=1;i<=NF;i++) if($i ~ /flannel/) print $i}' , " +
-							"kubectl get pods -n kube-system : | grep multus | awk '{print $1} {print $3}', " + multusChartsCmd,
+							"kubectl get pods -n kube-system : | grep multus | awk '{print $1} {print $3}', " +,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
+		})
+	})
+
+	It("Test multus charts version", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  multusChartsCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

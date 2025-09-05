@@ -38,7 +38,7 @@ var _ = Describe("Cilium Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
-	cmd := ciliumCmd + cniPluginsCmd + ciliumChartsCmd
+	cmd := ciliumCmd + cniPluginsCmd
 
 	It("Test Bump version", func() {
 		Template(TestTemplate{
@@ -48,6 +48,21 @@ var _ = Describe("Cilium Version bump:", func() {
 						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
+		})
+	})
+
+	It("Test cilium charts version", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  ciliumChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

@@ -61,16 +61,18 @@ var _ = Describe("Components Version Upgrade:", func() {
 	coredns := kgn + " : | grep 'hardened-coredns' -A1, "
 	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
 	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
-	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
-		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-ingress Controller\n8-coredns Charts" +
-		"\n9-ingress Controller Charts\n10-metrics Server Charts\n11-runtime Classes Charts" +
-		"\n12-snapshot Controller Charts\n13-snapshot Validation Webhook Charts" +
-		"\n14-traefik Charts\n15-harvester Cloud Provider Charts\n16-harvester Csi Driver Charts" +
-		"\n17-vSphere Cpi Charts\n18-vSphere Csi Charts"
+	componentsDescription := "Verifies bump versions for several components on rke2:\n1-coredns" +
+		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-ingress Controller"
+	chartsDescription := "Verifies charts versions for several components on rke2:\n1-coredns Charts" +
+		"\n2-ingress Controller Charts\n3-metrics Server Charts\n4-runtime Classes Charts" +
+		"\n5-snapshot Controller Charts\n6-snapshot Validation Webhook Charts" +
+		"\n7-traefik Charts\n8-harvester Cloud Provider Charts\n9-harvester Csi Driver Charts" +
+		"\n10-vSphere Cpi Charts\n11-vSphere Csi Charts"
 
-	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController + corednsCharts +
-		ingressControllerCharts + metricsCharts + runtimeClasses + snapshotController +
-		snapshotValidation + traefikCharts + harvesterCloud + harvesterCsi + vSphereCpi + vSphereCsi
+	componentsCmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController
+	chartsCmd := corednsCharts + ingressControllerCharts + metricsCharts + runtimeClasses +
+		snapshotController + snapshotValidation + traefikCharts + harvesterCloud + harvesterCsi +
+		vSphereCpi + vSphereCsi
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
@@ -81,15 +83,15 @@ var _ = Describe("Components Version Upgrade:", func() {
 		description = "Verifies bump versions for several components on k3s:\n1-coredns" +
 			"\n2-metrics Server\n3-etcd\n4-cni Plugins\n5-containerd\n6-runc\n7-crictl\n8-traefik\n9-local path provisioner\n10-klipper LB"
 
-		cmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
+		componentsCmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
-	It(description, func() {
+	It(componentsDescription, func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  cmd,
+						Cmd:                  componentsCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
@@ -97,6 +99,21 @@ var _ = Describe("Components Version Upgrade:", func() {
 			},
 			InstallMode: ServiceFlag.InstallMode.String(),
 			Description: ServiceFlag.TestTemplateConfig.Description,
+		})
+	})
+
+	It(chartsDescription, func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  chartsCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
 		})
 	})
 
