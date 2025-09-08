@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/rancher/distros-test-framework/internal/resources"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 // LogAgentNodeIPs Prints out the Agent node IPs.
@@ -17,7 +19,7 @@ func LogAgentNodeIPs(agentNum int, agentIPs []string, isWindows bool) {
 	}
 }
 
-func GetNodesViaBastion(cluster *resources.Cluster) (nodeDetails string, err error) {
+func GetNodesViaBastion(cluster *driver.Cluster) (nodeDetails string, err error) {
 	cmd := fmt.Sprintf(
 		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
 		cluster.Config.Product)
@@ -27,7 +29,7 @@ func GetNodesViaBastion(cluster *resources.Cluster) (nodeDetails string, err err
 	return nodeDetails, err
 }
 
-func GetPodsViaBastion(cluster *resources.Cluster) (podDetails string) {
+func GetPodsViaBastion(cluster *driver.Cluster) (podDetails string) {
 	cmd := fmt.Sprintf(
 		"KUBECONFIG=/tmp/%v_kubeconf.yaml ",
 		cluster.Config.Product)

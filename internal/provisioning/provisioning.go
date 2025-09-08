@@ -3,61 +3,44 @@ package provisioning
 import (
 	"fmt"
 
-	"github.com/rancher/distros-test-framework/internal/provisioning/contract"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/provisioning/legacy"
 	"github.com/rancher/distros-test-framework/internal/provisioning/qainfra"
-	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-// // ProvisionInfrastructure provisions infrastructure using the configured provider.
-// // If the provider is not set, it will default to legacy.
-// func ProvisionInfrastructure(infra qainfra.Config, c *Cluster) (*Cluster, error) {
-// 	switch infra.Provisioner {
-// 	case "legacy", "":
-// 		resources.LogLevel("info", "Start provisioning with legacy infrastructure for %s", infra.Product)
-//
-// 		return legacy.Provision(infra.Product, infra.Module)
-// 	case "qa-infra":
-// 		resources.LogLevel("info", "Start provisioning with qa-infra infrastructure for %s", infra.Product)
-//
-// 		return qainfra.Provision(infra, c)
-// 	default:
-// 		return nil, fmt.Errorf("unknown infrastructure provider: %s", infra.Provisioner)
-// 	}
-// }
-
-func ProvisionInfrastructure(infra contract.InfraConfig, c *contract.Cluster) (*contract.Cluster, error) {
-	// default
-	provKey := infra.Provisioner
-	if provKey == "" {
-		provKey = "legacy"
+func ProvisionInfrastructure(infra *driver.InfraConfig) (*driver.Cluster, error) {
+	provisioner := infra.ProvisionerModule
+	if provisioner == "" {
+		provisioner = "legacy"
 	}
 
-	providers := map[string]contract.Provisioner{
-		"legacy":   legacy.New(),
-		"qa-infra": qainfra.New(),
+	providers := map[string]driver.Provisioner{
+		"legacy":  legacy.New(),
+		"qainfra": qainfra.New(),
 	}
 
-	p, ok := providers[provKey]
+	prov, ok := providers[provisioner]
 	if !ok {
-		return nil, fmt.Errorf("unknown infrastructure provider: %s", provKey)
+		return nil, fmt.Errorf("unknown infrastructure provider: %s", provisioner)
 	}
-	return p.Provision(infra, c)
+
+	return prov.Provision(infra)
 }
 
-func DestroyInfrastructure(infra contract.InfraConfig, c *contract.Cluster) error {
-	provKey := infra.Provisioner
-	if provKey == "" {
-		provKey = "legacy"
-	}
-	providers := map[string]contract.Provisioner{
-		"legacy":   legacy.New(),
-		"qa-infra": qainfra.New(),
-	}
-	p, ok := providers[provKey]
-	if !ok {
-		return fmt.Errorf("unknown infrastructure provider: %s", provKey)
+func DestroyInfrastructure(provisioner, product, module string) (string, error) {
+	if provisioner == "" {
+		provisioner = "legacy"
 	}
 
-	return p.Destroy(c)
+	provisioners := map[string]driver.Provisioner{
+		"legacy":  legacy.New(),
+		"qainfra": qainfra.New(),
+	}
+
+	prov, ok := provisioners[provisioner]
+	if !ok {
+		return "", fmt.Errorf("unknown infrastructure provider: %s", provisioner)
+	}
+
+	return prov.Destroy(product, module)
 }

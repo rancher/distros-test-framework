@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -12,7 +13,7 @@ import (
 
 // TestNodeStatus test the status of the nodes in the cluster using 2 custom assert functions.
 func TestNodeStatus(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {
@@ -56,7 +57,7 @@ func TestNodeStatus(
 
 // TestNodeStatusUsingBastion test the status of the nodes in the private cluster using 2 custom assert functions.
 func TestNodeStatusUsingBastion(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
 ) {

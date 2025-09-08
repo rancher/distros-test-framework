@@ -9,9 +9,22 @@ import (
 
 	"github.com/avast/retry-go"
 
-	"github.com/rancher/distros-test-framework/internal/logging"
-	"github.com/rancher/distros-test-framework/internal/system"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
+
+// Pod represents a Kubernetes pod.
+type Pod struct {
+	NameSpace      string
+	Name           string
+	Ready          string
+	Status         string
+	Restarts       string
+	Age            string
+	IP             string
+	Node           string
+	NominatedNode  string
+	ReadinessGates string
+}
 
 // GetPods returns pods parsed from kubectl get pods.
 func GetPods(display bool) ([]Pod, error) {
@@ -91,7 +104,7 @@ func ParsePods(res string) []Pod {
 }
 
 // ReadDataPod reads the data from the pod.
-func ReadDataPod(cluster *Cluster, namespace string) (string, error) {
+func ReadDataPod(cluster *driver.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
 		"host",
@@ -116,7 +129,7 @@ func ReadDataPod(cluster *Cluster, namespace string) (string, error) {
 }
 
 // WriteDataPod writes data to the pod.
-func WriteDataPod(cluster *Cluster, namespace string) (string, error) {
+func WriteDataPod(cluster *driver.Cluster, namespace string) (string, error) {
 	podName, err := KubectlCommand(
 		cluster,
 		"host",
@@ -135,11 +148,11 @@ func WriteDataPod(cluster *Cluster, namespace string) (string, error) {
 }
 
 // GetPodsFromNamespace returns pods from a specific namespace.
-func GetPodsFromNamespace(namespace string, print bool) ([]Pod, error) {
+func GetPodsFromNamespace(namespace string) ([]Pod, error) {
 	cmd := fmt.Sprintf("kubectl get pods -n %s -o wide --kubeconfig=%s", namespace, KubeConfigFile)
-	res, err := system.RunCommandHost(cmd)
+	res, err := RunCommandHost(cmd)
 	if err != nil {
-		return nil, logging.ReturnLogError("failed to get pods: %w\n", err)
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
 	}
 
 	return ParsePods(res), nil
@@ -191,7 +204,7 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 }
 
 // DescribePod Runs 'kubectl describe pod' command and logs output.
-func DescribePod(cluster *Cluster, pod *Pod) {
+func DescribePod(cluster *driver.Cluster, pod *Pod) {
 	cmd := fmt.Sprintf("%s -n %s", pod.Name, pod.NameSpace)
 	output, describeErr := KubectlCommand(cluster, "node", "describe", "pod", cmd)
 	if describeErr != nil {
@@ -204,7 +217,7 @@ func DescribePod(cluster *Cluster, pod *Pod) {
 }
 
 // PodLogs Runs 'kubectl logs' command and logs output.
-func PodLogs(cluster *Cluster, pod *Pod) {
+func PodLogs(cluster *driver.Cluster, pod *Pod) {
 	if pod.NameSpace == "" || pod.Name == "" {
 		LogLevel("warn", "Name or Namespace info in pod data is empty. kubectl logs cmd may not work")
 	}
@@ -223,7 +236,7 @@ func PodLogs(cluster *Cluster, pod *Pod) {
 // Given a namespace, this function:
 // 1.  Filters ALL pods in the namespace.
 // 2.  logs both 'kubectl describe pod' and 'kubectl logs' output for each pod in the namespace.
-func LogAllPodsForNamespace(namespace string) {
+func LogAllPodsForNamespace(cluster *driver.Cluster, namespace string) {
 	LogLevel("debug", "logging pod logs and describe pod output for all pods with namespace: %s", namespace)
 	filters := map[string]string{
 		"namespace": namespace,
@@ -246,7 +259,7 @@ func LogAllPodsForNamespace(namespace string) {
 // 1. Filter based on the name substring, and find the right pod(s).
 // 2. For the pods matching the name, logs: 'kubectl describe pod' and 'kubectl logs' output.
 // In the given example, it will filter all 'coredns' named pods in 'kube-system' namespace and log their outputs.
-func FindPodAndLog(name, namespace string) {
+func FindPodAndLog(cluster *driver.Cluster, name, namespace string) {
 	LogLevel("debug",
 		"find and log(pod logs and describe pod) for pod starting with %s for namespace %s", name, namespace)
 	filters := map[string]string{

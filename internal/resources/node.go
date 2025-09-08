@@ -2,11 +2,23 @@ package resources
 
 import (
 	"fmt"
-
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
+
+// Node represents a cluster node.
+type Node struct {
+	Name              string
+	Status            string
+	Roles             string
+	Version           string
+	InternalIP        string
+	ExternalIP        string
+	OperationalSystem string
+}
 
 // GetNodes returns nodes parsed from kubectl get nodes.
 func GetNodes(display bool) ([]Node, error) {
@@ -93,7 +105,7 @@ func ParseNodes(res string) []Node {
 }
 
 // GetNodeArgsMap returns list of nodeArgs map.
-func GetNodeArgsMap(cluster *Cluster, nodeType string) (map[string]string, error) {
+func GetNodeArgsMap(cluster *driver.Cluster, nodeType string) (map[string]string, error) {
 	res, err := KubectlCommand(
 		cluster,
 		"host",
@@ -210,20 +222,4 @@ func appendNodeIfMissing(slice []Node, i *Node) []Node {
 	}
 
 	return append(slice, *i)
-}
-
-// determineNodeRole determines the role based on node name patterns
-func determineNodeRole(nodeName string) string {
-	lowerName := strings.ToLower(nodeName)
-
-	// TODO: needs to add proper logic and support for custom/split roles
-	switch {
-	case strings.Contains(lowerName, "master") || strings.Contains(lowerName, "control"):
-		return "etcd,cp,worker"
-	case strings.Contains(lowerName, "worker") || strings.Contains(lowerName, "agent"):
-		return "worker"
-	default:
-		LogLevel("debug", "Unknown node role pattern for '%s', defaulting to worker", nodeName)
-		return "worker"
-	}
 }

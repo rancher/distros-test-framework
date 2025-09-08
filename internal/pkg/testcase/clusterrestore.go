@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/internal/provisioning/legacy"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
@@ -16,29 +18,25 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterRestore(cluster *resources.Cluster, awsClient *aws.Client, cfg *config.Env, flags *customflag.FlagConfig) {
-	// TODO: Restore product.FetchToken function
-	clusterToken := "placeholder-token"
-	// clusterToken, clusterTokenErr := product.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
-	// Expect(clusterTokenErr).NotTo(HaveOccurred())
+func TestClusterRestore(cluster *driver.Cluster, awsClient *aws.Client, cfg *config.Env, flags *customflag.FlagConfig) {
+	clusterToken, clusterTokenErr := resources.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
+	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
 	onDemandPath := s3Snapshot(cluster, awsClient, flags)
 	stopInstances(cluster, awsClient)
 
-	_, newServerIP := newInstance(awsClient)
+	serverName, newServerIP := newInstance(awsClient)
 
-	// TODO: Restore product.InstallProduct function
-	// err := product.InstallProduct(cluster, newServerIP, cfg.InstallVersion)
-	// Expect(err).NotTo(HaveOccurred())
+	err := resources.InstallProduct(cluster, newServerIP, cfg.InstallVersion)
+	Expect(err).NotTo(HaveOccurred())
 
 	restoreS3Snapshot(cluster, onDemandPath, clusterToken, newServerIP, flags)
 	enableErr := resources.EnableAndStartService(cluster, newServerIP, "server")
 	Expect(enableErr).NotTo(HaveOccurred())
 
-	// TODO: Restore clusterPkg.NewLocalKubeconfigFile function
-	// kubeConfigErr := clusterPkg.NewLocalKubeconfigFile(newServerIP, serverName, cluster.Config.Product,
-	//	"/tmp/"+serverName+"_kubeconfig")
-	// Expect(kubeConfigErr).NotTo(HaveOccurred())
+	kubeConfigErr := legacy.NewLocalKubeconfigFile(newServerIP, serverName, cluster.Config.Product,
+		"/tmp/"+serverName+"_kubeconfig")
+	Expect(kubeConfigErr).NotTo(HaveOccurred())
 
 	// create k8s client now because it depends on newly created kubeconfig file.
 	k8sClient, k8sErr := k8s.AddClient()
@@ -51,14 +49,15 @@ func TestClusterRestore(cluster *resources.Cluster, awsClient *aws.Client, cfg *
 }
 
 // s3Snapshot deploys extra metadata to take a snapshot of the cluster to s3 and returns the path of the snapshot.
-func s3Snapshot(cluster *resources.Cluster, awsClient *aws.Client, flags *customflag.FlagConfig) string {
+func s3Snapshot(cluster *driver.Cluster, awsClient *aws.Client, flags *customflag.FlagConfig) string {
 	workloadErr := resources.ManageWorkload("apply", "extra-metadata.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "configmap failed to create")
 
 	takeS3Snapshot(cluster, flags)
 
-	onDemandPath, onDemandPathErr := resources.RunCommandOnNode(fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots",
-		cluster.Config.Product), cluster.ServerIPs[0])
+	onDemandPath, onDemandPathErr := resources.RunCommandOnNode(
+		fmt.Sprintf("sudo ls /var/lib/rancher/%s/server/db/snapshots",
+			cluster.Config.Product), cluster.ServerIPs[0])
 	Expect(onDemandPathErr).NotTo(HaveOccurred())
 
 	validateS3snapshot(awsClient, flags, onDemandPath)
@@ -66,7 +65,7 @@ func s3Snapshot(cluster *resources.Cluster, awsClient *aws.Client, flags *custom
 	return onDemandPath
 }
 
-func takeS3Snapshot(cluster *resources.Cluster, flags *customflag.FlagConfig) {
+func takeS3Snapshot(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	productLocationCmd, findErr := resources.FindPath(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 
@@ -93,7 +92,7 @@ func validateS3snapshot(awsClient *aws.Client, flags *customflag.FlagConfig, onD
 	resources.LogLevel("info", "successfully validated snapshot save in s3: %s/%s", flags.S3Flags.Bucket, onDemandPath)
 }
 
-func stopInstances(cluster *resources.Cluster, ec2 *aws.Client) {
+func stopInstances(cluster *driver.Cluster, ec2 *aws.Client) {
 	var instancesIPs []string
 
 	instancesIPs = append(instancesIPs, cluster.ServerIPs...)
@@ -119,7 +118,7 @@ func newInstance(awsClient *aws.Client) (newServerName, newExternalIP string) {
 }
 
 func restoreS3Snapshot(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	onDemandPath,
 	token string,
 	newClusterIP string,
@@ -161,17 +160,17 @@ func restoreS3Snapshot(
 	}
 }
 
-func deleteOldNodes(cluster *resources.Cluster) {
+func deleteOldNodes(cluster *driver.Cluster) {
 	resources.LogLevel("debug", "deleting old nodes")
 
 	var oldNodeIPs []string
 	oldNodeIPs = append(oldNodeIPs, cluster.ServerIPs...)
 	oldNodeIPs = append(oldNodeIPs, cluster.AgentIPs...)
-	// TODO: Restore clusterPkg.DeleteNode function
-	// for _, ip := range oldNodeIPs {
-	//	err := clusterPkg.DeleteNode(ip)
-	//	Expect(err).NotTo(HaveOccurred())
-	// }
+
+	for _, ip := range oldNodeIPs {
+		err := resources.DeleteNode(ip)
+		Expect(err).NotTo(HaveOccurred())
+	}
 }
 
 // postValidationRestore validate overall cluster health after restore, one node (new one) should be in Ready state.
@@ -183,7 +182,7 @@ func postValidationRestore(k8sClient *k8s.Client) {
 	resources.PrintClusterState()
 }
 
-func updateClusterIPs(cluster *resources.Cluster, newServerIP string) {
+func updateClusterIPs(cluster *driver.Cluster, newServerIP string) {
 	resources.LogLevel("info", "Updating cluster IPs with new server IP: %s", newServerIP)
 
 	cluster.ServerIPs = []string{newServerIP}

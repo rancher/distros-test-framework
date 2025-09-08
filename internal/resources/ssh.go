@@ -189,11 +189,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 		err error
 	)
 
-	sshUser, sshKeyPath, err := resolveSSHConfig()
-	if err != nil {
-		return nil, ReturnLogError("failed to resolve SSH config: %w", err)
-	}
-
+	sshUser, sshKeyPath := resolveSSHConfig()
 	authMethod, err := publicKey(sshKeyPath)
 	if err != nil {
 		return nil, ReturnLogError("failed to get public key: %w", err)
@@ -215,11 +211,11 @@ func configureSSH(host string) (*ssh.Client, error) {
 	return conn, nil
 }
 
-func resolveSSHConfig() (string, string, error) {
+func resolveSSHConfig() (user, path string) {
 	var sshUser, sshKeyPath string
-	infraProvider := os.Getenv("PROVISIONER")
+	infraProvisionerModule := os.Getenv("PROVISIONER_MODULE")
 
-	switch infraProvider {
+	switch infraProvisionerModule {
 	case "legacy", "":
 		sshKeyPath = os.Getenv("access_key")
 		if sshKeyPath == "" && IsRunningInContainer() {
@@ -227,18 +223,19 @@ func resolveSSHConfig() (string, string, error) {
 		}
 		sshUser = os.Getenv("aws_user")
 
-		return sshUser, sshKeyPath, nil
-	case "qa-infra":
-		sshKeyPath = os.Getenv("SSH_KEY_PATH")
+		return sshUser, sshKeyPath
+	case "qainfra":
+		sshKeyPath = os.Getenv("SSH_LOCAL_KEY_PATH")
 		sshUser = os.Getenv("SSH_USER")
 
 		if IsRunningInContainer() {
 			sshKeyPath = "/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 		}
 
-		return sshUser, sshKeyPath, nil
+		return sshUser, sshKeyPath
 	default:
-		return "", "", ReturnLogError("unknown infrastructure provider: %s", infraProvider)
+		LogLevel("warn", "Unknown PROVISIONER_MODULE: %s", infraProvisionerModule)
+		return "", ""
 	}
 }
 
@@ -303,11 +300,13 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 func publicKey(path string) (ssh.AuthMethod, error) {
 	key, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, err
+
+	signer, signerErr := ssh.ParsePrivateKey(key)
+	if signerErr != nil {
+		return nil, fmt.Errorf("unable to parse private key: %v", signerErr)
 	}
+
 	return ssh.PublicKeys(signer), nil
 }

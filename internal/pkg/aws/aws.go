@@ -6,16 +6,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/s3"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 type Client struct {
-	infra *resources.Cluster
+	infra *driver.Cluster
 	ec2   *ec2.EC2
 	s3    *s3.S3
 }
 
-func AddClient(c *resources.Cluster) (*Client, error) {
+func AddClient(c *driver.Cluster) (*Client, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(c.Aws.Region),
 	})
@@ -24,7 +25,7 @@ func AddClient(c *resources.Cluster) (*Client, error) {
 	}
 
 	return &Client{
-		infra: &resources.Cluster{Aws: c.Aws},
+		infra: &driver.Cluster{Aws: c.Aws},
 		ec2:   ec2.New(sess),
 		s3:    s3.New(sess),
 	}, nil

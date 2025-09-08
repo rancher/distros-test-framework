@@ -81,3 +81,10 @@ func LogGrepOutput(filename, content, ip string) {
 		LogLevel("debug", "grep for %s in file %s output:\n %s", content, filename, grepData)
 	}
 }
+
+func NormalizeString(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "\\n", "\n")
+
+	return s
+}

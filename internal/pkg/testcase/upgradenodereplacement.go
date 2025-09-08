@@ -11,6 +11,8 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/k8s"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/provisioning/legacy"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -21,7 +23,7 @@ const (
 	master = "master"
 )
 
-func TestUpgradeReplaceNode(cluster *resources.Cluster,
+func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	flags *customflag.FlagConfig,
 ) {
 	version := flags.InstallMode.String()
@@ -61,7 +63,7 @@ func TestUpgradeReplaceNode(cluster *resources.Cluster,
 	}
 }
 
-func scpToNewNodes(cluster *resources.Cluster, nodeType string, newNodeIps []string) error {
+func scpToNewNodes(cluster *driver.Cluster, nodeType string, newNodeIps []string) error {
 	if nodeType != master && nodeType != agent {
 		return resources.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
@@ -98,7 +100,7 @@ func scpToNewNodes(cluster *resources.Cluster, nodeType string, newNodeIps []str
 	return nil
 }
 
-func scpRke2Files(cluster *resources.Cluster, nodeType, ip string) error {
+func scpRke2Files(cluster *driver.Cluster, nodeType, ip string) error {
 	if nodeType != master && nodeType != agent {
 		return resources.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
@@ -112,7 +114,7 @@ func scpRke2Files(cluster *resources.Cluster, nodeType, ip string) error {
 	return nil
 }
 
-func scpK3sFiles(cluster *resources.Cluster, nodeType, ip string) error {
+func scpK3sFiles(cluster *driver.Cluster, nodeType, ip string) error {
 	if nodeType == agent {
 		err := k3sAgentSCP(cluster, ip)
 		if err != nil {
@@ -128,7 +130,7 @@ func scpK3sFiles(cluster *resources.Cluster, nodeType, ip string) error {
 	return nil
 }
 
-func k3sAgentSCP(cluster *resources.Cluster, ip string) error {
+func k3sAgentSCP(cluster *driver.Cluster, ip string) error {
 	cisWorkerLocalPath := resources.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
 	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
 
@@ -143,7 +145,7 @@ func k3sAgentSCP(cluster *resources.Cluster, ip string) error {
 	)
 }
 
-func k3sServerSCP(cluster *resources.Cluster, ip string) error {
+func k3sServerSCP(cluster *driver.Cluster, ip string) error {
 	cisMasterLocalPath := resources.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
@@ -184,7 +186,7 @@ func k3sServerSCP(cluster *resources.Cluster, ip string) error {
 }
 
 func nodeReplaceServers(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	a *aws.Client,
 	serverLeaderIp, token, version, channel, resourceName string,
 	newExternalServerIps, newPrivateServerIps []string,
@@ -214,8 +216,9 @@ func nodeReplaceServers(
 		return delErr
 	}
 
-	resources.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n", newFirstServerIP)
-	kubeConfigUpdated, kbCfgErr := resources.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
+	resources.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n",
+		newFirstServerIP)
+	kubeConfigUpdated, kbCfgErr := legacy.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
 	if kbCfgErr != nil {
 		return resources.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
@@ -241,7 +244,7 @@ func nodeReplaceServers(
 }
 
 func buildJoinCmd(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	nodetype, serverIp, token, version, channel, selfExternalIP, selfPrivateIP, installEnableOrBoth string,
 ) (string, error) {
 	if nodetype != master && nodetype != agent {
@@ -277,7 +280,7 @@ func buildJoinCmd(
 }
 
 func buildK3sCmd(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	nodetype, serverIP, token, version, channel, selfExternalIP string,
 	selfPrivateIP, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
@@ -329,7 +332,7 @@ func buildK3sCmd(
 }
 
 func buildRke2Cmd(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	nodetype, serverIp, token, version, channel string,
 	selfExternalIp, selfPrivateIp, installMode, flags, installEnableOrBoth string,
 ) (string, error) {
@@ -385,7 +388,7 @@ func buildRke2Cmd(
 }
 
 func joinRemainServers(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	a *aws.Client,
 	newExternalServerIps,
 	newPrivateServerIps,
@@ -440,7 +443,7 @@ func validateNodeJoin(ip string) error {
 	return nil
 }
 
-func serverJoinSlemicro(cluster *resources.Cluster,
+func serverJoinSlemicro(cluster *driver.Cluster,
 	awsClient *aws.Client,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
 ) error {
@@ -466,7 +469,7 @@ func serverJoinSlemicro(cluster *resources.Cluster,
 	return nil
 }
 
-func serverJoin(cluster *resources.Cluster,
+func serverJoin(cluster *driver.Cluster,
 	awsClient *aws.Client,
 	serverLeaderIP, token, version, channel, newExternalIP, newPrivateIP string,
 ) error {
@@ -483,7 +486,7 @@ func serverJoin(cluster *resources.Cluster,
 	return nil
 }
 
-func joinSteps(cluster *resources.Cluster,
+func joinSteps(cluster *driver.Cluster,
 	serverLeaderIP, token, version, channel string,
 	newExternalIP, newPrivateIP, installEnableOrBoth string,
 ) error {
@@ -527,7 +530,7 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 }
 
 func nodeReplaceAgents(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	awsClient *aws.Client,
 	version,
 	channel,
@@ -545,7 +548,7 @@ func nodeReplaceAgents(
 }
 
 func replaceAgents(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	a *aws.Client,
 	serverLeaderIp, token, version, channel string,
 	newExternalAgentIps, newPrivateAgentIps []string,
@@ -578,7 +581,7 @@ func replaceAgents(
 	return nil
 }
 
-func deleteAgents(a *aws.Client, c *resources.Cluster) error {
+func deleteAgents(a *aws.Client, c *driver.Cluster) error {
 	for _, i := range c.AgentIPs {
 		if deleteNodeErr := resources.DeleteNode(i); deleteNodeErr != nil {
 			resources.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
@@ -596,7 +599,7 @@ func deleteAgents(a *aws.Client, c *resources.Cluster) error {
 	return nil
 }
 
-func joinAgentSlemicro(cluster *resources.Cluster, awsClient *aws.Client,
+func joinAgentSlemicro(cluster *driver.Cluster, awsClient *aws.Client,
 	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string,
 ) error {
 	// For slemicro nodes, we perform only 'install' step at this stage.
@@ -627,7 +630,7 @@ func joinAgentSlemicro(cluster *resources.Cluster, awsClient *aws.Client,
 	return nil
 }
 
-func joinAgent(cluster *resources.Cluster, awsClient *aws.Client,
+func joinAgent(cluster *driver.Cluster, awsClient *aws.Client,
 	serverIp, token, version, channel, selfExternalIp, selfPrivateIp string,
 ) error {
 	if cluster.NodeOS == "slemicro" {
@@ -710,7 +713,7 @@ func rebootNodeAndWait(awsClient *aws.Client, ip string) {
 	Expect(sshErr).NotTo(HaveOccurred())
 }
 
-func getAwsClient(cluster *resources.Cluster) *aws.Client {
+func getAwsClient(cluster *driver.Cluster) *aws.Client {
 	awsClient, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred(), "error adding aws nodes: %s", err)
 
@@ -736,7 +739,7 @@ func prepSlemicroNodes(ips []string, nodeOS string, awsClient *aws.Client) {
 	}
 }
 
-func getNodeNames(cluster *resources.Cluster, resourceName, nodeType string) []string {
+func getNodeNames(cluster *driver.Cluster, resourceName, nodeType string) []string {
 	var nodeNames []string
 	nodeCount := len(cluster.ServerIPs)
 	if nodeType == "agent" {
@@ -749,7 +752,7 @@ func getNodeNames(cluster *resources.Cluster, resourceName, nodeType string) []s
 	return nodeNames
 }
 
-func createAndPrepNodes(awsClient *aws.Client, cluster *resources.Cluster, nodeType, resourceName string) (
+func createAndPrepNodes(awsClient *aws.Client, cluster *driver.Cluster, nodeType, resourceName string) (
 	newExternalIps []string, newPrivateIps []string,
 ) {
 	// create aws ec2 instances

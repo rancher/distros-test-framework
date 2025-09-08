@@ -7,6 +7,8 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -18,7 +20,7 @@ type configuration struct {
 }
 
 // TestSelinuxEnabled Validates that containerd is running with selinux enabled in the config.
-func TestSelinuxEnabled(cluster *resources.Cluster) {
+func TestSelinuxEnabled(cluster *driver.Cluster) {
 	ips := cluster.ServerIPs
 
 	for _, ip := range ips {
@@ -32,7 +34,7 @@ func TestSelinuxEnabled(cluster *resources.Cluster) {
 }
 
 // TestSelinux Validates container-selinux version, rke2-selinux version and rke2-selinux version.
-func TestSelinux(cluster *resources.Cluster) {
+func TestSelinux(cluster *driver.Cluster) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	serverAsserts := []string{"container-selinux", "rke2-selinux", "rke2-server"}
 	agentAsserts := []string{"container-selinux", cluster.Config.Product + "-selinux"}
@@ -140,7 +142,7 @@ func selectSelinuxPolicy(product, osType string) cmdCtx {
 }
 
 // TestSelinuxSpcT Validate that containers don't run with spc_t.
-func TestSelinuxSpcT(cluster *resources.Cluster) {
+func TestSelinuxSpcT(cluster *driver.Cluster) {
 	for _, serverIP := range cluster.ServerIPs {
 		// removing err here since this is actually returning exit 1.
 		res, _ := resources.RunCommandOnNode("ps auxZ | grep metrics | grep -v grep", serverIP)
@@ -150,7 +152,7 @@ func TestSelinuxSpcT(cluster *resources.Cluster) {
 
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
 // Call this function after the un-installation of the product.
-func TestUninstallPolicy(cluster *resources.Cluster, uninstall bool) {
+func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
@@ -211,7 +213,7 @@ func verifyUninstallPolicy(product, ip, cmd string) {
 // Based on this info, this is the way to validate the correct context.
 
 // TestSelinuxContext Validates directories to ensure they have the correct selinux contexts created.
-func TestSelinuxContext(cluster *resources.Cluster) {
+func TestSelinuxContext(cluster *driver.Cluster) {
 	var err error
 
 	if cluster.NumServers > 0 {

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/rancher/distros-test-framework/internal/logging"
 )
 
 // CheckProcessCompletion monitors any process until it completes or times out.
@@ -66,5 +64,3 @@ func CheckProcessCompletion(nodeIP, processPattern string, attempts int, delay t
 
 	return nil
 }
-
- 

@@ -10,11 +10,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/internal/resources"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
-func TestUpgradeClusterSUC(cluster *resources.Cluster, k8sClient *k8s.Client, version string) error {
+func TestUpgradeClusterSUC(cluster *driver.Cluster, k8sClient *k8s.Client, version string) error {
 	resources.PrintClusterState()
 
 	resources.LogLevel("info", "Upgrading SUC to version: %s\n", version)

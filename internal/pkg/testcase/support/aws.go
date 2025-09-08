@@ -3,13 +3,13 @@ package support
 import (
 	"sync"
 
-	"github.com/rancher/distros-test-framework/internal/resources"
-
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 // DeleteEC2Nodes Deletes all the nodes on the cluster based on externalIPs.
-func DeleteEC2Nodes(cluster *resources.Cluster) {
+func DeleteEC2Nodes(cluster *driver.Cluster) {
 	ips := resources.FetchNodeExternalIPs()
 	awsClient, err := aws.AddClient(cluster)
 	if err != nil {

@@ -5,10 +5,12 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
-func TestTarball(cluster *resources.Cluster, flags *customflag.FlagConfig) {
+func TestTarball(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	resources.LogLevel("info", "Downloading tarball artifacts...")
 	_, err := support.GetArtifacts(cluster, "linux", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	Expect(err).To(BeNil(), err)

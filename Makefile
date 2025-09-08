@@ -1,4 +1,4 @@
-include ./shared/config/.env
+include ./config/.env
 
 #========================= Run acceptance tests in docker =========================#
 
@@ -43,9 +43,9 @@ test-env-clean:
 remove-tf-state:
 	@rm -rf ./infrastructure/legacy/${ENV_PRODUCT}/.terraform
 	@rm -rf ./infrastructure/legacy/${ENV_PRODUCT}/.terraform.lock.hcl ./infrastructure/legacy/${ENV_PRODUCT}/terraform.tfstate ./infrastructure/legacy/${ENV_PRODUCT}/terraform.tfstate.backup
-	@rm -rf ./infrastructure/qa-infra/.terraform
-	@rm -rf ./infrastructure/qa-infra/terraform.tfstate*
-	@rm -rf ./tmp/qa-infra-ansible
+	@rm -rf ./infrastructure/qainfra/.terraform
+	@rm -rf ./infrastructure/qainfra/terraform.tfstate*
+	@rm -rf ./tmp/qainfra-ansible
 
 ## use this to skip tests
 test-skip:

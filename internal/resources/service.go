@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 const (
@@ -177,7 +178,7 @@ func (ms *ManageService) execute(cmd, action, ip string) (string, error) {
 	return result, nil
 }
 
-func EnableAndStartService(cluster *Cluster, publicIP, nodeType string) error {
+func EnableAndStartService(cluster *driver.Cluster, publicIP, nodeType string) error {
 	ms := NewManageService(10, 5)
 	actions := []ServiceAction{
 		{

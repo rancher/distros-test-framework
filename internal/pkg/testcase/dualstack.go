@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -16,7 +17,7 @@ type testData struct {
 	Expected  string
 }
 
-func TestIngressDualStack(cluster *resources.Cluster, deleteWorkload bool) {
+func TestIngressDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 	err := resources.ManageWorkload("apply", "dualstack-ingress.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -47,7 +48,7 @@ func TestIngressDualStack(cluster *resources.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestNodePort(cluster *resources.Cluster, deleteWorkload bool) {
+func TestNodePort(cluster *driver.Cluster, deleteWorkload bool) {
 	err := resources.ManageWorkload("apply", "dualstack-nodeport.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -67,7 +68,7 @@ func TestNodePort(cluster *resources.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestClusterIPsInCIDRRange(cluster *resources.Cluster, deleteWorkload bool) {
+func TestClusterIPsInCIDRRange(cluster *driver.Cluster, deleteWorkload bool) {
 	err := resources.ManageWorkload("apply", "dualstack-clusterip.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -124,7 +125,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	}
 }
 
-func TestIngressWithPodRestartAndNetPol(cluster *resources.Cluster, deleteWorkload bool) {
+func TestIngressWithPodRestartAndNetPol(cluster *driver.Cluster, deleteWorkload bool) {
 	err := resources.ManageWorkload("apply", "k3s_issue_10053_ns.yaml",
 		"k3s_issue_10053_pod1.yaml", "k3s_issue_10053_pod2.yaml")
 	Expect(err).NotTo(HaveOccurred(), "failed to deploy initial manifests")

@@ -2,67 +2,100 @@
 
 For better maintenance, readability and productivity we encourage max of separation of concerns and loose coupling between packages so inner packages should not depend on outer packages. "External" and "Outer" layer or dependency here in this context is considered any other package within the framework.
 
+### Packages
 
-
-### Packages:
 ```bash
 ./distros-test-framework
 │
-├── entrypoint
-│   └───── Entry for tests execution, separated by test runs and test suites
+├── cmd/
+│   └── qase/                       # internal programs.
 │
-├── modules
-│   └───── Terraform modules and configurations
+├── config/                         # Configuration files and readers
+│   ├── k3s.tfvars                  # Legacy Configuration varfiles for k3s
+│   ├── rke2.tfvars                 # Legacy Configuration varfiles for rke2
+│   └── reader.go
 │
-│── scripts
-│    └───── Scripts needed for overall execution
+├── docs/                           # Documentation
+│   ├── architecture.md
+│   ├── qa-infra-integration.md
+│   └── examples/
 │
-├── shared
-│    └───── auxiliary and reusable functions
+├── entrypoint/                     # Test suite entry points
+│   ├── validatecluster/
+│   ├── upgradecluster/
+│   ├── createcluster/
 │
-├── pkg
-│   └───── Place where resides the logic and services for it
+├── infrastructure/                 # Infrastructure provisioning
+│   ├── legacy/                     # Legacy Terraform modules
+│   └── qainfra/                    # QA infrastructure modules
 │
-│── workloads
-│   └───── Place where resides workloads to use inside tests
+├── internal/                       # Core logic and packages
+│   ├── pkg/                        # Reusable packages
+│   ├── provisioning/               # Infrastructure provisioning logic
+│   ├── resources/                  # Shared resources
+│   └── report/                     # Test reporting
+│
+├── scripts/                        # Build and execution scripts.
+│
+└── workloads/                      # Test workloads and manifests
+    ├── amd64/
+    └── arm/
 ```
 
-### Explanation:
+### Explanation
 
-- `Pkg`
-```
-    Testcase:
-  
-Act:                  Acts as an innermost layer where the main logic (test implementation) is handled.
-Responsibility:       Encapsulates test logic and should not depend on any outer layer
-```
+- **`cmd/`**
 
-- `Entrypoint`
-````
-Act:                  Acts as the one of the outer layer to receive the input to start test execution
-Responsibility:       Should not implement any logic and only focus on orchestrating
-````
-
-- `Modules`
 ```
-Act:                  Acts as the infra to provide the terraform modules and configurations
-Responsibility:       Only provides indirectly for all, should not need the knowledge of any test logic or have dependencies from internal layers.
+Act:                  Build programs.
+Responsibility:       Provides CLI tools like qase integration, should not contain business logic
 ```
 
-- `Scripts`
+- **`config/`**
+
 ```
-Act:                  Acts as a provider for scripts needed for overall execution
-Responsibility:       Should not need knowledge of or "external" dependencies at all and provides for all layers.
+Act:                  Configuration management and file readers
+Responsibility:       Handles configuration files and provides config reading utilities
 ```
 
-- `Shared`
+- **`docs/`**
+
 ```
-Act:                  Acts as an intermediate module providing shared, reusable and auxiliary functions
-Responsibility:       Should not need knowledge of or "external" dependencies at all and provides for all layers.
+Act:                  Documentation and examples
+Responsibility:       Contains all project documentation, architecture diagrams, and usage examples
 ```
 
-- `Workloads`
-````
-Act:                  Acts as a provider for test workloads
-Responsibility:       Totally independent of any other layer and should only provide
-````
+- **`entrypoint/`**
+
+```
+Act:                  Test suite entry points and orchestration
+Responsibility:       Orchestrates test execution, should not implement test logic but coordinate components
+```
+
+- **`infrastructure/`**
+
+```
+Act:                  Infrastructure-as-Code modules and configurations
+Responsibility:       Provides Terraform/OpenTofu modules, should be provider-agnostic and reusable
+```
+
+- **`internal/`**
+
+```
+Act:                  Core business logic and internal packages
+Responsibility:       Contains the main framework logic, should not depend on outer layers
+```
+
+- **`scripts/`**
+
+```
+Act:                  Build, deployment, and execution scripts
+Responsibility:       Provides scripts for CI/CD, container builds, and test execution
+```
+
+- **`workloads/`**
+
+```
+Act:                  Kubernetes workloads and test manifests
+Responsibility:       Contains YAML manifests for different architectures, totally independent
+```

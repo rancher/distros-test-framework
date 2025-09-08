@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -70,7 +71,7 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func TestIngressRoute(cluster *resources.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
+func TestIngressRoute(cluster *driver.Cluster, applyWorkload, deleteWorkload bool, apiVersion string) {
 	// TODO: Remove when v1.32 in minimum supported version
 	_, version, _ := resources.Product()
 	workloadFile := "dynamic-ingressroute.yaml"

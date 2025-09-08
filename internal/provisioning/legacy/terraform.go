@@ -11,16 +11,15 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/internal/provisioning"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 func setTerraformOptions(product, module string) (*terraform.Options, string, error) {
 	_, callerFilePath, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
+	dir := filepath.Join(filepath.Dir(callerFilePath), "..", "..", "..")
 
-	varDir, err := filepath.Abs(dir +
-		fmt.Sprintf("/config/%s.tfvars", product))
+	varDir, err := filepath.Abs(dir + fmt.Sprintf("/config/%s.tfvars", product))
 	resources.LogLevel("info", "Using tfvars in: %v", varDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("invalid product: %s", product)
@@ -31,7 +30,12 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 		module = product
 	}
 
-	tfDir, err := filepath.Abs(dir + "/modules/" + module)
+	legacyModulesDir := filepath.Join(filepath.Dir(callerFilePath),
+		"..", "..", "..",
+		"infrastructure", "legacy",
+		module)
+
+	tfDir, err := filepath.Abs(legacyModulesDir)
 	resources.LogLevel("info", "Using module dir: %v", tfDir)
 	if err != nil {
 		return nil, "", fmt.Errorf("no module found: %s", module)
@@ -47,11 +51,11 @@ func setTerraformOptions(product, module string) (*terraform.Options, string, er
 
 func loadTFconfig(
 	t *testing.T,
-	c *provisioning.Cluster,
+	c *driver.Cluster,
 	product, module,
 	varDir string,
 	terraformOptions *terraform.Options,
-) (*provisioning.Cluster, error) {
+) (*driver.Cluster, error) {
 	resources.LogLevel("info", "Loading TF outputs...")
 	loadTFoutput(t, terraformOptions, c, module)
 
@@ -102,7 +106,7 @@ func loadTFconfig(
 	return c, nil
 }
 
-func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *provisioning.Cluster, module string) {
+func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *driver.Cluster, module string) {
 	if module == "" {
 		resources.KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
 		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
@@ -120,7 +124,7 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *provisio
 	}
 }
 
-func loadAws(t *testing.T, varDir string, c *provisioning.Cluster) {
+func loadAws(t *testing.T, varDir string, c *driver.Cluster) {
 	c.Aws.Region = terraform.GetVariableAsStringFromVarFile(t, varDir, "region")
 	c.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	c.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -130,16 +134,16 @@ func loadAws(t *testing.T, varDir string, c *provisioning.Cluster) {
 	c.Aws.VPCID = terraform.GetVariableAsStringFromVarFile(t, varDir, "vpc_id")
 }
 
-func loadEC2(t *testing.T, varDir string, c *provisioning.Cluster) {
+func loadEC2(t *testing.T, varDir string, c *driver.Cluster) {
 	c.Aws.AccessKeyID = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
 	c.SSH.User = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
 	c.Aws.EC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
 	c.Aws.EC2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
 	c.Aws.EC2.InstanceClass = terraform.GetVariableAsStringFromVarFile(t, varDir, "ec2_instance_class")
-	c.Aws.EC2.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
+	c.SSH.KeyName = terraform.GetVariableAsStringFromVarFile(t, varDir, "key_name")
 }
 
-func loadExternalDb(t *testing.T, varDir string, c *provisioning.Cluster, terraformOptions *terraform.Options) {
+func loadExternalDb(t *testing.T, varDir string, c *driver.Cluster, terraformOptions *terraform.Options) {
 	c.Config.ExternalDbEndpoint = terraform.Output(t, terraformOptions, "rendered_template")
 	c.Config.ExternalDb = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db")
 	c.Config.ExternalDbVersion = terraform.GetVariableAsStringFromVarFile(t, varDir, "external_db_version")

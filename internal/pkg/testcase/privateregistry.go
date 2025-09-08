@@ -3,12 +3,13 @@ package testcase
 import (
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestPrivateRegistry(cluster *resources.Cluster, flags *customflag.FlagConfig) {
+func TestPrivateRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	resources.LogLevel("info", "Set bastion for private registry...")
 	err := support.SetupAirgapRegistry(cluster, flags, support.PrivateRegistry)
 	Expect(err).To(BeNil(), err)

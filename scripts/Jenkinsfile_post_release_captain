@@ -1,0 +1,182 @@
+#!groovy
+
+node {
+  def branch  = (env.BRANCH  && env.BRANCH  != 'null' && env.BRANCH.trim())  ? env.BRANCH  : 'main'
+  def repo    = (env.REPO    && env.REPO    != 'null' && env.REPO.trim())    ? [[url: env.REPO]] : scm.userRemoteConfigs
+  def timeout = (env.TIMEOUT && env.TIMEOUT != 'null' && env.TIMEOUT.trim()) ? env.TIMEOUT : '100m'
+
+  /**************************** Helpers ****************************/
+  def splitAndNormalize = { String wholeString ->
+    def seen = [:]
+    return (wholeString ?: '')
+      .split(/[\s,]+/)
+      .collect { it.trim() }
+      .findAll { it }
+      .findAll { v -> if (seen[v]) { false } else { seen[v] = true; true } }
+  }
+
+  def addStrParam = { List arr, String name, def val ->
+    if (val == null) return
+    def s = val.toString()
+    if (s == 'null' || !s.trim()) return
+    arr << string(name: name, value: s)
+  }
+
+  def targetJob = { String product, String arch ->
+    def folder = (product == 'k3s') ? 'k3s-tests' : 'rke2-tests'
+    def base   = (arch == 'arm') ? "${product}_validate_cluster_arm_rpm" : "${product}_validate_cluster_rpm"
+    return "${folder}/${base}"
+  }
+
+  if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != 'false') {
+    // dealing with test case IDs for QASE in code because we have different IDs for different products/archs/channels combinations.
+    // so that we can trigger the child jobs with the respctive correct mapping combinations.
+    def qaseTcIdResolver = { String productName, String archName, String channelName ->
+      def tcId = env.QASE_TEST_CASE_ID?.trim()
+      if (tcId && tcId != 'null') {
+        return tcId
+      }
+
+      def product = (productName ?: '').toLowerCase()
+      def arch    = normalizeArch(archName)
+      def channel = (channelName ?: '').toLowerCase()
+
+      if (product == 'k3s')  {
+        if (arch == 'amd64') return '215'
+        if (arch == 'arm')   return '219'
+      }
+
+      if (product == 'rke2' && arch == 'amd64') {
+        if (channel == 'latest') return '212'
+        if (channel == 'stable') return '214'
+        if (channel == 'testing') return '268'
+        error "No QASE mapping for rke2/amd64 channel='${channelName}'"
+      }
+
+      if (product == 'rke2' && arch == 'arm') {
+        if (channel == 'latest') return '217'
+        if (channel == 'stable') return '218'
+        if (channel == 'testing') return '269'
+        error "No QASE mapping for rke2/arm channel='${channelName}'."
+      }
+
+      error "Unsupported product/arch: ${productName}/${archName}"
+    }
+  }
+
+  // Build param list for child job, selecting the right UI PEM/Key per arch.
+  def buildParams = { String arch, String product, String prefix, String version, String channel, String installMode ->
+    def param = []
+
+    param << string(name: 'PRODUCT_NAME',     value: product)
+    param << string(name: 'HOSTNAME_PREFIX',  value: prefix)
+    param << string(name: 'TEST_DIRECTORY',   value: 'validatecluster')
+    param << string(name: 'INSTALL_VERSION',  value: version)
+    param << string(name: 'INSTALL_MODE',     value: installMode)
+    param << string(name: 'INSTALL_CHANNEL',  value: channel)
+    param << string(name: 'TIMEOUT',          value: timeout)
+    addStrParam(param, 'AWS_SSH_KEY_NAME',  env.AWS_SSH_KEY_NAME)
+    addStrParam(param, 'AWS_SSH_PEM_KEY',   env.AWS_SSH_PEM_KEY)
+    addStrParam(param, 'REPO',   (env.REPO ?: ''))
+    addStrParam(param, 'BRANCH', branch)
+
+    // Optional.
+    addStrParam(param, 'LOG_LEVEL',         env.LOG_LEVEL)
+    addStrParam(param, 'REPORT_TO_QASE',    env.REPORT_TO_QASE)
+    addStrParam(param, 'QASE_PROJECT_ID',   env.QASE_PROJECT_ID)
+    addStrParam(param, 'QASE_RUN_ID',       env.QASE_RUN_ID)
+    def tcId =  ''
+    if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != 'false') {
+      tcId = qaseTcIdResolver(product, arch, channel)
+    }
+    param << string(name: 'QASE_TEST_CASE_ID', value:  tcId)
+
+    return param
+  }
+
+  /**************************** pipe ****************************/
+  wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
+    withFolderProperties {
+      def paramsMap = []
+      params.each { key, value ->
+        if (value != null) {
+          if (value instanceof String) { if (value.trim()) paramsMap << "${key}=${value}" }
+          else { paramsMap << "${key}=${value}" }
+        }
+      }
+      withEnv(paramsMap) {
+        stage('Checkout') {
+          deleteDir()
+          checkout([
+            $class: 'GitSCM',
+            branches: [[name: "*/${branch}"]],
+            extensions: scm.extensions + [[$class: 'CleanCheckout']],
+            userRemoteConfigs: repo
+          ])
+        }
+
+        dir('./') {
+          stage('Plan & Run') {
+            def product  = (env.PRODUCT_NAME && env.PRODUCT_NAME != 'null' && env.PRODUCT_NAME.trim()) ? env.PRODUCT_NAME.trim() : 'rke2'
+            def channels = splitAndNormalize(env.CHANNELS ?: '')
+            def versions = splitAndNormalize(env.VERSIONS ?: '')
+            if (channels.isEmpty() || versions.isEmpty()) {
+              currentBuild.result = 'ABORTED'
+              error("CHANNELS or VERSIONS is empty. CHANNELS='${env.CHANNELS}', VERSIONS='${env.VERSIONS}'")
+            }
+
+            def autoInstallMode = (product == 'k3s') ? 'INSTALL_K3S_VERSION' : 'INSTALL_RKE2_VERSION'
+            def installMode = (env.INSTALL_MODE && env.INSTALL_MODE != 'null' && env.INSTALL_MODE.trim())
+                              ? env.INSTALL_MODE.trim() : autoInstallMode
+
+            def propagateChildren = ("${env.PROPAGATE_CHILD_FAILURES}".toString().toLowerCase() != 'false')
+            def dryRun = ("${env.DRY_RUN}".toString().toLowerCase() == 'true')
+
+            def jobs = [:]
+            int idx = 0
+
+            channels.each { channel ->
+              versions.each { version ->
+                def hostNamePrefix = env.HOSTNAME_PREFIX
+                def jobAmdName = "${product} | ${channel} | ${version} | amd64"
+                def jobArmName = "${product} | ${channel} | ${version} | arm"
+                def targetAmd  = targetJob(product, 'amd64')
+                def targetArm  = targetJob(product, 'arm')
+
+                jobs[jobAmdName] = {
+                  stage(jobAmdName) {
+                    if (dryRun) {
+                      echo "DRY_RUN=true → skipping ${jobAmdName}"
+                    } else {
+                      build job: targetAmd,
+                        parameters: buildParams('amd64', product, hostNamePrefix, version, channel, installMode),
+                        propagate: propagateChildren,
+                        quietPeriod: 0,
+                        wait: true
+                    }
+                  }
+                }
+                jobs[jobArmName] = {
+                  stage(jobArmName) {
+                    if (dryRun) {
+                      echo "DRY_RUN=true → skipping ${jobArmName}"
+                    } else {
+                      build job: targetArm,
+                        parameters: buildParams('arm', product, hostNamePrefix, version, channel, installMode),
+                        propagate: propagateChildren,
+                        quietPeriod: 0,
+                        wait: true
+                    }
+                  }
+                }
+                idx++
+              }
+            }
+            echo "Planned executions: ${jobs.size()}"
+            parallel jobs
+          } // stage
+        } // dir
+      } // withEnv
+    } // withFolderProperties
+  } // wrap
+} // node

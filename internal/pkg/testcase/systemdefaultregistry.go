@@ -5,10 +5,12 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
-func TestSystemDefaultRegistry(cluster *resources.Cluster, flags *customflag.FlagConfig) {
+func TestSystemDefaultRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	resources.LogLevel("info", "Setting bastion as system default registry...")
 	err := support.SetupAirgapRegistry(cluster, flags, support.SystemDefaultRegistry)
 	Expect(err).To(BeNil(), err)

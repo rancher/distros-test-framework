@@ -55,7 +55,7 @@
     ```
     export AWS_ACCESS_KEY_ID=xxx
     export AWS_SECRET_ACCESS_KEY=xxxx
-    export SSH_KEY_PATH=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
+    export SSH_LOCAL_KEY_PATH=/PATH/TO/distros-test-framework/config/.ssh/aws_key.pem
     ```
 
 6. Run these commands:
@@ -276,7 +276,7 @@ $ -v /path/to/distros-test-framework/tmp/:/tmp
 # Example full commands:
 $ rm -rf infrastructure/legacy/ tmp/ && docker cp at1:/go/src/github.com/rancher/distros-test-framework/infrastructure/legacy/ infrastructure/legacy/ && docker cp at1:/tmp/ tmp/
 $ docker build . -q -f ./scripts/Dockerfile.jenkins -t ${TAG_NAME}
-$ docker run -dt --name at2 -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -v ${SSH_KEY_PATH}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem -v /Users/fakeuser/gh-repos/distros-test-framework/tmp/:/tmp --env-file ./config/.env ${TAG_NAME} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=30m -v ./validatecluster/..."
+$ docker run -dt --name at2 -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} -v ${SSH_LOCAL_KEY_PATH}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem -v /Users/fakeuser/gh-repos/distros-test-framework/tmp/:/tmp --env-file ./config/.env ${TAG_NAME} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && cd ./entrypoint && go test -timeout=30m -v ./validatecluster/..."
 ```
 
 ### Debugging

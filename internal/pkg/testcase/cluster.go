@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
-	"github.com/rancher/distros-test-framework/internal/resources"
-
 	. "github.com/onsi/gomega"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-func TestBuildCluster(cluster *resources.Cluster) {
+func TestBuildCluster(cluster *driver.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(resources.KubeConfigFile).ShouldNot(BeEmpty())
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())

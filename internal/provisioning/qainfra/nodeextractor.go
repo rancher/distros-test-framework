@@ -1,141 +1,101 @@
 package qainfra
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-// InfraNode represents a cluster node from infrastructure
-type InfraNode struct {
-	Name     string
-	PublicIP string
-	Role     string
+type infraNode struct {
+	name     string
+	publicIP string
+	role     string
 }
 
-// NodeExtractor defines the interface for extracting node information from different providers
-type NodeExtractor interface {
-	SupportsResourceType(resourceType string) bool
-	ExtractNode(resourceValues map[string]interface{}) (*InfraNode, error)
+type newOpenTofuState struct {
+	Resources []struct {
+		Type      string `json:"type"`
+		Instances []struct {
+			Attributes struct {
+				PublicIP string            `json:"public_ip"`
+				Tags     map[string]string `json:"tags"`
+			} `json:"attributes"`
+		} `json:"instances"`
+	} `json:"resources"`
 }
 
-// getNodeExtractors returns available node extractors for different providers
-func getNodeExtractors() ([]NodeExtractor, error) {
-	infraModule := strings.ToLower(strings.TrimSpace(os.Getenv("INFRA_MODULE")))
-	switch infraModule {
-	case "aws":
-		return []NodeExtractor{&AWSNodeExtractor{}}, nil
-	case "vsphere":
-		return []NodeExtractor{&VSphereNodeExtractor{}}, nil
-	default:
-		return nil, fmt.Errorf("unknown infrastructure module: %s", infraModule)
+// extractNodesFromState extracts node information from OpenTofu state.
+// todo: refactor to a generic method once vsphere is supported.
+func extractNodesFromTFState(config *driver.InfraConfig) ([]infraNode, error) {
+	stateTfFile := filepath.Join(config.InfraProvisioner.TFNodeSource,
+		"terraform.tfstate.d", config.InfraProvisioner.Workspace, "terraform.tfstate")
+
+	stateData, err := os.ReadFile(stateTfFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
-}
 
-// AWSNodeExtractor handles AWS-specific node extraction
-type AWSNodeExtractor struct{}
+	var state newOpenTofuState
+	if err := json.Unmarshal(stateData, &state); err != nil {
+		return nil, fmt.Errorf("failed to parse state JSON: %w", err)
+	}
 
-func (e *AWSNodeExtractor) SupportsResourceType(resourceType string) bool {
-	return resourceType == "aws_instance"
-}
+	// extract nodes from new state format.
+	var nodes []infraNode
+	for _, resource := range state.Resources {
+		if resource.Type == "aws_instance" {
+			for _, instance := range resource.Instances {
+				name := instance.Attributes.Tags["Name"]
+				publicIP := instance.Attributes.PublicIP
 
-func (e *AWSNodeExtractor) ExtractNode(values map[string]interface{}) (*InfraNode, error) {
-	node := &InfraNode{}
+				if name != "" && publicIP != "" {
+					role := addRoleFromName(name)
 
-	// Extract name from tags
-	if tags, ok := values["tags"].(map[string]interface{}); ok {
-		if name, ok := tags["Name"].(string); ok {
-			node.Name = cleanNodeName(name)
+					node := infraNode{
+						name:     name,
+						publicIP: publicIP,
+						role:     role,
+					}
+					nodes = append(nodes, node)
+					resources.LogLevel("debug", "Extracted AWS node: &{Name:%s PublicIP:%s Role:%s}",
+						node.name, node.publicIP, node.role)
+				}
+			}
 		}
 	}
 
-	// Extract public IP
-	if publicIP, ok := values["public_ip"].(string); ok {
-		node.PublicIP = publicIP
-	}
-
-	// Determine role based on name
-	node.Role = determineNodeRole(node.Name)
-
-	if node.Name == "" || node.PublicIP == "" {
-		return nil, fmt.Errorf("incomplete node data: name=%s, ip=%s", node.Name, node.PublicIP)
-	}
-
-	resources.LogLevel("debug", "Extracted AWS node: %+v", node)
-
-	return node, nil
-}
-
-// VSphereNodeExtractor handles vSphere-specific node extraction
-type VSphereNodeExtractor struct{}
-
-func (e *VSphereNodeExtractor) SupportsResourceType(resourceType string) bool {
-	return resourceType == "vsphere_virtual_machine"
-}
-
-func (e *VSphereNodeExtractor) ExtractNode(values map[string]interface{}) (*InfraNode, error) {
-	node := &InfraNode{}
-
-	// Extract name from VM name or custom attributes
-	if name, ok := values["name"].(string); ok {
-		node.Name = cleanNodeName(name)
-	}
-
-	// Extract IP from guest info or network interfaces
-	if guestInfo, ok := values["guest_ip_addresses"].([]interface{}); ok && len(guestInfo) > 0 {
-		if ip, ok := guestInfo[0].(string); ok {
-			node.PublicIP = ip
-		}
-	}
-
-	// Determine role based on name
-	node.Role = determineNodeRole(node.Name)
-
-	if node.Name == "" || node.PublicIP == "" {
-		return nil, fmt.Errorf("incomplete vSphere node data: name=%s, ip=%s", node.Name, node.PublicIP)
-	}
-
-	return node, nil
-}
-
-// determineNodeRole determines the role based on node name patterns
-func determineNodeRole(nodeName string) string {
-	lowerName := strings.ToLower(nodeName)
-
-	// TODO: needs to add proper logic and support for custom/split roles
-	switch {
-	case strings.Contains(lowerName, "master") || strings.Contains(lowerName, "control"):
-		return "etcd,cp,worker"
-	case strings.Contains(lowerName, "worker") || strings.Contains(lowerName, "agent"):
-		return "worker"
-	default:
-
-		resources.LogLevel("debug", "Unknown node role pattern for '%s', defaulting to worker", nodeName)
-		return "worker"
-	}
-}
-
-// isValidNode checks if a node has all required fields
-func isValidNode(node *InfraNode) bool {
-	return node.Name != "" && node.PublicIP != "" && node.Role != ""
-}
-
-// logExtractedNodes logs the extracted node information
-func logExtractedNodes(nodes []InfraNode) {
-	resources.LogLevel("info", "Found %d nodes in OpenTofu state", len(nodes))
 	for _, node := range nodes {
-		resources.LogLevel("info", "Node: %s (%s) - Role: %s", node.Name, node.PublicIP, node.Role)
+		resources.LogLevel("info", "Node: %s (%s) - Role: %s", node.name, &node, node.role)
 	}
+
+	return nodes, nil
 }
 
-// cleanNodeName removes provider-specific prefixes from node names
-func cleanNodeName(rawName string) string {
-	nameParts := strings.Split(rawName, "-")
-	if len(nameParts) > 2 {
-		return strings.Join(nameParts[2:], "-")
-	}
+// addRoleFromName determines the role based on the node name since QAInfra does not provide roles directly,
+// we need to infer them based on given remote module naming conventions.
+func addRoleFromName(name string) string {
+	// remove prefix.
+	name = regexp.MustCompile(`^tf-dsf-.*?-(k3s|rke2)-`).ReplaceAllString(name, "")
 
-	return rawName
+	// for now on remote infra the first one is referred as master.
+	switch {
+	case strings.Contains(name, "master"):
+		return "etcd,cp,worker"
+	case strings.Contains(name, "etcd-cp-worker"):
+		return "etcd,cp,worker"
+	case strings.Contains(name, "etcd"):
+		return "etcd"
+	case strings.Contains(name, "cp"):
+		return "cp"
+	case strings.Contains(name, "worker"):
+		return "worker"
+	default:
+		return "master"
+	}
 }

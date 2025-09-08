@@ -11,11 +11,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
 	"github.com/rancher/distros-test-framework/internal/resources"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 var token string
 
-func BuildIPv6OnlyCluster(cluster *resources.Cluster) {
+func BuildIPv6OnlyCluster(cluster *driver.Cluster) {
 	resources.LogLevel("info", "Created nodes for %s cluster...", cluster.Config.Product)
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
@@ -33,7 +35,7 @@ func BuildIPv6OnlyCluster(cluster *resources.Cluster) {
 	}
 }
 
-func ConfigureIPv6OnlyNodes(cluster *resources.Cluster, awsClient *aws.Client) (err error) {
+func ConfigureIPv6OnlyNodes(cluster *driver.Cluster, awsClient *aws.Client) (err error) {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 	errChan := make(chan error, len(nodeIPs))
@@ -72,7 +74,7 @@ func ConfigureIPv6OnlyNodes(cluster *resources.Cluster, awsClient *aws.Client) (
 	return nil
 }
 
-func InstallOnIPv6Servers(cluster *resources.Cluster) {
+func InstallOnIPv6Servers(cluster *driver.Cluster) {
 	for idx, serverIP := range cluster.ServerIPs {
 		// Installing product on primary server aka server-1, saving the token.
 		if idx == 0 {
@@ -106,7 +108,7 @@ func InstallOnIPv6Servers(cluster *resources.Cluster) {
 	resources.LogLevel("info", "Process kubeconfig: Complete!")
 }
 
-func InstallOnIPv6Agents(cluster *resources.Cluster) {
+func InstallOnIPv6Agents(cluster *driver.Cluster) {
 	// Installing product on agent nodes.
 	for idx, agentIP := range cluster.AgentIPs {
 		resources.LogLevel("info", "Installing %v on agent-%v...", cluster.Config.Product, idx+1)
@@ -118,7 +120,7 @@ func InstallOnIPv6Agents(cluster *resources.Cluster) {
 }
 
 // copyConfigureScript Copies configure.sh script on the nodes.
-func copyConfigureScript(cluster *resources.Cluster, ip string) (err error) {
+func copyConfigureScript(cluster *driver.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
@@ -135,7 +137,7 @@ func copyConfigureScript(cluster *resources.Cluster, ip string) (err error) {
 }
 
 // copyInstallScripts Copies install scripts on the nodes.
-func copyInstallScripts(cluster *resources.Cluster, ip string) (err error) {
+func copyInstallScripts(cluster *driver.Cluster, ip string) (err error) {
 	var script string
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
@@ -166,7 +168,7 @@ func copyInstallScripts(cluster *resources.Cluster, ip string) (err error) {
 }
 
 // processConfigureFile Runs configure.sh script on the nodes.
-func processConfigureFile(cluster *resources.Cluster, ec2 *aws.Client, ip string) (err error) {
+func processConfigureFile(cluster *driver.Cluster, ec2 *aws.Client, ip string) (err error) {
 	var flags string
 	if slices.Contains(cluster.ServerIPs, ip) {
 		flags = cluster.Config.ServerFlags
@@ -190,7 +192,7 @@ func processConfigureFile(cluster *resources.Cluster, ec2 *aws.Client, ip string
 	return nil
 }
 
-func buildInstallCmd(cluster *resources.Cluster, nodeType, token, ip string) string {
+func buildInstallCmd(cluster *driver.Cluster, nodeType, token, ip string) string {
 	var cmdBuilder strings.Builder
 	var cmdSlice []string
 	var script string

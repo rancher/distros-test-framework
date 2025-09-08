@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -104,7 +105,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-func testServiceNodePortDualStack(cluster *resources.Cluster, td testData) {
+func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
 	nodeExternalIP := resources.FetchNodeExternalIPs()
 	nodeport, err := resources.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred(), err)
