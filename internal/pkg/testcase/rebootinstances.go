@@ -4,13 +4,13 @@ import (
 	"sync"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
-	"github.com/rancher/distros-test-framework/internal/resources"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-func TestRebootInstances(cluster *resources.Cluster) {
+func TestRebootInstances(cluster *driver.Cluster) {
 	awsDependencies, err := aws.AddClient(cluster)
 	Expect(err).NotTo(HaveOccurred())
 

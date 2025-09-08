@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -24,20 +25,28 @@ var (
 
 	supportedProducts       = []string{"k3s", "rke2"}
 	supportedQAinfraModules = []string{"aws", "vsphere"}
-	supportedProviders      = []string{"legacy", "qa-infra"}
+	supportedProviders      = []string{"legacy", "qainfra"}
 	supportedLegacyTFVars   = []string{"k3s.tfvars", "rke2.tfvars"}
 )
 
 type Env struct {
-	TFVars         string
-	Product        string
-	InstallVersion string
-	Module         string
-	ResourceName   string
-	InfraProvider  string
-	QAInfraModule  string
-	SSHUser        string
-	SSHKeyPath     string
+	TFVars            string
+	Product           string
+	InstallVersion    string
+	Module            string
+	ResourceName      string
+	ProvisionerModule string
+	ProvisionerType   string
+	QAInfraProvider   string
+	SSHUser           string
+	SSHKeyPath        string
+	SSHKeyName        string
+	NodeOS            string
+	Channel           string
+	CNI               string
+	ServerFlags       string
+	WorkerFlags       string
+	Arch              string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the environment configuration.
@@ -58,7 +67,7 @@ func loadEnv() (*Env, error) {
 	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
 
 	// set the environment variables from the .env file.
-	dotEnvPath := dir + ".env"
+	dotEnvPath := dir + "/config/.env"
 	if err := setEnv(dotEnvPath); err != nil {
 		log.Errorf("failed to set environment variables: %v\n", err)
 		return nil, err
@@ -66,23 +75,42 @@ func loadEnv() (*Env, error) {
 
 	// set the environment variables from the .env file related to infrastructure/framework configuration.
 	// TODO: this should be refactored remove install version from here and update accordingly.
+	// also needs to add all other variables needed for configuration.
 	env := &Env{
-		TFVars:         os.Getenv("ENV_TFVARS"),
-		Product:        os.Getenv("ENV_PRODUCT"),
-		InstallVersion: os.Getenv("INSTALL_VERSION"),
-		Module:         os.Getenv("ENV_MODULE"),
-		InfraProvider:  os.Getenv("PROVISIONER"),
-		QAInfraModule:  os.Getenv("QA_INFRA_MODULE"),
-		SSHUser:        os.Getenv("SSH_USER"),
-		SSHKeyPath:     os.Getenv("SSH_KEY_PATH"),
-		ResourceName:   os.Getenv("RESOURCE_NAME"),
+		TFVars:            os.Getenv("ENV_TFVARS"),
+		Product:           os.Getenv("ENV_PRODUCT"),
+		InstallVersion:    os.Getenv("INSTALL_VERSION"),
+		Module:            os.Getenv("ENV_MODULE"),
+		ProvisionerModule: os.Getenv("PROVISIONER_MODULE"),
+		QAInfraProvider:   os.Getenv("QA_INFRA_PROVIDER"),
+		ProvisionerType:   os.Getenv("PROVISIONER_TYPE"),
+		SSHUser:           os.Getenv("SSH_USER"),
+		SSHKeyPath:        os.Getenv("SSH_LOCAL_KEY_PATH"),
+		SSHKeyName:        os.Getenv("SSH_KEY_NAME"),
+		ResourceName:      os.Getenv("RESOURCE_NAME"),
+		NodeOS:            os.Getenv("NODE_OS"),
+		Channel:           os.Getenv("CHANNEL"),
+		CNI:               os.Getenv("CNI"),
+		ServerFlags:       os.Getenv("SERVER_FLAGS"),
+		WorkerFlags:       os.Getenv("WORKER_FLAGS"),
+		Arch:              os.Getenv("ARCH"),
 	}
 
 	validateInitVars(env)
 
-	if (env.InfraProvider == "legacy" || env.InfraProvider == "") && env.TFVars != "" {
-		tfPath := fmt.Sprintf("%s/config/%s", dir, env.TFVars)
-		if err := setEnv(tfPath); err != nil {
+	// set env vars from respective infra module.
+	switch env.ProvisionerModule {
+	case "legacy", "":
+		if env.TFVars != "" {
+			tfPath := fmt.Sprintf("%s/config/%s", dir, env.TFVars)
+			if err := setEnv(tfPath); err != nil {
+				log.Errorf("failed to set environment variables: %v\n", err)
+				return nil, err
+			}
+		}
+
+	case "qainfra":
+		if err := setEnv(dir + "/infrastructure/qainfra/vars.tfvars"); err != nil {
 			log.Errorf("failed to set environment variables: %v\n", err)
 			return nil, err
 		}
@@ -92,7 +120,7 @@ func loadEnv() (*Env, error) {
 }
 
 func validateInitVars(env *Env) {
-	normalize(env)
+	normalizeInitVars(env)
 
 	if env.InstallVersion == "" {
 		log.Errorf("install version for %s is not set\n", env.Product)
@@ -104,24 +132,26 @@ func validateInitVars(env *Env) {
 		os.Exit(1)
 	}
 
-	if env.QAInfraModule == "" {
-		env.QAInfraModule = defaultQAInfraModule
+	if env.QAInfraProvider == "" {
+		log.Info("QA_INFRA_MODULE is not set, defaulting to 'aws'")
+		env.QAInfraProvider = defaultQAInfraModule
 	}
-	if !isSupported(env.QAInfraModule, supportedQAinfraModules) {
+	if !isSupported(env.QAInfraProvider, supportedQAinfraModules) {
 		log.Errorf("unsupported module: %s; %v\n", env.Module, supportedQAinfraModules)
 		os.Exit(1)
 	}
 
-	if env.InfraProvider == "" {
-		env.InfraProvider = DefaultInfraProvider
+	if env.ProvisionerModule == "" {
+		env.ProvisionerModule = DefaultInfraProvider
 	}
-	if !isSupported(env.InfraProvider, supportedProviders) {
-		log.Errorf("unsupported infra provider: %s;\nsupported providers are: %v\n", env.InfraProvider, supportedProviders)
+	if !isSupported(env.ProvisionerModule, supportedProviders) {
+		log.Errorf("unsupported infra provider: %s;\nsupported providers are: %v\n",
+			env.ProvisionerModule, supportedProviders)
 		os.Exit(1)
 	}
 
-	// tfvars is required for legacy provider, optional for qa-infra provider.
-	if env.InfraProvider == DefaultInfraProvider {
+	// tfvars is required for legacy provider, optional for qainfra provider.
+	if env.ProvisionerModule == DefaultInfraProvider {
 		if env.TFVars == "" || !isSupported(env.TFVars, supportedLegacyTFVars) {
 			log.Errorf("tfvars is required for legacy provider and must be one of %v, got: %s\n",
 				supportedLegacyTFVars, env.TFVars)
@@ -129,48 +159,55 @@ func validateInitVars(env *Env) {
 		}
 	}
 
-	if env.InfraProvider == "qa-infra" {
+	validateQainfraVars(env)
+}
+
+func validateQainfraVars(env *Env) {
+	if env.ProvisionerModule == "qainfra" {
 		user := env.SSHUser
 		keyPath := env.SSHKeyPath
 		resourceUsageName := env.ResourceName
 
 		if user == "" {
-			log.Errorf("ssh user is required for %s provider\n", env.InfraProvider)
+			log.Errorf("ssh user is required for %s provider\n", env.ProvisionerModule)
 			os.Exit(1)
 		}
 
 		if keyPath == "" {
-			log.Errorf("ssh key path is required for %s provider\n", env.InfraProvider)
+			log.Errorf("ssh key path is required for %s provider\n", env.ProvisionerModule)
 			os.Exit(1)
 		}
 
 		if resourceUsageName == "" {
-			log.Errorf("resource name is required for %s provider\n", env.InfraProvider)
+			log.Errorf("resource name is required for %s provider\n", env.ProvisionerModule)
 			os.Exit(1)
 		}
 
+		if env.NodeOS == "" {
+			log.Errorf("node os is required for %s provider\n", env.ProvisionerModule)
+			os.Exit(1)
+		}
 	}
-
 }
 
-func normalize(env *Env) {
+func normalizeInitVars(env *Env) {
 	env.Product = strings.ToLower(strings.TrimSpace(env.Product))
 	env.Module = strings.ToLower(strings.TrimSpace(env.Module))
 	env.TFVars = strings.ToLower(strings.TrimSpace(env.TFVars))
-	env.InfraProvider = strings.ToLower(strings.TrimSpace(env.InfraProvider))
-	env.QAInfraModule = strings.ToLower(strings.TrimSpace(env.QAInfraModule))
+	env.ProvisionerModule = strings.ToLower(strings.TrimSpace(env.ProvisionerModule))
+	env.QAInfraProvider = strings.ToLower(strings.TrimSpace(env.QAInfraProvider))
 	env.SSHUser = strings.TrimSpace(env.SSHUser)
 	env.SSHKeyPath = strings.TrimSpace(env.SSHKeyPath)
+	if env.ServerFlags != "" {
+		env.ServerFlags = strings.ToLower(strings.TrimSpace(env.ServerFlags))
+	}
+	if env.WorkerFlags != "" {
+		env.WorkerFlags = strings.ToLower(strings.TrimSpace(env.WorkerFlags))
+	}
 }
 
 func isSupported(s string, list []string) bool {
-	for _, value := range list {
-		if s == value {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(list, s)
 }
 
 func setEnv(fullPath string) error {

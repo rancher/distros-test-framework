@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -22,7 +23,7 @@ const (
 	errNotMounted    = " not mounted"
 )
 
-func TestKillAllUninstall(cluster *resources.Cluster, cfg *config.Env) {
+func TestKillAllUninstall(cluster *driver.Cluster, cfg *config.Env) {
 	productDataDir := "/var/lib/rancher/" + cluster.Config.Product
 
 	exportToIPs := []string{cluster.ServerIPs[0]}
@@ -97,14 +98,17 @@ func exportBinDirs(ip string, binaries ...string) error {
 	return nil
 }
 
-func scpTestScripts(cluster *resources.Cluster) {
+func scpTestScripts(cluster *driver.Cluster) {
 	killAllLocalPath := resources.BasePath() + "/scripts/kill-all_test.sh"
 	killAllRemotePath := "/var/tmp/kill-all_test.sh"
 	scpErr := resources.RunScp(cluster, cluster.ServerIPs[0], []string{killAllLocalPath}, []string{killAllRemotePath})
 	Expect(scpErr).NotTo(HaveOccurred(), "failed to scp kill all test script to server")
 
 	if len(cluster.AgentIPs) > 0 {
-		scpAgentErr := resources.RunScp(cluster, cluster.AgentIPs[0], []string{killAllLocalPath}, []string{killAllRemotePath})
+		scpAgentErr := resources.RunScp(
+			cluster, cluster.AgentIPs[0],
+			[]string{killAllLocalPath},
+			[]string{killAllRemotePath})
 		Expect(scpAgentErr).NotTo(HaveOccurred(), "failed to scp kill all test script to agent")
 	}
 
@@ -129,7 +133,7 @@ func scpTestScripts(cluster *resources.Cluster) {
 	}
 }
 
-func mountBindDataDir(cluster *resources.Cluster, productDataDir string) {
+func mountBindDataDir(cluster *driver.Cluster, productDataDir string) {
 	err := resources.MountBind([]string{cluster.ServerIPs[0]}, productDataDir+"/server", productDataDir+"/server")
 	if err != nil {
 		if strings.Contains(err.Error(), " mount point does not exist") {
@@ -151,7 +155,7 @@ func mountBindDataDir(cluster *resources.Cluster, productDataDir string) {
 	}
 }
 
-func umountDataDir(cluster *resources.Cluster, productDataDir string) {
+func umountDataDir(cluster *driver.Cluster, productDataDir string) {
 	err := umountAllProductDir(productDataDir, cluster.ServerIPs[0], "server")
 	Expect(err).NotTo(HaveOccurred(), "failed to umount %s on server node %s",
 		productDataDir, cluster.ServerIPs[0])
@@ -314,7 +318,7 @@ func isExpectedMountError(err error, path, nodeIP string) bool {
 	return true
 }
 
-func killAllValidations(cluster *resources.Cluster, mount string, agent bool) {
+func killAllValidations(cluster *driver.Cluster, mount string, agent bool) {
 	killAllErr := resources.ManageProductCleanup(cluster.Config.Product, "server", cluster.ServerIPs[0], "killall")
 	Expect(killAllErr).NotTo(HaveOccurred(), "failed to run killall for product: %v server", cluster.Config.Product)
 
@@ -349,7 +353,7 @@ func killAllValidations(cluster *resources.Cluster, mount string, agent bool) {
 	resources.LogLevel("info", "kill all test script went through successfully with mount: %s", mount)
 }
 
-func uninstallValidations(cluster *resources.Cluster, agent bool) {
+func uninstallValidations(cluster *driver.Cluster, agent bool) {
 	uninstalErr := resources.ManageProductCleanup(cluster.Config.Product, "server", cluster.ServerIPs[0], "uninstall")
 	Expect(uninstalErr).NotTo(HaveOccurred(), "failed to run uninstall for product: %v server", cluster.Config.Product)
 
@@ -387,7 +391,7 @@ func uninstallValidations(cluster *resources.Cluster, agent bool) {
 }
 
 // reInstallServerProduct reinstalls the product on the first server node only.
-func reInstallServerProduct(cluster *resources.Cluster, cfg *config.Env) {
+func reInstallServerProduct(cluster *driver.Cluster, cfg *config.Env) {
 	installErr := resources.InstallProduct(cluster, cluster.ServerIPs[0], cfg.InstallVersion)
 	Expect(installErr).NotTo(HaveOccurred(), "failed to install product: %v", installErr)
 
@@ -395,7 +399,7 @@ func reInstallServerProduct(cluster *resources.Cluster, cfg *config.Env) {
 	Expect(enableErr).NotTo(HaveOccurred(), "failed to enable and start service: %v", enableErr)
 }
 
-func createFakeRemoteFs(cluster *resources.Cluster) {
+func createFakeRemoteFs(cluster *driver.Cluster) {
 	// create and export a variable RUN_TEST_FILE_REMOVAL_SAFETY="true" to test the safety removal of files
 	serverIp := cluster.ServerIPs[0]
 	exportErr := resources.ExportEnvProfileNode(

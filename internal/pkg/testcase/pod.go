@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
@@ -18,7 +19,7 @@ var (
 
 // TestPodStatus test the status of the pods in the cluster using custom assert functions.
 func TestPodStatus(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
@@ -46,7 +47,7 @@ func TestPodStatus(
 
 // TestPodStatusUsingBastion test the status of the pods in the private cluster using custom assert functions.
 func TestPodStatusUsingBastion(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	podAssertRestarts,
 	podAssertReady assert.PodAssertFunc,
 ) {
@@ -63,7 +64,7 @@ func TestPodStatusUsingBastion(
 }
 
 func processPodStatus(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	g Gomega,
 	pod *resources.Pod,
 	podAssertRestarts, podAssertReady assert.PodAssertFunc,

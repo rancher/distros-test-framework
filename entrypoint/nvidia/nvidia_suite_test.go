@@ -5,16 +5,20 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rancher/distros-test-framework/pkg/customflag"
-	"github.com/rancher/distros-test-framework/shared"
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/provisioning"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/provisioning/legacy"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var (
-	cluster       *shared.Cluster
+	cluster       *driver.Cluster
+	infraConfig   *driver.InfraConfig
 	cfg           *config.Env
 	err           error
 	nvidiaVersion string
@@ -27,18 +31,11 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddEnv()
 	if err != nil {
-		shared.LogLevel("error", "error adding env vars: %w\n", err)
+		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
 
-	kubeconfig := os.Getenv("KUBE_CONFIG")
-	if kubeconfig == "" {
-		// gets a cluster from terraform.
-		cluster = shared.ClusterConfig(cfg.Product, cfg.Module)
-	} else {
-		// gets a cluster from kubeconfig.
-		cluster = shared.KubeConfigCluster(kubeconfig)
-	}
+	setupClusterInfra()
 
 	os.Exit(m.Run())
 }
@@ -48,9 +45,55 @@ func TestNvidiaSuite(t *testing.T) {
 	RunSpecs(t, "Nvidia Test Suite")
 }
 
+func setupClusterInfra() {
+	kubeconfig := os.Getenv("KUBE_CONFIG")
+	if kubeconfig != "" {
+		// gets a cluster from existing kubeconfig.
+		cluster = legacy.KubeConfigCluster(kubeconfig)
+		resources.LogLevel("info", "Using existing cluster from kubeconfig")
+
+		return
+	}
+
+	// initial data load needed for provisioning comming from config env vars.
+	infraConfig = &driver.InfraConfig{
+		Product:           cfg.Product,
+		Module:            cfg.Module,
+		ResourceName:      cfg.ResourceName,
+		ProvisionerModule: cfg.ProvisionerModule,
+		ProvisionerType:   cfg.ProvisionerType,
+		InstallVersion:    cfg.InstallVersion,
+		QAInfraProvider:   cfg.QAInfraProvider,
+		NodeOS:            cfg.NodeOS,
+		CNI:               cfg.CNI,
+		Cluster: &driver.Cluster{
+			Config: driver.Config{
+				Arch:        cfg.Arch,
+				ServerFlags: cfg.ServerFlags,
+				WorkerFlags: cfg.WorkerFlags,
+				Channel:     cfg.Channel,
+			},
+			SSH: driver.SSHConfig{
+				User:        cfg.SSHUser,
+				PrivKeyPath: cfg.SSHKeyPath,
+				KeyName:     cfg.SSHKeyName,
+			},
+		},
+	}
+
+	cluster, err = provisioning.ProvisionInfrastructure(infraConfig)
+	if err != nil {
+		resources.LogLevel("error", "error provisioning infrastructure: %w\n", err)
+		os.Exit(1)
+	}
+
+	resources.LogLevel("info", "Cluster provisioned successfully with %+v", cluster)
+}
+
 var _ = AfterSuite(func() {
 	if customflag.ServiceFlag.Destroy {
-		status, err := shared.DestroyInfrastructure(cfg.Product, cfg.Module)
+		status, err := provisioning.DestroyInfrastructure(
+			infraConfig.ProvisionerModule, infraConfig.Product, infraConfig.Module)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
 	}

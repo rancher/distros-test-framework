@@ -10,14 +10,14 @@ import (
 
 	"github.com/avast/retry-go"
 
-	"github.com/rancher/distros-test-framework/internal/resources"
-
 	. "github.com/onsi/gomega"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 var nodeOs string
 
-func TestNvidiaGPUFunctionality(cluster *resources.Cluster, nvidiaVersion string) {
+func TestNvidiaGPUFunctionality(cluster *driver.Cluster, nvidiaVersion string) {
 	// for now we are only testing integration with the first server in the cluster.
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
@@ -188,7 +188,7 @@ func validateNvidiaVersion(ip string) {
 	versionCmd := "sudo cat /proc/driver/nvidia/version"
 
 	// TODO: restore CmdNodeRetryCfg
-	// cfg := shared.CmdNodeRetryCfg()
+	// cfg := resources.CmdNodeRetryCfg()
 	cfg := resources.RetryCfg{
 		Attempts:                20,
 		Delay:                   10 * time.Second,
@@ -317,7 +317,7 @@ func validateNvidiaModule(ip string) error {
 	}
 
 	// TODO: restore CmdNodeRetryCfg
-	// cfg := shared.CmdNodeRetryCfg()
+	// cfg := resources.CmdNodeRetryCfg()
 	cfg := resources.RetryCfg{
 		Attempts:                20,
 		Delay:                   10 * time.Second,

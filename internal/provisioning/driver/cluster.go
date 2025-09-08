@@ -1,6 +1,5 @@
-package contract
+package driver
 
-// Cluster represents a Kubernetes cluster with all its configuration and state
 type Cluster struct {
 	Status       string
 	ServerIPs    []string
@@ -19,7 +18,7 @@ type Cluster struct {
 	SSH          SSHConfig
 }
 
-// AwsConfig holds AWS-specific configuration
+// AwsConfig holds AWS-specific configuration.
 type AwsConfig struct {
 	AccessKeyID      string
 	SecretAccessKey  string
@@ -31,28 +30,27 @@ type AwsConfig struct {
 	EC2
 }
 
-// SSHConfig holds SSH connection configuration
+// SSHConfig holds SSH connection configuration.
 type SSHConfig struct {
-	KeyPath string
-	PubKey  string
-	PrivKey string
-	KeyName string
-	User    string
+	PrivKeyPath string
+	PubKeyPath  string
+	User        string
+	KeyName     string
 }
 
-// EC2 holds EC2-specific configuration
+// EC2 holds EC2-specific configuration.
 type EC2 struct {
 	Ami           string
 	VolumeSize    string
 	VolumeType    string
 	InstanceClass string
-	KeyName       string
 }
 
-// Config holds cluster configuration
+// Config holds cluster configuration.
 type Config struct {
 	DataStore           string
 	Product             string
+	Module              string
 	Channel             string
 	InstallMethod       string
 	InstallMode         string
@@ -68,7 +66,7 @@ type Config struct {
 	SplitRoles          SplitRolesConfig
 }
 
-// SplitRolesConfig holds split roles configuration
+// SplitRolesConfig holds split roles configuration.
 type SplitRolesConfig struct {
 	Add                bool
 	NumServers         int
@@ -79,38 +77,13 @@ type SplitRolesConfig struct {
 	EtcdWorker         int
 }
 
-// TestConfig holds test-specific configuration
+// TestConfig holds test-specific configuration.
 type TestConfig struct {
 	Tag string
 }
 
-// BastionConfig holds bastion host configuration
+// BastionConfig holds bastion host configuration.
 type BastionConfig struct {
 	PublicIPv4Addr string
 	PublicDNS      string
-}
-
-// Node represents a cluster node
-type Node struct {
-	Name              string
-	Status            string
-	Roles             string
-	Version           string
-	InternalIP        string
-	ExternalIP        string
-	OperationalSystem string
-}
-
-// Pod represents a Kubernetes pod
-type Pod struct {
-	NameSpace      string
-	Name           string
-	Ready          string
-	Status         string
-	Restarts       string
-	Age            string
-	IP             string
-	Node           string
-	NominatedNode  string
-	ReadinessGates string
 }

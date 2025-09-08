@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestCertRotate(cluster *resources.Cluster) {
+func TestCertRotate(cluster *driver.Cluster) {
 	ms := resources.NewManageService(5, 5)
 	certRotate(ms, cluster.Config.Product, cluster.ServerIPs)
 

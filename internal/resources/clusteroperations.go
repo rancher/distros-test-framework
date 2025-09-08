@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 // KubectlCommand return results from various commands, it receives an "action" , source and args.
@@ -17,7 +19,7 @@ import (
 // source = pods, node , exec, service ...
 //
 // args   = the rest of your command arguments.
-func KubectlCommand(cluster *Cluster, destination, action, source string, args ...string) (string, error) {
+func KubectlCommand(cluster *driver.Cluster, destination, action, source string, args ...string) (string, error) {
 	shortCmd := map[string]string{
 		"get":      "kubectl get",
 		"describe": "kubectl describe",
@@ -52,6 +54,31 @@ func KubectlCommand(cluster *Cluster, destination, action, source string, args .
 	default:
 		return "", ReturnLogError("invalid destination: %s", destination)
 	}
+}
+
+// ExtractServerIP extracts the server IP from the kubeconfig file.
+//
+// returns the server ip and the kubeconfigContent as plain string.
+func ExtractServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err error) {
+	if resourceName == "" {
+		return "", "", ReturnLogError("resource name not sent\n")
+	}
+
+	localPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
+	kubeconfigContent, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
+	}
+	// get server ip value from `server:` key.
+	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
+	// removing newline.
+	serverIP = strings.Split(serverIP, "\n")[0]
+	// removing the https://.
+	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
+	// removing the port.
+	serverIP = strings.Split(serverIP, ":")[0]
+
+	return serverIP, string(kubeconfigContent), nil
 }
 
 func kubectlCmdOnHost(cmd string) (string, error) {
@@ -244,7 +271,7 @@ func ExtractKubeImageVersion() string {
 
 // InstallProduct installs the product on the server node only.
 // TODO: add support for installing on all nodes with all necessary flags.
-func InstallProduct(cluster *Cluster, publicIP, version string) error {
+func InstallProduct(cluster *driver.Cluster, publicIP, version string) error {
 	err := setConfigFile(cluster, publicIP)
 	if err != nil {
 		return ReturnLogError("failed to set config file: %w", err)
@@ -268,7 +295,7 @@ func InstallProduct(cluster *Cluster, publicIP, version string) error {
 	return nil
 }
 
-func setConfigFile(cluster *Cluster, publicIP string) error {
+func setConfigFile(cluster *driver.Cluster, publicIP string) error {
 	serverFlags := os.Getenv("server_flags")
 	if serverFlags == "" {
 		serverFlags = "write-kubeconfig-mode: 644"

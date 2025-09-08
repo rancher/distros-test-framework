@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 type PodAssertFunc func(g Gomega, pod resources.Pod)
@@ -55,7 +56,7 @@ func checkReadyFields() types.GomegaMatcher {
 }
 
 // ValidatePodIPByLabel validates expected pod IP by label.
-func ValidatePodIPByLabel(c *resources.Cluster, labels, expected []string) {
+func ValidatePodIPByLabel(c *driver.Cluster, labels, expected []string) {
 	Eventually(func() error {
 		for i, label := range labels {
 			if len(labels) > 0 {

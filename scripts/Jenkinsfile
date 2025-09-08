@@ -9,24 +9,24 @@ node {
 
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
-  def envFile = '.env'
-  def qaseEnvFile = '.qase.env'
-  def branch = 'main'
-  if (env.BRANCH && env.BRANCH != 'null') {
+  def envFile = ".env"
+  def qaseEnvFile = ".qase.env"
+  def branch = "main"
+  if (env.BRANCH && env.BRANCH != "null") {
     branch = env.BRANCH
   }
 
   def repo = scm.userRemoteConfigs
-  if (env.REPO && env.REPO != 'null') {
+  if (env.REPO && env.REPO != "null") {
     repo = [[url: env.REPO]]
   }
-  def timeout = '60m'
-  if (env.TIMEOUT && env.TIMEOUT != 'null') {
+  def timeout = "60m"
+  if (env.TIMEOUT && env.TIMEOUT != "null") {
     timeout = env.TIMEOUT
   }
 
-  def module = ''
-  if (env.MODULE && env.MODULE != 'null') {
+  def module = ""
+  if (env.MODULE && env.MODULE != "null") {
     module = env.MODULE
   }
 
@@ -74,9 +74,7 @@ node {
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
                   "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
-                   "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n" +
-                   "PROVISIONER=${env.PROVISIONER ?: 'legacy'}\nAWS_SSH_USER=${env.AWS_SSH_USER ?: 'ec2-user'}\n" +
-                   'SSH_KEY_PATH=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\n'
+                   "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
 
@@ -107,7 +105,7 @@ node {
                     sh """
                     docker run --name ${testContainer} -t \
                         --env-file ${envFile} \
-                        --env-file ./shared/config/.env \
+                        --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
                         ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \

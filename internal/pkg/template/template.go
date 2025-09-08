@@ -3,14 +3,14 @@ package template
 import (
 	"strings"
 
+	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/k8s"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
-
-	. "github.com/onsi/gomega"
 )
 
-func Template(template TestTemplate) {
+func Template(cluster *driver.Cluster, template TestTemplate) {
 	if customflag.ServiceFlag.TestTemplateConfig.WorkloadName != "" &&
 		strings.HasSuffix(customflag.ServiceFlag.TestTemplateConfig.WorkloadName, ".yaml") {
 		err := resources.ManageWorkload(
@@ -27,7 +27,7 @@ func Template(template TestTemplate) {
 	Expect(err).NotTo(HaveOccurred(), "error adding k8s: %w", err)
 
 	if template.InstallMode != "" {
-		upgErr := upgradeVersion(template, k8sClient, template.InstallMode)
+		upgErr := upgradeVersion(cluster, template, k8sClient, template.InstallMode)
 		Expect(upgErr).NotTo(HaveOccurred(), "error upgrading version: %w", upgErr)
 
 		err = executeTestCombination(template)

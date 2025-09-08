@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 // Product returns the distro product and its current version.
@@ -83,7 +84,7 @@ func SecretEncryptOps(action, ip, product string) (string, error) {
 	return secretsEncryptStdOut, nil
 }
 
-func GetInstallCmd(cluster *Cluster, installType, nodeType string) string {
+func GetInstallCmd(cluster *driver.Cluster, installType, nodeType string) string {
 	var installFlag string
 	var installCmd string
 

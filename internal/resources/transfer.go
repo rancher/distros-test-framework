@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/distros-test-framework/internal/logging"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 // RunScp copies files from local to remote host based on a list of local and remote paths.
-func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
+func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) error {
 	if ip == "" {
 		return ReturnLogError("ip is needed.\n")
 	}

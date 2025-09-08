@@ -7,10 +7,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 
-	"github.com/rancher/distros-test-framework/pkg/assert"
-	. "github.com/rancher/distros-test-framework/pkg/customflag"
-	. "github.com/rancher/distros-test-framework/pkg/template"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
+	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	. "github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	. "github.com/rancher/distros-test-framework/internal/pkg/template"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
 )
 
 const (
@@ -38,7 +38,7 @@ var _ = Describe("Cilium Version bump:", func() {
 	})
 
 	It("Test Bump version", func() {
-		Template(TestTemplate{
+		Template(cluster, TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{

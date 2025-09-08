@@ -302,7 +302,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 		InstanceType: aws.String(c.infra.Aws.EC2.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(c.infra.Aws.EC2.KeyName),
+		KeyName:      aws.String(c.infra.SSH.KeyName),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),

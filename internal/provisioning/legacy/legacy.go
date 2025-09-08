@@ -9,18 +9,18 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 
-	"github.com/rancher/distros-test-framework/internal/provisioning"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-// Provision provisions infrastructure using the legacy terraform approach
-func Provision(product, module string) (*provisioning.Cluster, error) {
-	return ClusterConfig(product, module), nil
+// Provision set infrastructure using the legacy terraform approach.
+func (p *Provisioner) provision(product, module string) (*driver.Cluster, error) {
+	return p.clusterConfig(product, module), nil
 }
 
 // newCluster creates a new cluster and returns his values from terraform config and vars.
-func newCluster(product, module string) (*provisioning.Cluster, error) {
-	c := &provisioning.Cluster{}
+func (*Provisioner) newCluster(product, module string) (*driver.Cluster, error) {
+	c := &driver.Cluster{}
 	t := &testing.T{}
 
 	terraformOptions, varDir, err := setTerraformOptions(product, module)
@@ -76,13 +76,13 @@ func newCluster(product, module string) (*provisioning.Cluster, error) {
 }
 
 //nolint:funlen // yep, but this makes more clear being one function.
-func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster, error) {
+func addClusterFromKubeConfig(nodes []resources.Node) (*driver.Cluster, error) {
 	// if it is configureSSH() call then return the cluster with only aws key/user.
 	if nodes == nil {
-		return &provisioning.Cluster{
-			SSH: provisioning.SSHConfig{
-				KeyPath: os.Getenv("access_key"),
-				User:    os.Getenv("aws_user"),
+		return &driver.Cluster{
+			SSH: driver.SSHConfig{
+				PrivKeyPath: os.Getenv("access_key"),
+				User:        os.Getenv("aws_user"),
 			},
 		}, nil
 	}
@@ -97,29 +97,29 @@ func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster,
 
 	product := os.Getenv("ENV_PRODUCT")
 
-	return &provisioning.Cluster{
+	return &driver.Cluster{
 		Status:     "cluster created",
 		ServerIPs:  serverIPs,
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
-		SSH: provisioning.SSHConfig{
-			KeyPath: os.Getenv("access_key"),
-			User:    os.Getenv("aws_user"),
+		SSH: driver.SSHConfig{
+			PrivKeyPath: os.Getenv("access_key"),
+			User:        os.Getenv("aws_user"),
+			KeyName:     os.Getenv("key_name"),
 		},
-		Aws: provisioning.AwsConfig{
+		Aws: driver.AwsConfig{
 			Region:           os.Getenv("region"),
 			Subnets:          os.Getenv("subnets"),
 			SgId:             os.Getenv("sg_id"),
 			AvailabilityZone: os.Getenv("availability_zone"),
-			EC2: provisioning.EC2{
+			EC2: driver.EC2{
 				Ami:           os.Getenv("aws_ami"),
 				VolumeSize:    os.Getenv("volume_size"),
 				InstanceClass: os.Getenv("ec2_instance_class"),
-				KeyName:       os.Getenv("key_name"),
 			},
 		},
-		Config: provisioning.Config{
+		Config: driver.Config{
 			Product:             product,
 			Version:             getVersion(),
 			ServerFlags:         getFlags("server"),
@@ -134,7 +134,7 @@ func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster,
 			ExternalDbNodeType:  os.Getenv("instance_class"),
 			ExternalDbEndpoint:  os.Getenv("rendered_template"),
 			Arch:                os.Getenv("arch"),
-			SplitRoles: provisioning.SplitRolesConfig{
+			SplitRoles: driver.SplitRolesConfig{
 				Add: os.Getenv("split_roles") == "true",
 				NumServers: parseEnvInt("etcd_only_nodes", 0) +
 					parseEnvInt("etcd_cp_nodes", 0) +
@@ -148,7 +148,7 @@ func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster,
 				EtcdWorker:         parseEnvInt("etcd_worker_nodes", 0),
 			},
 		},
-		Bastion: provisioning.BastionConfig{
+		Bastion: driver.BastionConfig{
 			PublicIPv4Addr: os.Getenv("BASTION_IP"),
 			PublicDNS:      os.Getenv("bastion_dns"),
 		},
@@ -159,7 +159,7 @@ func addClusterFromKubeConfig(nodes []provisioning.Node) (*provisioning.Cluster,
 // TODO: aux functions for loading data while we dont standardize from one source of truth,
 //
 // this is being really messy and painful. remove after.
-func loadVersion(t *testing.T, c *provisioning.Cluster, varDir string) {
+func loadVersion(t *testing.T, c *driver.Cluster, varDir string) {
 	// defaults first always to get from env, because both local and jenkins we update this file
 	if install := os.Getenv("INSTALL_VERSION"); install != "" {
 		c.Config.Version = install
@@ -175,7 +175,7 @@ func loadVersion(t *testing.T, c *provisioning.Cluster, varDir string) {
 	}
 }
 
-func loadChannel(t *testing.T, c *provisioning.Cluster, varDir string) {
+func loadChannel(t *testing.T, c *driver.Cluster, varDir string) {
 	// defaults first always to get from env, because both local and jenkins we update this file
 	if envInstallChannel := os.Getenv("INSTALL_CHANNEL"); envInstallChannel != "" {
 		c.Config.Channel = envInstallChannel
@@ -266,7 +266,8 @@ func parseEnvInt(key string, defaultValue int) int {
 
 	return defaultValue
 }
-func loadTestConfig(tc *provisioning.TestConfig) error {
+
+func loadTestConfig(tc *driver.TestConfig) error {
 	// extracting test tag from environment variables.
 	// should pull from jenkins or local env.
 	// for now only dealing with test tag.
@@ -300,7 +301,7 @@ func loadTestConfig(tc *provisioning.TestConfig) error {
 	return nil
 }
 
-func addSplitRole(t *testing.T, sp *provisioning.SplitRolesConfig, varDir string, numServers int) (int, error) {
+func addSplitRole(t *testing.T, sp *driver.SplitRolesConfig, varDir string, numServers int) (int, error) {
 	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
 		t,
 		varDir,
@@ -355,10 +356,11 @@ func addSplitRole(t *testing.T, sp *provisioning.SplitRolesConfig, varDir string
 	return numServers, nil
 }
 
-func Destroy(product string, module string) (string, error) {
+func (*Provisioner) destroy(product, module string) (string, error) {
+	resources.LogLevel("info", "Start destroying legacy infrastructure for %s", product)
 	terraformOptions, _, err := setTerraformOptions(product, module)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error setting terraform options for destroying cluster resources: %w", err)
 	}
 	terraform.Destroy(&testing.T{}, terraformOptions)
 

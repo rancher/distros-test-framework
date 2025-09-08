@@ -8,6 +8,8 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/k8s"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -20,7 +22,7 @@ const (
 )
 
 // TestUpgradeClusterManual upgrades the cluster "manually".
-func TestUpgradeClusterManual(cluster *resources.Cluster, k8sClient *k8s.Client, version string) error {
+func TestUpgradeClusterManual(cluster *driver.Cluster, k8sClient *k8s.Client, version string) error {
 	resources.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {
@@ -69,7 +71,7 @@ func TestUpgradeClusterManual(cluster *resources.Cluster, k8sClient *k8s.Client,
 
 // nodeType can be server or agent.
 // installType can be version or commit.
-func runUpgradeCommand(cluster *resources.Cluster, nodeType, installType, ip string) error {
+func runUpgradeCommand(cluster *driver.Cluster, nodeType, installType, ip string) error {
 	upgradeCommand := resources.GetInstallCmd(cluster, installType, nodeType)
 	resources.LogLevel("info", "Upgrading %s %s: %s", ip, nodeType, upgradeCommand)
 
@@ -82,7 +84,7 @@ func runUpgradeCommand(cluster *resources.Cluster, nodeType, installType, ip str
 }
 
 // upgradeProduct upgrades a node server or agent type to the specified version.
-func upgradeProduct(awsClient *aws.Client, cluster *resources.Cluster, nodeType, installType, ip string) error {
+func upgradeProduct(awsClient *aws.Client, cluster *driver.Cluster, nodeType, installType, ip string) error {
 	nodeOS := cluster.NodeOS
 	product := cluster.Config.Product
 

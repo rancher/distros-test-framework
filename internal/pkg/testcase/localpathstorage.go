@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
@@ -11,7 +12,7 @@ import (
 
 var namespace = "local-path-storage"
 
-func TestLocalPathProvisionerStorage(cluster *resources.Cluster, applyWorkload, deleteWorkload bool) {
+func TestLocalPathProvisionerStorage(cluster *driver.Cluster, applyWorkload, deleteWorkload bool) {
 	createDir(cluster)
 
 	var workloadErr error
@@ -60,7 +61,7 @@ func TestLocalPathProvisionerStorage(cluster *resources.Cluster, applyWorkload, 
 	}
 }
 
-func readData(cluster *resources.Cluster) error {
+func readData(cluster *driver.Cluster) error {
 	deletePod := "kubectl delete -n local-path-storage  pod -l app=volume-test --kubeconfig="
 	err := assert.ValidateOnHost(deletePod+resources.KubeConfigFile, "deleted")
 	if err != nil {
@@ -79,7 +80,7 @@ func readData(cluster *resources.Cluster) error {
 	return nil
 }
 
-func createDir(cluster *resources.Cluster) {
+func createDir(cluster *driver.Cluster) {
 	resources.LogLevel("debug", "node OS: %s ", cluster.NodeOS)
 	if cluster.NodeOS == "slemicro" {
 		for _, ip := range append(cluster.ServerIPs, cluster.AgentIPs...) {
@@ -94,12 +95,12 @@ func createDir(cluster *resources.Cluster) {
 // 3. kubectl get pv,pvc,storageclass output
 // 4. sestatus output
 // 5. grep audit logs for denied calls and log the same.
-func logDebugData(cluster *resources.Cluster) {
+func logDebugData(cluster *driver.Cluster) {
 	// Pod log and describe pod output for 'helper-pod-create-pvc' pod
-	resources.FindPodAndLog("helper-pod-create-pvc", "kube-system")
+	resources.FindPodAndLog(cluster, "helper-pod-create-pvc", "kube-system")
 
 	// Pod Log and describe pod output with namespace: local-path-storage
-	resources.LogAllPodsForNamespace(namespace)
+	resources.LogAllPodsForNamespace(cluster, namespace)
 
 	// Log the kubectl get pv,pvc,storageclass
 	output, getErr := resources.KubectlCommand(cluster, "node", "get", "pv,pvc,storageclass", "-A")

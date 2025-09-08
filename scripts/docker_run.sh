@@ -6,11 +6,8 @@ trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 source ./config/.env
 
+TAG_NAME=${TAG_NAME:=distros-test}
 KEY_CONTAINER_PATH="/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
-
-if [ -z "${TAG_NAME}" ]; then
-    TAG_NAME="distros"
-fi
 
 # Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
@@ -18,11 +15,10 @@ test_run() {
   run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-    -e ACCESS_KEY_FILE="${KEY_CONTAINER_PATH}" \
-    --env-file ./shared/config/.env \
-    -v "${SSH_KEY_PATH}:${KEY_CONTAINER_PATH}" \
-    -v "${SSH_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
-    -v "${SSH_KEY_PATH}.pub:${KEY_CONTAINER_PATH}.pub:ro" \
+    -e SSH_USER="${SSH_USER}" \
+    --env-file ./config/.env \
+    -v "${SSH_LOCAL_KEY_PATH}:${KEY_CONTAINER_PATH}" \
+    -v "${SSH_LOCAL_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
     -v "${HOME}/.aws:/root/.aws:ro" \
     "acceptance-test-${TAG_NAME}")
 
@@ -53,10 +49,9 @@ test_run_new() {
     run=$(docker run -dt --name "acceptance-test-${FULL_IMG_NAME}" \
       -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
       -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-      -e ACCESS_KEY_FILE="${KEY_CONTAINER_PATH}" \
-      --env-file ./shared/config/.env \
-      -v "${SSH_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
-      -v "${SSH_KEY_PATH}.pub:${KEY_CONTAINER_PATH}.pub:ro" \
+      -e SSH_USER="${SSH_USER}" \
+      --env-file ./config/.env \
+      -v "${SSH_LOCAL_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
       -v "${HOME}/.aws:/root/.aws:ro" \
       "acceptance-test-${TAG_NAME}")
 
@@ -82,12 +77,11 @@ test_run_state() {
      fi
 
      if docker commit "${CONTAINER_ID}" teststate:latest; then
-         if docker run -dt --name "acceptance-test-${TEST_STATE}" --env-file ./shared/config/.env \
+         if docker run -dt --name "acceptance-test-${TEST_STATE}" --env-file ./config/.env \
              -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
              -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-             -e ACCESS_KEY_FILE="${KEY_CONTAINER_PATH}" \
-             -v "${SSH_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
-             -v "${SSH_KEY_PATH}.pub:${KEY_CONTAINER_PATH}.pub:ro" \
+             -e SSH_USER="${SSH_USER}" \
+             -v "${SSH_LOCAL_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
              -v "$(pwd)/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
              teststate:latest; then
              echo "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_STATE}\product: ${ENV_PRODUCT}\n\n"
@@ -123,10 +117,9 @@ test_run_updates() {
         run=$(docker run -dt --name "acceptance-test-${NEW_IMG_NAME}" \
             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
-            -e ACCESS_KEY_FILE="${KEY_CONTAINER_PATH}" \
-            --env-file ./shared/config/.env \
-            -v "${SSH_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
-            -v "${SSH_KEY_PATH}.pub:${KEY_CONTAINER_PATH}.pub:ro" \
+            -e SSH_USER="${SSH_USER}" \
+            --env-file ./config/.env \
+            -v "${SSH_LOCAL_KEY_PATH}:${KEY_CONTAINER_PATH}:ro" \
             -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
             -v "${PWD}/tmp/infrastructure/:/go/src/github.com/rancher/distros-test-framework/infrastructure/" \
             -v "${PWD}/tmp/:/tmp" \

@@ -3,9 +3,9 @@ package ipv6only
 import (
 	"fmt"
 
-	"github.com/rancher/distros-test-framework/pkg/assert"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
-	"github.com/rancher/distros-test-framework/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
 
 	. "github.com/onsi/ginkgo/v2"
 )

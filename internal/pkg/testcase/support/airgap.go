@@ -11,6 +11,8 @@ import (
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+
 	. "github.com/onsi/gomega"
 )
 
@@ -20,7 +22,7 @@ const (
 	Tarball               = "tarball"
 )
 
-func BuildAirgapCluster(cluster *resources.Cluster) {
+func BuildAirgapCluster(cluster *driver.Cluster) {
 	Expect(cluster.Status).To(Equal("cluster created"))
 	Expect(cluster.ServerIPs).ShouldNot(BeEmpty())
 
@@ -37,7 +39,7 @@ func BuildAirgapCluster(cluster *resources.Cluster) {
 	}
 }
 
-func InstallOnAirgapServers(cluster *resources.Cluster, airgapMethod string) {
+func InstallOnAirgapServers(cluster *driver.Cluster, airgapMethod string) {
 	if airgapMethod == SystemDefaultRegistry && !strings.Contains(cluster.Config.ServerFlags, "system-default-registry") {
 		cluster.Config.ServerFlags += "\nsystem-default-registry: " + cluster.Bastion.PublicDNS
 	}
@@ -80,7 +82,7 @@ func InstallOnAirgapServers(cluster *resources.Cluster, airgapMethod string) {
 	resources.LogLevel("info", "Process kubeconfig: Complete!")
 }
 
-func InstallOnAirgapAgents(cluster *resources.Cluster, airgapMethod string) {
+func InstallOnAirgapAgents(cluster *driver.Cluster, airgapMethod string) {
 	if cluster.Config.Product == "rke2" {
 		if airgapMethod == SystemDefaultRegistry &&
 			!strings.Contains(cluster.Config.WorkerFlags, "system-default-registry") {
@@ -100,7 +102,7 @@ func InstallOnAirgapAgents(cluster *resources.Cluster, airgapMethod string) {
 }
 
 // SetupAirgapRegistry sets bastion node for airgap registry.
-func SetupAirgapRegistry(cluster *resources.Cluster, flags *customflag.FlagConfig, airgapMethod string) (err error) {
+func SetupAirgapRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig, airgapMethod string) (err error) {
 	resources.LogLevel("info", "Downloading %v artifacts...", cluster.Config.Product)
 	_, err = GetArtifacts(cluster, "linux", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	if err != nil {
@@ -134,7 +136,7 @@ func SetupAirgapRegistry(cluster *resources.Cluster, flags *customflag.FlagConfi
 }
 
 // privateRegistry executes private_registry.sh script.
-func privateRegistry(cluster *resources.Cluster, flags *customflag.FlagConfig) (err error) {
+func privateRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod +x private_registry.sh && "+
 			`sudo ./private_registry.sh "%v" "%v" "%v"`,
@@ -149,7 +151,7 @@ func privateRegistry(cluster *resources.Cluster, flags *customflag.FlagConfig) (
 }
 
 // systemDefaultRegistry executes system_default_registry.sh script.
-func systemDefaultRegistry(cluster *resources.Cluster) (err error) {
+func systemDefaultRegistry(cluster *driver.Cluster) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod +x system_default_registry.sh && "+
 			`sudo ./system_default_registry.sh "%v"`,
@@ -160,7 +162,7 @@ func systemDefaultRegistry(cluster *resources.Cluster) (err error) {
 }
 
 // podmanCmds executes podman_cmds.sh script.
-func podmanCmds(cluster *resources.Cluster, platform string, flags *customflag.FlagConfig) (err error) {
+func podmanCmds(cluster *driver.Cluster, platform string, flags *customflag.FlagConfig) (err error) {
 	cmd := "sudo chmod +x podman_cmds.sh && " +
 		fmt.Sprintf(`sudo ./podman_cmds.sh "%v" "%v" "%v" "%v" "%v" "%v"`,
 			cluster.Config.Product, platform, cluster.Bastion.PublicDNS,
@@ -172,7 +174,7 @@ func podmanCmds(cluster *resources.Cluster, platform string, flags *customflag.F
 }
 
 // CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *resources.Cluster, airgapMethod string, tarballType *string) (err error) {
+func CopyAssetsOnNodes(cluster *driver.Cluster, airgapMethod string, tarballType *string) (err error) {
 	nodeIPs := cluster.ServerIPs
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 	errChan := make(chan error, len(nodeIPs))
@@ -228,7 +230,7 @@ func CopyAssetsOnNodes(cluster *resources.Cluster, airgapMethod string, tarballT
 	return nil
 }
 
-func copyTarball(cluster *resources.Cluster, tarballType, ip string) (err error) {
+func copyTarball(cluster *driver.Cluster, tarballType, ip string) (err error) {
 	imgDir := "/var/lib/rancher/" + cluster.Config.Product + "/agent/images"
 	cmd := "sudo mkdir -p " + imgDir + "; "
 	if cluster.Config.Product == "rke2" {
@@ -242,7 +244,7 @@ func copyTarball(cluster *resources.Cluster, tarballType, ip string) (err error)
 }
 
 // trustCert copied certs from bastion and updates ca certs.
-func trustCert(cluster *resources.Cluster, ip string) (err error) {
+func trustCert(cluster *driver.Cluster, ip string) (err error) {
 	// TODO: Implement for rhel, sles
 	cmd := "sudo cp domain.crt /usr/local/share/ca-certificates/domain.crt && " +
 		"sudo update-ca-certificates"
@@ -252,7 +254,7 @@ func trustCert(cluster *resources.Cluster, ip string) (err error) {
 }
 
 // copyAssets copies assets from bastion to private node.
-func copyAssets(cluster *resources.Cluster, airgapMethod, ip string) (err error) {
+func copyAssets(cluster *driver.Cluster, airgapMethod, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
@@ -288,7 +290,7 @@ func copyAssets(cluster *resources.Cluster, airgapMethod, ip string) (err error)
 }
 
 // copyRegistry copies registries.yaml from bastion on to private node.
-func copyRegistry(cluster *resources.Cluster, ip string) (err error) {
+func copyRegistry(cluster *driver.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries.yaml %v@%v:~/",
 		ShCmdPrefix("scp", cluster.SSH.KeyName),
@@ -308,7 +310,7 @@ func copyRegistry(cluster *resources.Cluster, ip string) (err error) {
 }
 
 // CmdForPrivateNode command to run on private node via bastion.
-func CmdForPrivateNode(cluster *resources.Cluster, cmd, ip string) (res string, err error) {
+func CmdForPrivateNode(cluster *driver.Cluster, cmd, ip string) (res string, err error) {
 	awsUser := cluster.SSH.User
 	if HasWindowsAgent(cluster) {
 		if slices.Contains(cluster.WinAgentIPs, ip) {
@@ -331,7 +333,7 @@ func CmdForPrivateNode(cluster *resources.Cluster, cmd, ip string) (res string, 
 }
 
 // GetArtifacts executes get_artifacts.sh script.
-func GetArtifacts(cluster *resources.Cluster, platform, registryURL, tarballType string) (res string, err error) {
+func GetArtifacts(cluster *driver.Cluster, platform, registryURL, tarballType string) (res string, err error) {
 	version := cluster.Config.Version
 	if platform == "" {
 		platform = "linux"
@@ -351,7 +353,7 @@ func GetArtifacts(cluster *resources.Cluster, platform, registryURL, tarballType
 }
 
 // makeExecutable gives necessary permission to files through chmod.
-func makeExecutable(cluster *resources.Cluster, ip string) (err error) {
+func makeExecutable(cluster *driver.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf("sudo chmod +x %v-install.sh", cluster.Config.Product)
 	if cluster.Config.Product == "k3s" {
 		cmd += "; sudo cp k3s /usr/local/bin/k3s; " +
@@ -363,7 +365,7 @@ func makeExecutable(cluster *resources.Cluster, ip string) (err error) {
 }
 
 // UpdateRegistryFile updates registries.yaml file and copies to bastion node.
-func UpdateRegistryFile(cluster *resources.Cluster, flags *customflag.FlagConfig) (err error) {
+func UpdateRegistryFile(cluster *driver.Cluster, flags *customflag.FlagConfig) (err error) {
 	pwd, err := resources.RunCommandOnNode("pwd", cluster.Bastion.PublicIPv4Addr)
 	if err != nil {
 		return fmt.Errorf("error running pwd command: %w", err)
@@ -397,7 +399,7 @@ func UpdateRegistryFile(cluster *resources.Cluster, flags *customflag.FlagConfig
 	return nil
 }
 
-func processKubeconfigOnBastion(cluster *resources.Cluster) (err error) {
+func processKubeconfigOnBastion(cluster *driver.Cluster) (err error) {
 	var localNodeIP string
 	kcFileName := cluster.Config.Product + "_kubeconf.yaml"
 	serverIP := cluster.ServerIPs[0]
@@ -428,7 +430,7 @@ func processKubeconfigOnBastion(cluster *resources.Cluster) (err error) {
 }
 
 // LogClusterInfoUsingBastion executes and prints kubectl get nodes,pods on bastion.
-func LogClusterInfoUsingBastion(cluster *resources.Cluster) {
+func LogClusterInfoUsingBastion(cluster *driver.Cluster) {
 	resources.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
 		cluster.SSH.KeyName, cluster.SSH.User,
 		cluster.Bastion.PublicIPv4Addr)

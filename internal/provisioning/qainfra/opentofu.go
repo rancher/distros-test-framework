@@ -1,273 +1,228 @@
 package qainfra
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-type OpenTofuState struct {
-	Values struct {
-		RootModule struct {
-			ChildModules []struct {
-				Resources []struct {
-					Type   string                 `json:"type"`
-					Values map[string]interface{} `json:"values"`
-				} `json:"resources"`
-			} `json:"child_modules"`
-		} `json:"root_module"`
-	} `json:"values"`
-}
+// executeOpenTofuOperations runs OpenTofu init, workspace, and apply operations.
+func executeOpenTofuOperations(config *driver.InfraConfig) error {
+	resources.LogLevel("info", "Starting OpenTofu operations in %s", config.InfraProvisioner.TFNodeSource)
 
-type OpenTofuOutputs struct {
-	KubeAPIHost string
-	FQDN        string
-}
-
-// executeOpenTofuOperations runs OpenTofu init, workspace, and apply operations
-func executeOpenTofuOperations(config *InfraProvisionerConfig) error {
-	resources.LogLevel("info", "Provisioning infrastructure with qa-infra remote modules...")
-
-	// Initialize OpenTofu
-	if err := runCmdWithTimeout(config.NodeSource, 5*time.Minute, "tofu", "init"); err != nil {
-		return fmt.Errorf("tofu init failed: %w", err)
+	if runTimeoutErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 5*time.Minute,
+		"tofu", "init"); runTimeoutErr != nil {
+		return fmt.Errorf("tofu init failed: %w", runTimeoutErr)
 	}
 
-	// Create and select workspace
-	_ = runCmd(config.NodeSource, "tofu", "workspace", "new", config.Workspace) // Ignore error if exists
-	if err := runCmd(config.NodeSource, "tofu", "workspace", "select", config.Workspace); err != nil {
-		return fmt.Errorf("tofu workspace select failed: %w", err)
+	runErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 2*time.Minute,
+		"tofu", "workspace", "new", config.InfraProvisioner.Workspace)
+	if runErr != nil {
+		return fmt.Errorf("tofu workspace new failed: %w", runErr)
 	}
 
-	// Apply configuration
-	tofuArgs := buildTofuApplyArgs(config)
-	if err := runCmdWithTimeout(config.NodeSource, 15*time.Minute, "tofu", tofuArgs...); err != nil {
-		return fmt.Errorf("tofu apply failed: %w", err)
+	runErr = runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 2*time.Minute,
+		"tofu", "workspace", "select", config.InfraProvisioner.Workspace)
+	if runErr != nil {
+		return fmt.Errorf("tofu workspace select failed: %w", runErr)
 	}
 
-	resources.LogLevel("debug", "Completed OpenTofu operations")
+	args := []string{"apply", "-auto-approve", "-var-file=" + config.InfraProvisioner.TFVarsPath}
+	if runTimeoutErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 15*time.Minute,
+		"tofu", args...); runTimeoutErr != nil {
+		return fmt.Errorf("tofu apply failed: %w", runTimeoutErr)
+	}
+
+	resources.LogLevel("debug", "Completed OpenTofu operations: init, workspace new, workspace select, apply with args: %v",
+		args)
 
 	return nil
 }
 
-// buildTofuApplyArgs builds arguments for tofu apply command
-func buildTofuApplyArgs(config *InfraProvisionerConfig) []string {
-	args := []string{"apply", "-auto-approve", "-var-file=" + config.TFVarsPath}
-
-	// Add public SSH key if available
-	if akf := strings.TrimSpace(os.Getenv("ACCESS_KEY_FILE")); akf != "" {
-		pubSrc := akf + ".pub"
-		pubDst := filepath.Join(config.NodeSource, "id_ssh.pub")
-		if err := copyFile(pubSrc, pubDst); err == nil {
-			args = append(args, "-var", fmt.Sprintf("public_ssh_key=%s", pubDst))
-		} else {
-			args = append(args, "-var", fmt.Sprintf("public_ssh_key=%s", pubSrc))
-		}
-	}
-
-	return args
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(dst, in, 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-// getAllNodesFromState extracts all node information from OpenTofu state
-func getAllNodesFromState(nodeSource string) ([]InfraNode, error) {
-	// Get raw state data
-	stateData, err := getOpenTofuState(nodeSource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OpenTofu state: %w", err)
-	}
-
-	// Parse state with structured approach
-	state, err := parseStateJSON(stateData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse state: %w", err)
-	}
-
-	resources.LogLevel("debug", "Parsed state FROMgetOpenTofuState: %+v", state)
-
-	// Extract nodes using provider-agnostic approach
-	nodes, err := extractNodesFromState(state)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract nodes: %w", err)
-	}
-
-	if len(nodes) == 0 {
-		return nil, fmt.Errorf("no nodes found in state")
-	}
-
-	logExtractedNodes(nodes)
-
-	return nodes, nil
-}
-
-func getOpenTofuOutputs(nodeSource string) (*OpenTofuOutputs, error) {
+func addTofuOutputsToConfig(config *driver.InfraConfig) error {
 	kubeAPIHostCmd := exec.Command("tofu", "output", "-raw", "kube_api_host")
-	kubeAPIHostCmd.Dir = nodeSource
+	kubeAPIHostCmd.Dir = config.InfraProvisioner.TFNodeSource
 	kubeAPIHostOutput, err := kubeAPIHostCmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kube_api_host output: %w", err)
+		return fmt.Errorf("failed to get kube_api_host output: %w", err)
 	}
 
 	fqdnCmd := exec.Command("tofu", "output", "-raw", "fqdn")
-	fqdnCmd.Dir = nodeSource
+	fqdnCmd.Dir = config.InfraProvisioner.TFNodeSource
 	fqdnOutput, err := fqdnCmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get fqdn output: %w", err)
+		return fmt.Errorf("failed to get fqdn output: %w", err)
 	}
 
-	return &OpenTofuOutputs{
-		KubeAPIHost: strings.TrimSpace(string(kubeAPIHostOutput)),
-		FQDN:        strings.TrimSpace(string(fqdnOutput)),
-	}, nil
+	config.InfraProvisioner.OpenTofuOutputs.KubeAPIHost = strings.TrimSpace(string(kubeAPIHostOutput))
+	config.InfraProvisioner.OpenTofuOutputs.FQDN = strings.TrimSpace(string(fqdnOutput))
+
+	return nil
 }
 
-// getOpenTofuState executes tofu command to get state JSON
-func getOpenTofuState(nodeSource string) ([]byte, error) {
-	stateCmd := exec.Command("tofu", "show", "-json")
-	stateCmd.Dir = nodeSource
-
-	output, err := stateCmd.Output()
+// setOrAppendTFVar sets or appends a key-value pair in the tfvars file, this is needed to
+// ensure that missing variables upstream are added on distros without breaking anything.
+func setOrAppendTFVar(tfvarsPath, key, value string) error {
+	fileData, err := os.ReadFile(tfvarsPath)
 	if err != nil {
-		return nil, fmt.Errorf("tofu show command failed: %w", err)
+		return fmt.Errorf("read %s: %w", tfvarsPath, err)
 	}
 
-	return output, nil
-}
+	reg := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*=\s*".*"\s*$`)
+	line := []byte(fmt.Sprintf(`%s = %q`, key, value))
 
-// parseStateJSON parses the raw JSON into structured format
-func parseStateJSON(data []byte) (*OpenTofuState, error) {
-	var state OpenTofuState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("JSON unmarshal failed: %w", err)
-	}
-
-	return &state, nil
-}
-
-// extractNodesFromState extracts nodes using provider-specific extractors
-func extractNodesFromState(state *OpenTofuState) ([]InfraNode, error) {
-	extractors, err := getNodeExtractors()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get node extractors: %w", err)
-	}
-
-	var nodes []InfraNode
-
-	for _, module := range state.Values.RootModule.ChildModules {
-		for _, resource := range module.Resources {
-			for _, extractor := range extractors {
-				if extractor.SupportsResourceType(resource.Type) {
-					node, err := extractor.ExtractNode(resource.Values)
-					if err != nil {
-						resources.LogLevel("debug", "Failed to extract node from resource %s: %v", resource.Type, err)
-						continue
-					}
-					if node != nil && isValidNode(node) {
-						nodes = append(nodes, *node)
-					}
-				}
-			}
+	if reg.Match(fileData) {
+		fileData = reg.ReplaceAll(fileData, line)
+	} else {
+		if len(fileData) > 0 && !bytes.HasSuffix(fileData, []byte{'\n'}) {
+			fileData = append(fileData, '\n')
 		}
+
+		fileData = append(fileData, append(line, '\n')...)
 	}
 
-	return nodes, nil
+	return os.WriteFile(tfvarsPath, fileData, 0o644)
 }
 
-// TerraformFiles copies and updates terraform configuration files
-func prepareTerraformFiles(config *InfraProvisionerConfig) error {
-	// Copy main.tf
-	mainTfSrc := filepath.Join(config.RootDir, "infrastructure/qa-infra/main.tf")
-	if err := copyFile(mainTfSrc, config.Terraform.MainTfPath); err != nil {
-		return fmt.Errorf("failed to copy main.tf: %w", err)
+// prepareTerraformFiles copies and updates terraform configuration files.
+func prepareTerraformFiles(config *driver.InfraConfig) error {
+	if err := copyTerraformFiles(config); err != nil {
+		return fmt.Errorf("failed to copy terraform files: %w", err)
 	}
 
-	// Update main.tf module source
-	if err := updateMainTfModuleSource(config.QAInfraModule, config.Terraform.MainTfPath); err != nil {
-		return fmt.Errorf("failed to update main.tf module source: %w", err)
-	}
-	// Copy variables.tf
-	variablesTfSrc := filepath.Join(config.RootDir, "infrastructure/qa-infra/variables.tf")
-	variablesTfDst := filepath.Join(config.NodeSource, "variables.tf")
-	resources.LogLevel("info", "Copying variables.tf from %s to %s", variablesTfSrc, variablesTfDst)
-	if err := copyFile(variablesTfSrc, variablesTfDst); err != nil {
-		return fmt.Errorf("failed to copy variables.tf: %w", err)
-	}
-	resources.LogLevel("info", "Successfully copied variables.tf")
-
-	// Copy and update vars.tfvars
-	tfvarsSrc := filepath.Join(config.RootDir, "infrastructure/qa-infra/vars.tfvars")
-	if err := copyAndUpdateVarsFile(tfvarsSrc, config.Terraform.TFVarsPath, config.UniqueID); err != nil {
-		return fmt.Errorf("failed to prepare vars file: %w", err)
+	if err := configureTerraformFiles(config); err != nil {
+		return fmt.Errorf("failed to configure terraform files: %w", err)
 	}
 
-	// List files in the working directory for debugging
-	if files, err := os.ReadDir(config.NodeSource); err == nil {
-		resources.LogLevel("info", "Files in working directory %s:", config.NodeSource)
+	if files, err := os.ReadDir(config.InfraProvisioner.TFNodeSource); err == nil {
+		resources.LogLevel("info", "Files in working directory %s:", config.InfraProvisioner.TFNodeSource)
 		for _, file := range files {
 			resources.LogLevel("info", "  - %s", file.Name())
 		}
 	}
 
-	resources.LogLevel("debug", "Prepared terraform files")
 	return nil
 }
 
-// copyAndUpdateVarsFile copies and updates vars.tfvars file with unique ID
-func copyAndUpdateVarsFile(srcPath, dstPath, uniqueID string) error {
-	if data, err := os.ReadFile(srcPath); err == nil {
-		if err := os.WriteFile(dstPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write vars.tfvars: %w", err)
+// copyTerraformFiles copies the base terraform files to the working directory.
+func copyTerraformFiles(config *driver.InfraConfig) error {
+	filesToCopy := []struct {
+		src, dst string
+	}{
+		{
+			src: filepath.Join(config.InfraProvisioner.RootDir, "infrastructure", "qainfra", "main.tf"),
+			dst: config.InfraProvisioner.Terraform.MainTfPath,
+		},
+		{
+			src: filepath.Join(config.InfraProvisioner.RootDir, "infrastructure", "qainfra", "variables.tf"),
+			dst: filepath.Join(config.InfraProvisioner.TFNodeSource, "variables.tf"),
+		},
+		{
+			src: filepath.Join(config.InfraProvisioner.RootDir, "infrastructure", "qainfra", "vars.tfvars"),
+			dst: config.InfraProvisioner.Terraform.TFVarsPath,
+		},
+	}
+
+	for _, file := range filesToCopy {
+		if err := resources.CopyFileContents(file.src, file.dst); err != nil {
+			return fmt.Errorf("failed to copy %s: %w", filepath.Base(file.src), err)
 		}
-	} else {
+	}
+
+	return nil
+}
+
+// configureTerraformFiles updates the copied terraform files with environment-specific values.
+func configureTerraformFiles(config *driver.InfraConfig) error {
+	if err := updateMainTfModuleSource(config.QAInfraProvider, config.InfraProvisioner.Terraform.MainTfPath); err != nil {
+		return fmt.Errorf("failed to update main.tf module source: %w", err)
+	}
+
+	if err := updateVarsFile(
+		config.InfraProvisioner.Terraform.TFVarsPath,
+		config.InfraProvisioner.UniqueID,
+		config.Product,
+		config.ResourceName,
+	); err != nil {
+		return fmt.Errorf("failed to update vars.tfvars: %w", err)
+	}
+
+	if err := setOrAppendTFVar(
+		config.InfraProvisioner.Terraform.TFVarsPath,
+		"public_ssh_key",
+		config.Cluster.SSH.PubKeyPath,
+	); err != nil {
+		return fmt.Errorf("set public_ssh_key in tfvars: %w", err)
+	}
+
+	if err := loadQAInfraTFVars(
+		config.Cluster,
+		config.InfraProvisioner.AirgapSetup,
+		config.InfraProvisioner.ProxySetup,
+		config.InfraProvisioner.TFNodeSource,
+	); err != nil {
+		resources.LogLevel("warn", "Failed to load vars configuration: %v", err)
+	}
+
+	return nil
+}
+
+// updateVarsFile  updates the vars.tfvars file with unique resource names and replaces product variables.
+func updateVarsFile(varsFilePath, uniqueID, product, resourceName string) error {
+	content, err := os.ReadFile(varsFilePath)
+	if err != nil {
 		return fmt.Errorf("failed to read vars file: %w", err)
 	}
 
-	return updateVarsFileWithUniqueID(dstPath, uniqueID)
+	varsContent := string(content)
+	re := regexp.MustCompile(`aws_hostname_prefix\s*=\s*"[^"]*"`)
+	varsContent = re.ReplaceAllString(varsContent, fmt.Sprintf(`aws_hostname_prefix = "dsf-%s-%s-%s"`,
+		resourceName, product, uniqueID))
+
+	userIdRe := regexp.MustCompile(`user_id\s*=\s*"[^"]*"`)
+	varsContent = userIdRe.ReplaceAllString(varsContent, fmt.Sprintf(`user_id = "dsf-%s-%s"`,
+		resourceName, product))
+
+	if err := os.WriteFile(varsFilePath, []byte(varsContent), 0o644); err != nil {
+		return fmt.Errorf("failed to write vars file: %w", err)
+	}
+
+	return nil
 }
 
-// updateMainTfModuleSource updates main.tf to use the correct infrastructure module based on INFRA_MODULE env var
-func updateMainTfModuleSource(qaInfraModule, mainTfPath string) error {
+// updateMainTfModuleSource updates main.tf to use the correct infrastructure module based on QA_INFRA_PROVIDER env var.
+func updateMainTfModuleSource(qaInfraProvider, mainTfPath string) error {
+	resources.LogLevel("info", "Using infrastructure module: %s", qaInfraProvider)
 
-	resources.LogLevel("info", "Using infrastructure module: %s", qaInfraModule)
-
-	// Read current main.tf content
-	content, err := os.ReadFile(mainTfPath)
-	if err != nil {
-		return fmt.Errorf("failed to read main.tf: %w", err)
+	content, readErr := os.ReadFile(mainTfPath)
+	if readErr != nil {
+		return fmt.Errorf("failed to read main.tf: %w", readErr)
 	}
 
 	contentStr := string(content)
 
 	// Update module source to use correct infra module.
+	// todo fix hardcoded branching after upstream PR is merged.
 	placeholder := "placeholder-for-remote-module"
-	fmoralBranch := "add.vsphere"
-	modulePath := qaInfraModule + "/modules/cluster_nodes"
+	fmoralBranch := "distros.test.update"
+	modulePath := qaInfraProvider + "/modules/cluster_nodes"
 
 	srcModule := fmt.Sprintf("github.com/fmoral2/qa-infra-automation//tofu/%s?ref=%s", modulePath, fmoralBranch)
 	contentStr = strings.ReplaceAll(contentStr, placeholder, srcModule)
 
-	// Write updated content back to file
-	if err := os.WriteFile(mainTfPath, []byte(contentStr), 0644); err != nil {
-		return fmt.Errorf("failed to write updated main.tf: %w", err)
+	if writeErr := os.WriteFile(mainTfPath, []byte(contentStr), 0o644); writeErr != nil {
+		return fmt.Errorf("failed to write updated main.tf: %w", writeErr)
 	}
 
-	resources.LogLevel("debug", "Successfully updated main.tf for %s infrastructure", qaInfraModule)
+	resources.LogLevel("info", "Successfully updated main.tf for %s infrastructure", qaInfraProvider)
 
 	return nil
 }

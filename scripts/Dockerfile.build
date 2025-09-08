@@ -4,6 +4,7 @@ ARG TF_VERSION=1.5.7
 ARG TOFU_VERSION=1.6.2
 ENV TERRAFORM_VERSION=$TF_VERSION
 ENV TOFU_VERSION=$TOFU_VERSION
+ENV CGO_ENABLED=0
 
 RUN apk update && \
     apk upgrade --update-cache --available && \
@@ -41,15 +42,13 @@ RUN pip3 install --break-system-packages ansible kubernetes && \
     ansible-galaxy collection install cloud.terraform
 
 # Just to make sure its installed alright
-RUN aws --version   
+RUN aws --version
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v1.55.2
 
 WORKDIR $GOPATH/src/github.com/rancher/distros-test-framework
 
 COPY . .
-
-RUN CGO_ENABLED=0
 
 RUN go mod download
 

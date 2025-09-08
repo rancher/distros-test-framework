@@ -3,8 +3,10 @@ package resources
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -30,21 +32,6 @@ func PrintBase64Encoded(path string) error {
 
 	encoded := base64.StdEncoding.EncodeToString(file)
 	fmt.Println(encoded)
-
-	return nil
-}
-
-// CopyFileContents reads file from path and copies them locally.
-func CopyFileContents(srcPath, destPath string) error {
-	contents, err := os.ReadFile(srcPath)
-	if err != nil {
-		return ReturnLogError("File does not exist: %v", srcPath)
-	}
-
-	err = os.WriteFile(destPath, contents, 0o666)
-	if err != nil {
-		return ReturnLogError("Write to File failed: %v", destPath)
-	}
 
 	return nil
 }
@@ -124,4 +111,38 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	}
 
 	return false
+}
+
+// CopyFileContents copies a regular file from srcPath to destPath.
+// If mode is provided, it sets the destination permissions to that mode.
+func CopyFileContents(srcPath, destPath string, mode ...os.FileMode) error {
+	if srcPath == "" || destPath == "" {
+		return errors.New("src and dest must be non-empty")
+	}
+
+	// choose perms.
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return fmt.Errorf("stat src: %w", err)
+	}
+	perm := srcInfo.Mode().Perm()
+	if len(mode) > 0 {
+		perm = mode[0]
+	}
+
+	// ensure dest dir exists.
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir dest dir: %w", err)
+	}
+
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return fmt.Errorf("read src: %w", err)
+	}
+
+	if err := os.WriteFile(destPath, data, perm); err != nil {
+		return fmt.Errorf("write dest: %w", err)
+	}
+
+	return nil
 }

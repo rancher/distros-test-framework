@@ -6,12 +6,13 @@ import (
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestDeployCertManager(cluster *resources.Cluster, version string) {
+func TestDeployCertManager(cluster *driver.Cluster, version string) {
 	err := addRepo("jetstack", "https://charts.jetstack.io")
 	Expect(err).To(BeNil(), err)
 
@@ -46,7 +47,7 @@ func TestDeployCertManager(cluster *resources.Cluster, version string) {
 	}, "120s", "5s").Should(Succeed())
 }
 
-func TestDeployRancher(cluster *resources.Cluster, flags *customflag.FlagConfig) {
+func TestDeployRancher(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	response := installRancher(cluster, flags)
 
 	filters := map[string]string{
@@ -87,7 +88,7 @@ func TestDeployRancher(cluster *resources.Cluster, flags *customflag.FlagConfig)
 	resources.LogLevel("info", "\nRancher URL: %s", rancherURL)
 }
 
-func installRancher(cluster *resources.Cluster, flags *customflag.FlagConfig) string {
+func installRancher(cluster *driver.Cluster, flags *customflag.FlagConfig) string {
 	err := addRepo(flags.Charts.RepoName, flags.Charts.RepoUrl)
 	Expect(err).To(BeNil(), err)
 

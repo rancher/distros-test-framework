@@ -75,7 +75,7 @@ variable "instance_type" {
 }
 
 variable "nodes" {
-  description = "Configuration for RKE2 nodes"
+  description = "Configuration for cluster nodes"
   type = list(object({
     count = number
     role  = list(string)

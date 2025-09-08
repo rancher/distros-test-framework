@@ -19,8 +19,7 @@ func ManageWorkload(action string, workloads ...string) error {
 		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
-	// todo:fix this
-	arch := os.Getenv("arch")
+	arch := os.Getenv("ARCH")
 	if arch == "" {
 		arch = "amd64"
 	}
@@ -120,7 +119,7 @@ func deleteWorkload(workload, filename string) error {
 		retry.Attempts(10),
 		retry.Delay(30*time.Second),
 		retry.DelayType(retry.FixedDelay),
-		retry.OnRetry(func(n uint, err error) {
+		retry.OnRetry(func(n uint, _ error) {
 			LogLevel("info", "Waiting for workload to be deleted. Attempt: %d", n+1)
 		}),
 	)

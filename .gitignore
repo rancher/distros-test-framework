@@ -11,7 +11,8 @@ workloads/*/dynamic-ingressroute.yaml
 /config/*.env.*
 /config/*.tfvars
 # QA Infrastructure tfvars files (contain sensitive AWS credentials)
-/infrastructure/qa-infra/*.tfvars
+/infrastructure/qainfra/*.tfvars
 tmp/
 entrypoint/conformance/my-sonobuoy-plugins
 entrypoint/conformance/*.tar.gz
+infrastructure/qainfra/vars.tfvars

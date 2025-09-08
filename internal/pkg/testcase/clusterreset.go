@@ -3,17 +3,17 @@ package testcase
 import (
 	"fmt"
 
-	. "github.com/rancher/distros-test-framework/internal/pkg/service"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestClusterReset(cluster *resources.Cluster) {
+func TestClusterReset(cluster *driver.Cluster) {
 	killall(cluster)
 	resources.LogLevel("info", "%s-service killed", cluster.Config.Product)
 
-	ms := NewManageService(5, 5)
+	ms := resources.NewManageService(5, 5)
 	stopServer(cluster, ms)
 	resources.LogLevel("info", "%s-service stopped", cluster.Config.Product)
 
@@ -33,7 +33,7 @@ func TestClusterReset(cluster *resources.Cluster) {
 	resources.LogLevel("info", "%s-service restarted", cluster.Config.Product)
 }
 
-func clusterReset(cluster *resources.Cluster, resetCmd string) {
+func clusterReset(cluster *driver.Cluster, resetCmd string) {
 	var (
 		resetRes    string
 		resetCmdErr error
@@ -56,7 +56,7 @@ func clusterReset(cluster *resources.Cluster, resetCmd string) {
 	}
 }
 
-func killall(cluster *resources.Cluster) {
+func killall(cluster *driver.Cluster) {
 	killallLocationCmd, findErr := resources.FindPath(cluster.Config.Product+"-killall.sh", cluster.ServerIPs[0])
 	Expect(findErr).NotTo(HaveOccurred())
 
@@ -70,13 +70,13 @@ func killall(cluster *resources.Cluster) {
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
 }
 
-func stopServer(cluster *resources.Cluster, ms *ManageService) {
-	action := ServiceAction{
+func stopServer(cluster *driver.Cluster, ms *resources.ManageService) {
+	action := resources.ServiceAction{
 		Service:  cluster.Config.Product,
 		Action:   "stop",
 		NodeType: "server",
 	}
-	_, stopErr := ms.ManageService(cluster.ServerIPs[0], []ServiceAction{action})
+	_, stopErr := ms.ManageService(cluster.ServerIPs[0], []resources.ServiceAction{action})
 	Expect(stopErr).NotTo(HaveOccurred())
 
 	// due to the stop command, this should fail.
@@ -85,7 +85,7 @@ func stopServer(cluster *resources.Cluster, ms *ManageService) {
 	Expect(err).To(HaveOccurred())
 }
 
-func restartServer(cluster *resources.Cluster, ms *ManageService) {
+func restartServer(cluster *driver.Cluster, ms *resources.ManageService) {
 	var startFirst []string
 	var startLast []string
 
@@ -98,23 +98,23 @@ func restartServer(cluster *resources.Cluster, ms *ManageService) {
 		startLast = append(startLast, serverIP)
 	}
 
-	action := ServiceAction{
+	action := resources.ServiceAction{
 		Service:  cluster.Config.Product,
 		Action:   "restart",
 		NodeType: "server",
 	}
 	for _, ip := range startFirst {
-		_, startErr := ms.ManageService(ip, []ServiceAction{action})
+		_, startErr := ms.ManageService(ip, []resources.ServiceAction{action})
 		Expect(startErr).NotTo(HaveOccurred())
 	}
 
 	for _, ip := range startLast {
-		_, startLastErr := ms.ManageService(ip, []ServiceAction{action})
+		_, startLastErr := ms.ManageService(ip, []resources.ServiceAction{action})
 		Expect(startLastErr).NotTo(HaveOccurred())
 	}
 }
 
-func deleteDataDirectories(cluster *resources.Cluster) {
+func deleteDataDirectories(cluster *driver.Cluster) {
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, deleteErr := resources.RunCommandOnNode(deleteCmd, cluster.ServerIPs[i])

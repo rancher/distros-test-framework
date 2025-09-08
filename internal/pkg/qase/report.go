@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
 
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
@@ -86,7 +87,7 @@ func (c Client) ReportE2ETestRun(fileName, product string) error {
 }
 
 // SpecReportTestResults receives the report from ginkgo and sends the test results to Qase.
-func (c Client) SpecReportTestResults(ctx context.Context, cluster *resources.Cluster, report *Report, reportSummary string) {
+func (c Client) SpecReportTestResults(ctx context.Context, cluster *driver.Cluster, report *Report, reportSummary string) {
 	resources.LogLevel("info", "Start publishing test results to Qase\n")
 
 	runID, tcID, err := validateQaseIDs()
@@ -165,7 +166,7 @@ func specReportToTestCase(report *Report) ([]TestCase, bool) {
 
 // parseResults receives the test results and parses the results into the createResultRequest.
 func parseResults(
-	cluster *resources.Cluster,
+	cluster *driver.Cluster,
 	testCases []TestCase,
 	reportSummary string,
 	req *createResultRequest,
@@ -282,7 +283,7 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 	return reqs
 }
 
-func tcResultSummary(c *resources.Cluster, reportSummary string) string {
+func tcResultSummary(c *driver.Cluster, reportSummary string) string {
 	var reportSummaryBuilder strings.Builder
 	reportSummaryBuilder.WriteString("**Summary Data**\n")
 	reportSummaryBuilder.WriteString("\n")
@@ -297,7 +298,7 @@ func tcResultSummary(c *resources.Cluster, reportSummary string) string {
 	return reportSummaryBuilder.String()
 }
 
-func formatClusterConfig(c *resources.Cluster) string {
+func formatClusterConfig(c *driver.Cluster) string {
 	clusterInfo := []struct{ labelKey, value string }{
 		{"Product", c.Config.Product},
 		{"Product version", c.Config.Version},
@@ -313,8 +314,8 @@ func formatClusterConfig(c *resources.Cluster) string {
 	return formatSection("Cluster Configuration", clusterInfo)
 }
 
-func formatAWSConfig(c *resources.Cluster) string {
-	accessKey := os.Getenv("SSH_KEY_PATH")
+func formatAWSConfig(c *driver.Cluster) string {
+	accessKey := os.Getenv("SSH_LOCAL_KEY_PATH")
 	accessKeyName := filepath.Base(accessKey)
 
 	awsInfo := []struct{ labelKey, value string }{
@@ -336,7 +337,7 @@ func formatAWSConfig(c *resources.Cluster) string {
 	return formatSection("AWS Configuration", awsInfo)
 }
 
-func formatOptionalConfigs(c *resources.Cluster) string {
+func formatOptionalConfigs(c *driver.Cluster) string {
 	var sections []string
 
 	// externalDB config.

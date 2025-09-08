@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
 
 // TestInternodeConnectivityMixedOS validates communication between linux and windows nodes.
-func TestInternodeConnectivityMixedOS(cluster *resources.Cluster, applyWorkload, deleteWorkload bool) {
+func TestInternodeConnectivityMixedOS(cluster *driver.Cluster, applyWorkload, deleteWorkload bool) {
 	var workloadErr error
 	if applyWorkload {
 		workloadErr = resources.ManageWorkload("apply",
@@ -47,7 +48,7 @@ func TestInternodeConnectivityMixedOS(cluster *resources.Cluster, applyWorkload,
 }
 
 // testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range.
-func testIPsInCIDRRange(cluster *resources.Cluster, label, svc string) {
+func testIPsInCIDRRange(cluster *driver.Cluster, label, svc string) {
 	nodeArgs, err := resources.GetNodeArgsMap(cluster, "server")
 	Expect(err).NotTo(HaveOccurred(), err)
 

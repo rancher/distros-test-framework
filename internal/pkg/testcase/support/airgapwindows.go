@@ -7,12 +7,15 @@ import (
 	"sync"
 
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
-func InstallOnAirgapAgentsWindows(cluster *resources.Cluster, airgapMethod string) {
+func InstallOnAirgapAgentsWindows(cluster *driver.Cluster, airgapMethod string) {
 	serverIP := cluster.ServerIPs[0]
 	agentFlags := os.Getenv("worker_flags")
 	if airgapMethod == SystemDefaultRegistry && !strings.Contains(agentFlags, "system-default-registry") {
@@ -46,7 +49,7 @@ func InstallOnAirgapAgentsWindows(cluster *resources.Cluster, airgapMethod strin
 }
 
 // ConfiguresRegistryWindows downloads Windows image file, reads and pushes to registry.
-func ConfigureRegistryWindows(cluster *resources.Cluster, flags *customflag.FlagConfig) (err error) {
+func ConfigureRegistryWindows(cluster *driver.Cluster, flags *customflag.FlagConfig) (err error) {
 	resources.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
 	_, err = GetArtifacts(cluster, "windows", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	if err != nil {
@@ -63,7 +66,7 @@ func ConfigureRegistryWindows(cluster *resources.Cluster, flags *customflag.Flag
 }
 
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.
-func CopyAssetsOnNodesWindows(cluster *resources.Cluster, airgapMethod string) (err error) {
+func CopyAssetsOnNodesWindows(cluster *driver.Cluster, airgapMethod string) (err error) {
 	nodeIPs := cluster.WinAgentIPs
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
@@ -98,10 +101,10 @@ func CopyAssetsOnNodesWindows(cluster *resources.Cluster, airgapMethod string) (
 	return nil
 }
 
-func copyRegistryOnWindows(cluster *resources.Cluster, ip string) (err error) {
+func copyRegistryOnWindows(cluster *driver.Cluster, ip string) (err error) {
 	cmd := fmt.Sprintf(
 		"sudo %v registries-windows.yaml %v@%v:C:/Users/Administrator",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
 		"Administrator", ip)
 	_, err = resources.RunCommandOnNode(cmd, cluster.Bastion.PublicIPv4Addr)
 	if err != nil {
@@ -111,26 +114,26 @@ func copyRegistryOnWindows(cluster *resources.Cluster, ip string) (err error) {
 	return err
 }
 
-func copyAssetsOnWindows(cluster *resources.Cluster, airgapMethod, ip string) (err error) {
+func copyAssetsOnWindows(cluster *driver.Cluster, airgapMethod, ip string) (err error) {
 	windowsUser := "Administrator"
 	cmd := fmt.Sprintf(
-		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
+		"sudo chmod 400 /tmp/%v.pem && ", cluster.SSH.KeyName)
 
 	cmd += fmt.Sprintf(
 		"sudo %v artifacts-windows/* %v@%v:C:/Users/Administrator && ",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
 		windowsUser, ip)
 
 	if airgapMethod != "tarball" {
 		cmd += fmt.Sprintf(
 			"sudo %v certs/* %v@%v:C:/Users/Administrator && ",
-			ShCmdPrefix("scp", cluster.Aws.KeyName),
+			ShCmdPrefix("scp", cluster.SSH.KeyName),
 			windowsUser, ip)
 	}
 
 	cmd += fmt.Sprintf(
 		"sudo %v rke2-install.ps1 windows_install.ps1 %v@%v:C:/Users/Administrator",
-		ShCmdPrefix("scp", cluster.Aws.KeyName),
+		ShCmdPrefix("scp", cluster.SSH.KeyName),
 		windowsUser, ip)
 	_, err = resources.RunCommandOnNode(cmd, cluster.Bastion.PublicIPv4Addr)
 
@@ -138,7 +141,7 @@ func copyAssetsOnWindows(cluster *resources.Cluster, airgapMethod, ip string) (e
 }
 
 // UpdateRegistryFileWindows updates registries.yaml file and copies to bastion node for Windows.
-func UpdateRegistryFileWindows(cluster *resources.Cluster, flags *customflag.FlagConfig) (err error) {
+func UpdateRegistryFileWindows(cluster *driver.Cluster, flags *customflag.FlagConfig) (err error) {
 	regMap := map[string]string{
 		"$PRIVATE_REG": cluster.Bastion.PublicDNS,
 		"$USERNAME":    flags.AirgapFlag.RegistryUsername,
@@ -167,7 +170,7 @@ func UpdateRegistryFileWindows(cluster *resources.Cluster, flags *customflag.Fla
 	return nil
 }
 
-func HasWindowsAgent(cluster *resources.Cluster) bool {
+func HasWindowsAgent(cluster *driver.Cluster) bool {
 	if cluster.Config.Product == "rke2" && cluster.NumWinAgents > 0 {
 		return true
 	}

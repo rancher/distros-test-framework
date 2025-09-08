@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
@@ -19,7 +20,7 @@ type summaryReportData struct {
 }
 
 // SummaryReportData retrieves the config.yaml and os-release data from the cluster node and sends it to spec report.
-func SummaryReportData(c *resources.Cluster, flags *customflag.FlagConfig) (string, error) {
+func SummaryReportData(c *driver.Cluster, flags *customflag.FlagConfig) (string, error) {
 	var data summaryReportData
 
 	if c.NumBastion == 0 {
@@ -35,7 +36,7 @@ func SummaryReportData(c *resources.Cluster, flags *customflag.FlagConfig) (stri
 	return data.summaryData.String(), nil
 }
 
-func nodeSummaryData(c *resources.Cluster, data *summaryReportData) error {
+func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
 	// os-release data from the first server node.
 	res, err := resources.RunCommandOnNode("cat /etc/os-release", c.ServerIPs[0])
 	if err != nil {
@@ -99,10 +100,10 @@ func nodeSummaryData(c *resources.Cluster, data *summaryReportData) error {
 }
 
 //nolint:funlen // yep, but this makes more clear being one function.
-func airgapNodeSummaryData(c *resources.Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
+func airgapNodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// config.yaml from server via bastion node.
 	cfgCmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
-	cfg, err := remoteExec(c.SSH.KeyName, c.SSH.User, c.ServerIPs[0], c.Bastion.PublicIPv4Addr, cfgCmd)
+	cfg, err := remoteExec(c.SSH.PrivKeyPath, c.SSH.User, c.ServerIPs[0], c.Bastion.PublicIPv4Addr, cfgCmd)
 	if err != nil {
 		return fmt.Errorf("retrieving config.yaml: %w", err)
 	}
@@ -265,7 +266,7 @@ func getSELinuxInfo(product, installMethod, nodeIP string) string {
 // getSplitRoleData retrieves the split roles data from the cluster nodes and formats it for the report.
 //
 //nolint:funlen // yep, but this makes more clear being one function.
-func getSplitRoleData(config *resources.Config, serverIps []string) string {
+func getSplitRoleData(config *driver.Config, serverIps []string) string {
 	var splitRoleData strings.Builder
 
 	splitRoleData.WriteString("\n" + "\n")
