@@ -208,7 +208,6 @@ func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, c
 	product := os.Getenv("ENV_PRODUCT")
 
 	if product == "k3s" {
-		chartsCmdCount = 0
 		if len(expectedValue) != k3sCmdCount {
 			log.Errorf("mismatched length commands: %d x expected values: %d", k3sCmdCount, len(expectedValue))
 			os.Exit(1)
@@ -217,18 +216,6 @@ func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, c
 		if valuesUpgrade != nil && len(valuesUpgrade) != k3sCmdCount {
 			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
 				k3sCmdCount, len(valuesUpgrade))
-			os.Exit(1)
-		}
-
-		if len(expectedChartsValues) != chartsCmdCount {
-			log.Errorf("mismatched length commands: %d x expected charts values: %d",
-				chartsCmdCount, len(expectedChartsValues))
-			os.Exit(1)
-		}
-
-		if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
-			log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
-				chartsCmdCount, len(chartsValueUpgrades))
 			os.Exit(1)
 		}
 	}
