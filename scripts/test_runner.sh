@@ -67,6 +67,8 @@ if [ -n "${TEST_DIR}" ]; then
           OPTS=(-timeout=65m -v -count=1 ./entrypoint/versionbump/... -tags="${TEST_TAG}")
             OPTS+=(-cmd "${CMD}" -expectedValue "${EXPECTED_VALUE}")
              [ -n "${VALUE_UPGRADED}" ] && OPTS+=(-expectedValueUpgrade "${VALUE_UPGRADED}")
+             [ -n "${EXPECTED_CHARTS_VALUE}"] && OPTS+=(-expectedChartsValue "${EXPECTED_CHARTS_VALUE}")
+             [ -n "${CHARTS_VALUE_UPGRADED}"] && OPTS+=(-expectedChartsValueUpgraded "${CHARTS_VALUE_UPGRADED}")
              [ -n "${INSTALL_VERSION_OR_COMMIT}" ] && OPTS+=(-installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}")
              [ -n "${CHANNEL}" ] && OPTS+=(-channel "${CHANNEL}")
              [ -n "${TEST_CASE}" ] && OPTS+=(-testCase "${TEST_CASE}")

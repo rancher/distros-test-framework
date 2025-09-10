@@ -22,8 +22,7 @@ func validateFromJenkins(argsFromJenkins string) (command, testTag string, expec
 	}
 
 	if !strings.Contains(argsFromJenkins, "expectedChartsValue") {
-		log.Errorf("expected charts value was not sent in %s", argsFromJenkins)
-		os.Exit(1)
+		log.Debugf("expected charts value was not sent in %s", argsFromJenkins) 
 	}
 
 	validateUpgradeFromJenkins(argsFromJenkins)
