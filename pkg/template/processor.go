@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -53,8 +54,10 @@ func processCmds(
 	expectedValues []string,
 	currentProductVersion string,
 ) error {
+	fmt.Println(cmds)
 	// range over the cmds only cause expectedValues arrives here on the same length.
 	for i, c := range cmds {
+		fmt.Println(c)
 		expectedValue := strings.TrimSpace(strings.Trim(expectedValues[i], "\""))
 		cmd := strings.TrimSpace(strings.Trim(c, "\""))
 

@@ -32,7 +32,9 @@ func validate(exec func(string) (string, error), args ...string) error {
 	for i := 0; i < len(args); i++ {
 		cmd := args[i]
 		if i+1 < len(args) {
+			fmt.Println(cmd)
 			assert := args[i+1]
+			fmt.Println(assert)
 			i++
 			if assert == "" || cmd == "" {
 				return shared.ReturnLogError("should not send empty arg for assert:%s "+"and/or cmd:%s", assert, cmd)

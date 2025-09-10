@@ -21,7 +21,7 @@ const (
 	localPath               = kgn + " : | grep local-path -A1, "
 	traefik                 = kgn + " : | grep traefik  -A1, "
 	klipperLB               = kgn + " : | grep klipper -A5"
-	ingressController       = kgn + " : | grep 'nginx-ingress-controller' -A1,"
+	ingressController       = kgn + " : | grep 'nginx-ingress-controller' -A1"
 	corednsCharts           = getCharts + " | grep 'rke2-coredns', "
 	ingressControllerCharts = getCharts + " | grep 'rke2-ingress-nginx', "
 	metricsCharts           = getCharts + " | grep 'rke2-metrics-server', "
@@ -61,7 +61,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 	coredns := kgn + " : | grep 'hardened-coredns' -A1, "
 	etcd := kgn + " : | grep 'hardened-etcd' -A1, "
 	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
-	componentsDescription := "Verifies bump versions for several components on rke2:\n1-coredns" +
+	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
 		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-ingress Controller"
 	chartsDescription := "Verifies charts versions for several components on rke2:\n1-coredns Charts" +
 		"\n2-ingress Controller Charts\n3-metrics Server Charts\n4-runtime Classes Charts" +
@@ -86,7 +86,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 		componentsCmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
-	It(componentsDescription, func() {
+	It(description, func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
@@ -114,6 +114,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 				},
 			},
 			InstallMode: ServiceFlag.InstallMode.String(),
+			Description: ServiceFlag.TestTemplateConfig.Description,
 		})
 	})
 
