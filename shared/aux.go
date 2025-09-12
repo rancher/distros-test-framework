@@ -178,11 +178,18 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 
 // InstallHelm installs helm on the container.
 func InstallHelm() (res string, err error) {
-	// Install Helm from local tarball
-	cmd := fmt.Sprintf("tar -zxvf %v/bin/helm-v3.18.3-linux-amd64.tar.gz -C /tmp && "+
-		"cp /tmp/linux-amd64/helm /usr/local/bin/helm && "+
-		"chmod +x /usr/local/bin/helm && "+
-		"helm version", BasePath())
+	// get home directory
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", ReturnLogError("failed to get home dir: %w", err)
+	}
+
+	// install Helm from local tarball
+	cmd := fmt.Sprintf("mkdir -p %v/bin && "+
+		"tar -zxvf %v/bin/helm-v3.18.3-linux-amd64.tar.gz -C /tmp && "+
+		"cp /tmp/linux-amd64/helm %v/bin/helm && "+
+		"chmod +x %v/bin/helm && "+
+		"helm version", homedir, BasePath(), homedir, homedir)
 
 	return RunCommandHost(cmd)
 }
@@ -358,6 +365,12 @@ func FindPath(name, ip string) (string, error) {
 		return "", errors.New("name should not be empty")
 	}
 
+	// get home directory on node
+	homedir, err := RunCommandOnNode("echo ~", ip)
+	if err != nil || homedir == "" {
+		return "", ReturnLogError("failed to get home dir: %w", err)
+	}
+
 	// adding common paths to the environment variable PATH since in some os's not all paths are available.
 	commonPaths := "/var/lib/rancher/rke2/bin:" +
 		"/var/rancher/rke2/bin:" +
@@ -368,11 +381,12 @@ func FindPath(name, ip string) (string, error) {
 		"/var/rancher/k3s/bin:" +
 		"/opt/k3s/bin:" +
 		"/usr/local/bin:" +
-		"/usr/bin:"
+		"/usr/bin:" +
+		homedir + "/bin:"
 
 	// adding the common paths to the PATH environment variable by sourcing it from a file.
 	envFile := "find_path_env.sh"
-	err := ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
+	err = ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to create environment file: %w", err)
 	}
