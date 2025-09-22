@@ -104,16 +104,29 @@ func loadTFconfig(
 // this is being really messy and painful. remove after.
 func loadVersion(t *testing.T, c *Cluster, varDir string) {
 	// defaults first always to get from env, because both local and jenkins we update this file
-	if install := os.Getenv("INSTALL_VERSION"); install != "" {
-		c.Config.Version = install
-		LogLevel("info", "Using install version from env: %s", install)
+	if envInstallVersion := os.Getenv("INSTALL_VERSION"); envInstallVersion != "" {
+		c.Config.Version = envInstallVersion
+		LogLevel("info", "Using install version from env: %s", envInstallVersion)
 		return
 	}
 
-	version := c.Config.Product + "_version"
-	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, version); tf != "" {
+	if install := os.Getenv("install_version"); install != "" {
+		c.Config.Channel = install
+		LogLevel("info", "Using install version from env install_version: %s", install)
+		return
+	}
+
+	tfVersion := c.Config.Product + "_version"
+	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfVersion); tf != "" {
 		c.Config.Version = tf
 		LogLevel("info", "Using install version from tfvars: %s", tf)
+		return
+	}
+
+	versionUp := strings.ToUpper(tfVersion)
+	if env := os.Getenv(tfVersion); env != "" {
+		c.Config.Channel = env
+		LogLevel("info", "Using install version from env to upgrade %s: %s", versionUp, env)
 		return
 	}
 }
@@ -126,24 +139,23 @@ func loadChannel(t *testing.T, c *Cluster, varDir string) {
 		return
 	}
 
-	tfChannel := c.Config.Product + "_channel"
-
-	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfChannel); tf != "" {
-		c.Config.Channel = tf
-		LogLevel("info", "Using install channel from tfvars: %s", tf)
-		return
-	}
-
 	if install := os.Getenv("install_channel"); install != "" {
 		c.Config.Channel = install
 		LogLevel("info", "Using install channel from env install_channel: %s", install)
 		return
 	}
 
+	tfChannel := c.Config.Product + "_channel"
+	if tf := terraform.GetVariableAsStringFromVarFile(t, varDir, tfChannel); tf != "" {
+		c.Config.Channel = tf
+		LogLevel("info", "Using install channel from tfvars: %s", tf)
+		return
+	}
+
 	channelUp := strings.ToUpper(tfChannel)
 	if env := os.Getenv(channelUp); env != "" {
 		c.Config.Channel = env
-		LogLevel("info", "Using install channel from env %s: %s", channelUp, env)
+		LogLevel("info", "Using install channel from env to upgrade %s: %s", channelUp, env)
 		return
 	}
 }
