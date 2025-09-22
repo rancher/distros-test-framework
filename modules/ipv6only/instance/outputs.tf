@@ -9,11 +9,15 @@ output "public_dns" {
 }
 
 output "master_ips" {
-  value = join("," ,aws_instance.master.*.ipv6_addresses[0])
+  value = join(",", [
+    for instance in aws_instance.master : instance.ipv6_addresses[0]
+  ])
   description = "The IPv6 IP of the AWS master node"
 }
 
 output "worker_ips" {
-  value = (var.no_of_worker_nodes > 0) ? join("," ,aws_instance.worker.*.ipv6_addresses[0]) : ""
+  value = join("," , [
+    for instance in aws_instance.worker : instance.ipv6_addresses[0]
+  ])
   description = "The IPv6 IP of the AWS worker node"
 }
