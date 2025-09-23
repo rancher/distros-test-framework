@@ -60,7 +60,7 @@ var _ = Describe("Canal Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  canalChartCmd,
+						Cmd:                        canalChartCmd,
 						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
 						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},

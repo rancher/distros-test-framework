@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	multusChartsCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus', "
+	multusChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus', "
 )
 
 var _ = Describe("Multus + canal Version bump:", func() {
@@ -61,7 +61,7 @@ var _ = Describe("Multus + canal Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  		multusChartsCmd,
+						Cmd:                  		multusChartCmd,
 						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
 						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
