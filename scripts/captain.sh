@@ -192,11 +192,13 @@ verify_rke2_packaging () {
 }
 
 verify_prime_registry () {
-    SYS_AGENT_OUTFILE="sys_agent_${RANDOM_INT}"
+    SYS_AGENT_OUTFILE="${PRODUCT}-sys_agent_${RANDOM_INT}"
     RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM_INT}"
+    UPGRADE_OUTFILE="${PRODUCT}_upgrade_${RANDOM_INT}"
 
     printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
+    # rke2-runtime is only for rke2 product
     if [ "${PRODUCT}" = "rke2" ]; then
         RKE2_RUNTIME_URL="docker://registry.rancher.com/rancher/rke2-runtime"
         if echo "${VERSION_PREFIX}" | grep -q "rc"; then
@@ -208,23 +210,29 @@ verify_prime_registry () {
         fi
     
         RKE2_RUNTIME_COUNT=$(wc -l < "${RKE2_RUNTIME_OUTFILE}")
-        verify_count "${RKE2_RUNTIME_COUNT}" "1" "RKE2 Runtime(in prime registry)"
+        verify_count "${RKE2_RUNTIME_COUNT}" "4" "RKE2 Runtime (in prime registry)"
+        rm -rf "${RKE2_RUNTIME_OUTFILE}"
     fi
 
-    SYS_AGENT_INSTALLER_URL="docker://registry.rancher.com/rancher/system-agent-installer-${PRODUCT}"
-    debug_log "skopeo list-tags ${SYS_AGENT_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${SYS_AGENT_OUTFILE}"
-    skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
-    
-    SYS_AGENT_COUNT=$(wc -l < "${SYS_AGENT_OUTFILE}")
+    # Verify system-agent-installer and upgrade images in prime registry for k3s and rke2 products
+    URL_ITEMS="system-agent-installer-${PRODUCT} ${PRODUCT}-upgrade"
 
-    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-        verify_count "${SYS_AGENT_COUNT}" "0" "System Agent Installer for ${PRODUCT} (in prime registry)"
-    else
-        verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
-    fi
-    
-    rm -rf "${SYS_AGENT_OUTFILE}"
-    rm -rf "${RKE2_RUNTIME_OUTFILE}"
+    for ITEM in $URL_ITEMS; do
+        OUTFILE="${ITEM}_${VERSION_PREFIX}_${RANDOM_INT}"
+        PRIME_URL="docker://registry.rancher.com/rancher/${ITEM}"
+
+        debug_log "skopeo list-tags ${PRIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${OUTFILE}"
+        skopeo list-tags "${PRIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${OUTFILE}"
+        COUNT=$(wc -l < "${OUTFILE}")
+
+        if echo "${VERSION_PREFIX}" | grep -q "rc"; then
+            verify_count "${COUNT}" "0" "${ITEM} (in prime registry)"
+        else
+            verify_count "${COUNT}" "1" "${ITEM} (in prime registry)"
+        fi
+
+        rm -rf "${OUTFILE}"
+    done
 }
 
 verify_lts () {
