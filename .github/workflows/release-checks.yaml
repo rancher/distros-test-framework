@@ -1,4 +1,4 @@
-name: Run Captain Shell Script
+name: Run Release Checks
 
 on:
   workflow_dispatch:
@@ -30,13 +30,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Update and install necessary packages
         run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
 
       - name: Change permissions and make script executable (if needed)
         working-directory: ./scripts
-        run: chmod +x ./captain.sh
+        run: chmod +x ./release_checks.sh
 
       - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
