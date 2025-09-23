@@ -192,15 +192,13 @@ verify_rke2_packaging () {
 }
 
 verify_prime_registry () {
-    SYS_AGENT_OUTFILE="${PRODUCT}-sys_agent_${RANDOM_INT}"
-    RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM_INT}"
-    UPGRADE_OUTFILE="${PRODUCT}_upgrade_${RANDOM_INT}"
-
     printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
     # rke2-runtime is only for rke2 product
     if [ "${PRODUCT}" = "rke2" ]; then
         RKE2_RUNTIME_URL="docker://registry.rancher.com/rancher/rke2-runtime"
+        RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM_INT}"
+
         if echo "${VERSION_PREFIX}" | grep -q "rc"; then
             debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${RKE2_RUNTIME_OUTFILE}"
             skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${RKE2_RUNTIME_OUTFILE}"
@@ -223,8 +221,8 @@ verify_prime_registry () {
 
         debug_log "skopeo list-tags ${PRIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${OUTFILE}"
         skopeo list-tags "${PRIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${OUTFILE}"
+        
         COUNT=$(wc -l < "${OUTFILE}")
-
         if echo "${VERSION_PREFIX}" | grep -q "rc"; then
             verify_count "${COUNT}" "0" "${ITEM} (in prime registry)"
         else
