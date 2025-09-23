@@ -1,6 +1,7 @@
 package customflag
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -66,6 +67,14 @@ func validateFromLocal() (
 	expectedValue := os.Getenv("EXPECTED_VALUE")
 	if expectedValue == "" {
 		log.Error("expected value was not sent")
+		os.Exit(1)
+	}
+
+	expectedChartsValue := os.Getenv("EXPECTED_CHARTS_VALUE")
+	fmt.Println("expectedChartsValue: ", expectedChartsValue)
+	fmt.Println("charts length: ", len(expectedChartsValue))
+	if expectedChartsValue == "" {
+		log.Error("expected charts value was not sent")
 		os.Exit(1)
 	}
 
