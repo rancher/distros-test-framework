@@ -242,6 +242,8 @@ func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, c
 		}
 
 		if len(expectedChartsValues) != chartsCmdCount {
+			fmt.Println("expected charts values: ", expectedChartsValues)
+			fmt.Println("len of charts values: ", len(expectedChartsValues))
 			log.Errorf("mismatched length commands: %d x expected charts values: %d",
 				chartsCmdCount, len(expectedChartsValues))
 			os.Exit(1)
