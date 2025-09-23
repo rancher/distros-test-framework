@@ -216,8 +216,8 @@ verify_prime_registry () {
     URL_ITEMS="system-agent-installer-${PRODUCT} ${PRODUCT}-upgrade"
 
     for ITEM in $URL_ITEMS; do
-        OUTFILE="${ITEM}_${VERSION_PREFIX}_${RANDOM_INT}"
         PRIME_URL="docker://registry.rancher.com/rancher/${ITEM}"
+        OUTFILE="${ITEM}_${VERSION_PREFIX}_${RANDOM_INT}"
 
         debug_log "skopeo list-tags ${PRIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${OUTFILE}"
         skopeo list-tags "${PRIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${OUTFILE}"
