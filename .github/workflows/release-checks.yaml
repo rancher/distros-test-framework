@@ -1,4 +1,4 @@
-name: Run Captain Shell Script
+name: Run Release Checks
 
 on:
   workflow_dispatch:
@@ -30,19 +30,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Update and install necessary packages
         run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
 
       - name: Change permissions and make script executable (if needed)
         working-directory: ./scripts
-        run: chmod +x ./captain.sh
+        run: chmod +x ./release_checks.sh
 
       - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
         id: k3s_verify
         if: ${{ github.event.inputs.k3s_versions != '' }}
-        run: ./captain.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        run: ./release_checks.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
         continue-on-error: true
 
@@ -50,7 +50,7 @@ jobs:
         working-directory: ./scripts
         id: rke2_verify
         if: ${{ github.event.inputs.rke2_versions != '' }}
-        run: ./captain.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        run: ./release_checks.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
         shell: sh
         continue-on-error: true
 
@@ -58,7 +58,7 @@ jobs:
         working-directory: ./scripts
         id: rke2_lts_verify
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
-        run: ./captain.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
+        run: ./release_checks.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
 
       - name: Check for previous failures

@@ -160,6 +160,34 @@ verify_release_asset_count_k3s () {
     verify_count "${ASSET_COUNT}" "19" "K3S release Asset count"
 }
 
+verify_asset_count_rke2_packaging () {
+     # expect 60 cause 2 assets are the zipped and tar.gz source code
+    EXPECTED_ASSETS_COUNT="${EXPECTED_ASSETS_COUNT:-60}"
+
+    printf '\n==== VERIFY RKE2 PACKAGING ASSETS FOR RKE2 VERSION: %s ====\n' "${VERSION}"
+
+    JSON=$(
+      curl -sS -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/rancher/rke2-packaging/releases?per_page=100"
+    )
+
+    TAG=$(printf '%s' "$JSON" | jq -r --arg p "$VERSION" '
+      [ .[] | select((.tag_name | startswith($p)) and (.tag_name | test("\\.testing\\.[0-9]+$"))) ][0].tag_name
+    ')
+    debug_log "TAG: ${TAG}"
+
+    if [ -z "$TAG" ]; then
+        echo "FAIL: ${VERSION}: packaging release tag not found (looking for ${VERSION}.testing)." | tee -a "${FAILURE_FILE}"
+        echo "Please ensure the version is correct and the release exists." | tee -a "${FAILURE_FILE}"
+    fi
+
+    ASSET_COUNT=$(printf '%s' "$JSON" | jq --arg tag "$TAG" '
+      [.[] | select(.tag_name == $tag)][0].assets | length
+    ')
+
+    verify_count "${ASSET_COUNT}" "${EXPECTED_ASSETS_COUNT}" "RKE2 packaging assets"
+}
+
 verify_rke2_packaging () {
     RKE2_PKG_FILE="rke2_pkg_${RANDOM_INT}"
     
@@ -270,6 +298,7 @@ do
         if [ "${PRODUCT}" = "rke2" ]; then
             verify_rke2_packaging
             verify_release_asset_count_rke2
+            verify_asset_count_rke2_packaging
         else
             verify_release_asset_count_k3s
         fi
