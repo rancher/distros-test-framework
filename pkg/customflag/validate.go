@@ -1,7 +1,6 @@
 package customflag
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -53,7 +52,7 @@ func ValidateTemplateFlags() {
 func validateFromLocal() (
 	cmd,
 	testTag string,
-	expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades []string) {
+	expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades []string) {
 	testTag = validateTestTagFromLocal()
 	cmd = os.Getenv("CMD")
 	if cmd == "" && testTag == "versionbump" {
@@ -71,8 +70,6 @@ func validateFromLocal() (
 	}
 
 	expectedChartsValue := os.Getenv("EXPECTED_CHARTS_VALUE")
-	fmt.Println("expectedChartsValue: ", expectedChartsValue)
-	fmt.Println("charts length: ", len(expectedChartsValue))
 	if expectedChartsValue == "" {
 		log.Error("expected charts value was not sent")
 		os.Exit(1)
@@ -84,11 +81,17 @@ func validateFromLocal() (
 		expectedUpgrades = strings.Split(valuesUpgrade, ",")
 	}
 
+	chartsValuesUpgrade := os.Getenv("CHARTS_VALUE_UPGRADED")
+	if chartsValuesUpgrade != "" {
+		expectedChartsUpgrades = strings.Split(chartsValuesUpgrade, ",")
+	}
+
 	validateUpgradeFromLocal(installVersionOrCommit, valuesUpgrade)
 
 	expectedValues = strings.Split(expectedValue, ",")
+	expectedChartsValues = strings.Split(expectedChartsValue, ",")
 
-	return cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades
+	return cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades
 }
 
 // validateUpgradeFromLocal validates if the upgrade flag was sent and...
@@ -188,31 +191,7 @@ func validateCanalTest(expectedValue, valuesUpgrade, expectedChartsValues, chart
 func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
 	k3sCmdCount := 1
 	rke2CmdCount := 1
-	// cmdCount := 1
 	chartsCmdCount := 1
-
-	// if len(expectedValue) != cmdCount {
-	// 	log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
-	// 	os.Exit(1)
-	// }
-
-	// if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
-	// 	log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-	// 		cmdCount, len(valuesUpgrade))
-	// 	os.Exit(1)
-	// }
-
-	// if len(expectedChartsValues) != chartsCmdCount {
-	// 	log.Errorf("mismatched length commands: %d x expected charts values: %d",
-	// 		chartsCmdCount, len(expectedChartsValues))
-	// 	os.Exit(1)
-	// }
-
-	// if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
-	// 	log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
-	// 		chartsCmdCount, len(chartsValueUpgrades))
-	// 	os.Exit(1)
-	// }
 
 	product := os.Getenv("ENV_PRODUCT")
 
@@ -242,8 +221,6 @@ func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, c
 		}
 
 		if len(expectedChartsValues) != chartsCmdCount {
-			fmt.Println("expected charts values: ", expectedChartsValues)
-			fmt.Println("len of charts values: ", len(expectedChartsValues))
 			log.Errorf("mismatched length commands: %d x expected charts values: %d",
 				chartsCmdCount, len(expectedChartsValues))
 			os.Exit(1)
@@ -318,6 +295,10 @@ func validateComponentsTest(expectedValue, valuesUpgrade, expectedChartsValues, 
 		}
 
 		if len(expectedChartsValues) != chartsCmdCount {
+			log.Info("running charts check for command count")
+			log.Info("this is the charts command count: ", chartsCmdCount)
+			log.Info("this is the length of the expected chartsValues: ", len(expectedChartsValues))
+			log.Info("this is the expected charts values: ", expectedChartsValues)
 			log.Errorf("mismatched length commands: %d x expected charts values: %d",
 				chartsCmdCount, len(expectedChartsValues))
 			os.Exit(1)
