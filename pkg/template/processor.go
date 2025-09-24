@@ -68,6 +68,7 @@ func processCmds(
 			}
 		} else {
 			processNodeErr := processOnNode(cmd, expectedValue, ip, currentProductVersion)
+			shared.LogLevel("info", "cmd: %s")
 			if processNodeErr != nil {
 				return shared.ReturnLogError("error from processOnNode: %w", processNodeErr)
 			}

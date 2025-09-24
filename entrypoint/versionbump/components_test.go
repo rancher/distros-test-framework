@@ -107,9 +107,9 @@ var _ = Describe("Components Version Upgrade:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                        chartsCmd,
-						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
-						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						Cmd:                  chartsCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},
