@@ -61,9 +61,9 @@ var _ = Describe("Flannel Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                        flannelChartCmd,
-						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
-						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						Cmd:                  flannelChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

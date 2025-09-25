@@ -61,9 +61,9 @@ var _ = Describe("Multus + canal Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  		multusChartCmd,
-						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
-						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						Cmd:                  multusChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

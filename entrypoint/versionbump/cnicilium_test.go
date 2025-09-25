@@ -60,9 +60,9 @@ var _ = Describe("Cilium Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                        ciliumChartCmd,
-						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
-						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						Cmd:                  ciliumChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

@@ -59,9 +59,9 @@ var _ = Describe("Calico Version bump:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                        calicoChartCmd,
-						ExpectedChartsValue:        TestMap.ExpectedChartsValue,
-						ExpectedChartsValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						Cmd:                  calicoChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},
