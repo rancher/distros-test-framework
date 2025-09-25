@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	multusChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus', "
+	multusChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-multus' "
 )
 
 var _ = Describe("Multus + canal Version bump:", func() {

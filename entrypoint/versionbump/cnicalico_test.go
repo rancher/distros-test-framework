@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	calicoCmd      = "kubectl get node -o yaml : | grep mirrored-calico  -A1, "
-	calicoChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-calico', "
+	calicoCmd      = "kubectl get node -o yaml : | grep mirrored-calico  -A1 "
+	calicoChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-calico' "
 )
 
 var _ = Describe("Calico Version bump:", func() {

@@ -15,7 +15,7 @@ import (
 
 const (
 	calicoCmd     = " kubectl get node -o yaml: | grep 'hardened-calico' -A1, "
-	flannelCmd    = " kubectl get node -o yaml : | grep 'hardened-flannel' -A1, "
+	flannelCmd    = " kubectl get node -o yaml : | grep 'hardened-flannel' -A1 "
 	canalChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-canal' "
 )
 

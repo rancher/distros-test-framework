@@ -15,7 +15,7 @@ import (
 
 const (
 	ciliumCmd      = "kubectl get node -o yaml : | grep mirrored-cilium  -A1, "
-	cniPluginsCmd  = "kubectl get node -o yaml : | grep hardened-cni-plugins -A1, "
+	cniPluginsCmd  = "kubectl get node -o yaml : | grep hardened-cni-plugins -A1 "
 	ciliumChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-cilium' "
 )
 
