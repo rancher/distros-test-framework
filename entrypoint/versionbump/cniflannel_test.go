@@ -37,7 +37,7 @@ var _ = Describe("Flannel Version bump:", func() {
 	})
 
 	It("Test flannel version bump", func() {
-		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1, "
+		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1 "
 		if cluster.Config.Product == "k3s" {
 			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
 		}
