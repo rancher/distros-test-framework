@@ -56,20 +56,22 @@ var _ = Describe("Flannel Version bump:", func() {
 		})
 	})
 
-	It("Test flannel charts version", func() {
-		Template(TestTemplate{
-			TestCombination: &RunCmd{
-				Run: []TestMapConfig{
-					{
-						Cmd:                  flannelChartCmd,
-						ExpectedValue:        TestMap.ExpectedChartsValue,
-						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+	if cluster.Config.Product == "rke2" {
+		It("Test flannel charts version", func() {
+			Template(TestTemplate{
+				TestCombination: &RunCmd{
+					Run: []TestMapConfig{
+						{
+							Cmd:                  flannelChartCmd,
+							ExpectedValue:        TestMap.ExpectedChartsValue,
+							ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						},
 					},
 				},
-			},
-			InstallMode: ServiceFlag.InstallMode.String(),
+				InstallMode: ServiceFlag.InstallMode.String(),
+			})
 		})
-	})
+	}
 
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIP(true, true)

@@ -102,21 +102,23 @@ var _ = Describe("Components Version Upgrade:", func() {
 		})
 	})
 
-	It(chartsDescription, func() {
-		Template(TestTemplate{
-			TestCombination: &RunCmd{
-				Run: []TestMapConfig{
-					{
-						Cmd:                  chartsCmd,
-						ExpectedValue:        TestMap.ExpectedChartsValue,
-						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+	if cluster.Config.Product == "rke2" {
+		It(chartsDescription, func() {
+			Template(TestTemplate{
+				TestCombination: &RunCmd{
+					Run: []TestMapConfig{
+						{
+							Cmd:                  chartsCmd,
+							ExpectedValue:        TestMap.ExpectedChartsValue,
+							ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						},
 					},
 				},
-			},
-			InstallMode: ServiceFlag.InstallMode.String(),
-			Description: ServiceFlag.TestTemplateConfig.Description,
+				InstallMode: ServiceFlag.InstallMode.String(),
+				Description: ServiceFlag.TestTemplateConfig.Description,
+			})
 		})
-	})
+	}
 
 	It("Verifies dns access", func() {
 		testcase.TestDNSAccess(true, true)
