@@ -91,6 +91,7 @@ func validateFromLocal() (
 	expectedValues = strings.Split(expectedValue, ",")
 	expectedChartsValues = strings.Split(expectedChartsValue, ",")
 	log.Info("expectedChartsValue: ", expectedChartsValue)
+
 	return cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades
 }
 
