@@ -43,7 +43,8 @@ func validateFromJenkins(argsFromJenkins string) (testValues *TestValues) {
 
 // extractExpectedValues validates if the expected value was sent and if the expected value after upgrade was sent too.
 // It returns the expected values for the test and the expected values after upgrade even if empty.
-func extractExpectedValues(testArgs string) (expectedValues, valuesUpgrades, expectedChartsValues, chartsValuesUpgrades []string) {
+func extractExpectedValues(testArgs string) (expectedValues, valuesUpgrades,
+	expectedChartsValues, chartsValuesUpgrades []string) {
 	fields := strings.Fields(testArgs)
 	keyValueResult := make(map[string][]string)
 
@@ -82,10 +83,14 @@ func extractCmds(testArgs string) string {
 // validateUpgradeFromJenkins validates if the upgrade flag was sent and...
 // if the expected value after upgrade was sent too inside the testArgs.
 func validateUpgradeFromJenkins(testArgs string) {
-	if strings.Contains(testArgs, "-installVersionOrCommit") && !strings.Contains(testArgs, "-expectedValueUpgrade") ||
-		!strings.Contains(testArgs, "-installVersionOrCommit") && strings.Contains(testArgs, "-expectedValueUpgrade") ||
-		strings.Contains(testArgs, "-installVersionOrCommit") && !strings.Contains(testArgs, "-expectedChartsValueUpgrade") ||
-		!strings.Contains(testArgs, "-installVersionOrCommit") && strings.Contains(testArgs, "-expectedChartsValueUpgrade") {
+	if strings.Contains(testArgs, "-installVersionOrCommit") && !strings.Contains(testArgs,
+		"-expectedValueUpgrade") ||
+		!strings.Contains(testArgs, "-installVersionOrCommit") && strings.Contains(testArgs,
+			"-expectedValueUpgrade") ||
+		strings.Contains(testArgs, "-installVersionOrCommit") && !strings.Contains(testArgs,
+			"-expectedChartsValueUpgrade") ||
+		!strings.Contains(testArgs, "-installVersionOrCommit") && strings.Contains(testArgs,
+			"-expectedChartsValueUpgrade") {
 		log.Error("using upgrade, please provide the expected value after upgrade and the install version or commit")
 		os.Exit(1)
 	}
