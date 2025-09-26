@@ -11,6 +11,13 @@ import (
 
 var log = logger.AddLogger()
 
+type ExpectedArgs struct {
+	ExpectedValues              []string
+	ExpectedUpgrades            []string
+	ExpectedChartsValues        []string
+	ExpectedChartsValueUpgrades []string
+}
+
 // ValidateTemplateFlags validates version bump template flags that were set on environment variables at .env file.
 func ValidateTemplateFlags() {
 	var (
@@ -20,13 +27,14 @@ func ValidateTemplateFlags() {
 		expectedChartsValueUpgrades []string
 		testTag                     string
 		cmd                         string
+		expectedArgs                *ExpectedArgs
 	)
 
 	argsFromJenkins := os.Getenv("TEST_ARGS")
 	if argsFromJenkins != "" {
 		cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades = validateFromJenkins(argsFromJenkins)
 	} else {
-		cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades = validateFromLocal()
+		cmd, testTag, expectedArgs = validateFromLocal()
 	}
 
 	switch testTag {
@@ -49,10 +57,11 @@ func ValidateTemplateFlags() {
 	}
 }
 
-func validateFromLocal() (
-	cmd,
-	testTag string,
-	expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades []string) {
+func validateFromLocal() (cmd, testTag string, expectedArgs *ExpectedArgs) {
+	var (
+		expectedUpgrades       []string
+		expectedChartsUpgrades []string
+	)
 	testTag = validateTestTagFromLocal()
 	cmd = os.Getenv("CMD")
 	if cmd == "" && testTag == "versionbump" {
@@ -88,11 +97,18 @@ func validateFromLocal() (
 
 	validateUpgradeFromLocal(installVersionOrCommit, valuesUpgrade)
 
-	expectedValues = strings.Split(expectedValue, ",")
-	expectedChartsValues = strings.Split(expectedChartsValue, ",")
+	expectedValues := strings.Split(expectedValue, ",")
+	expectedChartsValues := strings.Split(expectedChartsValue, ",")
 	log.Info("expectedChartsValue: ", expectedChartsValue)
 
-	return cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades
+	expectedArgs = &ExpectedArgs{
+		ExpectedValues:              expectedValues,
+		ExpectedUpgrades:            expectedUpgrades,
+		ExpectedChartsValues:        expectedChartsValues,
+		ExpectedChartsValueUpgrades: expectedChartsUpgrades,
+	}
+
+	return cmd, testTag, expectedArgs
 }
 
 // validateUpgradeFromLocal validates if the upgrade flag was sent and...
@@ -328,6 +344,26 @@ func ValidateVersionFormat() {
 		}
 	}
 }
+
+// func getArgsForValidateFromLocal(
+// 	cmd,
+// 	testTag string,
+// 	expectedValues,
+// 	expectedUpgrades,
+// 	expectedChartsValues,
+// 	expectedChartsUpgrades []string,
+// 	) (*LocalArgs, error) {
+// 	localArgs := &LocalArgs{
+// 		Cmd:                    cmd,
+// 		TestTag:                testTag,
+// 		ExpectValues:           expectedValues,
+// 		ExpectedValueUpgrades:  expectedUpgrades,
+// 		ExpectedChartsValues:   expectedChartsValues,
+// 		ExpectedChartsUpgrades: expectedChartsUpgrades,
+// 	}
+
+// 	return localArgs, nil
+// }
 
 func ValidateTemplateTcs() {
 	validTestCases := map[string]struct{}{
