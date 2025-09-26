@@ -25,3 +25,7 @@ variable "enable_ipv6" {
 variable "no_of_worker_nodes" {}
 variable "no_of_server_nodes" {}
 variable "product" {}
+variable "create_lb" {
+  default = false
+}
+variable "hosted_zone" {}
