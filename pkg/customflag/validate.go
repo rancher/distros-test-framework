@@ -11,7 +11,9 @@ import (
 
 var log = logger.AddLogger()
 
-type ExpectedArgs struct {
+type TestValues struct {
+	Cmd                         string
+	TestTag                     string
 	ExpectedValues              []string
 	ExpectedUpgrades            []string
 	ExpectedChartsValues        []string
@@ -20,50 +22,48 @@ type ExpectedArgs struct {
 
 // ValidateTemplateFlags validates version bump template flags that were set on environment variables at .env file.
 func ValidateTemplateFlags() {
-	var (
-		expectedValues              []string
-		expectedUpgrades            []string
-		expectedChartsValues        []string
-		expectedChartsValueUpgrades []string
-		testTag                     string
-		cmd                         string
-		expectedArgs                *ExpectedArgs
-	)
+	testValues := &TestValues{}
 
 	argsFromJenkins := os.Getenv("TEST_ARGS")
 	if argsFromJenkins != "" {
-		cmd, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades = validateFromJenkins(argsFromJenkins)
+		testValues = validateFromJenkins(argsFromJenkins)
 	} else {
-		cmd, testTag, expectedArgs = validateFromLocal()
+		testValues = validateFromLocal()
 	}
 
-	switch testTag {
+	switch testValues.TestTag {
 	case "versionbump":
-		validateVersionBumpTest(expectedValues, expectedUpgrades, cmd)
+		validateVersionBumpTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.Cmd)
 	case "cilium":
-		validateCiliumTest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateCiliumTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "multus":
-		validateMultusTest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateMultusTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "components":
-		validateComponentsTest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateComponentsTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "flannel":
-		validateSingleCNITest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateSingleCNITest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "calico":
-		validateSingleCNITest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateSingleCNITest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "canal":
-		validateCanalTest(expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades)
+		validateCanalTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}
 }
 
-func validateFromLocal() (cmd, testTag string, expectedArgs *ExpectedArgs) {
+func validateFromLocal() (testValues *TestValues) {
 	var (
 		expectedUpgrades       []string
 		expectedChartsUpgrades []string
 	)
-	testTag = validateTestTagFromLocal()
-	cmd = os.Getenv("CMD")
+	testTag := validateTestTagFromLocal()
+	cmd := os.Getenv("CMD")
 	if cmd == "" && testTag == "versionbump" {
 		log.Error("cmd was not sent for versionbump test tag")
 		os.Exit(1)
@@ -101,14 +101,16 @@ func validateFromLocal() (cmd, testTag string, expectedArgs *ExpectedArgs) {
 	expectedChartsValues := strings.Split(expectedChartsValue, ",")
 	log.Info("expectedChartsValue: ", expectedChartsValue)
 
-	expectedArgs = &ExpectedArgs{
+	testValues = &TestValues{
+		Cmd:                         cmd,
+		TestTag:                     testTag,
 		ExpectedValues:              expectedValues,
 		ExpectedUpgrades:            expectedUpgrades,
 		ExpectedChartsValues:        expectedChartsValues,
 		ExpectedChartsValueUpgrades: expectedChartsUpgrades,
 	}
 
-	return cmd, testTag, expectedArgs
+	return testValues
 }
 
 // validateUpgradeFromLocal validates if the upgrade flag was sent and...

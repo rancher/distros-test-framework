@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-func validateFromJenkins(argsFromJenkins string) (command, testTag string, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades []string) {
-	command = extractCmds(argsFromJenkins)
-	testTag = validateTestTagFromJenkins(argsFromJenkins)
+func validateFromJenkins(argsFromJenkins string) (testValues *TestValues) {
+	command := extractCmds(argsFromJenkins)
+	testTag := validateTestTagFromJenkins(argsFromJenkins)
 	if command == "" && testTag == "versionbump" {
 		log.Error("cmd was not sent for versionbump test tag versionbump")
 		os.Exit(1)
@@ -27,9 +27,18 @@ func validateFromJenkins(argsFromJenkins string) (command, testTag string, expec
 
 	validateUpgradeFromJenkins(argsFromJenkins)
 
-	expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades = extractExpectedValues(argsFromJenkins)
+	expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsUpgrades := extractExpectedValues(argsFromJenkins)
 
-	return command, testTag, expectedValues, expectedUpgrades, expectedChartsValues, expectedChartsValueUpgrades
+	testValues = &TestValues{
+		Cmd:                         command,
+		TestTag:                     testTag,
+		ExpectedValues:              expectedValues,
+		ExpectedUpgrades:            expectedUpgrades,
+		ExpectedChartsValues:        expectedChartsValues,
+		ExpectedChartsValueUpgrades: expectedChartsUpgrades,
+	}
+
+	return testValues
 }
 
 // extractExpectedValues validates if the expected value was sent and if the expected value after upgrade was sent too.
