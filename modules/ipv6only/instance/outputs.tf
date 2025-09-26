@@ -21,3 +21,8 @@ output "worker_ips" {
   ])
   description = "The IPv6 IP of the AWS worker node"
 }
+
+output "Route53_info" {
+  value       = length(aws_route53_record.aws_route53) > 0 ? aws_route53_record.aws_route53[0].fqdn : ""
+  description = "List of DNS records"
+}
