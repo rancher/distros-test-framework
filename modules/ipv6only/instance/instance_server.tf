@@ -115,7 +115,6 @@ resource "aws_instance" "bastion" {
     ]
   }
 }
-
 locals {
   resource_tag =  "distros-qa"
 }

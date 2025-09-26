@@ -86,6 +86,10 @@ func loadTFconfig(
 	if c.Config.DataStore == "external" {
 		loadExternalDb(t, varDir, c, terraformOptions)
 	}
+	createLB := terraform.GetVariableAsStringFromVarFile(t, varDir, "create_lb")
+	if createLB == "true" {
+		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
+	}
 
 	LogLevel("info", "Loading Version and Channel...")
 	loadVersion(t, c, varDir)
@@ -224,9 +228,8 @@ func loadTestConfig(tc *testConfig) error {
 func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster, module string) {
 	if module == "" {
 		KubeConfigFile = terraform.Output(t, terraformOptions, "kubeconfig")
-		c.FQDN = terraform.Output(t, terraformOptions, "Route53_info")
 	}
-
+	
 	if c.NumBastion > 0 {
 		LogLevel("info", "Loading bastion configs....")
 		c.BastionConfig.PublicIPv4Addr = terraform.Output(t, terraformOptions, "bastion_ip")
