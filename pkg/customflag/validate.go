@@ -347,26 +347,6 @@ func ValidateVersionFormat() {
 	}
 }
 
-// func getArgsForValidateFromLocal(
-// 	cmd,
-// 	testTag string,
-// 	expectedValues,
-// 	expectedUpgrades,
-// 	expectedChartsValues,
-// 	expectedChartsUpgrades []string,
-// 	) (*LocalArgs, error) {
-// 	localArgs := &LocalArgs{
-// 		Cmd:                    cmd,
-// 		TestTag:                testTag,
-// 		ExpectValues:           expectedValues,
-// 		ExpectedValueUpgrades:  expectedUpgrades,
-// 		ExpectedChartsValues:   expectedChartsValues,
-// 		ExpectedChartsUpgrades: expectedChartsUpgrades,
-// 	}
-
-// 	return localArgs, nil
-// }
-
 func ValidateTemplateTcs() {
 	validTestCases := map[string]struct{}{
 		"TestDaemonset":                    {},
