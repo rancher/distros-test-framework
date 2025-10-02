@@ -11,45 +11,59 @@ import (
 
 var log = logger.AddLogger()
 
+type TestValues struct {
+	Cmd                         string
+	TestTag                     string
+	ExpectedValues              []string
+	ExpectedUpgrades            []string
+	ExpectedChartsValues        []string
+	ExpectedChartsValueUpgrades []string
+}
+
 // ValidateTemplateFlags validates version bump template flags that were set on environment variables at .env file.
 func ValidateTemplateFlags() {
-	var (
-		expectedValues   []string
-		expectedUpgrades []string
-		testTag          string
-		cmd              string
-	)
+	testValues := &TestValues{}
 
 	argsFromJenkins := os.Getenv("TEST_ARGS")
 	if argsFromJenkins != "" {
-		cmd, testTag, expectedValues, expectedUpgrades = validateFromJenkins(argsFromJenkins)
+		testValues = validateFromJenkins(argsFromJenkins)
 	} else {
-		cmd, testTag, expectedValues, expectedUpgrades = validateFromLocal()
+		testValues = validateFromLocal()
 	}
 
-	switch testTag {
+	switch testValues.TestTag {
 	case "versionbump":
-		validateVersionBumpTest(expectedValues, expectedUpgrades, cmd)
+		validateVersionBumpTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.Cmd)
 	case "cilium":
-		validateCiliumTest(expectedValues, expectedUpgrades)
+		validateCiliumTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "multus":
-		validateMultusTest(expectedValues, expectedUpgrades)
+		validateMultusTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "components":
-		validateComponentsTest(expectedValues, expectedUpgrades)
+		validateComponentsTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "flannel":
-		validateSingleCNITest(expectedValues, expectedUpgrades)
+		validateSingleCNITest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "calico":
-		validateSingleCNITest(expectedValues, expectedUpgrades)
+		validateSingleCNITest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	case "canal":
-		validateCanalTest(expectedValues, expectedUpgrades)
+		validateCanalTest(testValues.ExpectedValues, testValues.ExpectedUpgrades, testValues.ExpectedChartsValues,
+			testValues.ExpectedChartsValueUpgrades)
 	default:
 		log.Errorf("test tag not found")
 	}
 }
 
-func validateFromLocal() (cmd, testTag string, expectedValues, expectedUpgrades []string) {
-	testTag = validateTestTagFromLocal()
-	cmd = os.Getenv("CMD")
+func validateFromLocal() (testValues *TestValues) {
+	var (
+		expectedUpgrades       []string
+		expectedChartsUpgrades []string
+	)
+	testTag := validateTestTagFromLocal()
+	cmd := os.Getenv("CMD")
 	if cmd == "" && testTag == "versionbump" {
 		log.Error("cmd was not sent for versionbump test tag")
 		os.Exit(1)
@@ -64,17 +78,39 @@ func validateFromLocal() (cmd, testTag string, expectedValues, expectedUpgrades 
 		os.Exit(1)
 	}
 
+	expectedChartsValue := os.Getenv("EXPECTED_CHARTS_VALUE")
+	if expectedChartsValue == "" {
+		log.Error("expected charts value was not sent")
+		os.Exit(1)
+	}
+
 	installVersionOrCommit := os.Getenv("INSTALL_VERSION_OR_COMMIT")
 	valuesUpgrade := os.Getenv("VALUE_UPGRADED")
 	if valuesUpgrade != "" {
 		expectedUpgrades = strings.Split(valuesUpgrade, ",")
 	}
 
+	chartsValuesUpgrade := os.Getenv("CHARTS_VALUE_UPGRADED")
+	if chartsValuesUpgrade != "" {
+		expectedChartsUpgrades = strings.Split(chartsValuesUpgrade, ",")
+	}
+
 	validateUpgradeFromLocal(installVersionOrCommit, valuesUpgrade)
 
-	expectedValues = strings.Split(expectedValue, ",")
+	expectedValues := strings.Split(expectedValue, ",")
+	expectedChartsValues := strings.Split(expectedChartsValue, ",")
+	log.Info("expectedChartsValue: ", expectedChartsValue)
 
-	return cmd, testTag, expectedValues, expectedUpgrades
+	testValues = &TestValues{
+		Cmd:                         cmd,
+		TestTag:                     testTag,
+		ExpectedValues:              expectedValues,
+		ExpectedUpgrades:            expectedUpgrades,
+		ExpectedChartsValues:        expectedChartsValues,
+		ExpectedChartsValueUpgrades: expectedChartsUpgrades,
+	}
+
+	return testValues
 }
 
 // validateUpgradeFromLocal validates if the upgrade flag was sent and...
@@ -116,8 +152,9 @@ func validateVersionBumpTest(expectedValue, expectedUpgrade []string, cmd string
 	}
 }
 
-func validateCiliumTest(expectedValue, valuesUpgrade []string) {
+func validateCiliumTest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
 	cmdCount := 2
+	chartsCmdCount := 1
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -128,11 +165,24 @@ func validateCiliumTest(expectedValue, valuesUpgrade []string) {
 			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
+
+	if len(expectedChartsValues) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values: %d",
+			chartsCmdCount, len(expectedChartsValues))
+		os.Exit(1)
+	}
+
+	if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
+			chartsCmdCount, len(chartsValueUpgrades))
+		os.Exit(1)
+	}
 }
 
-func validateCanalTest(expectedValue, valuesUpgrade []string) {
+func validateCanalTest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
 	// calico + flannel
 	cmdCount := 2
+	chartsCmdCount := 1
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -143,24 +193,69 @@ func validateCanalTest(expectedValue, valuesUpgrade []string) {
 			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
-}
 
-func validateSingleCNITest(expectedValue, valuesUpgrade []string) {
-	cmdCount := 1
-	if len(expectedValue) != cmdCount {
-		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
+	if len(expectedChartsValues) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values: %d",
+			chartsCmdCount, len(expectedChartsValues))
 		os.Exit(1)
 	}
 
-	if valuesUpgrade != nil && len(valuesUpgrade) != cmdCount {
-		log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
-			cmdCount, len(valuesUpgrade))
+	if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
+			chartsCmdCount, len(chartsValueUpgrades))
 		os.Exit(1)
 	}
 }
 
-func validateMultusTest(expectedValue, valuesUpgrade []string) {
+func validateSingleCNITest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
+	k3sCmdCount := 1
+	rke2CmdCount := 1
+	chartsCmdCount := 1
+
+	product := os.Getenv("ENV_PRODUCT")
+
+	if product == "k3s" {
+		if len(expectedValue) != k3sCmdCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", k3sCmdCount, len(expectedValue))
+			os.Exit(1)
+		}
+
+		if valuesUpgrade != nil && len(valuesUpgrade) != k3sCmdCount {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				k3sCmdCount, len(valuesUpgrade))
+			os.Exit(1)
+		}
+	}
+
+	if product == "rke2" {
+		if len(expectedValue) != rke2CmdCount {
+			log.Errorf("mismatched length commands: %d x expected values: %d", rke2CmdCount, len(expectedValue))
+			os.Exit(1)
+		}
+
+		if valuesUpgrade != nil && len(valuesUpgrade) != rke2CmdCount {
+			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
+				rke2CmdCount, len(valuesUpgrade))
+			os.Exit(1)
+		}
+
+		if len(expectedChartsValues) != chartsCmdCount {
+			log.Errorf("mismatched length commands: %d x expected charts values: %d",
+				chartsCmdCount, len(expectedChartsValues))
+			os.Exit(1)
+		}
+
+		if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
+			log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
+				chartsCmdCount, len(chartsValueUpgrades))
+			os.Exit(1)
+		}
+	}
+}
+
+func validateMultusTest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
 	cmdCount := 4
+	chartsCmdCount := 1
 	if len(expectedValue) != cmdCount {
 		log.Errorf("mismatched length commands: %d x expected values: %d", cmdCount, len(expectedValue))
 		os.Exit(1)
@@ -171,17 +266,31 @@ func validateMultusTest(expectedValue, valuesUpgrade []string) {
 			cmdCount, len(valuesUpgrade))
 		os.Exit(1)
 	}
+
+	if len(expectedChartsValues) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values: %d",
+			chartsCmdCount, len(expectedChartsValues))
+		os.Exit(1)
+	}
+
+	if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
+		log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
+			chartsCmdCount, len(chartsValueUpgrades))
+		os.Exit(1)
+	}
 }
 
-func validateComponentsTest(expectedValue, valuesUpgrade []string) {
+func validateComponentsTest(expectedValue, valuesUpgrade, expectedChartsValues, chartsValueUpgrades []string) {
 	k3sComponentsCmdsCount := 10
 	rke2ComponentsCmdsCount := 7
+	chartsCmdCount := 11
 
 	product := os.Getenv("ENV_PRODUCT")
 	switch product {
 	case "k3s":
 		if len(expectedValue) != k3sComponentsCmdsCount {
-			log.Errorf("mismatched length commands: %d x expected values: %d", k3sComponentsCmdsCount, len(expectedValue))
+			log.Errorf("mismatched length commands: %d x expected values: %d",
+				k3sComponentsCmdsCount, len(expectedValue))
 			os.Exit(1)
 		}
 
@@ -193,13 +302,30 @@ func validateComponentsTest(expectedValue, valuesUpgrade []string) {
 
 	case "rke2":
 		if len(expectedValue) != rke2ComponentsCmdsCount {
-			log.Errorf("mismatched length commands: %d x expected values: %d", rke2ComponentsCmdsCount, len(expectedValue))
+			log.Errorf("mismatched length commands: %d x expected values: %d",
+				rke2ComponentsCmdsCount, len(expectedValue))
 			os.Exit(1)
 		}
 
 		if valuesUpgrade != nil && len(valuesUpgrade) != rke2ComponentsCmdsCount {
 			log.Errorf("mismatched length commands: %d x expected values upgrade: %d",
 				rke2ComponentsCmdsCount, len(valuesUpgrade))
+			os.Exit(1)
+		}
+
+		if len(expectedChartsValues) != chartsCmdCount {
+			log.Info("running charts check for command count")
+			log.Info("this is the charts command count: ", chartsCmdCount)
+			log.Info("this is the length of the expected chartsValues: ", len(expectedChartsValues))
+			log.Info("this is the expected charts values: ", expectedChartsValues)
+			log.Errorf("mismatched length commands: %d x expected charts values: %d",
+				chartsCmdCount, len(expectedChartsValues))
+			os.Exit(1)
+		}
+
+		if chartsValueUpgrades != nil && len(chartsValueUpgrades) != chartsCmdCount {
+			log.Errorf("mismatched length commands: %d x expected charts values upgrade: %d",
+				chartsCmdCount, len(chartsValueUpgrades))
 			os.Exit(1)
 		}
 	}

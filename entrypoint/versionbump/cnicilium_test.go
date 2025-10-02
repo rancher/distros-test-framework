@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	ciliumCmd     = "kubectl get node -o yaml : | grep mirrored-cilium  -A1, "
-	cniPluginsCmd = "kubectl get node -o yaml : | grep hardened-cni-plugins -A1"
+	ciliumCmd      = "kubectl get node -o yaml : | grep mirrored-cilium  -A1, "
+	cniPluginsCmd  = "kubectl get node -o yaml : | grep hardened-cni-plugins -A1 "
+	ciliumChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-cilium' "
 )
 
 var _ = Describe("Cilium Version bump:", func() {
@@ -37,14 +38,31 @@ var _ = Describe("Cilium Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
+	cmd := ciliumCmd + cniPluginsCmd
+
 	It("Test Bump version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  ciliumCmd + cniPluginsCmd,
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
+		})
+	})
+
+	It("Test cilium charts version", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  ciliumChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},
