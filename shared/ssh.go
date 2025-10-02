@@ -251,7 +251,7 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	connPool.connClient[host] = newConn
 	connPool.Unlock()
 
-	LogLevel("info", "SSH connection pool: %v\n", &connPool.connClient)
+	LogLevel("debug", "SSH connection pool: %v\n", &connPool.connClient)
 
 	return newConn, nil
 }
