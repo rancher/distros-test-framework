@@ -35,9 +35,11 @@ type TestMapConfig testMapConfigFlag
 
 // testMapConfigFlag represents a single test command with key:value pairs.
 type testMapConfigFlag struct {
-	Cmd                  string
-	ExpectedValue        string
-	ExpectedValueUpgrade string
+	Cmd                        string
+	ExpectedValue              string
+	ExpectedValueUpgrade       string
+	ExpectedChartsValue        string
+	ExpectedChartsValueUpgrade string
 }
 
 type templateConfigFlag struct {

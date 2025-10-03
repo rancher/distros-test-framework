@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	calicoCmd = "kubectl get node -o yaml : | grep mirrored-calico  -A1"
+	calicoCmd      = "kubectl get node -o yaml : | grep mirrored-calico  -A1 "
+	calicoChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-calico' "
 )
 
 var _ = Describe("Calico Version bump:", func() {
@@ -36,14 +37,31 @@ var _ = Describe("Calico Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
+	cmd := calicoCmd
+
 	It("Test Calico version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  calicoCmd,
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
+		})
+	})
+
+	It("Test calico charts version", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  calicoChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

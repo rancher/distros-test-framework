@@ -28,7 +28,6 @@ resource "aws_instance" "worker" {
     Name                 = "${var.resource_name}-${local.resource_tag}-worker${count.index + 1}"
     Team                 = local.resource_tag
   }
-
   lifecycle {
     ignore_changes = [ami]
   }
@@ -43,7 +42,6 @@ resource "aws_eip_association" "worker_eip_association" {
 
 resource "null_resource" "worker_provisioner" {
   count = var.no_of_worker_nodes
-  
   connection {
     type                 = "ssh"
     user                 = var.aws_user
@@ -51,55 +49,45 @@ resource "null_resource" "worker_provisioner" {
     private_key          = file(var.access_key)
     timeout              = "25m"
   }
-
   provisioner "local-exec" {
     command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${aws_instance.worker[count.index].id}"
   }
-
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
-
   provisioner "local-exec" {
     command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${aws_instance.worker[count.index].id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
-  
   provisioner "file" {
     source               = "../install/join_k3s_agent.sh"
     destination          = "/var/tmp/join_k3s_agent.sh"
   }
-  
   provisioner "file" {
     source               = "${path.module}/cis_worker_config.yaml"
     destination          = "/tmp/cis_worker_config.yaml"
   }
-  
   provisioner "remote-exec" {
     inline = [
       "chmod +x /var/tmp/join_k3s_agent.sh",
       "sudo /var/tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${var.create_eip ? aws_eip.worker_with_eip[count.index].public_ip : aws_instance.worker[count.index].public_ip} ${aws_instance.worker[count.index].private_ip} \"${var.enable_ipv6 ? aws_instance.worker[count.index].ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" \"${var.worker_flags}\" ${var.username} ${var.password} \"${local.install_or_both}\"",
     ]
   }
-
   provisioner "local-exec" {
     command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${aws_instance.worker[count.index].id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
-  
   provisioner "remote-exec" {
     inline = [
       "sudo /var/tmp/join_k3s_agent.sh ${var.node_os} ${local.master_ip} ${local.node_token} ${var.create_eip ? aws_eip.worker_with_eip[count.index].public_ip : aws_instance.worker[count.index].public_ip} ${aws_instance.worker[count.index].private_ip} \"${var.enable_ipv6 ? aws_instance.worker[count.index].ipv6_addresses[0] : ""}\" ${var.install_mode} ${var.k3s_version} \"${var.k3s_channel}\" \"${var.worker_flags}\" ${var.username} ${var.password} \"${local.enable_service}\"",
     ]
   }
-
   provisioner "remote-exec" {
     inline = [
       "echo 'Waiting for cloud-init to complete'",
       "cloud-init status --wait > /dev/null"
     ]
   }
-
   depends_on = [
     aws_instance.worker,
     aws_eip_association.worker_eip_association
