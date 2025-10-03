@@ -282,7 +282,7 @@ func (c Client) ReleaseElasticIps(ipAddress string) error {
 						return shared.ReturnLogError("error releasing elastic ip: %w\n", addrErr)
 					}
 
-					shared.LogLevel("info", "released eips from intances: %v", *i.InstanceId)
+					shared.LogLevel("info", "released eips %s from intances: %v", *i.PublicIpAddress, *i.InstanceId)
 				}
 			}
 		}
