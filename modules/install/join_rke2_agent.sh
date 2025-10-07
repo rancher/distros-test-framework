@@ -73,9 +73,13 @@ update_config() {
 }
 
 cis_setup() {
-  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]; then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+  if [[ -n "$worker_flags" && "$worker_flags" == *"cis"* ]]; then
+    if [[ "$node_os" == *"rhel"* || "$node_os" == *"centos"* || "$node_os" == *"oracle"* ]]; then
+      if [[ -f /usr/share/rke2/rke2-cis-sysctl.conf ]]; then
+        cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+      else
+        cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+      fi
     elif [[ "$node_os" == *"slemicro"* ]]; then
       cat <<EOF >> ~/60-rke2-cis.conf
 on_oovm.panic_on_oom=0
