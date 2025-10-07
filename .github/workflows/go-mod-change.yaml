@@ -10,14 +10,14 @@ on:
       target0:
         description: 'Which release you want to check the go.mod for values.'
         required: true
-        default: 'master'
+        default: 'main'
       target1:
-        description: 'The release to compare against the master branch/latest release'
+        description: 'The release to compare against the main branch/latest release'
         required: true
         default: 'release-1.32'
       target2:
         required: false
-        description: 'The second release target to compare against the master branch/latest release'
+        description: 'The second release target to compare against the main branch/latest release'
         default: 'release-1.31'
       moduleKeyword:
         description: "The keyword denoting the module you want to check within the go.mod file"
@@ -25,7 +25,7 @@ on:
         default: 'kine'
   push:
     branches:
-      - master
+      - main
       - release-1.2*
     paths:
       - 'go.mod'
