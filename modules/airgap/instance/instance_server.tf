@@ -146,6 +146,10 @@ resource "aws_instance" "bastion" {
     source = "setup/basic-registry"
     destination = "/tmp"
   }
+
+  provisioner "local-exec" { 
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}" 
+  }
 }
 
 resource "null_resource" "prepare_bastion" {
