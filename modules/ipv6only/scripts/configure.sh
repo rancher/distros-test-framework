@@ -13,6 +13,12 @@ ipv6_config() {
   sed -i -e 's/127.0.0.1/::1/g' -e "s/ip6-loopback/ip6-loopback $instance_id/g" /etc/hosts
   echo "Updating /etc/resolv.conf"
   sed -i 's/127.0.0.53/2a00:1098:2c::1/g' /etc/resolv.conf
+  echo "Configuring sysctl for ipv6"
+  echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+  cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+  sysctl -p /etc/sysctl.d/99-ipv6.conf
+  systemctl restart systemd-sysctl
+  sleep 2
 }
 
 # Ref: https://github.com/rancher/rke2/issues/8033
@@ -29,10 +35,7 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    bgpControlPlane:
-      enabled: true
-      announce:
-        podCIDR: true
+    autoDirectNodeRoutes: true
 EOF
   fi
 }

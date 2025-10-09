@@ -39,3 +39,7 @@ variable "arch" {
   default = "amd64"
 }
 variable "product" {}
+variable "create_lb" {
+  default = false
+}
+variable "hosted_zone" {}

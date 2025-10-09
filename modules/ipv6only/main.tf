@@ -18,5 +18,7 @@ module "instance" {
    no_of_bastion_nodes  = var.no_of_bastion_nodes
    no_of_server_nodes   = var.no_of_server_nodes
    no_of_worker_nodes   = var.no_of_worker_nodes
-   product              = var.product 
+   product              = var.product
+   create_lb            = var.create_lb
+   hosted_zone          = var.hosted_zone 
 }
