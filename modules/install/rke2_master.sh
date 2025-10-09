@@ -109,8 +109,10 @@ disable_cloud_setup() {
   if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
     if [ -n "$ipv6_ip" ]; then
       echo "Configuring sysctl for ipv6"
-      echo "net.ipv6.conf.all.accept_ra=2" > /etc/sysctl.d/99-ipv6.conf
+      echo -e "net.ipv6.conf.all.accept_ra=2" >> ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/
       sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
     fi
   fi
 }
