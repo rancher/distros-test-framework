@@ -42,9 +42,9 @@ EOF
 
 main() {
   ipv6_config
-  if [[ "$product" == "rke2" ]] && [ -n "$flags" ]; then
-    cilium_config
-  fi
+  # if [[ "$product" == "rke2" ]] && [ -n "$flags" ]; then
+  #   cilium_config
+  # fi
 }
 
 main "$@"
