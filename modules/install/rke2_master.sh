@@ -109,9 +109,13 @@ disable_cloud_setup() {
 }
 
 cis_setup() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]; then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+  if [[ -n "$server_flags" && "$server_flags" == *"cis"* ]]; then
+    if [[ "$node_os" == *"rhel"* || "$node_os" == *"centos"* || "$node_os" == *"oracle"* ]]; then
+      if [[ -f /usr/share/rke2/rke2-cis-sysctl.conf ]]; then
+        cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+      else
+        cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+      fi
     elif [[ "$node_os" == *"slemicro"* ]]; then
       echo "Setting up CIS for slemicro"
       groupadd --system etcd && useradd -s /sbin/nologin --system -g etcd etcd
