@@ -19,3 +19,8 @@ output "worker_ips" {
   value       = module.instance.worker_ips
   description = "The IPv6 IP of the AWS node"
 }
+
+output "Route53_info" {
+  value = module.instance.Route53_info
+  description = "List of DNS records"
+}
