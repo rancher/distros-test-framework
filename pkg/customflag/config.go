@@ -28,6 +28,21 @@ type FlagConfig struct {
 	SelinuxTest          selinuxTestFlag
 	KillAllUninstallTest killalluninstallTestFlag
 	SecretsEncrypt       secretsEncryptFlag
+	Nvidia               nvidiaFlag
+}
+
+type nvidiaFlag struct {
+	Version string
+}
+
+func (n *nvidiaFlag) String() string {
+	return n.Version
+}
+
+func (n *nvidiaFlag) Set(value string) error {
+	n.Version = value
+
+	return nil
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
