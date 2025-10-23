@@ -184,12 +184,15 @@ func InstallHelm() (res string, err error) {
 		return "", ReturnLogError("failed to get home dir: %w", err)
 	}
 
+	// get targeted architecture
+	arch := os.Getenv("arch")
+
 	// install Helm from local tarball
 	cmd := fmt.Sprintf("mkdir -p %v/bin && "+
-		"tar -zxvf %v/bin/helm-v3.18.3-linux-amd64.tar.gz -C /tmp && "+
-		"cp /tmp/linux-amd64/helm %v/bin/helm && "+
+		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
+		"cp /tmp/linux-%v*/helm %v/bin/helm && "+
 		"chmod +x %v/bin/helm && "+
-		"helm version", homedir, BasePath(), homedir, homedir)
+		"helm version", homedir, BasePath(), arch, arch, homedir, homedir)
 
 	return RunCommandHost(cmd)
 }
