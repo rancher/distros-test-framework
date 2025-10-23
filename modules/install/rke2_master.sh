@@ -128,12 +128,19 @@ kernel.panic_on_oops=1
 EOF
       cp ~/60-rke2-cis.conf /etc/sysctl.d/
       cat /etc/sysctl.d/60-rke2-cis.conf
+    elif [[ "$node_os" == *"sles16"* ]]; then
+      cp -f /opt/rke2/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     else
       cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
     fi
     systemctl restart systemd-sysctl
+
     if [[ "$node_os" != *"slemicro"* ]]; then
-      useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+      if ! id -u etcd >/dev/null 2>&1; then
+        useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+      else
+        echo "etcd user already exists, skipping creation"
+      fi
     fi
   fi
 }

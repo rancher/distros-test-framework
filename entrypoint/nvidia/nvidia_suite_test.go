@@ -14,15 +14,18 @@ import (
 )
 
 var (
+	flags         *customflag.FlagConfig
 	cluster       *shared.Cluster
 	cfg           *config.Env
 	err           error
-	nvidiaVersion string
+	reportSummary string
+	reportErr     error
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&nvidiaVersion, "nvidiaVersion", "570.133.20", "Nvidia version")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "570.133.20", "Nvidia version")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -49,6 +52,11 @@ func TestNvidiaSuite(t *testing.T) {
 }
 
 var _ = AfterSuite(func() {
+	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
 	if customflag.ServiceFlag.Destroy {
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())

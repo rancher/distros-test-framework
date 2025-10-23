@@ -44,7 +44,8 @@ func validateFromJenkins(argsFromJenkins string) (testValues *TestValues) {
 // extractExpectedValues validates if the expected value was sent and if the expected value after upgrade was sent too.
 // It returns the expected values for the test and the expected values after upgrade even if empty.
 func extractExpectedValues(testArgs string) (expectedValues, valuesUpgrades,
-	expectedChartsValues, chartsValuesUpgrades []string) {
+	expectedChartsValues, chartsValuesUpgrades []string,
+) {
 	fields := strings.Fields(testArgs)
 	keyValueResult := make(map[string][]string)
 
