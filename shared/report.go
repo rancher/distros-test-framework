@@ -22,7 +22,7 @@ func SummaryReportData(c *Cluster, flags *customflag.FlagConfig) (string, error)
 	var data summaryReportData
 
 	if c.NumBastion == 0 {
-		if nodeDataErr := nodeSummaryData(c, &data); nodeDataErr != nil {
+		if nodeDataErr := nodeSummaryData(c, flags, &data); nodeDataErr != nil {
 			return "", fmt.Errorf("error retrieving node summary data: %w", nodeDataErr)
 		}
 	} else {
@@ -34,7 +34,8 @@ func SummaryReportData(c *Cluster, flags *customflag.FlagConfig) (string, error)
 	return data.summaryData.String(), nil
 }
 
-func nodeSummaryData(c *Cluster, data *summaryReportData) error {
+//nolint:funlen // no big deal here, reporting stuff only.
+func nodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// os-release data from the first server node.
 	res, err := RunCommandOnNode("cat /etc/os-release", c.ServerIPs[0])
 	if err != nil {
@@ -88,6 +89,11 @@ func nodeSummaryData(c *Cluster, data *summaryReportData) error {
 		data.summaryData.WriteString("\n```\n")
 	}
 
+	if c.Config.Product == "rke2" && flags.Nvidia.Version != "" {
+		nvidiaVersion := fmt.Sprintf("\n**NVIDIA Version**: %s\n", flags.Nvidia.Version)
+		data.summaryData.WriteString(nvidiaVersion)
+		data.summaryData.WriteString("\n```\n")
+	}
 	// TODO: ADD split roles data once on airgap is supported.
 	if c.Config.SplitRoles.Add {
 		splitRoleData := getSplitRoleData(&c.Config, c.ServerIPs)
