@@ -79,14 +79,14 @@ update_config() {
 policy_files() {
   if [[ -n "$server_flags" ]] && [[ "$server_flags" == *"protect-kernel-defaults"* ]]; then
     sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
-    mkdir -p /var/lib/rancher/k3s/server/manifests
+    sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/manifests
     cat /tmp/cis_master_config.yaml >>/etc/rancher/k3s/config.yaml
     printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >>/etc/sysctl.d/90-kubelet.conf
     sysctl -p /etc/sysctl.d/90-kubelet.conf
     systemctl restart systemd-sysctl
     cat /tmp/policy.yaml >/var/lib/rancher/k3s/server/manifests/policy.yaml
+    cat /tmp/admission-config.yaml >/var/lib/rancher/k3s/server/admission-config.yaml
     cat /tmp/audit.yaml >/var/lib/rancher/k3s/server/audit.yaml
-    cat /tmp/cluster-level-pss.yaml >/var/lib/rancher/k3s/server/cluster-level-pss.yaml
     cat /tmp/ingresspolicy.yaml >/var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
     sleep 5
   fi

@@ -25,7 +25,7 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "570.133.20", "Nvidia version")
+	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "", "Nvidia version")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()

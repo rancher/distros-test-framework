@@ -33,6 +33,14 @@ var _ = Describe("Test:", func() {
 		testcase.TestNvidiaGPUFunctionality(cluster, flags.Nvidia.Version)
 	})
 
+	It("Validate Nvidia Unprivileged Pod", func() {
+		testcase.TestNvidiaUnprivilegedPod()
+	})
+
+	It("Validate Nvidia Privileged Pod", func() {
+		testcase.TestNvidiaPrivilegedPod()
+	})
+
 	It("Validate Nodes after nvidia test", func() {
 		testcase.TestNodeStatus(
 			cluster,
