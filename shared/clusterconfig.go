@@ -74,7 +74,8 @@ type clusterConfig struct {
 }
 
 type splitRolesConfig struct {
-	Add                bool
+	Enabled            bool
+	RoleOrder          string
 	NumServers         int
 	ControlPlaneOnly   int
 	ControlPlaneWorker int
@@ -269,7 +270,8 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			ExternalDbEndpoint:  os.Getenv("rendered_template"),
 			Arch:                os.Getenv("arch"),
 			SplitRoles: splitRolesConfig{
-				Add: os.Getenv("split_roles") == "true",
+				Enabled:   os.Getenv("split_roles") == "true",
+				RoleOrder: os.Getenv("role_order"),
 				NumServers: parseEnvInt("etcd_only_nodes", 0) +
 					parseEnvInt("etcd_cp_nodes", 0) +
 					parseEnvInt("etcd_worker_nodes", 0) +
