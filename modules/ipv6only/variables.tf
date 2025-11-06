@@ -22,12 +22,8 @@ variable "enable_ipv6" {
 variable "no_of_bastion_nodes" {
   default = 0
 }
-variable "no_of_server_nodes" {
-  
-}
-variable "no_of_worker_nodes" {
-  
-}
+variable "no_of_server_nodes" {}
+variable "no_of_worker_nodes" {}
 variable "bastion_subnets" {
   default = ""
 }
@@ -43,3 +39,8 @@ variable "create_lb" {
   default = false
 }
 variable "hosted_zone" {}
+variable "etcd_only_nodes" {}
+variable "etcd_cp_nodes" {}
+variable "etcd_worker_nodes" {}
+variable "cp_only_nodes" {}
+variable "cp_worker_nodes" {}

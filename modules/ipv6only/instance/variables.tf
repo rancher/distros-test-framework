@@ -29,3 +29,8 @@ variable "create_lb" {
   default = false
 }
 variable "hosted_zone" {}
+variable "etcd_only_nodes" {}
+variable "etcd_cp_nodes" {}
+variable "etcd_worker_nodes" {}
+variable "cp_only_nodes" {}
+variable "cp_worker_nodes" {}
