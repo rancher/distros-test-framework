@@ -62,6 +62,8 @@ update_config() {
       echo -e "node-ip: $private_ip,$ipv6_ip" >>/etc/rancher/k3s/config.yaml
     elif [ -n "$ipv6_ip" ] && [ -z "$public_ip" ]; then
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
+      echo -e "disable-network-policy: true" >>/etc/rancher/k3s/config.yaml
+      echo -e "flannel-ipv6-masq: true" >>/etc/rancher/k3s/config.yaml
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
