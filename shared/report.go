@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -95,7 +96,7 @@ func nodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryRepo
 		data.summaryData.WriteString("\n```\n")
 	}
 	// TODO: ADD split roles data once on airgap is supported.
-	if c.Config.SplitRoles.Add {
+	if c.Config.SplitRoles.Enabled {
 		splitRoleData := getSplitRoleData(&c.Config, c.ServerIPs)
 		data.summaryData.WriteString(splitRoleData)
 	}
@@ -346,11 +347,11 @@ func determineRoleFromConfig(configContent string) (NodeType, error) {
 		return nodeTypeUnknown, fmt.Errorf("error unmarshalling config content: %w", err)
 	}
 
-	hasEtcdLabel := hasLabel(config.NodeLabel, "role-etcd=true")
-	hasCPLabel := hasLabel(config.NodeLabel, "role-control-plane=true")
-	hasWorkerLabel := hasLabel(config.NodeLabel, "role-worker=true")
-	noExecuteTaint := hasTaint(config.NodeTaint, "node-role.kubernetes.io/etcd:NoExecute")
-	noScheduleTaint := hasTaint(config.NodeTaint, "node-role.kubernetes.io/control-plane:NoSchedule")
+	hasEtcdLabel := hasAttribute(config.NodeLabel, "role-etcd=true")
+	hasCPLabel := hasAttribute(config.NodeLabel, "role-control-plane=true")
+	hasWorkerLabel := hasAttribute(config.NodeLabel, "role-worker=true")
+	noExecuteTaint := hasAttribute(config.NodeTaint, "node-role.kubernetes.io/etcd:NoExecute")
+	noScheduleTaint := hasAttribute(config.NodeTaint, "node-role.kubernetes.io/control-plane:NoSchedule")
 
 	switch {
 	case config.DisableAPIServer && config.DisableControllerManager && config.DisableScheduler &&
@@ -382,22 +383,6 @@ func determineRoleFromConfig(configContent string) (NodeType, error) {
 	}
 }
 
-func hasLabel(labels []string, label string) bool {
-	for _, l := range labels {
-		if l == label {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasTaint(taints []string, taint string) bool {
-	for _, t := range taints {
-		if t == taint {
-			return true
-		}
-	}
-
-	return false
+func hasAttribute(attributes []string, attribute string) bool {
+	return slices.Contains(attributes, attribute)
 }
