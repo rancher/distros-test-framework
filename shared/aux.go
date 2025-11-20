@@ -359,15 +359,7 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	return false
 }
 
-func FindPath(name, ip string) (string, error) {
-	if ip == "" {
-		return "", errors.New("ip should not be empty")
-	}
-
-	if name == "" {
-		return "", errors.New("name should not be empty")
-	}
-
+func getCommonPaths(ip string) (string, error) {
 	// get home directory on node
 	homedir, err := RunCommandOnNode("echo ~", ip)
 	if err != nil || homedir == "" {
@@ -386,6 +378,24 @@ func FindPath(name, ip string) (string, error) {
 		"/usr/local/bin:" +
 		"/usr/bin:" +
 		homedir + "/bin:"
+
+	return commonPaths, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	if ip == "" {
+		return "", errors.New("ip should not be empty")
+	}
+
+	if name == "" {
+		return "", errors.New("name should not be empty")
+	}
+
+	// get needed common paths
+	commonPaths, err := getCommonPaths(ip)
+	if err != nil {
+		return "", fmt.Errorf("failed to get common paths: %w", err)
+	}
 
 	// adding the common paths to the PATH environment variable by sourcing it from a file.
 	envFile := "find_path_env.sh"
