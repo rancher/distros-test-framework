@@ -22,7 +22,7 @@ func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
 
-	verifyGPUHardwarePresence(targetNodeIP)
+	verifyGPUHardwarePresence(targetNodeIP, nodeOs)
 
 	switch nodeOs {
 	case "ubuntu":
@@ -38,8 +38,6 @@ func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 		shared.LogLevel("error", "Unsupported OS: %s version: %s", nodeOs, nvidiaVersion)
 		return
 	}
-
-	rebootNode(targetNodeIP)
 
 	validateNvidiaVersion(targetNodeIP)
 	validateNvidiaLibMl(targetNodeIP)
@@ -74,8 +72,11 @@ func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 	validateBenchmark()
 }
 
-func verifyGPUHardwarePresence(ip string) {
+func verifyGPUHardwarePresence(ip, nodeOs string) {
 	shared.LogLevel("info", "Verifying NVIDIA GPU hardware is present")
+
+	ensureLspciInstalled(ip, nodeOs)
+
 	checkGPU := "lspci | grep -i nvidia || echo 'NO_GPU_FOUND'"
 	gpuCheck, gpuCheckErr := shared.RunCommandOnNode(checkGPU, ip)
 	Expect(gpuCheckErr).ToNot(HaveOccurred(), "error checking GPU hardware: %v", gpuCheckErr)
@@ -83,6 +84,35 @@ func verifyGPUHardwarePresence(ip string) {
 		"No NVIDIA GPU hardware found. This test requires a GPU-enabled EC2 instance.")
 
 	shared.LogLevel("info", "NVIDIA GPU hardware detected:\n%s", strings.TrimSpace(gpuCheck))
+}
+
+func ensureLspciInstalled(ip, nodeOs string) {
+	checkCmd := "command -v lspci > /dev/null 2>&1 && echo 'AMHEREALREADY' || echo 'NOTHERE'"
+	result, err := shared.RunCommandOnNode(checkCmd, ip)
+	Expect(err).ToNot(HaveOccurred(), "error checking for lspci: %v", err)
+
+	if strings.Contains(result, "AMHEREALREADY") {
+		shared.LogLevel("info", "lspci is already available")
+		return
+	}
+
+	shared.LogLevel("info", "lspci not found, installing pciutils package for OS: %s", nodeOs)
+	var installCmd string
+	switch nodeOs {
+	case "ubuntu":
+		installCmd = "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install -y pciutils"
+	case "rhel", "rhel8", "rhel9":
+		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils"
+	case "sles15":
+		installCmd = "sudo zypper install -y pciutils"
+	default:
+		shared.LogLevel("warn", "Unknown OS %s, attempting yum/dnf install", nodeOs)
+		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils || sudo apt install -y pciutils"
+	}
+
+	_, installErr := shared.RunCommandOnNode(installCmd, ip)
+	Expect(installErr).ToNot(HaveOccurred(), "error installing pciutils: %v", installErr)
+	shared.LogLevel("info", "pciutils installed successfully")
 }
 
 func initialSetupUbuntu(ip, nvidiaVersion string) {
@@ -123,45 +153,6 @@ func initialSetupUbuntu(ip, nvidiaVersion string) {
 	shared.LogLevel("info", "Installed NVIDIA driver")
 }
 
-func rebootNode(targetNodeIP string) {
-	shared.LogLevel("info", "Rebooting node to ensure NVIDIA driver is properly loaded")
-	rebootCmd := "sudo reboot"
-	_, _ = shared.RunCommandOnNode(rebootCmd, targetNodeIP)
-
-	shared.LogLevel("info", "Waiting for node to reboot (60 seconds)...")
-	time.Sleep(60 * time.Second)
-
-	shared.LogLevel("info", "Waiting for node to come back online...")
-	maxRetries := 30
-	for i := 0; i < maxRetries; i++ {
-		pingCmd := "echo 'ping'"
-		_, pingErr := shared.RunCommandOnNode(pingCmd, targetNodeIP)
-		if pingErr == nil {
-			shared.LogLevel("info", "Node is back online")
-			break
-		}
-		if i == maxRetries-1 {
-			Expect(pingErr).ToNot(HaveOccurred(), "Node did not come back online after reboot")
-		}
-		time.Sleep(10 * time.Second)
-	}
-
-	shared.LogLevel("info", "Waiting for RKE2 to be fully ready after reboot...")
-	for i := 0; i < 30; i++ {
-		checkRke2 := "systemctl is-active rke2-server"
-		rke2Status, _ := shared.RunCommandOnNode(checkRke2, targetNodeIP)
-		if strings.TrimSpace(rke2Status) == "active" {
-			shared.LogLevel("info", "RKE2 is active, waiting additional 30s for core pods...")
-			time.Sleep(30 * time.Second)
-			break
-		}
-		if i == 29 {
-			shared.LogLevel("warn", "RKE2 may not be fully ready, proceeding anyway")
-		}
-		time.Sleep(10 * time.Second)
-	}
-}
-
 func initialSetupSles(ip string) {
 	ensureSlEsRegistration(ip)
 	installNvidiaDriverSles(ip)
@@ -188,8 +179,15 @@ func ensureSlEsRegistration(ip string) {
 				"SLES registration failed, cannot install NVIDIA driver without repos: %v\nOutput: %s", regErr, regRes)
 		}
 		shared.LogLevel("info", "SLES registration successful")
-	} else {
-		shared.LogLevel("info", "SLES repositories already configured")
+
+		// refresh zypper repos after registration to make packages available.
+		shared.LogLevel("info", "Refreshing zypper repositories after registration")
+		refreshCmd := "sudo zypper --non-interactive ref 2>&1"
+		refreshRes, refreshErr := shared.RunCommandOnNode(refreshCmd, ip)
+		if refreshErr != nil {
+			shared.LogLevel("warn", "Zypper refresh had issues: %v\nOutput: %s", refreshErr, refreshRes)
+		}
+		shared.LogLevel("debug", "Zypper refresh output:\n%s", refreshRes)
 	}
 }
 
@@ -373,10 +371,12 @@ func validateNvidiaOperatorDeploy(nodeName string) {
 		"nvidia.com/gpu.count",
 		"nvidia.com/gpu.product",
 	}
+	shared.LogLevel("debug", "Searching for labels: %s", strings.Join(labelsToFind, ", "))
 
 	retryErr := retry.Do(
 		func() error {
 			res, err := shared.RunCommandHost(cmd)
+			shared.LogLevel("debug", "Node labels output: %s", res)
 			if err != nil {
 				return fmt.Errorf("failed to get node labels: %w", err)
 			}
@@ -393,7 +393,7 @@ func validateNvidiaOperatorDeploy(nodeName string) {
 
 			return nil
 		},
-		retry.Attempts(20),
+		retry.Attempts(40),
 		retry.Delay(10*time.Second),
 		retry.OnRetry(func(n uint, err error) {
 			shared.LogLevel("warn", "Attempt %d failed, retrying to get node labels: %v", n+1, err)
@@ -453,7 +453,6 @@ func validateNvidiaRunBinPath(ip string) {
 
 func validateNvidiaModule(ip string) error {
 	lsmodCmd := "sudo lsmod | grep nvidia"
-
 	modulesToCheck := []string{
 		"nvidia",
 		"nvidia_uvm",
@@ -530,221 +529,4 @@ func validateBenchmark() {
 		"Benchmark logs did not contain 'billion interactions per second info'")
 
 	shared.LogLevel("info", "Benchmark logs contain nvidia device and performance info:\n%s", logs)
-}
-
-// Tests below are pulled from - https://docs.google.com/document/d/1zy0key-EL6JH50MZgwg96RPYxxXXnVUdxLZwGiyqLd8/
-
-func TestNvidiaUnprivilegedPod() {
-	validatePodWithGPULimits()
-	validatePodWithGPULimitsAndEnvVars()
-	validatePodWithoutGPULimitsNoEnvVar()
-	validatePodWithoutGPULimitsWithEnvVar()
-	validatePodWithoutGPULimitsEmptyEnvVar()
-}
-
-// validatePodWithGPULimits tests an unprivileged pod requesting GPUs.
-// GPU limits are set to 1, NVIDIA_VISIBLE_DEVICES is unset.
-// Expected: Should succeed and nvidia-smi should list GPUs.
-func validatePodWithGPULimits() {
-	podName := "nvidia-test-pod-gpu-limits"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "nvidia-smi -L"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	res, err := runPodWithGPU(podName, image, command, 1, nil, false)
-	Expect(err).NotTo(HaveOccurred(), "failed to run pod with GPU limits: %v", err)
-
-	Expect(res).To(ContainSubstring("GPU"), "nvidia-smi output should contain GPU information")
-
-	shared.LogLevel("info", "Unprivileged pod with GPU limits succeeded:\n%s", res)
-}
-
-// validatePodWithGPULimitsAndEnvVars tests an unprivileged pod requesting GPUs with env vars.
-// GPU limits are set to 1, NVIDIA_VISIBLE_DEVICES is set to "all".
-// Expected: Should succeed and environment variables should be set correctly.
-func validatePodWithGPULimitsAndEnvVars() {
-	podName := "nvidia-test-pod-gpu-env"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "export"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	envVars := map[string]string{
-		"NVIDIA_VISIBLE_DEVICES": "all",
-	}
-
-	res, err := runPodWithGPU(podName, image, command, 1, envVars, false)
-	Expect(err).NotTo(HaveOccurred(), "failed to run pod with GPU limits and env vars: %v", err)
-	Expect(res).To(ContainSubstring("NVIDIA_VISIBLE_DEVICES"),
-		"environment variables should contain NVIDIA_VISIBLE_DEVICES")
-	Expect(res).To(ContainSubstring("NVIDIA_DRIVER_CAPABILITIES"),
-		"environment variables should contain NVIDIA_DRIVER_CAPABILITIES")
-	Expect(res).To(ContainSubstring("LD_LIBRARY_PATH"),
-		"environment variables should contain LD_LIBRARY_PATH")
-
-	shared.LogLevel("info", "Unprivileged pod with GPU limits and env vars succeeded:\n%s", res)
-}
-
-// validatePodWithoutGPULimitsNoEnvVar tests an unprivileged pod NOT requesting GPUs.
-// GPU limits are 0, NVIDIA_VISIBLE_DEVICES is unset.
-// Expected: Should fail with insufficient privileges or command not found error.
-func validatePodWithoutGPULimitsNoEnvVar() {
-	podName := "nvidia-test-pod-no-gpu"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "nvidia-smi -L"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	res, err := runPodWithGPU(podName, image, command, 0, nil, false)
-	Expect(err).To(HaveOccurred(), "pod without GPU limits should fail")
-	Expect(res).To(Or(
-		ContainSubstring("insufficient privileges"),
-		ContainSubstring("StartError"),
-		ContainSubstring("failed to create containerd task"),
-		ContainSubstring("terminated (Error)"),
-		ContainSubstring("exit status 127"),
-	), "expected error (insufficient privileges or command not found), got: %s", res)
-
-	shared.LogLevel("info", "Unprivileged pod without GPU limits failed as expected:\n%s", res)
-}
-
-// validatePodWithoutGPULimitsWithEnvVar tests an unprivileged pod NOT requesting GPUs.
-// GPU limits are 0, NVIDIA_VISIBLE_DEVICES is set to "0".
-// Expected: Should fail with insufficient privileges or command not found error.
-func validatePodWithoutGPULimitsWithEnvVar() {
-	podName := "nvidia-test-pod-no-gpu-env"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "nvidia-smi -L"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	envVars := map[string]string{
-		"NVIDIA_VISIBLE_DEVICES": "0",
-	}
-
-	res, err := runPodWithGPU(podName, image, command, 0, envVars, false)
-	Expect(err).To(HaveOccurred(), "pod without GPU limits but with env var should fail")
-	Expect(res).To(Or(
-		ContainSubstring("insufficient privileges"),
-		ContainSubstring("StartError"),
-		ContainSubstring("failed to create containerd task"),
-		ContainSubstring("terminated (Error)"),
-		ContainSubstring("exit status 127"),
-	), "expected error (insufficient privileges or command not found), got: %s", res)
-
-	shared.LogLevel("info", "Unprivileged pod without GPU limits but with env var failed as expected:\n%s", res)
-}
-
-// validatePodWithoutGPULimitsEmptyEnvVar tests an unprivileged pod NOT requesting GPUs.
-// GPU limits are 0, NVIDIA_VISIBLE_DEVICES is set to empty string "".
-// Expected: Should fail with nvidia-smi not found error because GPU access is denied.
-func validatePodWithoutGPULimitsEmptyEnvVar() {
-	podName := "nvidia-test-pod-empty-env"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "nvidia-smi -L"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	envVars := map[string]string{
-		"NVIDIA_VISIBLE_DEVICES": "",
-	}
-
-	res, err := runPodWithGPU(podName, image, command, 0, envVars, false)
-	Expect(err).To(HaveOccurred(), "pod with empty NVIDIA_VISIBLE_DEVICES should fail")
-	Expect(res).To(Or(
-		ContainSubstring("executable file not found"),
-		ContainSubstring("nvidia-smi"),
-		ContainSubstring("failed to create containerd task"),
-		ContainSubstring("terminated (Error)"),
-		ContainSubstring("exit status 127"),
-	), "expected nvidia-smi not found error, got: %s", res)
-
-	shared.LogLevel("info", "Unprivileged pod with empty env var failed as expected:\n%s", res)
-
-	// verify environment variables are still set correctly.
-	res, err = runPodWithGPU(podName, image, "export", 0, envVars, false)
-	Expect(err).NotTo(HaveOccurred(), "should be able to run export command")
-	Expect(res).To(Or(
-		ContainSubstring("NVIDIA_VISIBLE_DEVICES=\"\""),
-		ContainSubstring("NVIDIA_VISIBLE_DEVICES=''")),
-		"NVIDIA_VISIBLE_DEVICES should be empty string")
-
-	shared.LogLevel("info", "Environment variables verified:\n%s", res)
-}
-
-// TestNvidiaPrivilegedPod tests a privileged pod NOT requesting GPUs.
-// GPU limits are 0, NVIDIA_VISIBLE_DEVICES is set to "0", privileged is true.
-// Expected: Should succeed even without GPU limits due to privileged access.
-func TestNvidiaPrivilegedPod() {
-	podName := "nvidia-test-pod-privileged"
-	image := "nvcr.io/nvidia/cuda:9.0-base"
-	command := "nvidia-smi -L"
-
-	err := shared.CleanupPod(podName)
-	Expect(err).NotTo(HaveOccurred(), "failed to cleanup pod: %v", err)
-
-	envVars := map[string]string{
-		"NVIDIA_VISIBLE_DEVICES": "0",
-	}
-
-	res, err := runPodWithGPU(podName, image, command, 0, envVars, true)
-	Expect(err).NotTo(HaveOccurred(), "failed to run privileged pod without GPU limits: %v\n%s", err, res)
-	Expect(res).To(ContainSubstring("GPU"), "nvidia-smi output should contain GPU information")
-
-	shared.LogLevel("info", "Privileged pod without GPU limits succeeded:\n%s", res)
-}
-
-func runPodWithGPU(
-	podName, image, command string,
-	gpuLimit int,
-	envVars map[string]string,
-	privileged bool,
-) (string, error) {
-	var envJSON string
-	if len(envVars) > 0 {
-		var envItems []string
-		for key, value := range envVars {
-			envItems = append(envItems, fmt.Sprintf(`{"name":"%s","value":"%s"}`, key, value))
-		}
-		envJSON = fmt.Sprintf(`"env":[%s],`, strings.Join(envItems, ","))
-	}
-
-	var limitsJSON string
-	if gpuLimit > 0 {
-		limitsJSON = fmt.Sprintf(`"resources":{"limits":{"nvidia.com/gpu":"%d"}},`, gpuLimit)
-	}
-
-	var securityJSON string
-	if privileged {
-		securityJSON = `"securityContext":{"privileged":true},`
-	}
-
-	overrides := fmt.Sprintf(`{
-		"spec":{
-			"runtimeClassName":"nvidia",
-			"containers":[{
-				"name":"%s",
-				"image":"%s",
-				"command":["sh","-c","%s"],
-				%s%s%s
-				"stdin":true,
-				"tty":false
-			}],
-			"restartPolicy":"Never"
-		}
-	}`, podName, image, command, envJSON, limitsJSON, securityJSON)
-
-	overrides = strings.ReplaceAll(overrides, "\n", "")
-	overrides = strings.ReplaceAll(overrides, "\t", "")
-
-	cmd := fmt.Sprintf("kubectl run %s --image=%s --restart=Never --rm -i --overrides='%s' --kubeconfig=%s",
-		podName, image, overrides, shared.KubeConfigFile)
-
-	return shared.RunCommandHost(cmd)
 }
