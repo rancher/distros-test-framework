@@ -17,7 +17,6 @@ metadata:
   namespace: test-nvidia-benchmark
 spec:
   restartPolicy: OnFailure
-  runtimeClassName: nvidia
   containers:
     - name: cuda-container
       image: nvcr.io/nvidia/k8s/cuda-sample:nbody
