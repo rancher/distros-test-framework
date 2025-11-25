@@ -6,7 +6,7 @@ metadata:
 spec:
   repo: https://helm.ngc.nvidia.com/nvidia
   chart: gpu-operator
-  version: v25.3.4
+  version: v25.10.0
   targetNamespace: gpu-operator
   createNamespace: true
   valuesContent: |-
@@ -14,11 +14,3 @@ spec:
       env:
       - name: CONTAINERD_SOCKET
         value: /run/k3s/containerd/containerd.sock
-      - name: ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED
-        value: "false"
-      - name: ACCEPT_NVIDIA_VISIBLE_DEVICES_AS_VOLUME_MOUNTS
-        value: "true"
-    devicePlugin:
-      env:
-      - name: DEVICE_LIST_STRATEGY
-        value: volume-mounts
