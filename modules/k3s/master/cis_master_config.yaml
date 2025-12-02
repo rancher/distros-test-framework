@@ -1,17 +1,15 @@
 secrets-encryption: true
 kube-apiserver-arg:
+  - "enable-admission-plugins=NodeRestriction,EventRateLimit"
+  - 'admission-control-config-file=/var/lib/rancher/k3s/server/admission-config.yaml'
   - 'audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log'
   - 'audit-policy-file=/var/lib/rancher/k3s/server/audit.yaml'
   - 'audit-log-maxage=30'
   - 'audit-log-maxbackup=10'
   - 'audit-log-maxsize=100'
-  - 'request-timeout=300s'
-  - 'service-account-lookup=true'
-  - 'enable-admission-plugins=NodeRestriction,PodSecurity,NamespaceLifecycle,ServiceAccount'
-  - 'admission-control-config-file=/var/lib/rancher/k3s/server/cluster-level-pss.yaml'
+  - 'service-account-extend-token-expiration=false'
 kube-controller-manager-arg:
-  - 'terminated-pod-gc-threshold=10'
-  - 'use-service-account-credentials=true'
+  - 'terminated-pod-gc-threshold=100'
 kubelet-arg:
   - 'streaming-connection-idle-timeout=5m'
-  - 'make-iptables-util-chains=true'
+  - "tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"

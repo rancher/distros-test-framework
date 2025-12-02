@@ -10,7 +10,7 @@ import (
 )
 
 func TestCertRotate(cluster *shared.Cluster) {
-	ms := shared.NewManageService(5, 5)
+	ms := shared.NewManageService(10, 10)
 	certRotate(ms, cluster.Config.Product, cluster.ServerIPs)
 
 	actions := []shared.ServiceAction{

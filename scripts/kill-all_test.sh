@@ -84,7 +84,6 @@ test_directories_removed() {
     echo -e "\n${YELLOW}3- Testing if important directories are removed:${NC}"
 
     directories=(/var/lib/cni/ /run/netns/cni-*)
-
     if [ "$PRODUCT" == "rke2" ]; then
         directories+=(
         "/var/log/pods"
@@ -99,21 +98,21 @@ test_directories_removed() {
     fi
 
     tests_total=$((tests_total + 1))
-    test_pass=true
+    existing_dirs=()
+    
+    # Check which directories actually exist.
     for dir in "${directories[@]}"; do
         if [ -e "$dir" ]; then
-            test_pass=false
-            break
+            existing_dirs+=("$dir")
         fi
     done
 
-    if [ "${test_pass}" = true ]; then
-      check_result 0 "Dirs properly removed"
-      printf '%s\n' "${directories[@]}"
-       tests_passed=$((tests_passed + 1))
+    if [ ${#existing_dirs[@]} -eq 0 ]; then
+        check_result 0 "All directories properly removed"
+        tests_passed=$((tests_passed + 1))
     else
-          check_result 1 "Files or directory was not removed"
-          printf '%s\n' "${directories[@]}"
+        check_result 1 "Files or directories were not removed"
+        printf '%s\n' "${existing_dirs[@]}"
     fi
 }
 
