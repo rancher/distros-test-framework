@@ -94,7 +94,6 @@ func CopyFileToRemoteNode(ip, username, pem_file_path string, localFilePath, rem
 	if err := scanner.Err(); err != nil {
 		LogLevel("error", "error while reading local file: %v\n", err)
 		return ReturnLogError("error while reading local file\n")
-		// log.Fatalf("error while scanning local file: %v", err)
 	}
 
 	return nil

@@ -37,6 +37,7 @@ func GetNodes(display bool) ([]Node, error) {
 }
 
 // GetNodes returns nodes parsed from kubectl get nodes.
+// TODO kubectl path needs to be fixed for rke2 different OS.
 func GetNodesForK3k(display bool, ip, kubeconfigFile string) ([]Node, error) {
 	cmd := "kubectl get nodes -o wide --no-headers --kubeconfig=" + kubeconfigFile
 	res, err := RunCommandOnNode(cmd, ip)

@@ -205,8 +205,7 @@ func GetLatestReleaseTag(owner, repo string) (string, error) {
 
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
 	LogLevel("debug", "Fetching latest release tag from URL: %s\n", url)
-	// cmd := fmt.Sprintf("curl -s %s | grep tag_name | awk '{print $2}' | tr -d '\"',", url)
-	// res, execErr := RunCommandOnNode(cmd, ip)
+
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	resp, err := httpClient.Get(url)
 	if err != nil {

@@ -132,7 +132,7 @@ func TestNodeStatusForK3k(
 	kubeconfigFile string,
 ) {
 	Eventually(func(g Gomega) bool {
-		// TODO GetNodes will use generic kubectl that may not work for rke2. May need fix.
+		// TODO GetNodesForK3k uses generic kubectl path that may not work for rke2 different OS. Needs fix.
 		resources.KubeConfigFile = kubeconfigFile
 		nodes, err := resources.GetNodesForK3k(true, host.ServerIP, kubeconfigFile)
 		g.Expect(err).NotTo(HaveOccurred())
