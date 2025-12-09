@@ -222,6 +222,18 @@ func PrintGetAll() {
 		"  -------------------\n\n%v\n\n\n\n", res)
 }
 
+func PrintGetAllForK3k(host *driver.HostCluster, namespace, kubectlKubeConfigPath string) {
+	cmd := fmt.Sprintf("%s get all -n %s -o wide && %s get nodes -o wide ", kubectlKubeConfigPath, namespace, kubectlKubeConfigPath)
+	res, err := RunCommandOnNode(cmd, host.ServerIP)
+	if err != nil {
+		LogLevel("error", "error from RunCommandOnNode: %v\n", err)
+		return
+	}
+
+	fmt.Printf("\n\n\n-----------------  $ %s get all -A -o wide"+
+		"  -------------------\n\n%v\n\n\n\n", kubectlKubeConfigPath, res)
+}
+
 func CreateSecret(secret, namespace string) error {
 	kubectl := "kubectl --kubeconfig  " + KubeConfigFile
 

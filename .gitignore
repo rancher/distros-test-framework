@@ -16,3 +16,4 @@ tmp/
 entrypoint/conformance/my-sonobuoy-plugins
 entrypoint/conformance/*.tar.gz
 infrastructure/qainfra/vars.tfvars
+config/*.env

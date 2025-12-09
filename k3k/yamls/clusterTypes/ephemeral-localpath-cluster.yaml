@@ -1,0 +1,13 @@
+apiVersion: k3k.io/v1beta1
+kind: Cluster
+metadata:
+  name: ksh-fm-lp-yaml
+  namespace: k3k-system
+spec:
+  mode: shared
+  persistence:
+    type: ephemeral
+    storageClassName: local-path
+  sync: 
+    persistentVolumeClaims:
+      enabled: true
