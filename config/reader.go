@@ -23,7 +23,7 @@ var (
 	once      sync.Once
 	log       = logger.AddLogger()
 
-	supportedProducts       = []string{"k3s", "rke2"}
+	supportedProducts       = []string{"k3s", "rke2", "k3k"}
 	supportedQAinfraModules = []string{"aws", "vsphere"}
 	supportedProviders      = []string{"legacy", "qainfra"}
 	supportedLegacyTFVars   = []string{"k3s.tfvars", "rke2.tfvars"}
@@ -47,6 +47,10 @@ type Env struct {
 	ServerFlags       string
 	WorkerFlags       string
 	Arch              string
+	// K3k related configs
+	ServerIP        string
+	HostClusterType string
+	K3kcliVersion   string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the environment configuration.
@@ -94,10 +98,16 @@ func loadEnv() (*Env, error) {
 		ServerFlags:       os.Getenv("SERVER_FLAGS"),
 		WorkerFlags:       os.Getenv("WORKER_FLAGS"),
 		Arch:              os.Getenv("ARCH"),
+		// K3k related configs
+		ServerIP:        os.Getenv("SERVER_IP"),
+		HostClusterType: os.Getenv("HOST_CLUSTER_TYPE"),
+		K3kcliVersion:   os.Getenv("K3KCLI_VERSION"),
 	}
-
-	validateInitVars(env)
-
+	if env.Product == "k3s" || env.Product == "rke2" {
+		validateInitVars(env)
+	} else {
+		validateK3kVars(env)
+	}
 	// set env vars from respective infra module.
 	switch env.ProvisionerModule {
 	case "legacy", "":
@@ -187,6 +197,21 @@ func validateQainfraVars(env *Env) {
 			log.Errorf("node os is required for %s provider\n", env.ProvisionerModule)
 			os.Exit(1)
 		}
+	}
+}
+
+func validateK3kVars(env *Env) {
+	if env.K3kcliVersion == "" {
+		log.Errorf("K3KCLI_VERSION is required for k3k product\n")
+		os.Exit(1)
+	}
+	if env.ServerIP == "" {
+		log.Errorf("SERVER_IP is required for k3k product\n")
+		os.Exit(1)
+	}
+	if env.HostClusterType == "" {
+		log.Errorf("HOST_CLUSTER_TYPE is required for k3k product\n")
+		os.Exit(1)
 	}
 }
 

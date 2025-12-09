@@ -1,9 +1,12 @@
 package resources
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -193,4 +196,41 @@ func execAction(product, script, ip string) error {
 	}
 
 	return nil
+}
+
+func GetLatestReleaseTag(owner, repo string) (string, error) {
+	if owner == "" || repo == "" {
+		return "", ReturnLogError("owner and repo should not be empty")
+	}
+
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
+	LogLevel("debug", "Fetching latest release tag from URL: %s\n", url)
+	// cmd := fmt.Sprintf("curl -s %s | grep tag_name | awk '{print $2}' | tr -d '\"',", url)
+	// res, execErr := RunCommandOnNode(cmd, ip)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return "", ReturnLogError("failed to fetch latest release tag: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return "", ReturnLogError("failed to fetch latest release tag, status code: %d", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+
+	var result struct {
+		TagName string `json:"tag_name"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", ReturnLogError("failed to decode response: %w", err)
+	}
+
+	if result.TagName == "" {
+		return "", ReturnLogError("tag_name not found in response")
+	}
+
+	return result.TagName, nil
 }
