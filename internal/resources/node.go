@@ -36,6 +36,24 @@ func GetNodes(display bool) ([]Node, error) {
 	return nodes, nil
 }
 
+// GetNodes returns nodes parsed from kubectl get nodes.
+func GetNodesForK3k(display bool, ip, kubeconfigFile string) ([]Node, error) {
+	cmd := "kubectl get nodes -o wide --no-headers --kubeconfig=" + kubeconfigFile
+	res, err := RunCommandOnNode(cmd, ip)
+	LogLevel("debug", "Running command: \n%s\n", cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nodes: %w", err)
+	}
+
+	nodes := ParseNodes(res)
+	if display {
+		LogLevel("info", "\n\nCluster nodes:\n")
+		fmt.Println(res)
+	}
+
+	return nodes, nil
+}
+
 // GetNodesByRoles takes in one or multiple node roles and returns the slice of nodes that have those roles.
 // Valid values for roles are: etcd, control-plane, worker.
 func GetNodesByRoles(roles ...string) ([]Node, error) {

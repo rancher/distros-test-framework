@@ -1,8 +1,10 @@
 package resources
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -50,6 +52,49 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 			LogLevel("error", "Failed to run chmod: %v\n", cmdErr)
 			return cmdErr
 		}
+	}
+
+	return nil
+}
+
+func CopyFileToRemoteNode(ip, username, pem_file_path string, localFilePath, remoteFilePath string) error {
+	file, err := os.Open(localFilePath)
+	if err != nil {
+		log.Fatalf("failed to open local file: %v", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var cmd string
+
+	cmd = fmt.Sprintf("[ -f \"%s\" ] && rm -rf \"%s\"", remoteFilePath, remoteFilePath)
+	_, cmdErr := RunCommandOnNode(cmd, ip)
+	if cmdErr != nil {
+		LogLevel("debug", "error removing existing remote file: %v\n", cmdErr)
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Implement remote write logic here
+		cmd = fmt.Sprintf("echo \"%s\" >> %s", line, remoteFilePath)
+		_, cmdErr := RunCommandOnNode(cmd, ip)
+		if cmdErr != nil {
+			LogLevel("error", "error running cmd: %v\n", cmdErr)
+			return ReturnLogError("failed to run remote write command\n")
+		}
+	}
+	cmd = "cat " + remoteFilePath
+	res, cmdErr := RunCommandOnNode(cmd, ip)
+	if cmdErr != nil {
+		LogLevel("error", "error verifying remote file: %v\n", cmdErr)
+		return ReturnLogError("failed to verify remote file\n")
+	}
+	LogLevel("debug", "Remote file content:\n%s\n", res)
+
+	if err := scanner.Err(); err != nil {
+		LogLevel("error", "error while reading local file: %v\n", err)
+		return ReturnLogError("error while reading local file\n")
+		// log.Fatalf("error while scanning local file: %v", err)
 	}
 
 	return nil
