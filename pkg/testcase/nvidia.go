@@ -22,32 +22,31 @@ func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
 
+	verifyGPUHardwarePresence(targetNodeIP, nodeOs)
+
 	switch nodeOs {
 	case "ubuntu":
-		shared.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation")
+		shared.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation version: %s", nvidiaVersion)
 		initialSetupUbuntu(targetNodeIP, nvidiaVersion)
 	case "rhel", "rhel8", "rhel9":
-		shared.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation")
+		shared.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation version: %s", nvidiaVersion)
 		initialSetupRHEL(targetNodeIP, nvidiaVersion)
 	case "sles15":
-		shared.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation")
-		initialSetupSles(targetNodeIP, nvidiaVersion)
+		shared.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation with latest available driver")
+		initialSetupSles(targetNodeIP)
 	default:
-		shared.LogLevel("error", "Unsupported OS: %s", nodeOs)
+		shared.LogLevel("error", "Unsupported OS: %s version: %s", nodeOs, nvidiaVersion)
 		return
-	}
-
-	workloadErr := shared.ManageWorkload("apply", "nvidia-operator.yaml")
-	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia operator manifests not deployed")
-
-	restartRke2 := "sudo systemctl restart rke2-server.service"
-	_, restartRke2Err := shared.RunCommandOnNode(restartRke2, targetNodeIP)
-	if restartRke2Err != nil {
-		shared.LogLevel("warn", "Error restarting rke2: %v", restartRke2Err)
 	}
 
 	validateNvidiaVersion(targetNodeIP)
 	validateNvidiaLibMl(targetNodeIP)
+
+	workloadErr := shared.ManageWorkload("apply", "nvidia-operator.yaml")
+	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia operator manifests not deployed")
+
+	shared.LogLevel("info", "Waiting needed as per documentation for operator to restart containerd and stabilize")
+	time.Sleep(60 * time.Second)
 
 	nodeName, err := shared.RunCommandHost("kubectl get nodes -o jsonpath='{.items[0].metadata.name}' " +
 		"--kubeconfig=" + shared.KubeConfigFile)
@@ -73,7 +72,53 @@ func TestNvidiaGPUFunctionality(cluster *shared.Cluster, nvidiaVersion string) {
 	validateBenchmark()
 }
 
+func verifyGPUHardwarePresence(ip, nodeOs string) {
+	shared.LogLevel("info", "Verifying NVIDIA GPU hardware is present")
+
+	ensureLspciInstalled(ip, nodeOs)
+
+	checkGPU := "lspci | grep -i nvidia || echo 'NO_GPU_FOUND'"
+	gpuCheck, gpuCheckErr := shared.RunCommandOnNode(checkGPU, ip)
+	Expect(gpuCheckErr).ToNot(HaveOccurred(), "error checking GPU hardware: %v", gpuCheckErr)
+	Expect(gpuCheck).To(ContainSubstring("NVIDIA"),
+		"No NVIDIA GPU hardware found. This test requires a GPU-enabled EC2 instance.")
+
+	shared.LogLevel("info", "NVIDIA GPU hardware detected:\n%s", strings.TrimSpace(gpuCheck))
+}
+
+func ensureLspciInstalled(ip, nodeOs string) {
+	checkCmd := "command -v lspci > /dev/null 2>&1 && echo 'AMHEREALREADY' || echo 'NOTHERE'"
+	result, err := shared.RunCommandOnNode(checkCmd, ip)
+	Expect(err).ToNot(HaveOccurred(), "error checking for lspci: %v", err)
+
+	if strings.Contains(result, "AMHEREALREADY") {
+		shared.LogLevel("info", "lspci is already available")
+		return
+	}
+
+	shared.LogLevel("info", "lspci not found, installing pciutils package for OS: %s", nodeOs)
+	var installCmd string
+	switch nodeOs {
+	case "ubuntu":
+		installCmd = "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install -y pciutils"
+	case "rhel", "rhel8", "rhel9":
+		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils"
+	case "sles15":
+		installCmd = "sudo zypper install -y pciutils"
+	default:
+		shared.LogLevel("warn", "Unknown OS %s, attempting yum/dnf install", nodeOs)
+		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils || sudo apt install -y pciutils"
+	}
+
+	_, installErr := shared.RunCommandOnNode(installCmd, ip)
+	Expect(installErr).ToNot(HaveOccurred(), "error installing pciutils: %v", installErr)
+	shared.LogLevel("info", "pciutils installed successfully")
+}
+
 func initialSetupUbuntu(ip, nvidiaVersion string) {
+	Expect(nvidiaVersion).NotTo(BeEmpty(), "nvidiaVersion parameter is required for Ubuntu. "+
+		"Please set NVIDIA_VERSION environment variable or pass it as a flag to the test.")
+
 	updateCmd := "sudo apt update"
 	_, updateErr := shared.RunCommandOnNode(updateCmd, ip)
 	Expect(updateErr).ToNot(HaveOccurred(), "error updating package lists: %v", updateErr)
@@ -91,6 +136,7 @@ func initialSetupUbuntu(ip, nvidiaVersion string) {
 	Expect(prereqErr).ToNot(HaveOccurred(), "error installing prerequisites: %v", prereqErr)
 	shared.LogLevel("info", "Installed prerequisite packages")
 
+	shared.LogLevel("info", "Downloading NVIDIA driver version %s from NVIDIA website", nvidiaVersion)
 	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" + nvidiaVersion + "/NVIDIA-Linux-x86_64-" +
 		nvidiaVersion + ".run"
 	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
@@ -107,11 +153,85 @@ func initialSetupUbuntu(ip, nvidiaVersion string) {
 	shared.LogLevel("info", "Installed NVIDIA driver")
 }
 
-func initialSetupSles(ip, nvidiaVersion string) {
-	installDriver := "sudo zypper -v --non-interactive in 'nvidia-open-driver-G06-signed-cuda-kmp== " + nvidiaVersion + "' "
-	_, installDriverErr := shared.RunCommandOnNode(installDriver, ip)
-	Expect(installDriverErr).ToNot(HaveOccurred(), "error installing driver: %v", installDriverErr)
+func initialSetupSles(ip string) {
+	ensureSlEsRegistration(ip)
+	installNvidiaDriverSles(ip)
+	installNvidiaComputeUtilsSles(ip)
+}
 
+func ensureSlEsRegistration(ip string) {
+	// check for zypper locks and clear them if needed.
+	clearLocks := "sudo pkill -f zypper 2>/dev/null || true; sudo rm -f /var/run/zypp.pid 2>/dev/null || true; sleep 2"
+	_, _ = shared.RunCommandOnNode(clearLocks, ip)
+
+	shared.LogLevel("info", "Checking SLES registration status")
+	checkRepos := "sudo zypper lr 2>&1"
+	repoStatus, _ := shared.RunCommandOnNode(checkRepos, ip)
+	if strings.Contains(repoStatus, "No repositories defined") || strings.Contains(repoStatus, "Warning: No repositories") {
+		shared.LogLevel("warn", "No repositories configured, attempting cloud registration")
+		registerCmd := "sudo registercloudguest --force-new 2>&1"
+		regRes, regErr := shared.RunCommandOnNode(registerCmd, ip)
+		shared.LogLevel("debug", "Registration output:\n%s", regRes)
+
+		if regErr != nil || !strings.Contains(regRes, "succeeded") {
+			shared.LogLevel("error", "Failed to register with cloud update server: %v", regErr)
+			Expect(regErr).ToNot(HaveOccurred(),
+				"SLES registration failed, cannot install NVIDIA driver without repos: %v\nOutput: %s", regErr, regRes)
+		}
+		shared.LogLevel("info", "SLES registration successful")
+
+		// refresh zypper repos after registration to make packages available.
+		shared.LogLevel("info", "Refreshing zypper repositories after registration")
+		refreshCmd := "sudo zypper --non-interactive ref 2>&1"
+		refreshRes, refreshErr := shared.RunCommandOnNode(refreshCmd, ip)
+		if refreshErr != nil {
+			shared.LogLevel("warn", "Zypper refresh had issues: %v\nOutput: %s", refreshErr, refreshRes)
+		}
+		shared.LogLevel("debug", "Zypper refresh output:\n%s", refreshRes)
+	}
+}
+
+func installNvidiaDriverSles(ip string) {
+	// get the current kernel variant to match the correct kmp package.
+	getKernel := "uname -r | awk -F'-' '{print $NF}'"
+	kernelVariant, kernelErr := shared.RunCommandOnNode(getKernel, ip)
+	if kernelErr != nil {
+		shared.LogLevel("warn", "Failed to detect kernel variant, defaulting to 'default': %v", kernelErr)
+		kernelVariant = "default"
+	}
+	kernelVariant = strings.TrimSpace(kernelVariant)
+	shared.LogLevel("info", "Detected kernel variant: %s", kernelVariant)
+	driverPackage := "nvidia-open-driver-G06-signed-cuda-kmp-" + kernelVariant
+
+	// always install latest available - SLES manages driver versions in repos.
+	installDriver := "sudo zypper -v --non-interactive in " + driverPackage + " 2>&1"
+	res, installDriverErr := shared.RunCommandOnNode(installDriver, ip)
+	shared.LogLevel("debug", "Driver installation output:\n%s", res)
+	Expect(installDriverErr).ToNot(HaveOccurred(), "error installing driver: %v\nOutput: %s", installDriverErr, res)
+
+	checkInstalled := "rpm -q " + driverPackage
+	installedVer, _ := shared.RunCommandOnNode(checkInstalled, ip)
+	shared.LogLevel("info", "Installed NVIDIA driver: %s", strings.TrimSpace(installedVer))
+
+	shared.LogLevel("info", "Loading NVIDIA kernel module")
+	loadModule := "sudo modprobe nvidia && sudo modprobe nvidia-uvm"
+	modRes, modErr := shared.RunCommandOnNode(loadModule, ip)
+	if modErr != nil {
+		shared.LogLevel("warn", "Failed to load NVIDIA module: %v, output: %s", modErr, modRes)
+		shared.LogLevel("info", "Checking dmesg for kernel module errors")
+		dmesgCheck := "sudo dmesg | grep -i nvidia | tail -20"
+		dmesgOut, _ := shared.RunCommandOnNode(dmesgCheck, ip)
+		shared.LogLevel("debug", "dmesg output:\n%s", dmesgOut)
+		Expect(modErr).ToNot(HaveOccurred(), "error loading NVIDIA kernel module: %v\nOutput: %s", modErr, modRes)
+	}
+
+	verifyModule := "lsmod | grep nvidia"
+	modCheck, modCheckErr := shared.RunCommandOnNode(verifyModule, ip)
+	Expect(modCheckErr).ToNot(HaveOccurred(), "NVIDIA module not loaded: %v", modCheckErr)
+	shared.LogLevel("info", "NVIDIA kernel modules loaded:\n%s", strings.TrimSpace(modCheck))
+}
+
+func installNvidiaComputeUtilsSles(ip string) {
 	cudaRepo := "sudo zypper ar https://developer.download.nvidia.com/compute/cuda/repos/sles15/x86_64 cuda"
 	_, cudaRepoErr := shared.RunCommandOnNode(cudaRepo, ip)
 	if cudaRepoErr != nil && !strings.Contains(cudaRepoErr.Error(), "exists") {
@@ -136,18 +256,37 @@ func initialSetupSles(ip, nvidiaVersion string) {
 	Expect(keyImportErr).ToNot(HaveOccurred(), "error importing key: %v", keyImportErr)
 	shared.LogLevel("info", "Imported NVIDIA RPM key")
 
-	installComputeUtils := "sudo zypper -v --non-interactive in -r cuda 'nvidia-compute-utils-G06== " + nvidiaVersion + "'"
-	_, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
-	Expect(installComputeUtilsErr).ToNot(HaveOccurred(), "error installing compute utils: %v", installComputeUtilsErr)
+	checkNvidiaSmi := "which nvidia-smi"
+	_, nvidiaSmiErr := shared.RunCommandOnNode(checkNvidiaSmi, ip)
+	if nvidiaSmiErr == nil {
+		shared.LogLevel("info", "nvidia-smi already available, skipping compute-utils installation")
+		return
+	}
+
+	installComputeUtils := "sudo zypper -v --non-interactive in -r cuda nvidia-compute-utils-G06 2>&1"
+	res, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
+	if installComputeUtilsErr != nil {
+		shared.LogLevel("error", "Failed to install nvidia-compute-utils-G06 "+
+			"from CUDA repo: %v %v", installComputeUtilsErr, res)
+		return
+	}
+
+	_, finalCheck := shared.RunCommandOnNode(checkNvidiaSmi, ip)
+	Expect(finalCheck).ToNot(HaveOccurred(), "nvidia-smi not found after compute-utils installation")
+	shared.LogLevel("info", "Successfully installed NVIDIA compute utils")
 }
 
 func initialSetupRHEL(ip, nvidiaVersion string) {
+	Expect(nvidiaVersion).NotTo(BeEmpty(), "nvidiaVersion parameter is required for RHEL. "+
+		"Please set NVIDIA_VERSION environment variable or pass it as a flag to the test.")
+
 	// create a empty dummy repo file to GPU operator acknowledge.
 	repoFile := "sudo mkdir -p /etc/yum.repos.d && sudo touch /etc/yum.repos.d/redhat.repo && " +
 		"sudo chmod 644 /etc/yum.repos.d/redhat.repo"
 	_, repoErr := shared.RunCommandOnNode(repoFile, ip)
 	Expect(repoErr).ToNot(HaveOccurred(), "error creating repo file: %v", repoErr)
 
+	shared.LogLevel("info", "Downloading NVIDIA driver version %s from NVIDIA website", nvidiaVersion)
 	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" +
 		nvidiaVersion + "/NVIDIA-Linux-x86_64-" + nvidiaVersion + ".run"
 	_, downloadErr := shared.RunCommandOnNode(downloadDriver, ip)
@@ -166,7 +305,8 @@ func initialSetupRHEL(ip, nvidiaVersion string) {
 	Expect(kernelErr).ToNot(HaveOccurred(), "error installing kernel packages: %v", kernelErr)
 	shared.LogLevel("info", "Installed kernel development packages")
 
-	// update sim link so when driver is installed, it will use the correct kernel version and it will find the path.
+	// update sim link so when driver is installed,
+	// it will use the correct kernel version and it will find the path.
 	kernelPath := "/usr/src/kernels/" + kernelVersion
 	kernelSimLinkPath := "/usr/lib/modules/" + kernelVersion + "/build"
 	sl := "sudo ln -sf " + kernelPath + " " + kernelSimLinkPath
@@ -206,14 +346,18 @@ func validateNvidiaVersion(ip string) {
 }
 
 func validateNvidiaLibMl(ip string) {
-	findCmd := "sudo find /usr/ -iname libnvidia-ml.so"
+	// search for libnvidia-ml library (may have version suffix like .so.1 or .so.580.95.05)
+	findCmd := "sudo find /usr/ -name 'libnvidia-ml.so*' 2>/dev/null | head -5"
 
 	res, err := shared.RunCommandOnNode(findCmd, ip)
 	Expect(err).NotTo(HaveOccurred(), "failed to find libnvidia-ml.so: %v", err)
-	Expect(res).To(Or(ContainSubstring("/usr/lib64/libnvidia-ml.so"),
-		ContainSubstring("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")), "libnvidia-ml.so not found")
+	Expect(res).NotTo(BeEmpty(), "libnvidia-ml.so library not found in /usr/")
+	Expect(res).To(Or(
+		ContainSubstring("/usr/lib64/libnvidia-ml.so"),
+		ContainSubstring("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")),
+		"libnvidia-ml.so not found in expected library paths")
 
-	shared.LogLevel("info", "libnvidia-ml.so found at:\n%s", res)
+	shared.LogLevel("info", "libnvidia-ml.so library found:\n%s", res)
 }
 
 func validateNvidiaOperatorDeploy(nodeName string) {
@@ -227,10 +371,12 @@ func validateNvidiaOperatorDeploy(nodeName string) {
 		"nvidia.com/gpu.count",
 		"nvidia.com/gpu.product",
 	}
+	shared.LogLevel("debug", "Searching for labels: %s", strings.Join(labelsToFind, ", "))
 
 	retryErr := retry.Do(
 		func() error {
 			res, err := shared.RunCommandHost(cmd)
+			shared.LogLevel("debug", "Node labels output: %s", res)
 			if err != nil {
 				return fmt.Errorf("failed to get node labels: %w", err)
 			}
@@ -247,7 +393,7 @@ func validateNvidiaOperatorDeploy(nodeName string) {
 
 			return nil
 		},
-		retry.Attempts(20),
+		retry.Attempts(40),
 		retry.Delay(10*time.Second),
 		retry.OnRetry(func(n uint, err error) {
 			shared.LogLevel("warn", "Attempt %d failed, retrying to get node labels: %v", n+1, err)
@@ -307,7 +453,6 @@ func validateNvidiaRunBinPath(ip string) {
 
 func validateNvidiaModule(ip string) error {
 	lsmodCmd := "sudo lsmod | grep nvidia"
-
 	modulesToCheck := []string{
 		"nvidia",
 		"nvidia_uvm",

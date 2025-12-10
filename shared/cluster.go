@@ -874,3 +874,17 @@ func FindPodAndLog(name, namespace string) {
 		}
 	}
 }
+
+func CleanupPod(podName string) error {
+	cmd := fmt.Sprintf("kubectl delete pod %s --ignore-not-found=true --kubeconfig=%s",
+		podName, KubeConfigFile)
+
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to cleanup pod: %w\n%s", err, res)
+	}
+
+	LogLevel("info", "Pod %s cleaned up successfully: %s", podName, res)
+
+	return nil
+}
