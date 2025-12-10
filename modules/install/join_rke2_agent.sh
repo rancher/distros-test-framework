@@ -119,6 +119,9 @@ EOF
       echo "etcd user already exists, skipping"
     fi
   fi
+  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"etcd"* ]]; then
+    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+  fi
 }
 
 subscription_manager() {
