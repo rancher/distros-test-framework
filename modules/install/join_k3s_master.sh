@@ -66,6 +66,8 @@ update_config() {
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
       server_ip="[$server_ip]"
       hostname="$hostname-srv$RANDOM"
+      echo -e "disable-network-policy: true" >>/etc/rancher/k3s/config.yaml
+      echo -e "flannel-ipv6-masq: true" >>/etc/rancher/k3s/config.yaml
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
@@ -99,6 +101,15 @@ disable_cloud_setup() {
       systemctl disable nm-cloud-setup.timer
     else
       echo "nm-cloud-setup.timer not found or not enabled"
+    fi
+  fi
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
     fi
   fi
 }
