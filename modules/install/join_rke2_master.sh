@@ -149,7 +149,25 @@ EOF
       echo "ERROR: rke2-cis-sysctl.conf not found in any expected location"
       exit 1
     }
-   else
+
+  elif [[ "$node_os" == *"ubuntu"* ]]; then
+    echo "Applying CIS sysctl file for Ubuntu"
+    for path in \
+      /usr/share/rke2/rke2-cis-sysctl.conf \
+      /usr/local/share/rke2/rke2-cis-sysctl.conf \
+      /opt/rke2/share/rke2/rke2-cis-sysctl.conf; do
+      if [[ -f "$path" ]]; then
+        cp -f "$path" /etc/sysctl.d/60-rke2-cis.conf
+        break
+      fi
+    done
+
+    [[ ! -f /etc/sysctl.d/60-rke2-cis.conf ]] && {
+      echo "ERROR: rke2-cis-sysctl.conf not found in any expected location"
+      exit 1
+    }
+
+  else
     echo "ERROR: CIS mode enabled but OS '$node_os' is not recognized for CIS setup"
     exit 1
   fi
