@@ -73,8 +73,6 @@ test_config_removal() {
 
     config_dirs=(
         "/etc/rancher/${PRODUCT}"
-        "/etc/cni"
-        "/opt/cni/bin"
         "${PRODUCT_ROOT}/share/${PRODUCT}"
         "/tmp/*_kubeconfig_*"
         "/var/lib/rancher/${PRODUCT}/agent/etc"
@@ -82,7 +80,11 @@ test_config_removal() {
     )
 
     if [ "$PRODUCT" == "rke2" ]; then
-       config_dirs+=("/etc/rancher/node")
+       config_dirs+=(
+        "/etc/rancher/node"
+        "/etc/cni"
+        "/opt/cni/bin"
+       )
     fi
 
     # Check for config directories with wildcards.
@@ -111,9 +113,15 @@ test_data_dir_removal() {
     data_dirs=(
         "${PRODUCT_DATA_DIR}"
         "/run/${PRODUCT}"
-        "/var/lib/kubelet"
         "/opt/cni/bin"
     )
+
+    # not adding /var/lib/kubelet to be checked when this var is set and is true
+    # because it will be mounted test dirs inside it and it will preventing deletion as "device or resource busy"
+    # so test will fail being a false negative.
+    if ! run_test_file_removal_safety; then
+        data_dirs+=("/var/lib/kubelet")
+    fi
 
     if [ "$PRODUCT" == "rke2" ]; then
         data_dirs+=("/var/lib/rancher")
@@ -365,6 +373,33 @@ test_semodule_removal() {
     fi
 }
 
+## Test-11: Check file removal safety with --one-filesystem.
+test_file_removal_safety() {
+    echo -e "\n${YELLOW}11- Testing file removal safety with --one-filesystem:${NC}"
+    tests_total=$((tests_total + 1))
+
+    expected_files=("important.txt" "critical.txt")
+    test_pass=true
+    missing_files=()
+
+    for file in "${expected_files[@]}"; do
+        if [ ! -f "/mnt/fake-remote-fs/$file" ]; then
+            test_pass=false
+            missing_files+=("$file")
+        fi
+    done
+
+    if [ "$test_pass" = true ]; then
+        check_result 0 "All critical files protected by --one-file-system"
+        tests_passed=$((tests_passed + 1))
+    else
+        file_list=$(printf ", %s" "${missing_files[@]}")
+        file_list=${file_list:2}
+        check_result 1 "Missing files: ${file_list}" "Files were deleted despite --one-file-system"
+    fi
+}
+
+###################    Auxiliary functions    #####################
 check_result() {
     result="$1"
     if [ "$result" -eq 0 ]; then
@@ -394,6 +429,20 @@ get_product() {
             echo -e "${RED}Invalid product: ${PRODUCT_FLAG}. Use 'rke2' or 'k3s'.${NC}"
             return 1
         fi
+    fi
+}
+
+run_test_file_removal_safety() {
+    if [ -f /etc/profile.d/env_vars.sh ]; then
+        source /etc/profile.d/env_vars.sh
+    fi
+
+    if [ "${RUN_TEST_FILE_REMOVAL_SAFETY}" != "true" ]; then
+        echo -e "\n${YELLOW}Skipping test 11: File removal safety with --one-filesystem.${NC}"
+        return 1
+    else
+        echo -e "\n${YELLOW}Running test 11: File removal safety with --one-filesystem.${NC}"
+        return 0
     fi
 }
 
@@ -480,6 +529,12 @@ main() {
 
     # Test 10
     test_semodule_removal
+
+    #Only support RKE2 for now.
+    if run_test_file_removal_safety && [ "$PRODUCT_FLAG" == "rke2" ]; then
+      # Test 11
+      test_file_removal_safety
+    fi
 
     # Print test summary
     print_summary

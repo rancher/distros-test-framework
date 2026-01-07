@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/shared"
 )
@@ -196,9 +197,9 @@ func buildInstallCmd(cluster *shared.Cluster, nodeType, token, ip string) string
 	product := cluster.Config.Product
 	if nodeType == "master" && token == "" {
 		cmdSlice = []string{
-			os.Getenv("node_os"), cluster.FQDN, "", "", ip,
-			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			cluster.NodeOS, cluster.FQDN, "", "", ip,
+			cluster.Config.InstallMode, cluster.Config.Version, cluster.Config.Channel,
+			cluster.Config.DataStore, cluster.Config.ExternalDbEndpoint, cluster.Config.ServerFlags,
 			os.Getenv("username"), os.Getenv("password"), "both",
 		}
 		if product == "k3s" {
@@ -211,25 +212,25 @@ func buildInstallCmd(cluster *shared.Cluster, nodeType, token, ip string) string
 
 	if nodeType == "master" && token != "" {
 		cmdSlice = []string{
-			os.Getenv("node_os"), cluster.FQDN, cluster.ServerIPs[0], token, "", "", ip,
-			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			os.Getenv("datastore_type"), os.Getenv("datastore_endpoint"), os.Getenv("server_flags"),
+			cluster.NodeOS, cluster.FQDN, cluster.ServerIPs[0], token, "", "", ip,
+			cluster.Config.InstallMode, cluster.Config.Version, cluster.Config.Channel,
+			cluster.Config.DataStore, cluster.Config.ExternalDbEndpoint, cluster.Config.ServerFlags,
 			os.Getenv("username"), os.Getenv("password"), "both",
 		}
 		if product == "rke2" {
-			cmdSlice = slices.Insert(cmdSlice, 10, os.Getenv("install_method"))
+			cmdSlice = slices.Insert(cmdSlice, 10, cluster.Config.InstallMethod)
 		}
 		script = "./join_" + product + "_" + nodeType + ".sh"
 	}
 
 	if nodeType == "agent" {
 		cmdSlice = []string{
-			os.Getenv("node_os"), cluster.ServerIPs[0], token, "", "", ip,
-			os.Getenv("install_mode"), os.Getenv("install_version"), os.Getenv("install_channel"),
-			os.Getenv("worker_flags"), os.Getenv("username"), os.Getenv("password"), "both",
+			cluster.NodeOS, cluster.ServerIPs[0], token, "", "", ip,
+			cluster.Config.InstallMode, cluster.Config.Version, cluster.Config.Channel,
+			cluster.Config.WorkerFlags, os.Getenv("username"), os.Getenv("password"), "both",
 		}
 		if product == "rke2" {
-			cmdSlice = slices.Insert(cmdSlice, 9, os.Getenv("install_method"))
+			cmdSlice = slices.Insert(cmdSlice, 9, cluster.Config.InstallMethod)
 		}
 		script = "./join_" + product + "_" + nodeType + ".sh"
 	}

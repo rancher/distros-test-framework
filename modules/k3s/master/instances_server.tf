@@ -85,13 +85,17 @@ resource "aws_instance" "master" {
     Team                 = local.resource_tag
   }
 
+  provisioner "local-exec" {
+    command = "aws ec2 wait instance-status-ok --region ${var.region} --instance-ids ${self.id}"
+  }
+
   provisioner "remote-exec" {
     inline = [
       "echo \"${var.node_os}\" | grep -q \"slemicro\" && sudo transactional-update setup-selinux || exit 0",
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -120,8 +124,8 @@ resource "aws_instance" "master" {
     destination = "/tmp/audit.yaml"
   }
   provisioner "file" {
-    source = "${path.module}/cluster-level-pss.yaml"
-    destination = "/tmp/cluster-level-pss.yaml"
+    source = "${path.module}/admission-config.yaml"
+    destination = "/tmp/admission-config.yaml"
   }
   provisioner "file" {
     source = "${path.module}/ingresspolicy.yaml"
@@ -134,7 +138,7 @@ resource "aws_instance" "master" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [
@@ -256,7 +260,7 @@ resource "aws_instance" "master2-ha" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "file" {
     source      = "../install/node_role.sh"
@@ -285,8 +289,8 @@ resource "aws_instance" "master2-ha" {
     destination = "/tmp/audit.yaml"
   }
   provisioner "file" {
-    source = "${path.module}/cluster-level-pss.yaml"
-    destination = "/tmp/cluster-level-pss.yaml"
+    source = "${path.module}/admission-config.yaml"
+    destination = "/tmp/admission-config.yaml"
   }
   provisioner "file" {
     source = "${path.module}/ingresspolicy.yaml"
@@ -300,7 +304,7 @@ resource "aws_instance" "master2-ha" {
     ]
   }
   provisioner "local-exec" {
-    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" && sleep 90 || exit 0"
+    command = "echo \"${var.node_os}\" | grep -q \"slemicro\" && aws ec2 reboot-instances --instance-ids \"${self.id}\" --region \"${var.region}\" && sleep 90 || exit 0"
   }
   provisioner "remote-exec" {
     inline = [ <<-EOT

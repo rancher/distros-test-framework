@@ -14,13 +14,25 @@ import (
 )
 
 const (
-	kgn               = "kubectl get node -o yaml"
-	metricsServer     = kgn + " : | grep 'metrics-server' -A1, "
-	containerd        = kgn + " : | grep containerd -A1, "
-	localPath         = kgn + " : | grep local-path -A1, "
-	traefik           = kgn + " : | grep traefik  -A1, "
-	klipperLB         = kgn + " : | grep klipper -A5"
-	ingressController = kgn + " : | grep 'nginx-ingress-controller' -A1"
+	kgn                     = "kubectl get node -o yaml"
+	getCharts               = "sudo cat /var/lib/rancher/rke2/data/*/charts/*"
+	metricsServer           = kgn + " : | grep 'metrics-server' -A1, "
+	containerd              = kgn + " : | grep containerd -A1, "
+	localPath               = kgn + " : | grep local-path -A1, "
+	traefik                 = kgn + " : | grep traefik  -A1, "
+	klipperLB               = kgn + " : | grep klipper -A5"
+	ingressController       = kgn + " : | grep 'nginx-ingress-controller' -A1"
+	corednsCharts           = getCharts + " | grep 'rke2-coredns', "
+	ingressControllerCharts = getCharts + " | grep 'rke2-ingress-nginx', "
+	metricsCharts           = getCharts + " | grep 'rke2-metrics-server', "
+	runtimeClasses          = getCharts + " | grep 'rke2-runtimeclasses', "
+	snapshotController      = getCharts + " | grep 'rke2-snapshot-controller', "
+	snapshotValidation      = getCharts + " | grep 'rke2-snapshot-validation-webhook', "
+	traefikCharts           = getCharts + " | grep 'rke2-traefik', "
+	harvesterCloud          = getCharts + " | grep 'harvester-cloud-provider', "
+	harvesterCsi            = getCharts + " | grep 'harvester-csi-driver', "
+	vSphereCpi              = getCharts + " | grep 'vsphere-cpi', "
+	vSphereCsi              = getCharts + " | grep 'vsphere-csi' "
 )
 
 var _ = Describe("Components Version Upgrade:", func() {
@@ -51,8 +63,16 @@ var _ = Describe("Components Version Upgrade:", func() {
 	cniPlugins := "sudo /var/lib/rancher/rke2/bin/crictl -r unix:///run/k3s/containerd/containerd.sock images : | grep 'cni-plugins' , "
 	description := "Verifies bump versions for several components on rke2:\n1-coredns" +
 		"\n2-metrics Server\n3-etcd\n4-containerd\n5-runc\n6-crictl\n7-ingress Controller"
+	chartsDescription := "Verifies charts versions for several components on rke2:\n1-coredns Charts" +
+		"\n2-ingress Controller Charts\n3-metrics Server Charts\n4-runtime Classes Charts" +
+		"\n5-snapshot Controller Charts\n6-snapshot Validation Webhook Charts" +
+		"\n7-traefik Charts\n8-harvester Cloud Provider Charts\n9-harvester Csi Driver Charts" +
+		"\n10-vSphere Cpi Charts\n11-vSphere Csi Charts"
 
-	cmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController
+	componentsCmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController
+	chartsCmd := corednsCharts + ingressControllerCharts + metricsCharts + runtimeClasses +
+		snapshotController + snapshotValidation + traefikCharts + harvesterCloud + harvesterCsi +
+		vSphereCpi + vSphereCsi
 
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
@@ -63,7 +83,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 		description = "Verifies bump versions for several components on k3s:\n1-coredns" +
 			"\n2-metrics Server\n3-etcd\n4-cni Plugins\n5-containerd\n6-runc\n7-crictl\n8-traefik\n9-local path provisioner\n10-klipper LB"
 
-		cmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
+		componentsCmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
 	It(description, func() {
@@ -71,7 +91,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  cmd,
+						Cmd:                  componentsCmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
 					},
@@ -81,6 +101,24 @@ var _ = Describe("Components Version Upgrade:", func() {
 			Description: ServiceFlag.TestTemplateConfig.Description,
 		})
 	})
+
+	if cluster.Config.Product == "rke2" {
+		It(chartsDescription, func() {
+			Template(TestTemplate{
+				TestCombination: &RunCmd{
+					Run: []TestMapConfig{
+						{
+							Cmd:                  chartsCmd,
+							ExpectedValue:        TestMap.ExpectedChartsValue,
+							ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						},
+					},
+				},
+				InstallMode: ServiceFlag.InstallMode.String(),
+				Description: ServiceFlag.TestTemplateConfig.Description,
+			})
+		})
+	}
 
 	It("Verifies dns access", func() {
 		testcase.TestDNSAccess(true, true)

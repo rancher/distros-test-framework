@@ -15,18 +15,34 @@ var (
 
 // FlagConfig is a type that wraps all the flags that can be used.
 type FlagConfig struct {
-	InstallMode        installModeFlag
-	TestTemplateConfig templateConfigFlag
-	Destroy            destroyFlag
-	SUCUpgradeVersion  sucUpgradeVersionFlag
-	Channel            channelFlag
-	External           externalFlag
-	CertManager        certManagerFlag
-	Charts             helmChartsFlag
-	AirgapFlag         airgapFlag
-	S3Flags            s3ConfigFlag
-	SelinuxTest        selinuxTestFlag
-	SecretsEncrypt     secretsEncryptFlag
+	InstallMode          installModeFlag
+	TestTemplateConfig   templateConfigFlag
+	Destroy              destroyFlag
+	SUCUpgradeVersion    sucUpgradeVersionFlag
+	Channel              channelFlag
+	External             externalFlag
+	CertManager          certManagerFlag
+	Charts               helmChartsFlag
+	AirgapFlag           airgapFlag
+	S3Flags              s3ConfigFlag
+	SelinuxTest          selinuxTestFlag
+	KillAllUninstallTest killalluninstallTestFlag
+	SecretsEncrypt       secretsEncryptFlag
+	Nvidia               nvidiaFlag
+}
+
+type nvidiaFlag struct {
+	Version string
+}
+
+func (n *nvidiaFlag) String() string {
+	return n.Version
+}
+
+func (n *nvidiaFlag) Set(value string) error {
+	n.Version = value
+
+	return nil
 }
 
 // TestMapConfig is a type that wraps the test commands and expected values.
@@ -34,9 +50,11 @@ type TestMapConfig testMapConfigFlag
 
 // testMapConfigFlag represents a single test command with key:value pairs.
 type testMapConfigFlag struct {
-	Cmd                  string
-	ExpectedValue        string
-	ExpectedValueUpgrade string
+	Cmd                        string
+	ExpectedValue              string
+	ExpectedValueUpgrade       string
+	ExpectedChartsValue        string
+	ExpectedChartsValueUpgrade string
 }
 
 type templateConfigFlag struct {
@@ -219,4 +237,20 @@ func (s *selinuxTestFlag) String() string {
 
 type secretsEncryptFlag struct {
 	Method string
+}
+
+type killalluninstallTestFlag bool
+
+func (d *killalluninstallTestFlag) String() string {
+	return fmt.Sprintf("%v", *d)
+}
+
+func (d *killalluninstallTestFlag) Set(value string) error {
+	v, err := strconv.ParseBool(value)
+	if err != nil {
+		return err
+	}
+	*d = killalluninstallTestFlag(v)
+
+	return nil
 }

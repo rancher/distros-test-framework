@@ -147,8 +147,8 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 	cisMasterLocalPath := shared.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
-	clusterLevelpssLocalPath := shared.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
-	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
+	admissionConfigLocalPath := shared.BasePath() + "/modules/k3s/master/admission-config.yaml"
+	admissionConfigRemotePath := "/tmp/admission-config.yaml"
 
 	auditLocalPath := shared.BasePath() + "/modules/k3s/master/audit.yaml"
 	auditRemotePath := "/tmp/audit.yaml"
@@ -167,7 +167,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 		ip,
 		[]string{
 			cisMasterLocalPath,
-			clusterLevelpssLocalPath,
+			admissionConfigLocalPath,
 			auditLocalPath,
 			policyLocalPath,
 			ingressPolicyLocalPath,
@@ -175,7 +175,7 @@ func k3sServerSCP(cluster *shared.Cluster, ip string) error {
 		},
 		[]string{
 			cisMasterRemotePath,
-			clusterLevelpssRemotePath,
+			admissionConfigRemotePath,
 			auditRemotePath,
 			policyRemotePath,
 			ingressPolicyRemotePath,
@@ -302,7 +302,7 @@ func buildK3sCmd(
 			installEnableOrBoth,
 		)
 	} else {
-		datastoreEndpoint := cluster.Config.RenderedTemplate
+		datastoreEndpoint := cluster.Config.ExternalDb
 		cmd = fmt.Sprintf(
 			"sudo /var/tmp/join_k3s_%s.sh '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			nodetype,
@@ -356,7 +356,7 @@ func buildRke2Cmd(
 			installEnableOrBoth,
 		)
 	} else {
-		datastoreEndpoint := cluster.Config.RenderedTemplate
+		datastoreEndpoint := cluster.Config.ExternalDb
 		arguments := fmt.Sprintf(
 			"'%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' '%s' %s '%s' '%s' '%s'",
 			cluster.NodeOS,

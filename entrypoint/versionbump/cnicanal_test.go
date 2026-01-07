@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	calicoCmd  = " kubectl get node -o yaml: | grep 'hardened-calico' -A1, "
-	flannelCmd = " kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+	calicoCmd     = " kubectl get node -o yaml: | grep 'hardened-calico' -A1, "
+	flannelCmd    = " kubectl get node -o yaml : | grep 'hardened-flannel' -A1 "
+	canalChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-canal' "
 )
 
 var _ = Describe("Canal Version bump:", func() {
@@ -37,14 +38,31 @@ var _ = Describe("Canal Version bump:", func() {
 			assert.PodAssertReady())
 	})
 
+	cmd := calicoCmd + flannelCmd
+
 	It("Test Calico and Flannel version", func() {
 		Template(TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
-						Cmd:                  calicoCmd + flannelCmd,
+						Cmd:                  cmd,
 						ExpectedValue:        TestMap.ExpectedValue,
 						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+					},
+				},
+			},
+			InstallMode: ServiceFlag.InstallMode.String(),
+		})
+	})
+
+	It("Test canal charts version", func() {
+		Template(TestTemplate{
+			TestCombination: &RunCmd{
+				Run: []TestMapConfig{
+					{
+						Cmd:                  canalChartCmd,
+						ExpectedValue:        TestMap.ExpectedChartsValue,
+						ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
 					},
 				},
 			},

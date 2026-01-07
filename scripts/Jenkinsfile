@@ -25,6 +25,11 @@ node {
     timeout = env.TIMEOUT
   }
 
+  def module = ""
+  if (env.MODULE && env.MODULE != "null") {
+    module = env.MODULE
+  }
+
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
       def paramsMap = params.findAll { it.value?.trim() }.collectEntries { [(it.key): it.value] }
@@ -46,16 +51,16 @@ node {
               userRemoteConfigs: repo
             ])
           }
-           stage('Create QASE Environment Variables') {
-             script {
-                 def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
+          stage('Create QASE Environment Variables') {
+            script {
+              def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
                              'QASE_PROJECT_ID=' + env.QASE_PROJECT_ID + '\n' +
                              'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
                              'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
                              'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
                 writeFile file: qaseEnvFile, text: qase
-              }
             }
+          }
           dir('./') {
             try {
               stage('Configure and Build') {
@@ -68,18 +73,14 @@ node {
                 dir('./config') {
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
-                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n"
-                    def version_param_name = "${env.PRODUCT_NAME}_version"
-                    def channel_param_name = "${env.PRODUCT_NAME}_channel"
-                    //for airgap, remove after standarization
-                    if (env.MODULE) {
-                       data += "ENV_MODULE=${env.MODULE}\n"
-                       version_param_name = "install_version"
-                       channel_param_name = "install_channel"
-                    }
+                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
+                   "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
                     //adding data to .env file
                     writeFile(file: '.env', text: data)
+
                   //update tfvars file
+                  def version_param_name = "${env.PRODUCT_NAME}_version"
+                  def channel_param_name = "${env.PRODUCT_NAME}_channel"
                   def filename = "${env.PRODUCT_NAME}.tfvars"
                   def configContents = env.TFVARS
                   writeFile file: filename, text: configContents +
@@ -96,8 +97,8 @@ node {
                   println(testdata)
                 }
                 stage('Docker Build') {
-                     sh './scripts/configure.sh'
-                     sh './scripts/build.sh'
+                  sh './scripts/configure.sh'
+                  sh './scripts/build.sh'
                 }
               }
               stage('Run TestCombination') {
@@ -110,7 +111,7 @@ node {
                         ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
                          cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
-                   }
+              }
             } finally {
               stage('Cleanup') {
                 sh "docker stop ${testContainer} || true"

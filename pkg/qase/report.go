@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -53,7 +54,7 @@ type createResultRequest struct {
 	comment   qaseclient.NullableString
 }
 
-func (c Client) ReportRun(fileName, product string) error {
+func (c Client) ReportE2ETestRun(fileName, product string) error {
 	pd, processTestDataErr := processTestData(fileName, product)
 	if processTestDataErr != nil {
 		return fmt.Errorf("error processing test data: %w", processTestDataErr)
@@ -85,7 +86,7 @@ func (c Client) ReportRun(fileName, product string) error {
 }
 
 // SpecReportTestResults receives the report from ginkgo and sends the test results to Qase.
-func (c Client) SpecReportTestResults(ctx context.Context, report *Report, version string) {
+func (c Client) SpecReportTestResults(ctx context.Context, cluster *shared.Cluster, report *Report, reportSummary string) {
 	shared.LogLevel("info", "Start publishing test results to Qase\n")
 
 	runID, tcID, err := validateQaseIDs()
@@ -103,7 +104,7 @@ func (c Client) SpecReportTestResults(ctx context.Context, report *Report, versi
 	}
 
 	tcs, _ := specReportToTestCase(report)
-	request := parseResults(tcs, version, &req)
+	request := parseResults(cluster, tcs, reportSummary, &req)
 
 	if err := c.createTestResult(ctx, request); err != nil {
 		shared.LogLevel("error", "failed to create test result: %w\n", err)
@@ -163,7 +164,13 @@ func specReportToTestCase(report *Report) ([]TestCase, bool) {
 }
 
 // parseResults receives the test results and parses the results into the createResultRequest.
-func parseResults(testCases []TestCase, version string, req *createResultRequest) *createResultRequest {
+func parseResults(
+	cluster *shared.Cluster,
+	testCases []TestCase,
+	reportSummary string,
+	req *createResultRequest,
+) *createResultRequest {
+	testResSummary := tcResultSummary(cluster, reportSummary)
 	var failedSubTests []TestCase
 
 	for _, tc := range testCases {
@@ -182,15 +189,17 @@ func parseResults(testCases []TestCase, version string, req *createResultRequest
 
 			comments += fmt.Sprintf(
 				"Failed test:\nVersion Tested: %s\nName: %s\nStatus: %s\nMessage: %s\n"+
-					"Location: \n%s\n\nCodeLocation: \n%s\n\nFullStackTrace: \n%s\n\n", version,
+					"Location: \n%s\n\nCodeLocation: \n%s\n\nFullStackTrace: \n%s\n\n", cluster.Config.Version,
 				tc.Name, tc.Status, tc.StackTrace.Message, stacTraceLocation,
 				codeLocationLink, updatedFullStackTrace,
 			)
 		}
-		req.comment = newNullableString(comments)
+		testResSummary += fmt.Sprintf("\n"+"\n"+"Failed sub-tests:\n%s"+"\n", comments)
+		req.comment = newNullableString(testResSummary)
 	} else {
 		req.status = passStatus
-		req.comment = newNullableString(fmt.Sprintf("Version Tested: %s\n", version))
+		req.comment = newNullableString(fmt.Sprintf("Version Tested: %s\n", cluster.Config.Version))
+		req.comment = newNullableString(testResSummary)
 	}
 
 	return req
@@ -239,20 +248,19 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 		finalStatus := passStatus
 		var totalElapsed int64
 		var commentBuilder strings.Builder
-
-		commentBuilder.WriteString("Version Tested: Latest master commit ,see link above on description!") // nolint:revive // it is builder string only.
+		commentBuilder.WriteString("Version Tested: Latest master commit ,see link above on description!")
 
 		for _, tc := range group {
 			totalElapsed += tc.Elapsed
 
 			if tc.Status == failStatus {
 				finalStatus = failStatus
-				commentBuilder.WriteString(fmt.Sprintf( // nolint:revive // it is builder string only.
+				commentBuilder.WriteString(fmt.Sprintf(
 					"\nFailed sub-test: %s\nMessage: %s\n\n",
 					tc.Name, tc.StackTrace.Message,
 				))
 			} else {
-				commentBuilder.WriteString(fmt.Sprintf( // nolint:revive // it is builder string only.
+				commentBuilder.WriteString(fmt.Sprintf(
 					"Passed sub-test: %s\n",
 					tc.Name,
 				))
@@ -272,4 +280,85 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 	}
 
 	return reqs
+}
+
+func tcResultSummary(c *shared.Cluster, reportSummary string) string {
+	var reportSummaryBuilder strings.Builder
+	reportSummaryBuilder.WriteString("**Summary Data**\n")
+	reportSummaryBuilder.WriteString("\n")
+	reportSummaryBuilder.WriteString(reportSummary)
+
+	reportSummaryBuilder.WriteString(formatClusterConfig(c))
+
+	reportSummaryBuilder.WriteString(formatAWSConfig(c))
+
+	reportSummaryBuilder.WriteString(formatOptionalConfigs(c))
+
+	return reportSummaryBuilder.String()
+}
+
+func formatClusterConfig(c *shared.Cluster) string {
+	clusterInfo := []struct{ labelKey, value string }{
+		{"Product", c.Config.Product},
+		{"Product version", c.Config.Version},
+		{"Channel", c.Config.Channel},
+		{"Install mode", c.Config.InstallMode},
+		{"Install method", c.Config.InstallMethod},
+		{"Server flags", c.Config.ServerFlags},
+		{"Datastore", c.Config.DataStore},
+		{"Architecture", c.Config.Arch},
+		{"Node OS", c.NodeOS},
+	}
+
+	return formatSection("Cluster Configuration", clusterInfo)
+}
+
+func formatAWSConfig(c *shared.Cluster) string {
+	accessKey := os.Getenv("ACCESS_KEY_LOCAL")
+	accessKeyName := filepath.Base(accessKey)
+
+	awsInfo := []struct{ labelKey, value string }{
+		{"Access key", accessKeyName},
+		{"User", c.Aws.EC2.AwsUser},
+		{"Key name", c.Aws.EC2.KeyName},
+		{"Region", c.Aws.Region},
+		{"Availability zone", c.Aws.AvailabilityZone},
+		{"AMI", c.Aws.EC2.Ami},
+		{"Instance class", c.Aws.EC2.InstanceClass},
+		{"Volume size", c.Aws.EC2.VolumeSize},
+		{"VPC ID", c.Aws.VPCID},
+		{"Subnets", c.Aws.Subnets},
+		{"Security group ID", c.Aws.SgId},
+		{"Num servers", strconv.Itoa(c.NumServers)},
+		{"Num agents", strconv.Itoa(c.NumAgents)},
+	}
+
+	return formatSection("AWS Configuration", awsInfo)
+}
+
+func formatOptionalConfigs(c *shared.Cluster) string {
+	var sections []string
+
+	// externalDB config.
+	if c.Config.DataStore == "external" {
+		extInfo := []struct{ labelKey, value string }{
+			{"DB endpoint", c.Config.ExternalDbEndpoint},
+			{"DB type", c.Config.ExternalDb},
+			{"DB version", c.Config.ExternalDbVersion},
+			{"DB group name", c.Config.ExternalDbGroupName},
+			{"DB node type", c.Config.ExternalDbNodeType},
+		}
+		sections = append(sections, formatSection("External Database", extInfo))
+	}
+
+	// bastion config.
+	if c.NumBastion > 0 {
+		bastionInfo := []struct{ labelKey, value string }{
+			{"Bastion Public IPv4", c.BastionConfig.PublicIPv4Addr},
+			{"Bastion Public DNS", c.BastionConfig.PublicDNS},
+		}
+		sections = append(sections, formatSection("Bastion Host", bastionInfo))
+	}
+
+	return strings.Join(sections, "\n\n")
 }

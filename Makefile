@@ -98,6 +98,9 @@ test-components-bump:
 	-expectedValue ${EXPECTED_VALUE} \
 	$(if ${VALUE_UPGRADED},-expectedValueUpgrade ${VALUE_UPGRADED}) \
 	$(if ${INSTALL_VERSION_OR_COMMIT},-installVersionOrCommit ${INSTALL_VERSION_OR_COMMIT})
+	$(if ${EXPECTED_CHARTS_VALUE}, -expectedChartsValue ${EXPECTED_CHARTS_VALUE})
+	$(if ${CHARTS_VALUE_UPGRADED}, -expectedChartsValue ${CHARTS_VALUE_UPGRADED})
+
 
 test-validate-selinux:
 	@go test -timeout=45m -v -count=1 ./entrypoint/selinux/... \

@@ -73,22 +73,51 @@ update_config() {
 }
 
 cis_setup() {
-  if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"cis"* ]]; then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-    elif [[ "$node_os" == *"slemicro"* ]]; then
-      cat <<EOF >> ~/60-rke2-cis.conf
-on_oovm.panic_on_oom=0
+  [[ -z "$worker_flags" || "$worker_flags" != *"cis"* ]] && return 0
+  is_rhel_family=false
+  if [[ "$node_os" =~ (rhel|centos|oracle|sles|suse) ]]; then
+    is_rhel_family=true
+  fi
+  
+  if [[ "$node_os" == *"slemicro"* ]]; then
+    echo "Setting up CIS for SLE Micro"
+
+    getent group etcd >/dev/null 2>&1 || groupadd --system etcd
+    id -u etcd >/dev/null 2>&1    || useradd -s /sbin/nologin --system -g etcd etcd
+    cat <<EOF > /etc/sysctl.d/60-rke2-cis.conf
 vm.overcommit_memory=1
 kernel.panic=10
-kernel.panic_ps=1
 kernel.panic_on_oops=1
 EOF
-      cp ~/60-rke2-cis.conf /etc/sysctl.d/;
+
+  elif $is_rhel_family; then
+    echo "Applying CIS sysctl file for RHEL/SLES family"
+    for path in \
+      /usr/share/rke2/rke2-cis-sysctl.conf \
+      /usr/local/share/rke2/rke2-cis-sysctl.conf \
+      /opt/rke2/share/rke2/rke2-cis-sysctl.conf; do
+      if [[ -f "$path" ]]; then
+        cp -f "$path" /etc/sysctl.d/60-rke2-cis.conf
+        break
+      fi
+    done
+
+    [[ ! -f /etc/sysctl.d/60-rke2-cis.conf ]] && {
+      echo "ERROR: rke2-cis-sysctl.conf not found in any expected location"
+      exit 1
+    }
+   else
+    echo "ERROR: CIS mode enabled but OS '$node_os' is not recognized for CIS setup"
+    exit 1
+  fi
+  systemctl restart systemd-sysctl
+
+  if [[ "$node_os" != *"slemicro"* ]]; then
+    if ! id -u etcd >/dev/null 2>&1; then
+      useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
     else
-      cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+      echo "etcd user already exists, skipping"
     fi
-    systemctl restart systemd-sysctl
   fi
   if [ -n "$worker_flags" ] && [[ "$worker_flags" == *"etcd"* ]]; then
     useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
@@ -127,6 +156,13 @@ disable_cloud_setup() {
 }
 
 install_rke2() {
+  if [[ "$node_os" == *"sles"* ]] || [[ "$node_os" == *"slemicro"* ]]; then
+     echo "Checking for package manager locks if so, removing them."
+     pkill -f zypper 2>/dev/null || true
+     rm -f /var/run/zypp.pid 2>/dev/null || true
+     sleep 2
+  fi
+
   url="https://get.rke2.io"
   params="$install_mode=$version INSTALL_RKE2_TYPE=agent"
   
@@ -157,7 +193,7 @@ enable_service() {
     echo "rke2-agent failed to start on node: $public_ip"
 
     ## rke2 can sometimes fail to start but some time after it starts successfully.
-    sleep 20
+    sleep 120
 
     if ! sudo systemctl is-active --quiet rke2-agent; then
       echo "rke2-agent exiting after failed to start on node: $public_ip while joining server: $server_ip"

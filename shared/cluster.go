@@ -42,6 +42,16 @@ func ManageWorkload(action string, workloads ...string) error {
 	return nil
 }
 
+// ApplyWorkloadURL applies a workload from a URL.
+func ApplyWorkloadURL(url string) error {
+	applyWorkloadErr := applyWorkload("apply", url)
+	if applyWorkloadErr != nil {
+		return ReturnLogError("failed to apply workload: %s\n", applyWorkloadErr)
+	}
+
+	return nil
+}
+
 func handleWorkload(action, resourceDir, workload string) error {
 	filename := filepath.Join(resourceDir, workload)
 
@@ -59,13 +69,14 @@ func applyWorkload(workload, filename string) error {
 	LogLevel("info", "Applying %s", workload)
 	cmd := "kubectl apply -f " + filename + " --kubeconfig=" + KubeConfigFile
 	out, err := RunCommandHost(cmd)
-	fmt.Println(out)
 	if err != nil || out == "" {
 		if strings.Contains(out, "Invalid value") {
 			return fmt.Errorf("failed to apply workload %s: %s", workload, out)
 		}
 		return ReturnLogError("failed to run kubectl apply: %w", err)
 	}
+	LogLevel("info", "Workload applied: %v", filename)
+	LogLevel("debug", "Workload apply response: \n%v", out)
 
 	out, err = RunCommandHost("kubectl get all -A " + " --kubeconfig=" + KubeConfigFile)
 	if err != nil {
@@ -218,16 +229,6 @@ func FetchNodeExternalIPs() []string {
 	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
 
 	return nodeExternalIPs
-}
-
-// RestartCluster restarts the service on each node given by external IP.
-func RestartCluster(product, ip string) error {
-	_, err := RunCommandOnNode(fmt.Sprintf("sudo systemctl restart %s*", product), ip)
-	if err != nil {
-		return ReturnLogError("failed to restart %s: on ip: %s %v\n", product, ip, err)
-	}
-
-	return nil
 }
 
 // FetchIngressIP returns the ingress IP of the given namespace.
@@ -724,7 +725,7 @@ func ExtractKubeImageVersion() string {
 }
 
 // InstallProduct installs the product on the server node only.
-// TODO: add support for installing on all nodes.
+// TODO: add support for installing on all nodes with all necessary flags.
 func InstallProduct(cluster *Cluster, publicIP, version string) error {
 	err := setConfigFile(cluster, publicIP)
 	if err != nil {
@@ -872,4 +873,18 @@ func FindPodAndLog(name, namespace string) {
 			DescribePod(cluster, &pods[i])
 		}
 	}
+}
+
+func CleanupPod(podName string) error {
+	cmd := fmt.Sprintf("kubectl delete pod %s --ignore-not-found=true --kubeconfig=%s",
+		podName, KubeConfigFile)
+
+	res, err := RunCommandHost(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to cleanup pod: %w\n%s", err, res)
+	}
+
+	LogLevel("info", "Pod %s cleaned up successfully: %s", podName, res)
+
+	return nil
 }

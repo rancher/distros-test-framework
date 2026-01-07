@@ -13,6 +13,10 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 )
 
+const (
+	flannelChartCmd = "sudo cat /var/lib/rancher/rke2/data/*/charts/* | grep 'rke2-flannel' "
+)
+
 var _ = Describe("Flannel Version bump:", func() {
 	It("Start Up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
@@ -33,7 +37,7 @@ var _ = Describe("Flannel Version bump:", func() {
 	})
 
 	It("Test flannel version bump", func() {
-		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1"
+		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1 "
 		if cluster.Config.Product == "k3s" {
 			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
 		}
@@ -51,6 +55,23 @@ var _ = Describe("Flannel Version bump:", func() {
 			InstallMode: ServiceFlag.InstallMode.String(),
 		})
 	})
+
+	if cluster.Config.Product == "rke2" {
+		It("Test flannel charts version", func() {
+			Template(TestTemplate{
+				TestCombination: &RunCmd{
+					Run: []TestMapConfig{
+						{
+							Cmd:                  flannelChartCmd,
+							ExpectedValue:        TestMap.ExpectedChartsValue,
+							ExpectedValueUpgrade: TestMap.ExpectedChartsValueUpgrade,
+						},
+					},
+				},
+				InstallMode: ServiceFlag.InstallMode.String(),
+			})
+		})
+	}
 
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIP(true, true)

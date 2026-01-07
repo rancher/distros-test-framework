@@ -328,7 +328,9 @@ we are not directly umounting the data dir, which is the behavior tests scripts 
 
 - Optionally we can pass `-killallUninstall true` to run kill all-uninstall tests on the end of ValidateCluster tests.
 
-## Selinux tests. 
+- Despite number of severs/agents those tests are always running only in one server/agent node if any, to avoid unecessary extra time and resources consumption.
+
+## Selinux tests.
 These tests are enabled in 3 test suites: 
 1. Selinux test suite
 2. Validate cluster test suite
