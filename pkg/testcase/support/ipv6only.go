@@ -33,35 +33,42 @@ func BuildIPv6OnlyCluster(cluster *shared.Cluster) {
 	}
 }
 
-func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) (err error) {
-	nodeIPs := cluster.ServerIPs
+func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) error {
+	nodeIPs := make([]string, 0, len(cluster.ServerIPs)+len(cluster.AgentIPs))
+	nodeIPs = append(nodeIPs, cluster.ServerIPs...)
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
 
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			shared.LogLevel("info", "Copying configure.sh script on node: %s", nodeIP)
-			err = copyConfigureScript(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying configure.sh script on node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Copying configure.sh script on node: %s", ip)
+			if err := copyConfigureScript(cluster, ip); err != nil {
+				errChan <- shared.ReturnLogError("error copying configure.sh script on node: %v\n, err: %w", ip, err)
+				return
 			}
-			shared.LogLevel("info", "Processing configure.sh on node: %s", nodeIP)
-			err = processConfigureFile(cluster, awsClient, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Processing configure.sh on node: %s", ip)
+			if err := processConfigureFile(cluster, awsClient, ip); err != nil {
+				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", ip, err)
+				return
 			}
-			shared.LogLevel("info", "Copying install script on node: %s", nodeIP)
-			err = copyInstallScript(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Copying install script on node: %s", ip)
+			if err := copyInstallScript(cluster, ip); err != nil {
+				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", ip, err)
+				return
 			}
 		}(nodeIP)
 	}
-	wg.Wait()
-	close(errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
 
 	for err := range errChan {
 		if err != nil {

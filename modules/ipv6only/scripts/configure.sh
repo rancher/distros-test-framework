@@ -22,6 +22,7 @@ cilium_config() {
     mkdir -p /var/lib/rancher/rke2/server/manifests
     cat <<EOF >>/var/lib/rancher/rke2/server/manifests/rke2-cilium-ipv6config.yaml
 ---
+apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
   name: rke2-cilium

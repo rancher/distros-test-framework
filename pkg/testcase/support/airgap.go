@@ -170,58 +170,68 @@ func podmanCmds(cluster *shared.Cluster, platform string, flags *customflag.Flag
 	return err
 }
 
-// CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) (err error) {
-	nodeIPs := cluster.ServerIPs
+func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) error {
+	nodeIPs := make([]string, 0, len(cluster.ServerIPs)+len(cluster.AgentIPs))
+	nodeIPs = append(nodeIPs, cluster.ServerIPs...)
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
+
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
 
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			shared.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, nodeIP)
-			err = copyAssets(cluster, airgapMethod, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
-			}
-			switch airgapMethod {
-			case "private_registry":
-				shared.LogLevel("debug", "Copying registry.yaml on node IP: %s", nodeIP)
-				err = copyRegistry(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "system_default_registry":
-				shared.LogLevel("debug", "Trust CA Certs on node IP: %s", nodeIP)
-				err = trustCert(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "tarball":
-				shared.LogLevel("debug", "Copying tarball on node IP: %s", nodeIP)
-				err = copyTarball(cluster, *tarballType, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			default:
-				shared.LogLevel("error", "Invalid airgap method: %s", airgapMethod)
-			}
-			shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
-			err = makeExecutable(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
+			if err := copyAssetsToNode(cluster, airgapMethod, tarballType, ip); err != nil {
+				errChan <- err
 			}
 		}(nodeIP)
 	}
-	wg.Wait()
-	close(errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
 
 	for err := range errChan {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// copyAssetsToNode Helper function to handle the logic for a single node.
+func copyAssetsToNode(cluster *shared.Cluster, method string, tarballType *string, ip string) error {
+	shared.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, ip)
+	if err := copyAssets(cluster, method, ip); err != nil {
+		return shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", ip, err)
+	}
+
+	switch method {
+	case "private_registry":
+		shared.LogLevel("debug", "Copying registry.yaml on node IP: %s", ip)
+		if err := copyRegistry(cluster, ip); err != nil {
+			return shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", ip, err)
+		}
+	case "system_default_registry":
+		shared.LogLevel("debug", "Trust CA Certs on node IP: %s", ip)
+		if err := trustCert(cluster, ip); err != nil {
+			return shared.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", ip, err)
+		}
+	case "tarball":
+		shared.LogLevel("debug", "Copying tarball on node IP: %s", ip)
+		if err := copyTarball(cluster, *tarballType, ip); err != nil {
+			return shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", ip, err)
+		}
+	default:
+		return shared.ReturnLogError("invalid airgap method: %s", method)
+	}
+
+	shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, ip)
+	if err := makeExecutable(cluster, ip); err != nil {
+		return shared.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", ip, err)
 	}
 
 	return nil
