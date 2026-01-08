@@ -54,7 +54,7 @@ func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) (err
 				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", nodeIP, err)
 			}
 			shared.LogLevel("info", "Copying install script on node: %s", nodeIP)
-			err = copyInstallScripts(cluster, nodeIP)
+			err = copyInstallScript(cluster, nodeIP)
 			if err != nil {
 				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", nodeIP, err)
 			}
@@ -134,8 +134,8 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 	return nil
 }
 
-// copyInstallScripts Copies install scripts on the nodes.
-func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
+// copyInstallScript Copies install script on the nodes.
+func copyInstallScript(cluster *shared.Cluster, ip string) (err error) {
 	var script string
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
