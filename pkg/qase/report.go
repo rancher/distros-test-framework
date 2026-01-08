@@ -54,20 +54,20 @@ type createResultRequest struct {
 	comment   qaseclient.NullableString
 }
 
-func (c Client) ReportE2ETestRun(fileName, product string) error {
+func (c Client) ReportE2ETestRun(fileName, product string) (int32, error) {
 	pd, processTestDataErr := processTestData(fileName, product)
 	if processTestDataErr != nil {
-		return fmt.Errorf("error processing test data: %w", processTestDataErr)
+		return 0, fmt.Errorf("error processing test data: %w", processTestDataErr)
 	}
 
 	id, createErr := c.createRun(pd, "e2e", product)
 	if createErr != nil {
-		return fmt.Errorf("error creating run: %w", createErr)
+		return 0, fmt.Errorf("error creating run: %w", createErr)
 	}
 
 	// Checking if the runID is within the int32 bounds to avoid integer overflow.
 	if *id < int64(math.MinInt32) || *id > int64(math.MaxInt32) {
-		return fmt.Errorf("runID %d out of int32 bounds", *id)
+		return 0, fmt.Errorf("runID %d out of int32 bounds", *id)
 	}
 	runID := int32(*id)
 
@@ -75,14 +75,14 @@ func (c Client) ReportE2ETestRun(fileName, product string) error {
 
 	resultReq := parseBulkResults(tcs, runID)
 	if err := c.createBulkTestResult(resultReq); err != nil {
-		return fmt.Errorf("error creating bulk test result: %w", err)
+		return 0, fmt.Errorf("error creating bulk test result: %w", err)
 	}
 
 	if completeErr := c.completeRun(runID); completeErr != nil {
-		return fmt.Errorf("error completing run: %w", completeErr)
+		return 0, fmt.Errorf("error completing run: %w", completeErr)
 	}
 
-	return nil
+	return runID, nil
 }
 
 // SpecReportTestResults receives the report from ginkgo and sends the test results to Qase.
