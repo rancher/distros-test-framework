@@ -1,12 +1,12 @@
 output "bastion_ip" {
   depends_on = [ module.instance ]
-  value       = module.instance.public_ip
+  value       = module.instance.bastion_public_ip
   description = "The public IP of the bastion node"
 }
 
 output "bastion_dns" {
   depends_on = [ module.instance ]
-  value       = module.instance.public_dns
+  value       = module.instance.bastion_public_dns
   description = "The public DNS of the bastion node"
 }
 
@@ -18,9 +18,4 @@ output "master_ips" {
 output "worker_ips" {
   value       = module.instance.worker_ips
   description = "The IPv6 IP of the AWS node"
-}
-
-output "Route53_info" {
-  value = module.instance.Route53_info
-  description = "List of DNS records"
 }

@@ -19,8 +19,6 @@ module "instance" {
    no_of_server_nodes   = var.no_of_server_nodes
    no_of_worker_nodes   = var.no_of_worker_nodes
    product              = var.product
-   create_lb            = var.create_lb
-   hosted_zone          = var.hosted_zone
    etcd_only_nodes      = var.etcd_only_nodes
    etcd_cp_nodes        = var.etcd_cp_nodes
    etcd_worker_nodes    = var.etcd_worker_nodes
