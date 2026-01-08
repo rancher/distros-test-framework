@@ -116,7 +116,10 @@ EOF
       ;;
   esac
 
-  ensure_etcd_user
+  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"etcd"* ]]; then
+      ensure_etcd_user
+  fi
+
   systemctl restart systemd-sysctl
 }
 
