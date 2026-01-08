@@ -62,31 +62,35 @@ func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagCon
 }
 
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.
-func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) (err error) {
-	nodeIPs := cluster.WinAgentIPs
-	errChan := make(chan error, len(nodeIPs))
+func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) error {
+	errChan := make(chan error, len(cluster.WinAgentIPs))
 	var wg sync.WaitGroup
 
-	for _, nodeIP := range nodeIPs {
+	for _, nodeIP := range cluster.WinAgentIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			shared.LogLevel("debug", "Copying %v assets on Windows node IP: %s", cluster.Config.Product, nodeIP)
-			err = copyAssetsOnWindows(cluster, airgapMethod, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("debug", "Copying %v assets on Windows node IP: %s", cluster.Config.Product, ip)
+			if err := copyAssetsOnWindows(cluster, airgapMethod, ip); err != nil {
+				errChan <- shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", ip, err)
+				return
 			}
+
 			if airgapMethod == "private_registry" {
-				shared.LogLevel("debug", "Copying registry.yaml on Windows node IP: %s", nodeIP)
-				err = copyRegistryOnWindows(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
+				shared.LogLevel("debug", "Copying registry.yaml on Windows node IP: %s", ip)
+				if err := copyRegistryOnWindows(cluster, ip); err != nil {
+					errChan <- shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", ip, err)
+					return
 				}
 			}
 		}(nodeIP)
 	}
-	wg.Wait()
-	close(errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
 
 	for err := range errChan {
 		if err != nil {
