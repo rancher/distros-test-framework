@@ -76,6 +76,8 @@ const (
 
 // processTestData reads the log file and processes the data updating the test details and test suite details.
 func processTestData(fileName, product string) (*processedTestdata, error) {
+	// Reset global state for fresh processing
+	remainingData = ""
 	data, readErr := parseLogsFromFile(fileName)
 	if readErr != nil {
 		return nil, fmt.Errorf("error reading log file: %w", readErr)
@@ -167,7 +169,8 @@ func extractTestOutput(res string) []Output {
 	res = ansiEscape.ReplaceAllString(res, "")
 
 	// Append the cleaned input to the global "remainingData".
-	remainingData += res
+	// Process this row independently - dont accumulate across rows
+	remainingData = res
 
 	var currentOutput *Output
 	var results []Output
@@ -364,7 +367,6 @@ func extractIDs(suiteName, product string) (int64, error) {
 		rke2Tcs := map[string]int64{
 			"ciliumnokp":           220,
 			"dnscache":             221,
-			"dualstack":            222,
 			"mixedosvalidation":    223,
 			"mixedosbgpvalidation": 224,
 			"multus":               225,
@@ -373,6 +375,7 @@ func extractIDs(suiteName, product string) (int64, error) {
 			"upgradevalidation":    228,
 			"clustervalidation":    229,
 			"kinevalidation":       230,
+			"ciliumwireguard": 	    295,
 		}
 
 		for keyword, id := range rke2Tcs {

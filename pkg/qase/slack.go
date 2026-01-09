@@ -76,6 +76,62 @@ func NewSlackClient() (*SlackClient, error) {
 	}, nil
 }
 
+func ReportToSlack(fileName, product, baseDir string, runID int32) error {
+	slackClient, err := NewSlackClient()
+	if err != nil {
+		shared.LogLevel("warn", "Slack client not configured: %v", err)
+		return err
+	}
+
+	if err := slackClient.ValidateConnection(); err != nil {
+		return fmt.Errorf("Slack connection validation failed: %w", err)
+	}
+
+	pd, err := processTestData(fileName, product)
+	if err != nil {
+		return fmt.Errorf("error processing test data for Slack: %w", err)
+	}
+
+	failedDirs := getFailedTestDirs(pd, baseDir)
+
+	var parentThreadTS string
+	isRerun := os.Getenv("IS_RERUN") == "true"
+	statePath := filepath.Join(baseDir, "report", ".rerun-state.json")
+	
+	if isRerun {
+		if data, err := os.ReadFile(statePath); err == nil {
+			var state map[string]interface{}
+			if json.Unmarshal(data, &state) == nil {
+				if ts, ok := state["thread_ts"].(string); ok && ts != "" {
+					parentThreadTS = ts
+					shared.LogLevel("info", "Rerun detected, will post as reply to thread: %s", parentThreadTS)
+				}
+			}
+		}
+	} else {
+		shared.LogLevel("info", "Fresh run detected, will create new Slack thread")
+	}
+
+	threadTS, err := slackClient.PostTestResults(pd, product, runID, baseDir, parentThreadTS)
+	if err != nil {
+		return fmt.Errorf("error posting test results to Slack: %w", err)
+	}
+
+	if baseDir != "" && threadTS != "" {
+		if parentThreadTS == "" {
+			if err := saveRerunState(baseDir, slackClient.ChannelID, threadTS, product, failedDirs); err != nil {
+				shared.LogLevel("warn", "Failed to save rerun state: %v", err)
+			}
+		} else {
+			if err := updateFailedTests(baseDir, failedDirs); err != nil {
+				shared.LogLevel("warn", "Failed to update failed tests: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *SlackClient) ValidateConnection() error {
 	shared.LogLevel("info", "Validating Slack connection...")
 
@@ -110,6 +166,7 @@ func (s *SlackClient) ValidateConnection() error {
 	}
 
 	shared.LogLevel("info", "Connected to Slack as: %s (Team: %s)", authResp.User, authResp.Team)
+
 	return nil
 }
 
@@ -119,20 +176,44 @@ func (s *SlackClient) PostMessage(text string) error {
 		Text:    text,
 	}
 	_, err := s.sendMessage(msg)
+
 	return err
 }
 
 func mapTestSuiteToDir(suiteName string, testDirs []string) string {
 	lowerSuite := strings.ToLower(suiteName)
+
+	// Direct mappings for special cases where dir name does not match suite name
+	specialMappings := map[string]string{
+		"upgradevalidation":    "upgradecluster",
+		"clustervalidation":    "validatecluster",
+		"ciliumwireguard":      "cilium_wireguard",
+		"secretsencryptionold": "secretsencryption_old",
+		"kinevalidation":       "kine",
+		"mixedosbgpvalidation": "mixedosbgp",
+	}
+
+	// Check special mappings first
+	for suiteKey, dirName := range specialMappings {
+		if strings.Contains(lowerSuite, suiteKey) {
+			for _, dir := range testDirs {
+				if strings.ToLower(dir) == dirName {
+					return dir
+				}
+			}
+		}
+	}
+
+	// Fall back to original logic
 	for _, dir := range testDirs {
 		lowerDir := strings.ToLower(dir)
 		if strings.Contains(lowerSuite, lowerDir) {
 			return dir
 		}
 	}
+
 	return ""
 }
-
 func getFailedTestDirs(pd *processedTestdata, baseDir string) []string {
 	var testDirs []string
 	testDirsFile := filepath.Join(baseDir, "report", ".test-dirs.txt")
@@ -225,7 +306,12 @@ func (s *SlackClient) PostTestResults(pd *processedTestdata, product string, run
 			rerunText := ":repeat: *To rerun tests*, reply to this thread with:\n"
 			rerunText += "`rerun: all` - rerun all tests\n"
 			rerunText += "`rerun: failed` - rerun only failed tests\n"
-			rerunText += "`rerun: " + strings.Join(testNames, ", ") + "` - rerun specific tests"
+			// Get only the failed test directories for specific rerun option
+			failedTestDirs := getFailedTestDirs(pd, baseDir)
+			if len(failedTestDirs) > 0 {
+				rerunText += "`rerun: " + strings.Join(failedTestDirs, ", ") + "` - rerun specific failed tests\n\n"
+			}
+			rerunText += "_available tests:_ `" + strings.Join(testNames, "`, `") + "`"
 			blocks = append(blocks, SlackBlock{
 				Type: "section",
 				Text: &SlackBlockText{
@@ -263,8 +349,8 @@ func (s *SlackClient) PostTestResults(pd *processedTestdata, product string, run
 		if suite.failedTests > 0 {
 			suiteEmoji = ":x:"
 		}
-		suiteSummary.WriteString(fmt.Sprintf("%s %s (P:%d F:%d S:%d)\n",
-			suiteEmoji, suite.testSuiteName, suite.passedTests, suite.failedTests, suite.skippedTests))
+		suiteSummary.WriteString(fmt.Sprintf("%s %s\n",
+			suiteEmoji, suite.testSuiteName))
 	}
 	blocks = append(blocks, SlackBlock{
 		Type: "section",
@@ -371,59 +457,4 @@ func updateFailedTests(baseDir string, failedTests []string) error {
 	shared.LogLevel("info", "Updated failed_tests in state: %v", failedTests)
 	return nil
 }
-
-func ReportToSlack(fileName, product, baseDir string, runID int32) error {
-	slackClient, err := NewSlackClient()
-	if err != nil {
-		shared.LogLevel("warn", "Slack client not configured: %v", err)
-		return err
-	}
-
-	if err := slackClient.ValidateConnection(); err != nil {
-		return fmt.Errorf("Slack connection validation failed: %w", err)
-	}
-
-	pd, err := processTestData(fileName, product)
-	if err != nil {
-		return fmt.Errorf("error processing test data for Slack: %w", err)
-	}
-
-	failedDirs := getFailedTestDirs(pd, baseDir)
-
-	var parentThreadTS string
-	isRerun := os.Getenv("IS_RERUN") == "true"
-	statePath := filepath.Join(baseDir, "report", ".rerun-state.json")
-	
-	if isRerun {
-		if data, err := os.ReadFile(statePath); err == nil {
-			var state map[string]interface{}
-			if json.Unmarshal(data, &state) == nil {
-				if ts, ok := state["thread_ts"].(string); ok && ts != "" {
-					parentThreadTS = ts
-					shared.LogLevel("info", "Rerun detected, will post as reply to thread: %s", parentThreadTS)
-				}
-			}
-		}
-	} else {
-		shared.LogLevel("info", "Fresh run detected, will create new Slack thread")
-	}
-
-	threadTS, err := slackClient.PostTestResults(pd, product, runID, baseDir, parentThreadTS)
-	if err != nil {
-		return fmt.Errorf("error posting test results to Slack: %w", err)
-	}
-
-	if baseDir != "" && threadTS != "" {
-		if parentThreadTS == "" {
-			if err := saveRerunState(baseDir, slackClient.ChannelID, threadTS, product, failedDirs); err != nil {
-				shared.LogLevel("warn", "Failed to save rerun state: %v", err)
-			}
-		} else {
-			if err := updateFailedTests(baseDir, failedDirs); err != nil {
-				shared.LogLevel("warn", "Failed to update failed tests: %v", err)
-			}
-		}
-	}
-
-	return nil
-}
+ 

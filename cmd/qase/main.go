@@ -29,21 +29,43 @@ func main() {
 		os.Exit(1)
 	}
 
+	var runID int32
+	var qaseErr error
+
+	shared.LogLevel("info", "Starting report processing for %s...", product)
+
 	qaseClient, err := qase.AddQase()
 	if err != nil {
-		shared.LogLevel("error", "error adding qase: %v", err)
-		os.Exit(1)
+		shared.LogLevel("warn", "Qase client not configured: %v - will skip Qase reporting", err)
+	} else {
+		shared.LogLevel("info", "Qase client initialized, attempting to report to Qase...")
+		runID, qaseErr = qaseClient.ReportE2ETestRun(fileName, product)
+		if qaseErr != nil {
+			shared.LogLevel("error", "Failed to report to Qase: %v", qaseErr)
+			shared.LogLevel("info", "Continuing with Slack reporting despite Qase failure...")
+		} else {
+			shared.LogLevel("info", "Successfully reported to Qase, run ID: %d", runID)
+		}
 	}
 
-	runID, reportErr := qaseClient.ReportE2ETestRun(fileName, product)
-	if reportErr != nil {
-		shared.LogLevel("error", "error reporting test data to qase: %v", reportErr)
-		os.Exit(1)
-	}
-
-	// Report to Slack
+	// Always try to report to Slack, even if Qase failed
+	shared.LogLevel("info", "Attempting to report to Slack...")
 	baseDir := filepath.Dir(filepath.Dir(fileName))
 	if slackErr := qase.ReportToSlack(fileName, product, baseDir, runID); slackErr != nil {
-		shared.LogLevel("warn", "error reporting to slack: %v", slackErr)
+		shared.LogLevel("error", "Failed to report to Slack: %v", slackErr)
+		// Exit with error only if both Qase and Slack failed
+		if qaseErr != nil {
+			shared.LogLevel("error", "Both Qase and Slack reporting failed")
+			os.Exit(1)
+		}
+	} else {
+		shared.LogLevel("info", "Successfully reported to Slack")
 	}
+
+	if qaseErr != nil {
+		shared.LogLevel("warn", "Completed with Qase errors - Slack report was sent successfully")
+		os.Exit(1)
+	}
+	
+	shared.LogLevel("info", "Report processing completed successfully")
 }
