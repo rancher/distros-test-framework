@@ -72,15 +72,17 @@ update_config() {
   cat /etc/rancher/rke2/config.yaml
 }
 
-cis_setup() {
-  [[ -z "$worker_flags" || "$worker_flags" != *"cis"* ]] && return 0
-
-  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
-
+profile_setup() {
   ensure_etcd_user() {
     getent group etcd >/dev/null 2>&1 || groupadd --system etcd
     id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
   }
+
+  [[ -z "$worker_flags" || ! "$worker_flags" =~ *"cis"* ]] && return 0
+  
+  ensure_etcd_user
+  
+  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
 
   case "$node_os" in
     *slemicro*)
@@ -115,10 +117,6 @@ EOF
       return 1
       ;;
   esac
-
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"etcd"* ]]; then
-      ensure_etcd_user
-  fi
 
   systemctl restart systemd-sysctl
 }
@@ -208,7 +206,7 @@ install() {
   install_dependencies
   install_rke2
   sleep 10
-  cis_setup
+  profile_setup
 }
 
 main() {
