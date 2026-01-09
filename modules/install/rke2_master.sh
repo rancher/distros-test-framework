@@ -110,51 +110,53 @@ disable_cloud_setup() {
 
 cis_setup() {
   [[ -z "$server_flags" || "$server_flags" != *"cis"* ]] && return 0
-  is_rhel_family=false
-  if [[ "$node_os" =~ (rhel|centos|oracle|sles|suse) ]]; then
-    is_rhel_family=true
-  fi
-  
-  if [[ "$node_os" == *"slemicro"* ]]; then
-    echo "Setting up CIS for SLE Micro"
 
+  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
+
+  ensure_etcd_user() {
     getent group etcd >/dev/null 2>&1 || groupadd --system etcd
-    id -u etcd >/dev/null 2>&1    || useradd -s /sbin/nologin --system -g etcd etcd
-    cat <<EOF > /etc/sysctl.d/60-rke2-cis.conf
+    id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
+  }
+
+  case "$node_os" in
+    *slemicro*)
+      echo "Setting up CIS for SLE Micro"
+      cat <<EOF > "$cis_sysctl_file"
 vm.overcommit_memory=1
 kernel.panic=10
 kernel.panic_on_oops=1
 EOF
+      ;;
 
-  elif $is_rhel_family; then
-    echo "Applying CIS sysctl file for RHEL/SLES family"
-    for path in \
-      /usr/share/rke2/rke2-cis-sysctl.conf \
-      /usr/local/share/rke2/rke2-cis-sysctl.conf \
-      /opt/rke2/share/rke2/rke2-cis-sysctl.conf; do
-      if [[ -f "$path" ]]; then
-        cp -f "$path" /etc/sysctl.d/60-rke2-cis.conf
-        break
-      fi
-    done
+    rhel*|centos*|oracle*|sles*|suse*|ubuntu*)
+      echo "Applying CIS sysctl file for $node_os"
+      src_paths=(
+        "/usr/share/rke2/rke2-cis-sysctl.conf"
+        "/usr/local/share/rke2/rke2-cis-sysctl.conf"
+        "/opt/rke2/share/rke2/rke2-cis-sysctl.conf"
+      )
 
-    [[ ! -f /etc/sysctl.d/60-rke2-cis.conf ]] && {
-      echo "ERROR: rke2-cis-sysctl.conf not found in any expected location"
-      exit 1
-    }
-   else
-    echo "ERROR: CIS mode enabled but OS '$node_os' is not recognized for CIS setup"
-    exit 1
+      for path in "${src_paths[@]}"; do
+        [[ -f "$path" ]] && { cp -f "$path" "$cis_sysctl_file"; break; }
+      done
+
+      [[ ! -f "$cis_sysctl_file" ]] && {
+        echo "ERROR: rke2-cis-sysctl.conf not found" >&2
+        return 1
+      }
+      ;;
+
+    *)
+      echo "ERROR: CIS mode not supported for OS '$node_os'" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" == *"etcd"* ]]; then
+      ensure_etcd_user
   fi
+
   systemctl restart systemd-sysctl
-
-  if [[ "$node_os" != *"slemicro"* ]]; then
-    if ! id -u etcd >/dev/null 2>&1; then
-      useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
-    else
-      echo "etcd user already exists, skipping"
-    fi
-  fi
 }
 
 install_rke2() {
