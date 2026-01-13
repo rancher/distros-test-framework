@@ -122,10 +122,9 @@ profile_setup() {
   }
 
   [[ -z "$server_flags" || ! "$server_flags" =~ (cis|etcd) ]] && return 0
-
   ensure_etcd_user
 
-  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ *"cis"* ]]; then
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ cis ]]; then
     cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
 
     case "$node_os" in
@@ -162,7 +161,7 @@ EOF
         ;;
     esac
 
-    systemctl restart systemd-sysctl  
+    systemctl restart systemd-sysctl
   fi 
 }
 

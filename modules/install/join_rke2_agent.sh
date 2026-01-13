@@ -78,8 +78,7 @@ profile_setup() {
     id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
   }
 
-  [[ -z "$worker_flags" || ! "$worker_flags" =~ *"cis"* ]] && return 0
-  
+  [[ -z "$worker_flags" || ! "$worker_flags" =~ cis ]] && return 0
   ensure_etcd_user
   
   cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
