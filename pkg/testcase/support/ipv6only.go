@@ -174,10 +174,6 @@ func copyInstallScript(cluster *shared.Cluster, ip string) (err error) {
 
 // processConfigureFile Runs configure.sh script on the nodes.
 func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (err error) {
-	var flags string
-	if slices.Contains(cluster.ServerIPs, ip) {
-		flags = cluster.Config.ServerFlags
-	}
 	instanceID, err := ec2.GetInstanceIDByIP(ip)
 	if err != nil {
 		shared.LogLevel("error", "unable to get instance id for node: %s", ip)
@@ -187,8 +183,8 @@ func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (
 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x configure.sh && "+
-			`sudo ./configure.sh "%v" "%v" "%v"`,
-		instanceID, cluster.Config.Product, flags)
+			`sudo ./configure.sh "%v" "%v"`,
+		instanceID, cluster.Config.Product)
 	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	if err != nil {
 		return err
