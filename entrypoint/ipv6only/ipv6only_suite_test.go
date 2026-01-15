@@ -39,9 +39,10 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	if cfg.Module == "" {
-		shared.LogLevel("error", "ENV_MODULE is not set, should be ipv6only\n")
-		os.Exit(1)
+	// This is required in .env file as param ENV_MODULE=ipv6only.
+	if cfg.Module == "" ||  cfg.Module != "ipv6only" {
+		shared.LogLevel("info", "ENV_MODULE is not set with value ipv6only. Setting the value...\n")
+		cfg.Module = "ipv6only"
 	}
 
 	kubeconfig = os.Getenv("KUBE_CONFIG")

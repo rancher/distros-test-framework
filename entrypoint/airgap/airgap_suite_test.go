@@ -52,9 +52,11 @@ func TestMain(m *testing.M) {
 func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
 	cniSlice := []string{"calico", "flannel"}
-	if cfg.Module == "" {
-		shared.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
-		os.Exit(1)
+
+	// This is required in .env file as param ENV_MODULE=airgap.
+	if cfg.Module == "" ||  cfg.Module != "airgap" {
+		shared.LogLevel("info", "ENV_MODULE is not set with value airgap. Setting the value...\n")
+		cfg.Module = "airgap"
 	}
 
 	if os.Getenv("no_of_bastion_nodes") == "0" {

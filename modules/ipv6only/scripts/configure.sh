@@ -4,7 +4,6 @@ set +x
 
 instance_id=${1}
 product=${2}
-flags=${3}
 
 ipv6_config() {
   echo "Stopping systemd-resolved"
@@ -15,30 +14,8 @@ ipv6_config() {
   sed -i 's/127.0.0.53/2a00:1098:2c::1/g' /etc/resolv.conf
 }
 
-# Ref: https://github.com/rancher/rke2/issues/8033
-cilium_config() {
-  echo "Setting helmchartconfig for cilium with ipv6only"
-  if [[ "$flags" =~ "cilium" ]]; then
-    mkdir -p /var/lib/rancher/rke2/server/manifests
-    cat <<EOF >>/var/lib/rancher/rke2/server/manifests/rke2-cilium-ipv6config.yaml
----
-apiVersion: helm.cattle.io/v1
-kind: HelmChartConfig
-metadata:
-  name: rke2-cilium
-  namespace: kube-system
-spec:
-  valuesContent: |-
-    autoDirectNodeRoutes: true
-EOF
-  fi
-}
-
 main() {
   ipv6_config
-  if [[ "$product" == "rke2" ]] && [ -n "$flags" ]; then
-    cilium_config
-  fi
 }
 
 main "$@"
