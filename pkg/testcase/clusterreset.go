@@ -106,7 +106,7 @@ func restartServer(cluster *shared.Cluster, ms *shared.ManageService) {
 }
 
 func deleteDataDirectories(cluster *shared.Cluster) {
-	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
+	for i := len(cluster.ServerIPs) - 1; i >= 0; i-- {
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, deleteErr := shared.RunCommandOnNode(deleteCmd, cluster.ServerIPs[i])
 		Expect(deleteErr).NotTo(HaveOccurred())
