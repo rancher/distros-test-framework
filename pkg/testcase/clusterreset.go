@@ -37,7 +37,7 @@ func clusterReset(cluster *shared.Cluster, resetCmd string) {
 		resetRes    string
 		resetCmdErr error
 	)
-
+	// running cluster reset command on the first server node.
 	resetRes, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
 	shared.LogLevel("debug", "Cluster reset command output: %s", resetRes)
 	shared.LogLevel("debug", "Cluster reset command error: %v", resetCmdErr)
@@ -51,10 +51,19 @@ func killall(cluster *shared.Cluster) {
 	shared.LogLevel("debug", "Found killall script at: %s", killallLocationCmd)
 	Expect(findErr).NotTo(HaveOccurred())
 
-	for i := len(cluster.ServerIPs) - 1; i >= 0; i-- {
-		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
+	// Run killall on only the secondary servers and not the primary.
+	if len(cluster.ServerIPs) > 1 {
+		for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
+			_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
+			Expect(err).NotTo(HaveOccurred())
+		}
+	} else { // len(cluster.ServerIPs) <= 1 Only one server node present in cluster.
+		shared.LogLevel("info", "Only one server node present, skipping killall on secondary servers")
+		// Run killall on the primary server for a 1 server node cluster.
+		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 	}
+
 
 	// since we have killed the server, the kubectl command will fail.
 	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
@@ -106,7 +115,8 @@ func restartServer(cluster *shared.Cluster, ms *shared.ManageService) {
 }
 
 func deleteDataDirectories(cluster *shared.Cluster) {
-	for i := len(cluster.ServerIPs) - 1; i >= 0; i-- {
+	// Deleting data directories from secondary servers, not the primary server.
+	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, deleteErr := shared.RunCommandOnNode(deleteCmd, cluster.ServerIPs[i])
 		Expect(deleteErr).NotTo(HaveOccurred())
