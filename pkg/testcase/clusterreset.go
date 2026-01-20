@@ -57,7 +57,7 @@ func killall(cluster *shared.Cluster) {
 			_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
 			Expect(err).NotTo(HaveOccurred())
 		}
-	} else { // len(cluster.ServerIPs) <= 1 Only one server node present in cluster.
+	} else {
 		shared.LogLevel("info", "Only one server node present, skipping killall on secondary servers")
 		// Run killall on the primary server for a 1 server node cluster.
 		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[0])
