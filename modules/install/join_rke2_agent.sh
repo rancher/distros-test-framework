@@ -149,6 +149,15 @@ disable_cloud_setup() {
     fi
     sudo systemctl reload NetworkManager
   fi
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
+    fi
+  fi
 }
 
 install_rke2() {

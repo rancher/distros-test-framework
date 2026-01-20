@@ -1,12 +1,12 @@
 output "bastion_ip" {
   depends_on = [ module.instance ]
-  value       = module.instance.public_ip
+  value       = module.instance.bastion_public_ip
   description = "The public IP of the bastion node"
 }
 
 output "bastion_dns" {
   depends_on = [ module.instance ]
-  value       = module.instance.public_dns
+  value       = module.instance.bastion_public_dns
   description = "The public DNS of the bastion node"
 }
 

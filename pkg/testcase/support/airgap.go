@@ -72,7 +72,7 @@ func InstallOnAirgapServers(cluster *shared.Cluster, airgapMethod string) {
 	}
 
 	shared.LogLevel("info", "Process kubeconfig from primary server node: %v", cluster.ServerIPs[0])
-	err := processKubeconfigOnBastion(cluster)
+	err := processKubeconfigOnBastion(cluster, "")
 	if err != nil {
 		shared.LogLevel("error", "unable to get kubeconfig\n%w", err)
 	}
@@ -170,54 +170,78 @@ func podmanCmds(cluster *shared.Cluster, platform string, flags *customflag.Flag
 	return err
 }
 
-// CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) (err error) {
-	nodeIPs := cluster.ServerIPs
+// Helper function to handle all asset copying steps for a single node.
+func handleNodeAssets(cluster *shared.Cluster, airgapMethod string, tarballType *string, nodeIP string) error {
+	// 1. Copy mandatory assets (install/join script, etc.)
+	shared.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, nodeIP)
+	if err := copyAssets(cluster, airgapMethod, nodeIP); err != nil {
+		return fmt.Errorf("error copying assets on airgap node %s: %w", nodeIP, err)
+	}
+
+	// 2. Handle airgap method specific assets
+	switch airgapMethod {
+	case "private_registry":
+		shared.LogLevel("debug", "Copying registry.yaml on node IP: %s", nodeIP)
+		if err := copyRegistry(cluster, nodeIP); err != nil {
+			return fmt.Errorf("error copying registry to airgap node %s: %w", nodeIP, err)
+		}
+	case "system_default_registry":
+		shared.LogLevel("debug", "Trust CA Certs on node IP: %s", nodeIP)
+		if err := trustCert(cluster, nodeIP); err != nil {
+			return fmt.Errorf("error trusting ssl cert on airgap node %s: %w", nodeIP, err)
+		}
+	case "tarball":
+		if tarballType == nil {
+			return fmt.Errorf("tarballType cannot be nil for airgap method 'tarball' on node %s", nodeIP)
+		}
+		shared.LogLevel("debug", "Copying tarball (%s) on node IP: %s", *tarballType, nodeIP)
+		if err := copyTarball(cluster, *tarballType, nodeIP); err != nil {
+			return fmt.Errorf("error copying tarball on airgap node %s: %w", nodeIP, err)
+		}
+	default:
+		// Note: The original returned an error log but let execution continue.
+		// Returning an error here immediately stops this node's processing.
+		return fmt.Errorf("invalid airgap method: %s", airgapMethod)
+	}
+
+	// 3. Make assets executable
+	shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
+	if err := makeExecutable(cluster, nodeIP); err != nil {
+		return fmt.Errorf("error making asset executable on airgap node %s: %w", nodeIP, err)
+	}
+
+	return nil
+}
+
+// CopyAssetsOnNodes orchestrates concurrent asset copying on all cluster nodes.
+func CopyAssetsOnNodes(cluster *shared.Cluster, airgapMethod string, tarballType *string) error {
+	// 1. Gather all node IPs
+	nodeIPs := make([]string, 0, len(cluster.ServerIPs)+len(cluster.AgentIPs))
+	nodeIPs = append(nodeIPs, cluster.ServerIPs...)
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
+
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
 
+	// 2. Process each node concurrently
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			shared.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, nodeIP)
-			err = copyAssets(cluster, airgapMethod, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
-			}
-			switch airgapMethod {
-			case "private_registry":
-				shared.LogLevel("debug", "Copying registry.yaml on node IP: %s", nodeIP)
-				err = copyRegistry(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "system_default_registry":
-				shared.LogLevel("debug", "Trust CA Certs on node IP: %s", nodeIP)
-				err = trustCert(cluster, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "tarball":
-				shared.LogLevel("debug", "Copying tarball on node IP: %s", nodeIP)
-				err = copyTarball(cluster, *tarballType, nodeIP)
-				if err != nil {
-					errChan <- shared.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			default:
-				shared.LogLevel("error", "Invalid airgap method: %s", airgapMethod)
-			}
-			shared.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
-			err = makeExecutable(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
+			// Log the error locally, and send it back via the channel
+			if err := handleNodeAssets(cluster, airgapMethod, tarballType, ip); err != nil {
+				// Use shared.LogLevel for general logging, but send the raw error via channel
+				shared.LogLevel("error", "Asset copy failed for node %s: %v", ip, err)
+				errChan <- err
 			}
 		}(nodeIP)
 	}
+
+	// 3. Wait for all goroutines to complete
 	wg.Wait()
 	close(errChan)
 
+	// 4. Return the first error encountered, or nil
 	for err := range errChan {
 		if err != nil {
 			return err
@@ -396,10 +420,15 @@ func UpdateRegistryFile(cluster *shared.Cluster, flags *customflag.FlagConfig) (
 	return nil
 }
 
-func processKubeconfigOnBastion(cluster *shared.Cluster) (err error) {
-	var localNodeIP string
+func processKubeconfigOnBastion(cluster *shared.Cluster, ip string) (err error) {
+	var localNodeIP, serverIP string
 	kcFileName := cluster.Config.Product + "_kubeconf.yaml"
-	serverIP := cluster.ServerIPs[0]
+	if ip == "" {
+		serverIP = cluster.ServerIPs[0]
+	} else {
+		serverIP = ip
+	}
+
 	if strings.Contains(serverIP, ":") {
 		localNodeIP = `\[::1\]`
 		serverIP = shared.EncloseSqBraces(serverIP)

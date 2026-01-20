@@ -131,7 +131,11 @@ func copyAssetsOnWindows(cluster *shared.Cluster, airgapMethod, ip string) (err 
 		"sudo %v rke2-install.ps1 windows_install.ps1 %v@%v:C:/Users/Administrator",
 		ShCmdPrefix("scp", cluster.Aws.KeyName),
 		windowsUser, ip)
-	_, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	shared.LogLevel("debug", "Copy assets cmd Windows: %v", cmd)
+	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		shared.LogLevel("error", "error running cmd: %v, got res: %v", cmd, res)
+	}
 
 	return err
 }

@@ -5,7 +5,7 @@ resource "aws_instance" "master" {
   instance_type               = var.ec2_instance_class  
   associate_public_ip_address = false
   ipv6_address_count          = var.enable_ipv6 ? 1 : 0
-  count                       = var.no_of_server_nodes
+  count                       = local.total_server_count
   
   root_block_device {
     volume_size          = var.volume_size
@@ -108,6 +108,11 @@ resource "aws_instance" "bastion" {
     destination = "/tmp/join_${var.product}_agent.sh"
   }
 
+  provisioner "file" {
+    source = "../install/node_role.sh"
+    destination = "/tmp/node_role.sh"
+  }
+
   provisioner "remote-exec" {
     inline = [<<-EOT
       sudo cp /tmp/${var.key_name}.pem /tmp/*.sh ~/
@@ -115,7 +120,7 @@ resource "aws_instance" "bastion" {
     ]
   }
 }
-
 locals {
-  resource_tag =  "distros-qa"
+  total_server_count      = var.no_of_server_nodes + var.etcd_only_nodes + var.etcd_cp_nodes + var.etcd_worker_nodes + var.cp_only_nodes + var.cp_worker_nodes
+  resource_tag            =  "distros-qa"
 }
