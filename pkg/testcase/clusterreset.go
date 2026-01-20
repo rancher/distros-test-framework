@@ -64,7 +64,6 @@ func killall(cluster *shared.Cluster) {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-
 	// since we have killed the server, the kubectl command will fail.
 	res, _ := shared.RunCommandHost("kubectl get nodes --kubeconfig=" + shared.KubeConfigFile)
 	Expect(res).To(SatisfyAny(ContainSubstring("timed out"), ContainSubstring("refused")))
