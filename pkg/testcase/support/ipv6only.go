@@ -33,35 +33,42 @@ func BuildIPv6OnlyCluster(cluster *shared.Cluster) {
 	}
 }
 
-func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) (err error) {
-	nodeIPs := cluster.ServerIPs
+func ConfigureIPv6OnlyNodes(cluster *shared.Cluster, awsClient *aws.Client) error {
+	nodeIPs := make([]string, 0, len(cluster.ServerIPs)+len(cluster.AgentIPs))
+	nodeIPs = append(nodeIPs, cluster.ServerIPs...)
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
 
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			shared.LogLevel("info", "Copying configure.sh script on node: %s", nodeIP)
-			err = copyConfigureScript(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying configure.sh script on node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Copying configure.sh script on node: %s", ip)
+			if err := copyConfigureScript(cluster, ip); err != nil {
+				errChan <- shared.ReturnLogError("error copying configure.sh script on node: %v\n, err: %w", ip, err)
+				return
 			}
-			shared.LogLevel("info", "Processing configure.sh on node: %s", nodeIP)
-			err = processConfigureFile(cluster, awsClient, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Processing configure.sh on node: %s", ip)
+			if err := processConfigureFile(cluster, awsClient, ip); err != nil {
+				errChan <- shared.ReturnLogError("error configuring node: %v\n, err: %w", ip, err)
+				return
 			}
-			shared.LogLevel("info", "Copying install script on node: %s", nodeIP)
-			err = copyInstallScripts(cluster, nodeIP)
-			if err != nil {
-				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", nodeIP, err)
+
+			shared.LogLevel("info", "Copying install script on node: %s", ip)
+			if err := copyInstallScript(cluster, ip); err != nil {
+				errChan <- shared.ReturnLogError("error copying install script on node: %v\n, err: %w", ip, err)
+				return
 			}
 		}(nodeIP)
 	}
-	wg.Wait()
-	close(errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
 
 	for err := range errChan {
 		if err != nil {
@@ -134,8 +141,8 @@ func copyConfigureScript(cluster *shared.Cluster, ip string) (err error) {
 	return nil
 }
 
-// copyInstallScripts Copies install scripts on the nodes.
-func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
+// copyInstallScript Copies install script on the nodes.
+func copyInstallScript(cluster *shared.Cluster, ip string) (err error) {
 	var script string
 	cmd := fmt.Sprintf(
 		"sudo chmod 400 /tmp/%v.pem && ", cluster.Aws.KeyName)
@@ -167,10 +174,6 @@ func copyInstallScripts(cluster *shared.Cluster, ip string) (err error) {
 
 // processConfigureFile Runs configure.sh script on the nodes.
 func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (err error) {
-	var flags string
-	if slices.Contains(cluster.ServerIPs, ip) {
-		flags = cluster.Config.ServerFlags
-	}
 	instanceID, err := ec2.GetInstanceIDByIP(ip)
 	if err != nil {
 		shared.LogLevel("error", "unable to get instance id for node: %s", ip)
@@ -180,8 +183,8 @@ func processConfigureFile(cluster *shared.Cluster, ec2 *aws.Client, ip string) (
 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x configure.sh && "+
-			`sudo ./configure.sh "%v" "%v" "%v"`,
-		instanceID, cluster.Config.Product, flags)
+			`sudo ./configure.sh "%v" "%v"`,
+		instanceID, cluster.Config.Product)
 	_, err = CmdForPrivateNode(cluster, cmd, ip)
 	if err != nil {
 		return err
