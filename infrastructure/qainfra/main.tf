@@ -17,7 +17,6 @@
 
 module "cluster_nodes" {
   source = "placeholder-for-remote-module"
-  user_id            = var.user_id
   public_ssh_key     = var.public_ssh_key
   aws_access_key     = var.aws_access_key
   aws_secret_key     = var.aws_secret_key

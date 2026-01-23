@@ -1,8 +1,3 @@
-variable "user_id" {
-  description = "User identifier (usually GitHub username)"
-  type        = string
-}
-
 variable "public_ssh_key" {
   description = "Path to public SSH key file"
   type        = string

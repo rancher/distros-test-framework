@@ -187,10 +187,6 @@ func updateVarsFile(varsFilePath, uniqueID, product, resourceName string) error 
 	varsContent = re.ReplaceAllString(varsContent, fmt.Sprintf(`aws_hostname_prefix = "dsf-%s-%s-%s"`,
 		resourceName, product, uniqueID))
 
-	userIdRe := regexp.MustCompile(`user_id\s*=\s*"[^"]*"`)
-	varsContent = userIdRe.ReplaceAllString(varsContent, fmt.Sprintf(`user_id = "dsf-%s-%s"`,
-		resourceName, product))
-
 	if err := os.WriteFile(varsFilePath, []byte(varsContent), 0o644); err != nil {
 		return fmt.Errorf("failed to write vars file: %w", err)
 	}
@@ -210,12 +206,10 @@ func updateMainTfModuleSource(qaInfraProvider, mainTfPath string) error {
 	contentStr := string(content)
 
 	// Update module source to use correct infra module.
-	// todo fix hardcoded branching after upstream PR is merged.
 	placeholder := "placeholder-for-remote-module"
-	fmoralBranch := "distros.test.update"
 	modulePath := qaInfraProvider + "/modules/cluster_nodes"
 
-	srcModule := fmt.Sprintf("github.com/fmoral2/qa-infra-automation//tofu/%s?ref=%s", modulePath, fmoralBranch)
+	srcModule := fmt.Sprintf("github.com/rancher/qa-infra-automation//tofu/%s?ref=%s", modulePath, "main")
 	contentStr = strings.ReplaceAll(contentStr, placeholder, srcModule)
 
 	if writeErr := os.WriteFile(mainTfPath, []byte(contentStr), 0o644); writeErr != nil {

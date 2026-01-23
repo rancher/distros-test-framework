@@ -72,7 +72,7 @@ func setupClusterInfra() {
 		return
 	}
 
-	// initial data load needed for provisioning comming from config env vars.
+	// initial data load needed for provisioning coming from config env vars.
 	infraConfig = &driver.InfraConfig{
 		Product:           cfg.Product,
 		Module:            cfg.Module,
@@ -104,7 +104,7 @@ func setupClusterInfra() {
 		os.Exit(1)
 	}
 
-	resources.LogLevel("info", "Cluster provisioned successfully with %+v", cluster)
+	resources.LogLevel("info", "Cluster provisioned successfully with %+v", cluster.Config)
 }
 
 var _ = ReportAfterSuite("Upgrade Cluster Test Suite", func(report Report) {
