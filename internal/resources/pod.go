@@ -43,6 +43,55 @@ func GetPods(display bool) ([]Pod, error) {
 	return pods, nil
 }
 
+// GetPods returns pods parsed from kubectl get pods.
+func GetPodsForK3k(display bool, ip, kubeconfig, namespace string) ([]Pod, error) {
+	var appendString string
+	if namespace == "" {
+		appendString = "-A"
+	} else {
+		appendString = "-n " + namespace
+	}
+	cmd := fmt.Sprintf("kubectl get pods %s -o wide --no-headers --kubeconfig=%s", appendString, kubeconfig)
+	LogLevel("debug", "Running command: \n%s\n", cmd)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return nil, ReturnLogError("failed to get pods: %w\n", err)
+	}
+
+	pods := ParsePods(res)
+	if display {
+		LogLevel("info", "\n\nCluster pods:\n")
+		fmt.Println(res)
+	}
+
+	return pods, nil
+}
+
+// GetPods returns result string from kubectl get <resource> command.
+// resourceType can be: pods, all, sc, pv, pvc, ingress, ns, etc.
+func GetResourcesForK3k(display bool, ip, kubeconfig, namespace, resourceType string) (string, error) {
+	var appendString string
+	if namespace == "" {
+		appendString = "-A"
+	} else {
+		appendString = "-n " + namespace
+	}
+	cmd := fmt.Sprintf("kubectl get %s %s -o wide --no-headers --kubeconfig=%s", resourceType, appendString, kubeconfig)
+	LogLevel("debug", "Running command: \n%s\n", cmd)
+	res, err := RunCommandOnNode(cmd, ip)
+	if err != nil {
+		return res, ReturnLogError("failed to get pods: %w\n", err)
+	}
+
+	// pods := ParsePods(res)
+	if display {
+		LogLevel("info", "\n\nCluster resource:\n")
+		fmt.Println(res)
+	}
+
+	return res, nil
+}
+
 // GetPodsFiltered returns pods parsed from kubectl get pods with any specific filters.
 // Example filters are: namespace, label, --field-selector.
 func GetPodsFiltered(filters map[string]string) ([]Pod, error) {
@@ -201,6 +250,52 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),
 	)
+}
+
+// MonitorPodsStatus checks all pods are Running or Completed, waits/retries if any are Pending.
+// Returns nil if all pods are healthy, error if any pod is in Error/CrashLoopBackOff status.
+func MonitorPodsStatus(ip, kubeconfig, namespace string, retryInterval time.Duration, maxAttempts int) error {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		pods, err := GetPodsForK3k(true, ip, kubeconfig, namespace)
+		if err != nil {
+			// Expect(err).NotTo(HaveOccurred())
+			return ReturnLogError("failed to get pods: %w", err)
+		}
+		var pendingFound, failedFound bool
+		var failedPods []string
+
+		for _, pod := range pods {
+			switch pod.Status {
+			case "Running", "Completed":
+				continue
+			case "Pending", "ContainerCreating":
+				pendingFound = true
+			case "Error", "CrashLoopBackOff":
+				if attempt == maxAttempts {
+					LogLevel("error", "Pod %s/%s in %s state after max attempts.", pod.NameSpace, pod.Name, pod.Status)
+					failedFound = true
+					failedPods = append(failedPods, fmt.Sprintf("%s/%s: %s", pod.NameSpace, pod.Name, pod.Status))
+				} else {
+					LogLevel("warn", "Pod %s/%s in %s state, will retry.", pod.NameSpace, pod.Name, pod.Status)
+				}
+			default:
+				// treat other statuses as not ready
+				pendingFound = true
+			}
+		}
+
+		if attempt == maxAttempts && failedFound {
+			return ReturnLogError("Pods failed: %v", failedPods)
+		}
+		if !pendingFound && !failedFound {
+			// All pods are Running or Completed
+			return nil
+		}
+		LogLevel("info", "Some pods are Pending, waiting for %v before retrying (attempt %d/%d)", retryInterval, attempt, maxAttempts)
+		time.Sleep(retryInterval)
+	}
+
+	return ReturnLogError("Timeout: Pods are still Pending after %d attempts", maxAttempts)
 }
 
 // DescribePod Runs 'kubectl describe pod' command and logs output.

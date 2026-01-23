@@ -1,5 +1,21 @@
 #!/bin/bash
 
+ENV_FILE="config/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: $ENV_FILE not found."
+  exit 1
+fi
+
+# Export all variables from config/.env
+$(while IFS= read -r line; do echo "export $line"; done < $ENV_FILE | grep -v '^#' )
+
+# Optional: Print exported variables for verification
+echo "Exported variables from $ENV_FILE:"
+grep -v '^#' "$ENV_FILE"
+echo "Grep environment variables:"
+env | grep -E 'ENV_|IMG_NAME|TAG_NAME|TEST_DIR|TEST_TAG|AWS_|INSTALL_|NO_OF_|SSH_|PRODUCT|CHANNEL|SUC_UPGRADE_VERSION|RESOURCE_NAME|PROVISIONER_MODULE|DATASTORE_TYPE|DESTROY'
+
+
 function validate_test_image() {
  if [ -z "${TEST_DIR}" ]; then
      printf "\n\nTEST DIR: %s is not set\n\n" "${TEST_DIR}"
@@ -15,7 +31,8 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall)
+       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|killalluninstall|\
+       k3k)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -31,6 +48,17 @@ function validate_dir(){
         then
             case "$TEST_TAG" in
                 privateregistry|systemdefaultregistry|tarball)
+                ;;
+                *)
+                printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
+                exit 1
+                ;;
+            esac
+       fi
+      if [[ "$TEST_DIR" == "k3k" ]];
+        then
+            case "$TEST_TAG" in
+                sanity)
                 ;;
                 *)
                 printf "\n\n%s is not a valid test tag for %s\n\n" "${TEST_TAG}" "${TEST_DIR}"
@@ -140,6 +168,9 @@ if [ -n "${TEST_DIR}" ]; then
         go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"
     elif [ "${TEST_DIR}" = "nvidia" ]; then
        go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}" -nvidiaVersion "${NVIDIA_VERSION}"
+    elif [ "${TEST_DIR}" = "k3k" ]; then
+        go test -timeout=30m -v -count=1 ./k3k/entrypoint/sanity/... -tags="${TEST_TAG}" \
+        -destroy "${DESTROY}"
     fi
 fi
 }

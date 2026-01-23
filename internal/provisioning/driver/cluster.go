@@ -1,5 +1,10 @@
 package driver
 
+import (
+	"fmt"
+	"os"
+)
+
 type Cluster struct {
 	Status       string
 	ServerIPs    []string
@@ -86,4 +91,77 @@ type TestConfig struct {
 type BastionConfig struct {
 	PublicIPv4Addr string
 	PublicDNS      string
+}
+
+type HostCluster struct {
+	ServerIP        string
+	HostClusterType string
+	// FQDN            string
+	NodeOS         string
+	KubeconfigPath string
+	SSH            SSHConfig
+	K3kcliVersion  string
+}
+type K3kCluster struct {
+	Namespace      string
+	Name           string
+	KubeconfigPath string
+}
+
+type K3kClusterOptions struct {
+	Description      string
+	Mode             string
+	StorageClassType string
+	PersistenceType  string
+	NoOfServers      int
+	NoOfAgents       int
+	ServerArgs       string
+	ServiceCIDR      string
+	UseValuesYAML    bool
+	ValuesYAMLFile   string
+	K3kCluster       K3kCluster
+	K3SVersion       string
+}
+
+func (k3kCluster *K3kCluster) SetKubeconfigPath(host *HostCluster) {
+	k3kCluster.KubeconfigPath = fmt.Sprintf("/home/%s/%s-%s-kubeconfig.yaml", host.SSH.User, k3kCluster.Namespace, k3kCluster.Name)
+}
+
+func (k3kCluster *K3kCluster) GetKubeconfigPath(host *HostCluster) string {
+	if k3kCluster.KubeconfigPath == "" {
+		k3kCluster.SetKubeconfigPath(host)
+	}
+	return k3kCluster.KubeconfigPath
+}
+
+func (k3kCluster *K3kCluster) SetNamespace(namespace string) {
+	k3kCluster.Namespace = namespace
+}
+
+func (k3kCluster *K3kCluster) GetNamespace() string {
+	if k3kCluster.Namespace == "" {
+		k3kCluster.Namespace = os.Getenv("K3K_NAMESPACE")
+		if k3kCluster.Namespace == "" {
+			k3kCluster.SetNamespace("k3k-system")
+		}
+	}
+	return k3kCluster.Namespace
+}
+
+func (host *HostCluster) getKubectlBin() string {
+	var kubectlBin string
+	if host.HostClusterType == "k3s" {
+		kubectlBin = "kubectl"
+	} else {
+		kubectlBin = fmt.Sprintf("/var/lib/rancher/%s/bin/kubectl", host.HostClusterType)
+	}
+	return kubectlBin
+}
+
+func (host *HostCluster) GetKubectlPath() string {
+	return fmt.Sprintf("%s --kubeconfig %s", host.getKubectlBin(), host.KubeconfigPath)
+}
+
+func (k3kCluster *K3kCluster) GetKubectlPath(host *HostCluster) string {
+	return fmt.Sprintf("%s --kubeconfig %s", host.getKubectlBin(), k3kCluster.KubeconfigPath)
 }

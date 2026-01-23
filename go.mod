@@ -10,6 +10,7 @@ require (
 	github.com/gruntwork-io/terratest v0.46.11
 	github.com/onsi/ginkgo/v2 v2.16.0
 	github.com/onsi/gomega v1.31.1
+	github.com/pkg/errors v0.9.1
 	github.com/qase-tms/qase-go/qase-api-client v1.1.0
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/crypto v0.35.0

@@ -124,3 +124,37 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).To(BeNil())
 	}
 }
+
+func TestNodeStatusForK3k(
+	host *driver.HostCluster,
+	nodeAssertReadyStatus assert.NodeAssertFunc,
+	nodeAssertVersion assert.NodeAssertFunc,
+	kubeconfigFile string,
+) {
+	Eventually(func(g Gomega) bool {
+		// TODO GetNodesForK3k uses generic kubectl path that may not work for rke2 different OS. Needs fix.
+		resources.KubeConfigFile = kubeconfigFile
+		nodes, err := resources.GetNodesForK3k(true, host.ServerIP, kubeconfigFile)
+		g.Expect(err).NotTo(HaveOccurred())
+		for _, node := range nodes {
+			if nodeAssertReadyStatus != nil {
+				nodeAssertReadyStatus(g, node)
+			}
+			if nodeAssertVersion != nil {
+				nodeAssertVersion(g, node)
+			}
+		}
+
+		return true
+	}, "600s", "10s").Should(BeTrue(), func() string {
+		resources.LogLevel("error", "\nNodes are not in desired state")
+		_, err := resources.GetNodesForK3k(true, host.ServerIP, kubeconfigFile)
+		Expect(err).NotTo(HaveOccurred())
+		resources.LogLevel("info", "Journal logs from server node-1: %v\n", host.ServerIP)
+		logs := resources.GetJournalLogs("error", host.ServerIP, host.HostClusterType)
+
+		return logs
+	})
+	_, err := resources.GetNodesForK3k(true, host.ServerIP, kubeconfigFile)
+	Expect(err).NotTo(HaveOccurred())
+}

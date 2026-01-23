@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"strings"
+	"time"
 
 	. "github.com/onsi/gomega"
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
@@ -125,4 +126,17 @@ func processCiliumStatus(pod *resources.Pod) {
 		Expect(pod.Ready).To(Equal("1/1"), pod.Name, pod.Status)
 		ciliumPodsRunning++
 	}
+}
+
+func TestPodStatusForK3k(
+	host *driver.HostCluster,
+	podAssertRestarts,
+	podAssertReady assert.PodAssertFunc,
+	kubectlPath string,
+	kubeconfig string,
+	namespace string,
+	k3kClusterName string,
+) {
+	retryErr := resources.MonitorPodsStatus(host.ServerIP, kubeconfig, namespace, 30*time.Second, 10)
+	Expect(retryErr).NotTo(HaveOccurred())
 }
