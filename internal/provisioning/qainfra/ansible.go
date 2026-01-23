@@ -15,12 +15,9 @@ import (
 func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	resources.LogLevel("info", "Pulling Ansible playbooks for %s installation...", config.Product)
 
-	// todo: remove branch wa-infra PR once merged.
-	fmoralBranch := "distros.test.update"
-	repoURL := "https://github.com/fmoral2/qa-infra-automation.git"
 	if err := runCmdWithTimeout(config.InfraProvisioner.RootDir, 2*time.Minute,
 		"git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
-		fmoralBranch, repoURL, config.InfraProvisioner.TempDir); err != nil {
+		"main", "https://github.com/rancher/qa-infra-automation.git", config.InfraProvisioner.TempDir); err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
@@ -65,10 +62,15 @@ func setAnsibleEnvVars(config *driver.InfraConfig) error {
 		config.InfraProvisioner.Workspace, "terraform.tfstate",
 	)
 
+	relativePath, err := filepath.Rel(config.InfraProvisioner.TempDir, config.InfraProvisioner.TFNodeSource)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path for TERRAFORM_NODE_SOURCE: %w", err)
+	}
+
 	envVars := map[string]string{
 		// Terraform/OpenTofu configuration.
 		"TF_WORKSPACE":          config.InfraProvisioner.Workspace,
-		"TERRAFORM_NODE_SOURCE": config.InfraProvisioner.TFNodeSource,
+		"TERRAFORM_NODE_SOURCE": relativePath,
 		"TERRAFORM_STATE_FILE":  stateFile,
 		"TF_STATE_FILE":         stateFile,
 		"TERRAFORM_WORKSPACE":   config.InfraProvisioner.Workspace,
@@ -118,7 +120,10 @@ func generateTemplateInventory(config *driver.InfraConfig) error {
 		fmt.Sprintf("ansible/%s/default/inventory-template.yml", config.Product))
 	inventoryPath := config.InfraProvisioner.Inventory.Path
 
-	cmd := fmt.Sprintf("envsubst < %s > %s", templatePath, inventoryPath)
+	cmd := fmt.Sprintf("TERRAFORM_NODE_SOURCE='%s' envsubst < %s > %s",
+		config.InfraProvisioner.TFNodeSource, templatePath, inventoryPath)
+	// We run envsubst with the absolute path so the inventory plugin can find the state file.
+	// The playbook itself requires a relative path (handled by setAnsibleEnvVars).
 	if err := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, 2*time.Minute, "bash", "-c", cmd); err != nil {
 		return fmt.Errorf("failed to generate inventory from template: %w", err)
 	}
