@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// This is required in .env file as param ENV_MODULE=ipv6only.
-	if cfg.Module == "" ||  cfg.Module != "ipv6only" {
+	if cfg.Module == "" || cfg.Module != "ipv6only" {
 		shared.LogLevel("info", "ENV_MODULE is not set with value ipv6only. Setting the value...\n")
 		cfg.Module = "ipv6only"
 	}
