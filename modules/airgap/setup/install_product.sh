@@ -61,21 +61,21 @@ add_to_config() {
 install() {
   if [ "$product" = "k3s" ]; then
     if [ "$node_type" = "server" ]; then
-      INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh
+      INSTALL_K3S_SKIP_DOWNLOAD=true ./k3s-install.sh 2>&1 | tee -a k3s-install.log
       sleep 60
     elif [ "$node_type" = "agent" ]; then
-      INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh
+      INSTALL_K3S_SKIP_DOWNLOAD=true K3S_URL="https://$server_ip:6443" K3S_TOKEN="$token" ./k3s-install.sh 2>&1 | tee -a k3s-agent-install.log
       sleep 30
     else
       echo "Invalid type. Expected type to be server or agent, found $node_type!"
     fi
   elif [ "$product" = "rke2" ]; then
     if [ "$node_type" = "server" ]; then
-      INSTALL_RKE2_ARTIFACT_PATH="$(pwd)/artifacts" ./rke2-install.sh
+      INSTALL_RKE2_ARTIFACT_PATH="$(pwd)/artifacts" ./rke2-install.sh 2>&1 | tee -a rke2-install.log
       systemctl enable rke2-server.service --now
       sleep 180
     elif [ "$node_type" = "agent" ]; then
-      INSTALL_RKE2_ARTIFACT_PATH="$(pwd)/artifacts" INSTALL_RKE2_TYPE="agent" ./rke2-install.sh
+      INSTALL_RKE2_ARTIFACT_PATH="$(pwd)/artifacts" INSTALL_RKE2_TYPE="agent" ./rke2-install.sh 2>&1 | tee -a rke2-agent-install.log
       systemctl enable rke2-agent.service --now
       sleep 90
     else
