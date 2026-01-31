@@ -12,7 +12,6 @@ func TestRestartService(cluster *shared.Cluster) {
 		Service:       cluster.Config.Product,
 		Action:        "restart",
 		NodeType:      "server",
-		ExplicitDelay: 15,
 	}
 	for _, ip := range cluster.ServerIPs {
 		_, err := ms.ManageService(ip, []shared.ServiceAction{serverAction})
@@ -24,7 +23,6 @@ func TestRestartService(cluster *shared.Cluster) {
 			Service:       cluster.Config.Product,
 			Action:        "restart",
 			NodeType:      "agent",
-			ExplicitDelay: 5,
 		}
 		for _, ip := range cluster.AgentIPs {
 			_, err := ms.ManageService(ip, []shared.ServiceAction{agentAction})
