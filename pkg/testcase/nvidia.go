@@ -279,9 +279,11 @@ func installNvidiaComputeUtilsSles(ip, driverVersion string) {
 	var installComputeUtils string
 	if driverVersion != "" {
 		shared.LogLevel("info", "Installing nvidia-compute-utils-G06 version %s to match driver", driverVersion)
-		installComputeUtils = "sudo zypper -v --non-interactive in -r cuda 'nvidia-compute-utils-G06==" + driverVersion + "' 2>&1"
+		installComputeUtils = "sudo zypper -v --non-interactive in -r cuda " +
+			"'nvidia-compute-utils-G06==" + driverVersion + "' 2>&1"
 	} else {
-		shared.LogLevel("warn", "Driver version unknown, installing latest nvidia-compute-utils-G06 (may cause version mismatch)")
+		shared.LogLevel("warn", "Driver version unknown, "+
+			"installing latest nvidia-compute-utils-G06 (may cause version mismatch)")
 		installComputeUtils = "sudo zypper -v --non-interactive in -r cuda nvidia-compute-utils-G06 2>&1"
 	}
 
