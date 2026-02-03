@@ -72,15 +72,16 @@ update_config() {
   cat /etc/rancher/rke2/config.yaml
 }
 
-cis_setup() {
-  [[ -z "$worker_flags" || "$worker_flags" != *"cis"* ]] && return 0
-
-  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
-
+profile_setup() {
   ensure_etcd_user() {
     getent group etcd >/dev/null 2>&1 || groupadd --system etcd
     id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
   }
+
+  [[ -z "$worker_flags" || ! "$worker_flags" =~ cis ]] && return 0
+  ensure_etcd_user
+  
+  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
 
   case "$node_os" in
     *slemicro*)
@@ -116,10 +117,6 @@ EOF
       ;;
   esac
 
-  if [[ -n "$worker_flags" ]] && [[ "$worker_flags" == *"etcd"* ]]; then
-      ensure_etcd_user
-  fi
-
   systemctl restart systemd-sysctl
 }
 
@@ -151,6 +148,18 @@ disable_cloud_setup() {
       echo -e "$workaround" >>/etc/NetworkManager/conf.d/canal.conf
     fi
     sudo systemctl reload NetworkManager
+  fi
+}
+
+ipv6_setup() {
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
+    fi
   fi
 }
 
@@ -208,7 +217,7 @@ install() {
   install_dependencies
   install_rke2
   sleep 10
-  cis_setup
+  profile_setup
 }
 
 main() {
@@ -219,6 +228,7 @@ main() {
     update_config
     subscription_manager
     disable_cloud_setup
+    ipv6_setup
     install
   fi
   if [[ "${install_or_enable}" == "enable" ]] || [[ "${install_or_enable}" == "both" ]]; then

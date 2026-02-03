@@ -115,55 +115,66 @@ disable_cloud_setup() {
   fi
 }
 
-cis_setup() {
-  [[ -z "$server_flags" || "$server_flags" != *"cis"* ]] && return 0
-
-  cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
-
+profile_setup() {
   ensure_etcd_user() {
     getent group etcd >/dev/null 2>&1 || groupadd --system etcd
     id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
   }
 
-  case "$node_os" in
-    *slemicro*)
-      echo "Setting up CIS for SLE Micro"
-      cat <<EOF > "$cis_sysctl_file"
+  [[ -z "$server_flags" || ! "$server_flags" =~ (cis|etcd) ]] && return 0
+  ensure_etcd_user
+
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ cis ]]; then
+    cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
+
+    case "$node_os" in
+      *slemicro*)
+        echo "Setting up CIS for SLE Micro"
+        cat <<EOF > "$cis_sysctl_file"
 vm.overcommit_memory=1
 kernel.panic=10
 kernel.panic_on_oops=1
 EOF
-      ;;
+        ;;
 
-    rhel*|centos*|oracle*|sles*|suse*|ubuntu*)
-      echo "Applying CIS sysctl file for $node_os"
-      src_paths=(
-        "/usr/share/rke2/rke2-cis-sysctl.conf"
-        "/usr/local/share/rke2/rke2-cis-sysctl.conf"
-        "/opt/rke2/share/rke2/rke2-cis-sysctl.conf"
-      )
+      rhel*|centos*|oracle*|sles*|suse*|ubuntu*)
+        echo "Applying CIS sysctl file for $node_os"
+        src_paths=(
+          "/usr/share/rke2/rke2-cis-sysctl.conf"
+          "/usr/local/share/rke2/rke2-cis-sysctl.conf"
+          "/opt/rke2/share/rke2/rke2-cis-sysctl.conf"
+        )
 
-      for path in "${src_paths[@]}"; do
-        [[ -f "$path" ]] && { cp -f "$path" "$cis_sysctl_file"; break; }
-      done
+        for path in "${src_paths[@]}"; do
+          [[ -f "$path" ]] && { cp -f "$path" "$cis_sysctl_file"; break; }
+        done
 
-      [[ ! -f "$cis_sysctl_file" ]] && {
-        echo "ERROR: rke2-cis-sysctl.conf not found" >&2
+        [[ ! -f "$cis_sysctl_file" ]] && {
+          echo "ERROR: rke2-cis-sysctl.conf not found" >&2
+          return 1
+        }
+        ;;
+
+      *)
+        echo "ERROR: CIS mode not supported for OS '$node_os'" >&2
         return 1
-      }
-      ;;
+        ;;
+    esac
 
-    *)
-      echo "ERROR: CIS mode not supported for OS '$node_os'" >&2
-      return 1
-      ;;
-  esac
+    systemctl restart systemd-sysctl
+  fi 
+}
 
-  if [[ -n "$server_flags" ]] && [[ "$server_flags" == *"etcd"* ]]; then
-      ensure_etcd_user
+ipv6_setup() {
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
+    fi
   fi
-
-  systemctl restart systemd-sysctl
 }
 
 install_rke2() {
@@ -225,7 +236,7 @@ install() {
   install_dependencies
   install_rke2
   sleep 10
-  cis_setup
+  profile_setup
 }
 
 path_setup() {
@@ -245,6 +256,7 @@ main() {
     update_config
     subscription_manager
     disable_cloud_setup
+    ipv6_setup
     install
     path_setup
   fi

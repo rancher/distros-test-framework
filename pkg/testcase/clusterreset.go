@@ -37,30 +37,30 @@ func clusterReset(cluster *shared.Cluster, resetCmd string) {
 		resetRes    string
 		resetCmdErr error
 	)
-
+	// running cluster reset command on the first server node.
 	resetRes, resetCmdErr = shared.RunCommandOnNode(resetCmd, cluster.ServerIPs[0])
-	switch cluster.Config.Product {
-	case "rke2":
-		// rke2 cluster reset output returns stderr channel
-		Expect(resetRes).To(BeEmpty())
-		Expect(resetCmdErr).To(HaveOccurred())
-		Expect(resetCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
-		Expect(resetCmdErr.Error()).To(ContainSubstring("has been reset"))
-
-	case "k3s":
-		// k3s cluster reset output returns stdout channel
-		Expect(resetCmdErr).NotTo(HaveOccurred())
-		Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
-		Expect(resetRes).To(ContainSubstring("has been reset"))
-	}
+	shared.LogLevel("debug", "Cluster reset command output: %s", resetRes)
+	shared.LogLevel("debug", "Cluster reset command error: %v", resetCmdErr)
+	Expect(resetCmdErr).NotTo(HaveOccurred())
+	Expect(resetRes).To(ContainSubstring("Managed etcd cluster"))
+	Expect(resetRes).To(ContainSubstring("has been reset"))
 }
 
 func killall(cluster *shared.Cluster) {
 	killallLocationCmd, findErr := shared.FindPath(cluster.Config.Product+"-killall.sh", cluster.ServerIPs[0])
+	shared.LogLevel("debug", "Found killall script at: %s", killallLocationCmd)
 	Expect(findErr).NotTo(HaveOccurred())
 
-	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
-		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
+	// Run killall on only the secondary servers and not the primary.
+	if len(cluster.ServerIPs) > 1 {
+		for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
+			_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[i])
+			Expect(err).NotTo(HaveOccurred())
+		}
+	} else {
+		shared.LogLevel("info", "Only one server node present, skipping killall on secondary servers")
+		// Run killall on the primary server for a 1 server node cluster.
+		_, err := shared.RunCommandOnNode("sudo  "+killallLocationCmd, cluster.ServerIPs[0])
 		Expect(err).NotTo(HaveOccurred())
 	}
 
@@ -114,6 +114,7 @@ func restartServer(cluster *shared.Cluster, ms *shared.ManageService) {
 }
 
 func deleteDataDirectories(cluster *shared.Cluster) {
+	// Deleting data directories from secondary servers, not the primary server.
 	for i := len(cluster.ServerIPs) - 1; i > 0; i-- {
 		deleteCmd := fmt.Sprintf("sudo rm -rf /var/lib/rancher/%s/server/db", cluster.Config.Product)
 		_, deleteErr := shared.RunCommandOnNode(deleteCmd, cluster.ServerIPs[i])
