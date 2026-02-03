@@ -11,15 +11,22 @@ import (
 	"github.com/rancher/distros-test-framework/shared"
 )
 
-func (c Client) createRun(pd *processedTestdata, titleName, product string) (*int64, error) {
-	description, planID := buildRun(pd)
+func (c Client) createRun(pd *processedTestdata, titleName, product, ciArch string) (*int64, error) {
+	description, caseIDs := buildRun(pd)
 
-	runTitle := titleName + " " + product + " test run - " + pd.testDate
+	var runTitle string
+	if ciArch == "arm64" {
+		runTitle = titleName + " " + product + " ARM Docker test run - " + pd.testDate
+	} else {
+		runTitle = titleName + " " + product + " amd64 test run - " + pd.testDate
+	}
+
+	// Use specific case IDs instead of plan to ensure only filtered tests are included.
 	createRunReq := c.QaseAPI.RunsAPI.CreateRun(c.Ctx, projectID).RunCreate(qaseclient.RunCreate{
 		Title:           runTitle,
 		Description:     newString(description),
 		IncludeAllCases: newBool(false),
-		PlanId:          newInt64(planID),
+		Cases:           caseIDs,
 		IsAutotest:      newBool(true),
 	})
 
@@ -34,61 +41,70 @@ func (c Client) createRun(pd *processedTestdata, titleName, product string) (*in
 	return res.Result.Id, nil
 }
 
-func buildRun(pd *processedTestdata) (desc string, planID int64) {
+func buildRun(pd *processedTestdata) (desc string, caseIDs []int64) {
+	suiteSummaries := buildSuiteSummaries(pd)
+	caseIDs = collectCaseIDs(pd)
+
+	description := fmt.Sprintf(
+		"Total Test time: %s\nTest Date: %s\nFAILED: %d\nPASSED: %d\nSKIPPED: %d\n\n"+
+			"Test Suite Summary:\n%s\nGH Actions: %s\n",
+		pd.totalTestTime, pd.testDate, pd.failedTests, pd.passedTests, pd.skippedTests,
+		strings.Join(suiteSummaries, "\n"), os.Getenv("COMMENT_LINK"),
+	)
+
+	return description, caseIDs
+}
+
+func buildSuiteSummaries(pd *processedTestdata) []string {
 	var suiteSummaries []string
 	for _, suite := range pd.testSuiteSummary {
 		summary := fmt.Sprintf(
 			"Suite: %s\n Elapsed time: %.2f min\n  Status: %s\n  Failed: %d, Passed: %d, Skipped: %d\n",
-			suite.testSuiteName,
-			suite.elapsedTime,
-			suite.status,
-			suite.failedTests,
-			suite.passedTests,
-			suite.skippedTests,
+			suite.testSuiteName, suite.elapsedTime, suite.status,
+			suite.failedTests, suite.passedTests, suite.skippedTests,
 		)
 
 		if suite.failedTests > 0 {
-			var failedTestNames string
-			for _, overview := range pd.testSummary {
-				if overview.testSuiteName == suite.testSuiteName {
-					for _, td := range overview.testCases {
-						if strings.EqualFold(td.status, failStatus) {
-							failedTestNames += fmt.Sprintf("    - %s\n", td.testCaseName)
-						}
-					}
-
-					break
-				}
-			}
-			if failedTestNames != "" {
-				summary += "  Failed Test Cases:\n" + failedTestNames
+			if failedNames := getFailedTestNames(pd, suite.testSuiteName); failedNames != "" {
+				summary += "  Failed Test Cases:\n" + failedNames
 			}
 		}
 		suiteSummaries = append(suiteSummaries, summary)
 	}
 
-	testSuiteSummary := strings.Join(suiteSummaries, "\n")
+	return suiteSummaries
+}
 
-	description := fmt.Sprintf(
-		"Total Test time: %s\nTest Date: %s\nFAILED: %d\nPASSED: %d\nSKIPPED: %d\n\n"+
-			"Test Suite Summary:\n%s\nGH Actions: %s\n",
-		pd.totalTestTime,
-		pd.testDate,
-		pd.failedTests,
-		pd.passedTests,
-		pd.skippedTests,
-		testSuiteSummary,
-		os.Getenv("COMMENT_LINK"),
-	)
+func getFailedTestNames(pd *processedTestdata, suiteName string) string {
+	var failedTestNames string
+	for _, overview := range pd.testSummary {
+		if overview.testSuiteName == suiteName {
+			for _, td := range overview.testCases {
+				if strings.EqualFold(td.status, failStatus) {
+					failedTestNames += fmt.Sprintf("    - %s\n", td.testCaseName)
+				}
+			}
 
-	// get the planID according to the product that has updated the field previously testSuiteSummary/testSuiteDetails.
-	var id int64
-	for _, suite := range pd.testSuiteSummary {
-		id = suite.planID
-		break
+			break
+		}
 	}
 
-	return description, id
+	return failedTestNames
+}
+
+func collectCaseIDs(pd *processedTestdata) []int64 {
+	caseIDSet := make(map[int64]bool)
+	var caseIDs []int64
+	for _, overview := range pd.testSummary {
+		for _, td := range overview.testCases {
+			if td.caseID > 0 && !caseIDSet[td.caseID] {
+				caseIDSet[td.caseID] = true
+				caseIDs = append(caseIDs, td.caseID)
+			}
+		}
+	}
+
+	return caseIDs
 }
 
 // createTestResult receives the the createResultRequest and sends the request to create a test result in Qase.
