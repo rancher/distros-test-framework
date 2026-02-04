@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	lockFile       = "/tmp/e2e-tests.lock"
-	runTestsScript = "/root/run_tests.sh"
-	pollLockFile   = "/tmp/rerun-poller.lock"
+	lockFile     = "/tmp/e2e-tests.lock"
+	pollLockFile = "/tmp/rerun-poller.lock"
 )
 
 type rerunState struct {
@@ -39,16 +38,14 @@ type slackMessage struct {
 	Text string `json:"text"`
 }
 
-type slackRepliesResponse struct {
+type slackResponse struct {
 	OK       bool           `json:"ok"`
 	Error    string         `json:"error,omitempty"`
 	Messages []slackMessage `json:"messages"`
 }
 
 func main() {
-	shared.LogLevel("info", "========================================")
-	shared.LogLevel("info", "Rerun Poller Starting")
-	shared.LogLevel("info", "========================================")
+	shared.LogLevel("info", "\nRerun Poller Starting\n")
 
 	if !acquirePollerLock() {
 		os.Exit(0)
@@ -57,7 +54,7 @@ func main() {
 
 	if running, reason := isTestsRunning(); running {
 		shared.LogLevel("info", "Tests already running (%s) - skipping this poll cycle", reason)
-		return //nolint:gocritic // intentional exit, defer will run on normal return
+		return //nolint:gocritic // intentional exit.
 	}
 
 	state, stateFile, slackToken := initializePoller()
@@ -71,6 +68,15 @@ func main() {
 	processRerunRequest(state, stateFile, slackToken, rerunMsg, rerunTests)
 }
 
+func getHomeDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "."
+	}
+
+	return home
+}
+
 func initializePoller() (state *rerunState, stateFile, slackToken string) {
 	slackToken = os.Getenv("SLACK_TOKEN")
 	if slackToken == "" {
@@ -79,11 +85,7 @@ func initializePoller() (state *rerunState, stateFile, slackToken string) {
 	}
 	shared.LogLevel("info", "Slack token loaded (length: %d)", len(slackToken))
 
-	baseDir := os.Getenv("DISTROS_BASE_DIR")
-	if baseDir == "" {
-		baseDir = "/root/distros-test-framework"
-	}
-	stateFile = filepath.Join(baseDir, "report", ".rerun-state.json")
+	stateFile = filepath.Join(getHomeDir(), "distros-test-framework", "report", ".rerun-state.json")
 	shared.LogLevel("info", "State file: %s", stateFile)
 
 	var err error
@@ -170,7 +172,7 @@ func processRerunRequest(state *rerunState, stateFile, slackToken string, rerunM
 		shared.LogLevel("info", "Resolved 'failed' to: %s", rerunTests)
 	}
 
-	// check tests aren't running now
+	// check tests aren't running now.
 	if running, reason := isTestsRunning(); running {
 		shared.LogLevel("warn", "Tests started running between checks (%s) - aborting", reason)
 		os.Exit(0)
@@ -288,7 +290,7 @@ func saveState(stateFile string, state *rerunState) error {
 	return nil
 }
 
-func fetchSlackReplies(token, channelID, threadTS string) (*slackRepliesResponse, error) {
+func fetchSlackReplies(token, channelID, threadTS string) (*slackResponse, error) {
 	url := fmt.Sprintf("https://slack.com/api/conversations.replies?channel=%s&ts=%s", channelID, threadTS)
 
 	req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
@@ -309,7 +311,7 @@ func fetchSlackReplies(token, channelID, threadTS string) (*slackRepliesResponse
 		return nil, fmt.Errorf("cannot read response: %w", err)
 	}
 
-	var result slackRepliesResponse
+	var result slackResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("cannot parse response: %w", err)
 	}
@@ -372,7 +374,6 @@ func isChannelMember(token, channelID, userID string) (bool, error) {
 			}
 		}
 
-		// Check if there are more pages.
 		if result.ResponseMetadata.NextCursor == "" {
 			break
 		}
@@ -443,17 +444,18 @@ func parseRerunRequest(text string) string {
 }
 
 func executeRerun(tests, slackToken, channelID, threadTS, user string) error {
-	shared.LogLevel("info", "========================================")
-	shared.LogLevel("info", "STARTING RERUN")
+	shared.LogLevel("info", "\nSTARTING RERUN\n")
 	shared.LogLevel("info", "  Tests: %s", tests)
 	shared.LogLevel("info", "  Requested by: %s", user)
-	shared.LogLevel("info", "  Thread: %s", threadTS)
-	shared.LogLevel("info", "========================================")
+	shared.LogLevel("info", "  Thread: %s\n", threadTS)
 
 	msg := fmt.Sprintf(":arrows_counterclockwise: Starting rerun of: `%s`\nRequested by: <@%s>", tests, user)
 	if err := postToSlack(slackToken, channelID, threadTS, msg); err != nil {
 		shared.LogLevel("warn", "Failed to post start message to Slack: %v", err)
 	}
+
+	runTestsScript := filepath.Join(getHomeDir(), "run_tests.sh")
+	shared.LogLevel("info", "Using run_tests.sh at: %s", runTestsScript)
 
 	if _, err := os.Stat(runTestsScript); os.IsNotExist(err) {
 		return fmt.Errorf("run_tests.sh not found at %s", runTestsScript)

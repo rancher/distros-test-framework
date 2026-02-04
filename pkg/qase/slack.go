@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	slackAuthURL       = "https://slack.com/api/auth.test"
-	slackPostMsgURL    = "https://slack.com/api/chat.postMessage"
-	slackFileUploadURL = "https://slack.com/api/files.upload"
+	slackAuthURL    = "https://slack.com/api/auth.test"
+	slackPostMsgURL = "https://slack.com/api/chat.postMessage"
 )
 
 type slackClient struct {

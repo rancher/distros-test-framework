@@ -619,22 +619,22 @@ func extractIDs(suiteName, product, arch string) (int64, error) {
 
 	if product == "rke2" {
 		rke2Tcs := map[string]int64{
-			"ciliumnokp":            220,
-			"calico_ebpf":           284,
-			"mixedosvalidation":     223,
-			"mixedosbgpvalidation":  224,
-			"secretsencryption_old": 296,
-			"multus":                225,
-			"secretsencryption":     226,
-			"splitserver":           227,
-			"upgradevalidation":     228,
-			"clustervalidation":     229,
-			"kinevalidation":        230,
-			"ciliumwireguard":       295,
+			"ciliumnokp":           220,
+			"calicoebpf":           284,
+			"mixedosvalidation":    223,
+			"mixedosbgpvalidation": 224,
+			"secretsencryptionold": 296,
+			"multus":               225,
+			"secretsencryption":    226,
+			"splitserver":          227,
+			"upgradevalidation":    228,
+			"clustervalidation":    229,
+			"kinevalidation":       230,
+			"ciliumwireguard":      295,
 		}
 
 		for keyword, id := range rke2Tcs {
-			if strings.Contains(name, keyword) {
+			if name == keyword {
 				tcID = id
 				break
 			}
@@ -689,6 +689,7 @@ func extractIDs(suiteName, product, arch string) (int64, error) {
 			"s3":                303,
 			"tailscale":         318,
 			"dualstack":         319,
+			"customcarotation":  237,
 		}
 
 		isDocker := strings.Contains(name, "docker")

@@ -155,8 +155,8 @@ func initialSetupUbuntu(ip, nvidiaVersion string) {
 
 func initialSetupSles(ip string) {
 	ensureSlEsRegistration(ip)
-	installNvidiaDriverSles(ip)
-	installNvidiaComputeUtilsSles(ip)
+	driverVersion := installNvidiaDriverSles(ip)
+	installNvidiaComputeUtilsSles(ip, driverVersion)
 }
 
 func ensureSlEsRegistration(ip string) {
@@ -191,7 +191,7 @@ func ensureSlEsRegistration(ip string) {
 	}
 }
 
-func installNvidiaDriverSles(ip string) {
+func installNvidiaDriverSles(ip string) string {
 	// get the current kernel variant to match the correct kmp package.
 	getKernel := "uname -r | awk -F'-' '{print $NF}'"
 	kernelVariant, kernelErr := shared.RunCommandOnNode(getKernel, ip)
@@ -213,6 +213,16 @@ func installNvidiaDriverSles(ip string) {
 	installedVer, _ := shared.RunCommandOnNode(checkInstalled, ip)
 	shared.LogLevel("info", "Installed NVIDIA driver: %s", strings.TrimSpace(installedVer))
 
+	// extract the driver version.
+	getDriverVersion := "rpm -q " + driverPackage + " --queryformat '%{VERSION}' | cut -d_ -f1"
+	driverVersion, versionErr := shared.RunCommandOnNode(getDriverVersion, ip)
+	if versionErr != nil {
+		shared.LogLevel("error", "Failed to get driver version: %v", versionErr)
+		driverVersion = ""
+	}
+	driverVersion = strings.TrimSpace(driverVersion)
+	shared.LogLevel("info", "Extracted driver version for compute-utils matching: %s", driverVersion)
+
 	shared.LogLevel("info", "Loading NVIDIA kernel module")
 	loadModule := "sudo modprobe nvidia && sudo modprobe nvidia-uvm"
 	modRes, modErr := shared.RunCommandOnNode(loadModule, ip)
@@ -229,9 +239,11 @@ func installNvidiaDriverSles(ip string) {
 	modCheck, modCheckErr := shared.RunCommandOnNode(verifyModule, ip)
 	Expect(modCheckErr).ToNot(HaveOccurred(), "NVIDIA module not loaded: %v", modCheckErr)
 	shared.LogLevel("info", "NVIDIA kernel modules loaded:\n%s", strings.TrimSpace(modCheck))
+
+	return driverVersion
 }
 
-func installNvidiaComputeUtilsSles(ip string) {
+func installNvidiaComputeUtilsSles(ip, driverVersion string) {
 	cudaRepo := "sudo zypper ar https://developer.download.nvidia.com/compute/cuda/repos/sles15/x86_64 cuda"
 	_, cudaRepoErr := shared.RunCommandOnNode(cudaRepo, ip)
 	if cudaRepoErr != nil && !strings.Contains(cudaRepoErr.Error(), "exists") {
@@ -263,12 +275,24 @@ func installNvidiaComputeUtilsSles(ip string) {
 		return
 	}
 
-	installComputeUtils := "sudo zypper -v --non-interactive in -r cuda nvidia-compute-utils-G06 2>&1"
+	// install compute-utils with version pinning to match the installed driver
+	var installComputeUtils string
+	if driverVersion != "" {
+		shared.LogLevel("info", "Installing nvidia-compute-utils-G06 version %s to match driver", driverVersion)
+		installComputeUtils = "sudo zypper -v --non-interactive in -r cuda " +
+			"'nvidia-compute-utils-G06==" + driverVersion + "' 2>&1"
+	} else {
+		shared.LogLevel("warn", "Driver version unknown, "+
+			"installing latest nvidia-compute-utils-G06 (may cause version mismatch)")
+		installComputeUtils = "sudo zypper -v --non-interactive in -r cuda nvidia-compute-utils-G06 2>&1"
+	}
+
 	res, installComputeUtilsErr := shared.RunCommandOnNode(installComputeUtils, ip)
 	if installComputeUtilsErr != nil {
-		shared.LogLevel("error", "Failed to install nvidia-compute-utils-G06 "+
-			"from CUDA repo: %v %v", installComputeUtilsErr, res)
-		return
+		shared.LogLevel("error", "Failed to install nvidia-compute-utils-G06 from CUDA repo: %v\nOutput: %s",
+			installComputeUtilsErr, res)
+		Expect(installComputeUtilsErr).ToNot(HaveOccurred(),
+			"error installing nvidia-compute-utils-G06: %v\nOutput: %s", installComputeUtilsErr, res)
 	}
 
 	_, finalCheck := shared.RunCommandOnNode(checkNvidiaSmi, ip)

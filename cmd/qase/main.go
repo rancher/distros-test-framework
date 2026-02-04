@@ -31,6 +31,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if ciArch == "" {
+		shared.LogLevel("debug", "-a arch flag not being set, defaulting to amd64")
+	}
+
 	var runID int32
 	var qaseErr error
 
@@ -50,12 +54,10 @@ func main() {
 		}
 	}
 
-	// always try to report to Slack, even if Qase failed for better visibility.
 	shared.LogLevel("info", "Attempting to report to Slack...")
 	baseDir := filepath.Dir(filepath.Dir(fileName))
 	if slackErr := qase.ReportToSlack(fileName, product, ciArch, baseDir, runID); slackErr != nil {
 		shared.LogLevel("error", "Failed to report to Slack: %v", slackErr)
-		// exit error only if both Qase and Slack failed
 		if qaseErr != nil {
 			shared.LogLevel("error", "Both Qase and Slack reporting failed")
 			os.Exit(1)

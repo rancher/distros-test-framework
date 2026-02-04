@@ -13,15 +13,15 @@ import (
 
 func (c Client) createRun(pd *processedTestdata, titleName, product, ciArch string) (*int64, error) {
 	description, caseIDs := buildRun(pd)
-
 	var runTitle string
+
 	if ciArch == "arm64" {
 		runTitle = titleName + " " + product + " ARM Docker test run - " + pd.testDate
 	} else {
 		runTitle = titleName + " " + product + " amd64 test run - " + pd.testDate
 	}
 
-	// Use specific case IDs instead of plan to ensure only filtered tests are included.
+	// specific case IDs instead of plan to ensure only filtered tests are included.
 	createRunReq := c.QaseAPI.RunsAPI.CreateRun(c.Ctx, projectID).RunCreate(qaseclient.RunCreate{
 		Title:           runTitle,
 		Description:     newString(description),
