@@ -53,10 +53,12 @@ check_arch() {
 get_url() {
   if [[ -n "$registry_url" ]] && [[ "$registry_url" =~ "prime" ]]; then
     url=$registry_url/$product/$version
-  elif [[ "$product" == "k3s" ]]; then
-    url="https://github.com/k3s-io/k3s/releases/download/$version"
-  elif [[ "$product" == "rke2" ]]; then
-    url="https://github.com/rancher/rke2/releases/download/$version"
+  elif [[ -z "$registry_url" ]]; then
+    if [[ "$product" == "k3s" ]]; then
+      url="https://github.com/k3s-io/k3s/releases/download/$version"
+    elif [[ "$product" == "rke2" ]]; then
+      url="https://github.com/rancher/rke2/releases/download/$version"
+    fi
   fi
   echo "$url"
 }
