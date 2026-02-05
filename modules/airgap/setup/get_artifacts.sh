@@ -51,9 +51,11 @@ check_arch() {
 }
 
 get_url() {
-  if [[ -n "$registry_url" ]]; then
-    url=$registry_url/rke2/$version
-  else
+  if [[ -n "$registry_url" ]] && [[ "$registry_url" =~ "prime" ]]; then
+    url=$registry_url/$product/$version
+  elif [[ "$product" == "k3s" ]]; then
+    url="https://github.com/k3s-io/k3s/releases/download/$version"
+  elif [[ "$product" == "rke2" ]]; then
     url="https://github.com/rancher/rke2/releases/download/$version"
   fi
   echo "$url"
@@ -164,7 +166,7 @@ safe_download_install() {
 get_assets() {
   echo "Downloading $product dependencies..."
   if [[ "$product" == "k3s" ]]; then
-    url="https://github.com/k3s-io/k3s/releases/download/$version"
+    url=$(get_url)
     download_retry wget $url/sha256sum-$arch.txt
     download_retry wget $url/k3s-images.txt
     safe_download_install "https://get.k3s.io/" "k3s-install.sh"
