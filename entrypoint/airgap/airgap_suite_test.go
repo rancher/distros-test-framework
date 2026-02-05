@@ -74,10 +74,6 @@ func validateAirgap() {
 			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
 		}
-		if flags.AirgapFlag.ImageRegistryUrl != "" {
-			shared.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
-			flags.AirgapFlag.ImageRegistryUrl = ""
-		}
 	}
 
 	if cfg.Product == "rke2" {
