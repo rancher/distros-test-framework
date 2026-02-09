@@ -85,27 +85,18 @@ node {
               ]
 
               switch(test_name) {
-                case "upgrademanual": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
+                case "upgrademanual_rpm": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_rpm", parameters: upgrade_params }
                   break
-                case "upgradesuc": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }
+                case "upgradesuc_rpm": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_rpm", parameters: upgrade_params }
                   break
-                case "upgradesuc_extdb": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_external_datastore", parameters: upgrade_params }
+                case "upgradesuc_splitroles_rpm": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles_rpm", parameters: upgrade_params }
                   break
-                case "upgradesuc_splitroles": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles", parameters: upgrade_params }
-                  break
-                case "upgradereplacement": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
-                  break        
-                case "upgrademanual_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_arm", parameters: upgrade_params }
-                  break
-                case "upgradesuc_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_arm", parameters: upgrade_params }
-                  break                                               
+                case "upgradereplacement_rpm": 
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement_rpm", parameters: upgrade_params }
+                  break                                                  
               } // switch case
             } // for each test_dir loop
 
