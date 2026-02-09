@@ -85,7 +85,10 @@ node {
                   break
                 case "killalluninstall_rpm":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_rpm", parameters: install_params }
-                  break        
+                  break
+                case "killalluninstall_arm_rpm":
+                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm_rpm", parameters: install_params }
+                  break           
                 case "restartservice_rpm":
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_rpm", parameters: install_params }
                   break
