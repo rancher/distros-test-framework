@@ -78,121 +78,152 @@ node {
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
-
+              
               def product_name = "${env.PRODUCT_NAME}"
 
-              switch(test_name) {
-                case "docker_cri":
-                  jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
-                  break
-                case "dualstack":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: install_params }
-                  break
-                case "ipv6only":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_ipv6_only", parameters: install_params }
-                  break
-                case "clusterrestore":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_restore", parameters: install_params }
-                  break   
-                case "validatecluster":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
-                  break
-                case "validatecluster_arm":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
-                  break
-                case "validatecluster_rpm":
-                  jobs[test_name] = { build job: "rke2_validate_cluster_rpm", parameters: install_params }
-                  break
-                case "validatecluster_arm_rpm":
-                  jobs[test_name] = { build job: "rke2_validate_cluster_arm_rpm", parameters: install_params }
-                  break
-                case "mixedoscluster_rpm":
-                  jobs[test_name] = { build job: "rke2_windows_agent_rpm", parameters: install_params }
-                  break 
-                case "mixedoscluster_flannel_rpm":
-                  jobs[test_name] = { build job: "rke2_windows_agent_flannel_rpm", parameters: install_params }
-                  break   
-                case "killalluninstall":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_rpm", parameters: install_params }
-                      break
-                  }
-                  break
-                case "killalluninstall_arm":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm_rpm", parameters: install_params }
-                      break
-                  }
-                  break            
-                case "restartservice":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_rpm", parameters: install_params }
-                      break
-                  }
-                  break
-                case "restartservice_splitroles":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles_rpm", parameters: install_params }
-                      break
-                  }
-                  break
-                case "rebootinstances":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances_rpm", parameters: install_params }
-                      break
-                  }
-                  break              
-                case "certrotate": 
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate_rpm", parameters: install_params }
-                      break
-                  }
-                  break                
-                case "secretsencrypt":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption_rpm", parameters: install_params }
-                      break
-                  }
-                  break
-                case "clusterreset":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset_rpm", parameters: install_params }
-                      break
-                  }
-                  break                                                     
-              } // switch case
+              def staticTests = [
+                'docker_cri': 'k3s_docker_cri',
+                'dualstack': "${env.PRODUCT_NAME}_dual_stack",
+                'ipv6only': "${env.PRODUCT_NAME}_ipv6_only",
+                'clusterrestore': "${env.PRODUCT_NAME}_cluster_restore",
+                'validatecluster': "${env.PRODUCT_NAME}_validate_cluster",
+                'validatecluster_arm': "${env.PRODUCT_NAME}_validate_cluster_arm",
+                'validatecluster_rpm': "rke2_validate_cluster_rpm",
+                'validatecluster_arm_rpm': "rke2_validate_cluster_arm_rpm",
+                'mixedoscluster_rpm': "rke2_windows_agent_rpm",
+                'mixedoscluster_flannel_rpm': "rke2_windows_agent_flannel_rpm"
+              ]
+
+              def suffix = (product_name == 'rke2') ? '_rpm' : ''
+              def dynamicTests = [
+                'killalluninstall': "${env.PRODUCT_NAME}_kill_all_uninstall",
+                'killalluninstall_arm': "${env.PRODUCT_NAME}_kill_all_uninstall_arm",
+                'restartservice': "${env.PRODUCT_NAME}_restart_service",
+                'restartservice_splitroles': "${env.PRODUCT_NAME}_restart_service_splitroles",
+                'rebootinstances': "${env.PRODUCT_NAME}_reboot_instances",
+                'certrotate': "${env.PRODUCT_NAME}_cert_rotate",
+                'secretsencrypt': "${env.PRODUCT_NAME}_secrets_encryption",
+                'clusterreset': "${env.PRODUCT_NAME}_cluster_reset",
+              ]
+
+              def jobName = staticTests[test_name] ?: dynamicTests[test_name]
+
+              if (jobName) {
+                jobs[test_name] = [build: jobName, parameters: install_params]
+              }
+
+              // switch(test_name) {
+              //   case "docker_cri":
+              //     jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
+              //     break
+              //   case "dualstack":
+              //     jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: install_params }
+              //     break
+              //   case "ipv6only":
+              //     jobs[test_name] = { build job: "${env.PRODUCT_NAME}_ipv6_only", parameters: install_params }
+              //     break
+              //   case "clusterrestore":
+              //     jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_restore", parameters: install_params }
+              //     break   
+              //   case "validatecluster":
+              //     jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
+              //     break
+              //   case "validatecluster_arm":
+              //     jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
+              //     break
+              //   case "validatecluster_rpm":
+              //     jobs[test_name] = { build job: "rke2_validate_cluster_rpm", parameters: install_params }
+              //     break
+              //   case "validatecluster_arm_rpm":
+              //     jobs[test_name] = { build job: "rke2_validate_cluster_arm_rpm", parameters: install_params }
+              //     break
+              //   case "mixedoscluster_rpm":
+              //     jobs[test_name] = { build job: "rke2_windows_agent_rpm", parameters: install_params }
+              //     break 
+              //   case "mixedoscluster_flannel_rpm":
+              //     jobs[test_name] = { build job: "rke2_windows_agent_flannel_rpm", parameters: install_params }
+              //     break   
+              //   case "killalluninstall":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break
+              //   case "killalluninstall_arm":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break            
+              //   case "restartservice":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break
+              //   case "restartservice_splitroles":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break
+              //   case "rebootinstances":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break              
+              //   case "certrotate": 
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break                
+              //   case "secretsencrypt":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break
+              //   case "clusterreset":
+              //     switch(product_name){
+              //       case "k3s":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params }
+              //         break
+              //       case "rke2":
+              //         jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset_rpm", parameters: install_params }
+              //         break
+              //     }
+              //     break                                                     
+              // } // switch case
             } // for each test_dir loop
 
             parallel jobs
