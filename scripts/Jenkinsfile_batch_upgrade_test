@@ -84,21 +84,51 @@ node {
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
 
+              def product_name = "${env.PRODUCT_NAME}"
+
               switch(test_name) {
-                case "upgrademanual": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
+                case "upgrademanual":
+                  switch(product_name){
+                    case "k3s":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
+                      break
+                    case "rke2":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_rpm", parameters: upgrade_params }
+                      break
+                  } 
                   break
-                case "upgradesuc": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }
+                case "upgradesuc":
+                  switch(product_name){
+                    case "k3s":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }
+                      break
+                    case "rke2":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_rpm", parameters: upgrade_params }
+                      break
+                  }
                   break
                 case "upgradesuc_extdb": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_external_datastore", parameters: upgrade_params }
                   break
-                case "upgradesuc_splitroles": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles", parameters: upgrade_params }
+                case "upgradesuc_splitroles":
+                  switch(product_name){
+                    case "k3s":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles", parameters: upgrade_params }
+                      break
+                    case "rke2":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles_rpm", parameters: upgrade_params }
+                      break
+                  }      
                   break
-                case "upgradereplacement": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
+                case "upgradereplacement":
+                  switch(product_name){
+                    case "k3s":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
+                      break
+                    case "rke2":
+                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement_rpm", parameters: upgrade_params }
+                      break
+                  } 
                   break        
                 case "upgrademanual_arm": 
                   jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_arm", parameters: upgrade_params }
