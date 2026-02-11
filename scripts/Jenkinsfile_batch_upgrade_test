@@ -87,13 +87,13 @@ node {
               def product_name = "${env.PRODUCT_NAME}"
               def suffix = (product_name == 'rke2') ? '_rpm' : ''
               def testToJobMap = [
-                "upgrademanual_arm": "${env.PRODUCT_NAME}_manual_upgrade_arm",
-                "upgradesuc_arm": "${env.PRODUCT_NAME}_suc_upgrade_arm",
-                "upgradesuc_extdb": "${env.PRODUCT_NAME}_suc_upgrade_external_datastore",
-                "upgrademanual": "${env.PRODUCT_NAME}_manual_upgrade${suffix}",
-                "upgradesuc": "${env.PRODUCT_NAME}_suc_upgrade${suffix}",
-                "upgradesuc_splitroles": "${env.PRODUCT_NAME}_suc_upgrade_splitroles${suffix}",
-                "upgradereplacement": "${env.PRODUCT_NAME}_upgrade_node_replacement${suffix}"
+                "upgrademanual_arm": "${product_name}_manual_upgrade_arm",
+                "upgradesuc_arm": "${product_name}_suc_upgrade_arm",
+                "upgradesuc_extdb": "${product_name}_suc_upgrade_external_datastore",
+                "upgrademanual": "${product_name}_manual_upgrade${suffix}",
+                "upgradesuc": "${product_name}_suc_upgrade${suffix}",
+                "upgradesuc_splitroles": "${product_name}_suc_upgrade_splitroles${suffix}",
+                "upgradereplacement": "${product_name}_upgrade_node_replacement${suffix}"
               ]
 
               def jobName = testToJobMap[test_name]
@@ -101,59 +101,6 @@ node {
               if (jobName) {
                 jobs[test_name] = { build job: jobName, parameters: install_params }
               }
-            }
-
-              switch(test_name) {
-                case "upgrademanual":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_rpm", parameters: upgrade_params }
-                      break
-                  } 
-                  break
-                case "upgradesuc":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_rpm", parameters: upgrade_params }
-                      break
-                  }
-                  break
-                case "upgradesuc_extdb": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_external_datastore", parameters: upgrade_params }
-                  break
-                case "upgradesuc_splitroles":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles", parameters: upgrade_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles_rpm", parameters: upgrade_params }
-                      break
-                  }      
-                  break
-                case "upgradereplacement":
-                  switch(product_name){
-                    case "k3s":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
-                      break
-                    case "rke2":
-                      jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement_rpm", parameters: upgrade_params }
-                      break
-                  } 
-                  break        
-                case "upgrademanual_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_arm", parameters: upgrade_params }
-                  break
-                case "upgradesuc_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_arm", parameters: upgrade_params }
-                  break                                               
-              } // switch case
             } // for each test_dir loop
 
             parallel jobs
