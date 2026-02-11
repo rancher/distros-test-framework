@@ -96,14 +96,14 @@ node {
 
               def suffix = (product_name == 'rke2') ? '_rpm' : ''
               def dynamicTests = [
-                'killalluninstall': "${env.PRODUCT_NAME}_kill_all_uninstall",
-                'killalluninstall_arm': "${env.PRODUCT_NAME}_kill_all_uninstall_arm",
-                'restartservice': "${env.PRODUCT_NAME}_restart_service",
-                'restartservice_splitroles': "${env.PRODUCT_NAME}_restart_service_splitroles",
-                'rebootinstances': "${env.PRODUCT_NAME}_reboot_instances",
-                'certrotate': "${env.PRODUCT_NAME}_cert_rotate",
-                'secretsencrypt': "${env.PRODUCT_NAME}_secrets_encryption",
-                'clusterreset': "${env.PRODUCT_NAME}_cluster_reset",
+                'killalluninstall': "${env.PRODUCT_NAME}_kill_all_uninstall${suffix}",
+                'killalluninstall_arm': "${env.PRODUCT_NAME}_kill_all_uninstall_arm${suffix}",
+                'restartservice': "${env.PRODUCT_NAME}_restart_service${suffix}",
+                'restartservice_splitroles': "${env.PRODUCT_NAME}_restart_service_splitroles${suffix}",
+                'rebootinstances': "${env.PRODUCT_NAME}_reboot_instances${suffix}",
+                'certrotate': "${env.PRODUCT_NAME}_cert_rotate${suffix}",
+                'secretsencrypt': "${env.PRODUCT_NAME}_secrets_encryption${suffix}",
+                'clusterreset': "${env.PRODUCT_NAME}_cluster_reset${suffix}",
               ]
 
               def jobName = staticTests[test_name] ?: dynamicTests[test_name]

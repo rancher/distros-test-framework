@@ -86,6 +86,27 @@ node {
 
               def product_name = "${env.PRODUCT_NAME}"
 
+              def staticTests = [
+                'upgrademanual_arm': "${env.PRODUCT_NAME}_manual_upgrade_arm",
+                'upgradesuc_arm': "${env.PRODUCT_NAME}_suc_upgrade_arm",
+                'upgradesuc_extdb': "${env.PRODUCT_NAME}_suc_upgrade_external_datastore"
+              ]
+
+              def suffix = (product_name == 'rke2') ? '_rpm' : ''
+              def dynamicTests = [
+                'upgrademanual': "${env.PRODUCT_NAME}_manual_upgrade${suffix}",
+                'upgradesuc': "${env.PRODUCT_NAME}_suc_upgrade${suffix}",
+                'upgradesuc_splitroles': "${env.PRODUCT_NAME}_suc_upgrade_splitroles${suffix}",
+                'upgradereplacement': "${env.PRODUCT_NAME}_upgrade_node_replacement${suffix}"
+              ]
+
+              def jobName = staticTests[test_name] ?: dynamicTests[test_name]
+
+              if (jobName) {
+                jobs[test_name] = { build job: jobName, parameters: install_params }
+              }
+            }
+
               switch(test_name) {
                 case "upgrademanual":
                   switch(product_name){
