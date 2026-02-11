@@ -99,7 +99,7 @@ node {
                 "rebootinstances": "${product_name}_reboot_instances${suffix}",
                 "certrotate": "${product_name}_cert_rotate${suffix}",
                 "secretsencrypt": "${product_name}_secrets_encryption${suffix}",
-                "clusterreset": "${product_name}_cluster_reset${suffix}",
+                "clusterreset": "${product_name}_cluster_reset${suffix}"
               ]
 
               def jobName = testToJobMap[test_name]

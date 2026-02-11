@@ -89,7 +89,7 @@ node {
               def testToJobMap = [
                 "upgrademanual_arm": "${env.PRODUCT_NAME}_manual_upgrade_arm",
                 "upgradesuc_arm": "${env.PRODUCT_NAME}_suc_upgrade_arm",
-                "upgradesuc_extdb": "${env.PRODUCT_NAME}_suc_upgrade_external_datastore"
+                "upgradesuc_extdb": "${env.PRODUCT_NAME}_suc_upgrade_external_datastore",
                 "upgrademanual": "${env.PRODUCT_NAME}_manual_upgrade${suffix}",
                 "upgradesuc": "${env.PRODUCT_NAME}_suc_upgrade${suffix}",
                 "upgradesuc_splitroles": "${env.PRODUCT_NAME}_suc_upgrade_splitroles${suffix}",
