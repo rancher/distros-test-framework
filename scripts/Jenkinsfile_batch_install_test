@@ -91,7 +91,7 @@ node {
                 "validatecluster_rpm": "rke2_validate_cluster_rpm",
                 "validatecluster_arm_rpm": "rke2_validate_cluster_arm_rpm",
                 "mixedoscluster": "rke2_windows_agent_rpm",
-                "mixedoscluster_flannel": "rke2_windows_agent_flannel_rpm"
+                "mixedoscluster_flannel": "rke2_windows_agent_flannel_rpm",
                 "killalluninstall": "${product_name}_kill_all_uninstall${suffix}",
                 "killalluninstall_arm": "${product_name}_kill_all_uninstall_arm${suffix}",
                 "restartservice": "${product_name}_restart_service${suffix}",
