@@ -82,24 +82,24 @@ node {
               def product_name = "${env.PRODUCT_NAME}"
               def suffix = (product_name == 'rke2') ? '_rpm' : ''
               def testToJobMap = [
-                'docker_cri': 'k3s_docker_cri',
-                'dualstack': "${product_name}_dual_stack",
-                'ipv6only': "${product_name}_ipv6_only",
-                'clusterrestore': "${product_name}_cluster_restore",
-                'validatecluster': "${product_name}_validate_cluster",
-                'validatecluster_arm': "${product_name}_validate_cluster_arm",
-                'validatecluster_rpm': "rke2_validate_cluster_rpm",
-                'validatecluster_arm_rpm': "rke2_validate_cluster_arm_rpm",
-                'mixedoscluster_rpm': "rke2_windows_agent_rpm",
-                'mixedoscluster_flannel_rpm': "rke2_windows_agent_flannel_rpm"
-                'killalluninstall': "${product_name}_kill_all_uninstall${suffix}",
-                'killalluninstall_arm': "${product_name}_kill_all_uninstall_arm${suffix}",
-                'restartservice': "${product_name}_restart_service${suffix}",
-                'restartservice_splitroles': "${product_name}_restart_service_splitroles${suffix}",
-                'rebootinstances': "${product_name}_reboot_instances${suffix}",
-                'certrotate': "${product_name}_cert_rotate${suffix}",
-                'secretsencrypt': "${product_name}_secrets_encryption${suffix}",
-                'clusterreset': "${product_name}_cluster_reset${suffix}",
+                "docker_cri": "k3s_docker_cri",
+                "dualstack": "${product_name}_dual_stack",
+                "ipv6only": "${product_name}_ipv6_only",
+                "clusterrestore": "${product_name}_cluster_restore",
+                "validatecluster": "${product_name}_validate_cluster",
+                "validatecluster_arm": "${product_name}_validate_cluster_arm",
+                "validatecluster_rpm": "rke2_validate_cluster_rpm",
+                "validatecluster_arm_rpm": "rke2_validate_cluster_arm_rpm",
+                "mixedoscluster": "rke2_windows_agent_rpm",
+                "mixedoscluster_flannel_rpm": "rke2_windows_agent_flannel_rpm"
+                "killalluninstall": "${product_name}_kill_all_uninstall${suffix}",
+                "killalluninstall_arm": "${product_name}_kill_all_uninstall_arm${suffix}",
+                "restartservice": "${product_name}_restart_service${suffix}",
+                "restartservice_splitroles": "${product_name}_restart_service_splitroles${suffix}",
+                "rebootinstances": "${product_name}_reboot_instances${suffix}",
+                "certrotate": "${product_name}_cert_rotate${suffix}",
+                "secretsencrypt": "${product_name}_secrets_encryption${suffix}",
+                "clusterreset": "${product_name}_cluster_reset${suffix}",
               ]
 
               def jobName = testToJobMap[test_name]

@@ -87,13 +87,13 @@ node {
               def product_name = "${env.PRODUCT_NAME}"
               def suffix = (product_name == 'rke2') ? '_rpm' : ''
               def testToJobMap = [
-                'upgrademanual_arm': "${env.PRODUCT_NAME}_manual_upgrade_arm",
-                'upgradesuc_arm': "${env.PRODUCT_NAME}_suc_upgrade_arm",
-                'upgradesuc_extdb': "${env.PRODUCT_NAME}_suc_upgrade_external_datastore"
-                'upgrademanual': "${env.PRODUCT_NAME}_manual_upgrade${suffix}",
-                'upgradesuc': "${env.PRODUCT_NAME}_suc_upgrade${suffix}",
-                'upgradesuc_splitroles': "${env.PRODUCT_NAME}_suc_upgrade_splitroles${suffix}",
-                'upgradereplacement': "${env.PRODUCT_NAME}_upgrade_node_replacement${suffix}"
+                "upgrademanual_arm": "${env.PRODUCT_NAME}_manual_upgrade_arm",
+                "upgradesuc_arm": "${env.PRODUCT_NAME}_suc_upgrade_arm",
+                "upgradesuc_extdb": "${env.PRODUCT_NAME}_suc_upgrade_external_datastore"
+                "upgrademanual": "${env.PRODUCT_NAME}_manual_upgrade${suffix}",
+                "upgradesuc": "${env.PRODUCT_NAME}_suc_upgrade${suffix}",
+                "upgradesuc_splitroles": "${env.PRODUCT_NAME}_suc_upgrade_splitroles${suffix}",
+                "upgradereplacement": "${env.PRODUCT_NAME}_upgrade_node_replacement${suffix}"
               ]
 
               def jobName = testToJobMap[test_name]
