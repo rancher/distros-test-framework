@@ -99,7 +99,7 @@ node {
               def jobName = testToJobMap[test_name]
 
               if (jobName) {
-                jobs[test_name] = { build job: jobName, parameters: install_params }
+                jobs[test_name] = { build job: jobName, parameters: upgrade_params }
               }
             } // for each test_dir loop
 
