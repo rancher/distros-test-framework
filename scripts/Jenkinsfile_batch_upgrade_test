@@ -84,29 +84,23 @@ node {
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
 
-              switch(test_name) {
-                case "upgrademanual": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade", parameters: upgrade_params }
-                  break
-                case "upgradesuc": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade", parameters: upgrade_params }
-                  break
-                case "upgradesuc_extdb": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_external_datastore", parameters: upgrade_params }
-                  break
-                case "upgradesuc_splitroles": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_splitroles", parameters: upgrade_params }
-                  break
-                case "upgradereplacement": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_upgrade_node_replacement", parameters: upgrade_params }
-                  break        
-                case "upgrademanual_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_manual_upgrade_arm", parameters: upgrade_params }
-                  break
-                case "upgradesuc_arm": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_suc_upgrade_arm", parameters: upgrade_params }
-                  break                                               
-              } // switch case
+              def product_name = "${env.PRODUCT_NAME}"
+              def suffix = (product_name == "rke2") ? "_rpm" : ""
+              def testToJobMap = [
+                "upgrademanual_arm": "${product_name}_manual_upgrade_arm",
+                "upgradesuc_arm": "${product_name}_suc_upgrade_arm",
+                "upgradesuc_extdb": "${product_name}_suc_upgrade_external_datastore",
+                "upgrademanual": "${product_name}_manual_upgrade${suffix}",
+                "upgradesuc": "${product_name}_suc_upgrade${suffix}",
+                "upgradesuc_splitroles": "${product_name}_suc_upgrade_splitroles${suffix}",
+                "upgradereplacement": "${product_name}_upgrade_node_replacement${suffix}"
+              ]
+
+              def jobName = testToJobMap[test_name]
+
+              if (jobName) {
+                jobs[test_name] = { build job: jobName, parameters: upgrade_params }
+              }
             } // for each test_dir loop
 
             parallel jobs
