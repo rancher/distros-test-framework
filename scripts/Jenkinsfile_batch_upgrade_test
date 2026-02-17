@@ -85,7 +85,7 @@ node {
               ]
 
               def product_name = "${env.PRODUCT_NAME}"
-              def suffix = (product_name == 'rke2') ? '_rpm' : ''
+              def suffix = (product_name == "rke2") ? "_rpm" : ''
               def testToJobMap = [
                 "upgrademanual_arm": "${product_name}_manual_upgrade_arm",
                 "upgradesuc_arm": "${product_name}_suc_upgrade_arm",
