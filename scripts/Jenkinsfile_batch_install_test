@@ -80,7 +80,7 @@ node {
               ]
               
               def product_name = "${env.PRODUCT_NAME}"
-              def suffix = (product_name == "rke2") ? "_rpm" : ''
+              def suffix = (product_name == "rke2") ? "_rpm" : ""
               def testToJobMap = [
                 "docker_cri": "k3s_docker_cri",
                 "dualstack": "${product_name}_dual_stack",
