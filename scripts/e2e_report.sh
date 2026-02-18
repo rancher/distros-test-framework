@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PS4='+(${LINENO}): '
+PS4='+(1): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
@@ -21,7 +21,7 @@ run_qase() {
 
 # Init variables.
 PRODUCT=
-latest_log=$(find  ./report -type f -name "rke2_*.log" -o -name "k3s_*.log" | sort -r | head -n 1)
+latest_log=$(ls -t ./report/rke2_*.log ./report/k3s_*.log 2>/dev/null | head -1)
 
 if [[ ! "$latest_log" =~ ^./report/(rke2|k3s)_.*\.log$ ]]; then
   echo "Error: Invalid log file name: $latest_log"
