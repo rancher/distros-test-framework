@@ -112,6 +112,24 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDNSAccess(true, true)
 	})
 
+	if customflag.ServiceFlag.SelinuxTest {
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
+		})
+	}
+
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service post-upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
