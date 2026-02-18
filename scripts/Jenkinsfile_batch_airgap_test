@@ -44,55 +44,56 @@ node {
           stage('Run Parallel Jobs') {
             echo "Running ${test_dir.size()} tests: ${test_dir}"
             def jobs = [:]
+            if (test_dir.isEmpty()) {
+              echo """
+              Usage Guide for TEST_DIR:
+              - For registries: Use 'privateregistry' or 'systemdefaultregistry'
+              - For tarballs: Use 'tarball', 'tarball_prime_staging', or 'tarball_prime_release'
+              - For Windows: Append '_windows' to any key (this will force RKE2)
+              """
+              error "TEST_DIR is empty. Please provide at least one valid test key."
+            }
 
-            test_dir.each { test_name ->              
-              def actual_testdir_name = "airgap"
+            test_dir.each { test_name ->
               def job_test_args = "${TEST_ARGS}"
-              def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
-              def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
-
-              if ((test_name == "privateregistry") || (test_name == "systemdefaultregistry")) {
-                job_test_args = job_test_args + " -tags=${test_name}"
+              if (test_name in ["privateregistry", "systemdefaultregistry"]) {
+                  job_test_args += " -tags=${test_name}"
               } else if (test_name.contains("tarball")) {
-                job_test_args = job_test_args + " -tags=tarball -tarballType tar.zst"
+                  job_test_args += " -tags=tarball -tarballType tar.zst"
               }
 
               def install_params = [
                 string(name: 'TEST_ARGS', value: job_test_args),
-                string(name: 'REPO', value: "${REPO}"), 
-                string(name: 'BRANCH', value: "${BRANCH}"),                                         
-                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
+                string(name: 'TEST_DIRECTORY', value: "airgap"),
+                string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
+                string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
+                string(name: 'REPO', value: "${REPO}"),
+                string(name: 'BRANCH', value: "${BRANCH}"),
+                string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),
                 string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
-                string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),              
-                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
-                string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-                string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
-                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),
+                string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
+                string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"),
                 string(name: 'REPORT_TO_QASE', value: "${REPORT_TO_QASE}"),
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
-                string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
+                string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}")
               ]
 
-              switch (test_name) {
-                case "privateregistry":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_private_registry", parameters: install_params }
-                  break
-                case "systemdefaultregistry":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_system_default_registry", parameters: install_params }
-                  break
-                case "tarball":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_${test_name}", parameters: install_params }
-                  break
-                case "privateregistry_windows":
-                  jobs[test_name] = { build job: "rke2_private_registry_windows", parameters: install_params }
-                  break
-                case "tarball_windows":
-                  jobs[test_name] = { build job: "rke2_tarball_windows", parameters: install_params }
-                  break
-                } // switch case
-            } // for each test_dir loop
-            
+              def job_test_args = "${TEST_ARGS}"
+              if (test_name in ["privateregistry", "systemdefaultregistry"]) {
+                  job_test_args += " -tags=${test_name}"
+              } else if (test_name.contains("tarball")) {
+                  job_test_args += " -tags=tarball -tarballType tar.zst"
+              }
+
+              def prefix = test_name.contains("windows") ? "rke2" : env.PRODUCT_NAME
+              def base_name = test_name
+                  .replace("privateregistry", "private_registry")
+                  .replace("systemdefaultregistry", "system_default_registry")
+              def final_job_name = "${prefix}_${base_name}"
+              echo "ID: ${test_name} -> Jenkins Job: ${final_job_name}"
+              jobs[test_name] = { build job: final_job_name, parameters: install_params }
+            } // test_dir.each loop ends
             parallel jobs
           } // stage run parallel jobs
         } // dir
