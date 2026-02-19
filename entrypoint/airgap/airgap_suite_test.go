@@ -54,7 +54,7 @@ func validateAirgap() {
 	cniSlice := []string{"calico", "flannel"}
 
 	// This is required in .env file as param ENV_MODULE=airgap.
-	if cfg.Module == "" ||  cfg.Module != "airgap" {
+	if cfg.Module == "" || cfg.Module != "airgap" {
 		shared.LogLevel("info", "ENV_MODULE is not set with value airgap. Setting the value...\n")
 		cfg.Module = "airgap"
 	}
@@ -73,10 +73,6 @@ func validateAirgap() {
 		if strings.Contains(serverFlags, "protect") {
 			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
-		}
-		if flags.AirgapFlag.ImageRegistryUrl != "" {
-			shared.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
-			flags.AirgapFlag.ImageRegistryUrl = ""
 		}
 	}
 
