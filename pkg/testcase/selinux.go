@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -195,15 +196,13 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 }
 
 func verifyUninstallPolicy(product, ip, cmd string) {
+	arch := os.Getenv("arch")
 	res, err := shared.RunCommandOnNode(cmd, ip)
-	Expect(err).NotTo(HaveOccurred())
-
-	if strings.Contains(osPolicy, "centos7") {
-		Expect(res).Should(ContainSubstring("container-selinux"))
-		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-	} else {
-		Expect(res).Should(BeEmpty())
+	if strings.Contains(arch, "amd64") {
+		Expect(res).Should(ContainSubstring("noarch"))
 	}
+	Expect(err).NotTo(HaveOccurred())
+	Expect(res).Should(BeEmpty())
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.
