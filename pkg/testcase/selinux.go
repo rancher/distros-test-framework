@@ -151,9 +151,10 @@ func TestSelinuxSpcT(cluster *shared.Cluster) {
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
 // Call this function after the un-installation of the product.
 func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
-	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
+	semoduleCmd := "sudo semodule -l | grep " + cluster.Config.Product
+	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux; " + semoduleCmd
 	if cluster.Config.Product == "k3s" {
-		serverCmd = "rpm -qa container-selinux k3s-selinux"
+		serverCmd = "rpm -qa container-selinux k3s-selinux; " + semoduleCmd
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -189,7 +190,7 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 			}
 		}
 
-		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"
+		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux; " + semoduleCmd
 		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
 	}
 }
@@ -197,13 +198,7 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 func verifyUninstallPolicy(product, ip, cmd string) {
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	Expect(err).NotTo(HaveOccurred())
-
-	if strings.Contains(osPolicy, "centos7") {
-		Expect(res).Should(ContainSubstring("container-selinux"))
-		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-	} else {
-		Expect(res).Should(BeEmpty())
-	}
+	Expect(res).Should(BeEmpty())
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.

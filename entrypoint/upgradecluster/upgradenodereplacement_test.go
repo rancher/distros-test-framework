@@ -81,6 +81,24 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 		})
 	}
 
+		if customflag.ServiceFlag.SelinuxTest {
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
+		})
+	}
+
 	AfterAll(func() {
 		if flags.Destroy {
 			support.DeleteEC2Nodes(cluster)
