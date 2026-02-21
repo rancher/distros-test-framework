@@ -75,7 +75,13 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 		testcase.TestIngress(false, true)
 	})
 
-	if customflag.ServiceFlag.SelinuxTest {
+	if cluster.Config.Product == "k3s" {
+		It("Verifies LoadBalancer Service after upgrade", func() {
+			testcase.TestServiceLoadBalancer(false, true)
+		})
+	}
+
+		if customflag.ServiceFlag.SelinuxTest {
 		It("Validate selinux is enabled", func() {
 			testcase.TestSelinuxEnabled(cluster)
 		})
@@ -90,12 +96,6 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 
 		It("Validate context", func() {
 			testcase.TestSelinuxContext(cluster)
-		})
-	}
-
-	if cluster.Config.Product == "k3s" {
-		It("Verifies LoadBalancer Service after upgrade", func() {
-			testcase.TestServiceLoadBalancer(false, true)
 		})
 	}
 

@@ -2,7 +2,6 @@ package testcase
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -152,9 +151,10 @@ func TestSelinuxSpcT(cluster *shared.Cluster) {
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
 // Call this function after the un-installation of the product.
 func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
-	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
+	semoduleCmd := "semodule -l | grep " + cluster.Config.Product
+	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux; " + semoduleCmd
 	if cluster.Config.Product == "k3s" {
-		serverCmd = "rpm -qa container-selinux k3s-selinux"
+		serverCmd = "rpm -qa container-selinux k3s-selinux; " + semoduleCmd
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -190,17 +190,13 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 			}
 		}
 
-		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"
+		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux; " + semoduleCmd
 		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
 	}
 }
 
 func verifyUninstallPolicy(product, ip, cmd string) {
-	arch := os.Getenv("arch")
 	res, err := shared.RunCommandOnNode(cmd, ip)
-	if strings.Contains(arch, "amd64") {
-		Expect(res).Should(ContainSubstring("noarch"))
-	}
 	Expect(err).NotTo(HaveOccurred())
 	Expect(res).Should(BeEmpty())
 }

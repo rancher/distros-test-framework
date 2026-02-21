@@ -112,7 +112,21 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 		testcase.TestDNSAccess(true, true)
 	})
 
-	if customflag.ServiceFlag.SelinuxTest {
+	if cluster.Config.Product == "k3s" {
+		It("Verifies LoadBalancer Service post-upgrade", func() {
+			testcase.TestServiceLoadBalancer(false, true)
+		})
+
+		It("Verifies Local Path Provisioner storage post-upgrade", func() {
+			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
+		})
+
+		It("Verifies Traefik IngressRoute using new GKV post-upgrade", func() {
+			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
+		})
+	}
+
+		if customflag.ServiceFlag.SelinuxTest {
 		It("Validate selinux is enabled", func() {
 			testcase.TestSelinuxEnabled(cluster)
 		})
@@ -127,20 +141,6 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 
 		It("Validate context", func() {
 			testcase.TestSelinuxContext(cluster)
-		})
-	}
-
-	if cluster.Config.Product == "k3s" {
-		It("Verifies LoadBalancer Service post-upgrade", func() {
-			testcase.TestServiceLoadBalancer(false, true)
-		})
-
-		It("Verifies Local Path Provisioner storage post-upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
-		})
-
-		It("Verifies Traefik IngressRoute using new GKV post-upgrade", func() {
-			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
 		})
 	}
 })
