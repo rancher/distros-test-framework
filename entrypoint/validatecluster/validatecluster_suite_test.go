@@ -96,8 +96,8 @@ var _ = AfterSuite(func() {
 
 		if customflag.ServiceFlag.SelinuxTest {
 			if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-				shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall false")
-				testcase.TestUninstallPolicy(cluster, false)
+				shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall true")
+				testcase.TestUninstallPolicy(cluster, true)
 			}
 		}
 

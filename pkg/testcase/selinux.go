@@ -92,12 +92,16 @@ func getContext(product, ip string) (cmdCtx, error) {
 	policyMapping := map[string]string{
 		"ID_LIKE='suse' VARIANT_ID='sle-micro'": "sle_micro",
 		"ID_LIKE='suse'":                        "micro_os",
+		"ID='sles'":                             "sles",
 		"ID_LIKE='coreos'":                      "coreos",
 		"VARIANT_ID='coreos'":                   "coreos",
 	}
 
 	for k, v := range policyMapping {
 		if strings.Contains(res, k) {
+			if v == "sles" {
+				break
+			}
 			return selectSelinuxPolicy(product, v), nil
 		}
 	}
@@ -111,9 +115,10 @@ func getContext(product, ip string) (cmdCtx, error) {
 	}
 
 	versionMapping := map[string]string{
-		"7": "centos7",
-		"8": "centos8",
-		"9": "centos9",
+		"7":  "centos7",
+		"8":  "centos8",
+		"9":  "centos9",
+		"16": "sles16",
 	}
 
 	if policy, ok := versionMapping[version]; ok {
@@ -151,6 +156,7 @@ func TestSelinuxSpcT(cluster *shared.Cluster) {
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
 // Call this function after the un-installation of the product.
 func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
+	// semoduleCmd := "sudo semodule -l | grep " + cluster.Config.Product
 	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
 		serverCmd = "rpm -qa container-selinux k3s-selinux"
@@ -197,13 +203,7 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 func verifyUninstallPolicy(product, ip, cmd string) {
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	Expect(err).NotTo(HaveOccurred())
-
-	if strings.Contains(osPolicy, "centos7") {
-		Expect(res).Should(ContainSubstring("container-selinux"))
-		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-	} else {
-		Expect(res).Should(BeEmpty())
-	}
+	Expect(res).Should(BeEmpty())
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.

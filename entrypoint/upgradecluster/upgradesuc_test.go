@@ -125,6 +125,24 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
 		})
 	}
+
+		if customflag.ServiceFlag.SelinuxTest {
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
+		})
+	}
 })
 
 var _ = AfterEach(func() {
