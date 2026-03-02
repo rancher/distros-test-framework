@@ -18,6 +18,21 @@ server_flags=${6}
 tarball_type=${7}
 k3s_binary=$product
 
+override_arch() {
+  os_arch=$(uname -m)
+  echo "OS Architecture: $os_arch"
+  if [[ $os_arch == "aarch64" ]]; then
+    arch="arm64"
+    if [[ "$product" == "k3s" ]]; then
+      k3s_binary="k3s-arm64"
+    fi
+  elif [[ $os_arch == "x86_64" ]]; then
+    arch="amd64"
+  else
+    echo "Unsupported OS Architecture: $os_arch"
+  fi
+}
+
 validate_args() {
   # Check product
   if [[ -z "$product" ]]; then
@@ -38,23 +53,27 @@ validate_args() {
   fi
 }
 
-check_arch() {
-  if [[ -n "$arch" ]] && [[ "$arch" =~ "arm" ]]; then
-    if [[ "$product" == "k3s" ]]; then
-      k3s_binary="k3s-arm64"
-    else
-      arch="arm64"
-    fi
-  else
-    arch="amd64"
-  fi
-}
+# check_arch() {
+#   if [[ -n "$arch" ]] && [[ "$arch" =~ "arm" ]]; then
+#     if [[ "$product" == "k3s" ]]; then
+#       k3s_binary="k3s-arm64"
+#     else
+#       arch="arm64"
+#     fi
+#   else
+#     arch="amd64"
+#   fi
+# }
 
 get_url() {
-  if [[ -n "$registry_url" ]]; then
-    url=$registry_url/rke2/$version
-  else
-    url="https://github.com/rancher/rke2/releases/download/$version"
+  if [[ -n "$registry_url" ]] && [[ "$registry_url" =~ "prime" ]]; then
+    url=$registry_url/$product/$version
+  elif [[ -z "$registry_url" ]]; then
+    if [[ "$product" == "k3s" ]]; then
+      url="https://github.com/k3s-io/k3s/releases/download/$version"
+    elif [[ "$product" == "rke2" ]]; then
+      url="https://github.com/rancher/rke2/releases/download/$version"
+    fi
   fi
   echo "$url"
 }
@@ -83,7 +102,7 @@ download_retry() {
 get_assets() {
   echo "Downloading $product dependencies..."
   if [[ "$product" == "k3s" ]]; then
-    url="https://github.com/k3s-io/k3s/releases/download/$version"
+    url=$(get_url)
     download_retry "wget $url/k3s-images.txt"
     download_retry "wget -O k3s-install.sh https://get.k3s.io/"
     download_retry "wget -O k3s $url/$k3s_binary"
@@ -167,7 +186,8 @@ save_to_directory() {
 
 main() {
   validate_args
-  check_arch
+  # check_arch
+  override_arch
   if [[ "$platform" == "windows" ]]; then
     get_windows_assets
     save_to_directory "windows"
