@@ -50,12 +50,16 @@ node {
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
               def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
-              if (test_name == "docker_cri" || test_name == "validatecluster_arm") {
+              if (test_name == "docker_cri" || test_name.contains("validatecluster")) {
                 actual_testdir_name = "validatecluster"
               }
 
               if (test_name.contains("restartservice")) {
                 actual_testdir_name = "restartservice"
+              }
+
+              if (test_name.contains("mixedoscluster")) {
+                actual_testdir_name = "mixedosclsuter"
               }
 
               def install_params = [
@@ -74,54 +78,35 @@ node {
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
+              
+              def product_name = "${env.PRODUCT_NAME}"
+              def suffix = (product_name == "rke2") ? "_rpm" : ""
+              def testToJobMap = [
+                "docker_cri": "k3s_docker_cri",
+                "dualstack": "${product_name}_dual_stack",
+                "ipv6only": "${product_name}_ipv6_only",
+                "clusterrestore": "${product_name}_cluster_restore",
+                "validatecluster": "${product_name}_validate_cluster",
+                "validatecluster_arm": "${product_name}_validate_cluster_arm",
+                "validatecluster_rpm": "rke2_validate_cluster_rpm",
+                "validatecluster_arm_rpm": "rke2_validate_cluster_arm_rpm",
+                "mixedoscluster": "rke2_windows_agent_rpm",
+                "mixedoscluster_flannel": "rke2_windows_agent_flannel_rpm",
+                "killalluninstall": "${product_name}_kill_all_uninstall${suffix}",
+                "killalluninstall_arm": "${product_name}_kill_all_uninstall_arm${suffix}",
+                "restartservice": "${product_name}_restart_service${suffix}",
+                "restartservice_splitroles": "${product_name}_restart_service_splitroles${suffix}",
+                "rebootinstances": "${product_name}_reboot_instances${suffix}",
+                "certrotate": "${product_name}_cert_rotate${suffix}",
+                "secretsencrypt": "${product_name}_secrets_encryption${suffix}",
+                "clusterreset": "${product_name}_cluster_reset${suffix}"
+              ]
 
-              switch(test_name) {
-                case "validatecluster":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster", parameters: install_params }
-                  break
-                case "validatecluster_arm":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_validate_cluster_arm", parameters: install_params }
-                  break
-                case "killalluninstall":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall", parameters: install_params }
-                  break
-                case "killalluninstall_arm":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_kill_all_uninstall_arm", parameters: install_params }
-                  break
-                case "docker_cri":
-                  jobs[test_name] = { build job: "k3s_docker_cri", parameters: install_params }
-                  break             
-                case "restartservice":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service", parameters: install_params }
-                  break
-                case "restartservice_splitroles":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_restart_service_splitroles", parameters: install_params }
-                  break
-                case "rebootinstances":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_reboot_instances", parameters: install_params }
-                  break               
-                case "dualstack":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_dual_stack", parameters: install_params }
-                  break
-                case "ipv6only":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_ipv6_only", parameters: install_params }
-                  break
-                case "certrotate": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cert_rotate", parameters: install_params }
-                  break                
-                case "secretsencrypt": 
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_secrets_encryption", parameters: install_params }
-                  break
-                case "clusterreset":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_reset", parameters: install_params }
-                  break
-                case "clusterrestore":
-                  jobs[test_name] = { build job: "${env.PRODUCT_NAME}_cluster_restore", parameters: install_params }
-                  break
-                case "mixedoscluster":
-                  jobs[test_name] = { build job: "rke2_windows_agent", parameters: install_params }
-                  break                                                         
-              } // switch case
+              def jobName = testToJobMap[test_name]
+
+              if (jobName) {
+                jobs[test_name] = { build job: jobName, parameters: install_params }
+              }
             } // for each test_dir loop
 
             parallel jobs

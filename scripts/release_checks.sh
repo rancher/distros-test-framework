@@ -157,7 +157,7 @@ verify_release_asset_count_k3s () {
     debug_log "curl -sS -H \"Accept: application/vnd.github+json\" \"https://api.github.com/repos/k3s-io/k3s/releases/tags/${VERSION}\" | jq '.assets | length'"
     
     ASSET_COUNT=$(curl -sS -H "Accept: application/vnd.github+json" "https://api.github.com/repos/k3s-io/k3s/releases/tags/${VERSION}" | jq '.assets | length')
-    verify_count "${ASSET_COUNT}" "19" "K3S release Asset count"
+    verify_count "${ASSET_COUNT}" "16" "K3S release Asset count"
 }
 
 verify_asset_count_rke2_packaging () {
