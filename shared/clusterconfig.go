@@ -239,6 +239,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
+		FQDN:       os.Getenv("FQDN"),
 		Aws: AwsConfig{
 			Region:           os.Getenv("region"),
 			Subnets:          os.Getenv("subnets"),
