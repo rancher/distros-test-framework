@@ -623,6 +623,7 @@ func extractIDs(suiteName, product, arch string) (int64, error) {
 			"calicoebpf":           284,
 			"mixedosvalidation":    223,
 			"mixedosbgpvalidation": 224,
+			"mixedosflannel":       337,
 			"secretsencryptionold": 296,
 			"multus":               225,
 			"secretsencryption":    226,
