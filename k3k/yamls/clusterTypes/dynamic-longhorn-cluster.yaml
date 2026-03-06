@@ -1,0 +1,13 @@
+apiVersion: k3k.io/v1beta1
+kind: Cluster
+metadata:
+  name: ksh-dyn-lh-yaml
+  namespace: k3k-system
+spec:
+  mode: shared
+  persistence:
+    type: dynamic
+    storageClassName: longhorn
+  sync: 
+    persistentVolumeClaims:
+      enabled: true
