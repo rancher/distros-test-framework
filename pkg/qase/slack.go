@@ -230,6 +230,7 @@ func mapTestSuiteToDir(suiteName string, testDirs []string) string {
 		"kinevalidation":       "kine",
 		"mixedosbgpvalidation": "mixedosbgp",
 		"mixedosvalidation":    "mixedos",
+		"mixedosflannel":       "mixedos",
 		"calicoebpf":           "calico_ebpf",
 	}
 
