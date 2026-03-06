@@ -2,6 +2,7 @@ package qase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -29,11 +30,12 @@ var (
 
 // TestCase is the struct used for sending the appropriate API call to Qase.
 type TestCase struct {
-	Name       string
-	Status     string
-	StackTrace Failures
-	Elapsed    int64
-	CaseID     int64
+	Name           string
+	Status         string
+	StackTrace     Failures
+	Elapsed        int64
+	CaseID         int64
+	FailureDetails *FailureDetails
 }
 
 // Failures contains detailed information about a test failure.
@@ -54,20 +56,20 @@ type createResultRequest struct {
 	comment   qaseclient.NullableString
 }
 
-func (c Client) ReportE2ETestRun(fileName, product string) error {
-	pd, processTestDataErr := processTestData(fileName, product)
+func (c Client) ReportE2ETestRun(fileName, product, ciArch string) (int32, error) {
+	pd, processTestDataErr := processTestData(fileName, product, ciArch)
 	if processTestDataErr != nil {
-		return fmt.Errorf("error processing test data: %w", processTestDataErr)
+		return 0, fmt.Errorf("error processing test data: %w", processTestDataErr)
 	}
 
-	id, createErr := c.createRun(pd, "e2e", product)
+	id, createErr := c.createRun(pd, "e2e", product, ciArch)
 	if createErr != nil {
-		return fmt.Errorf("error creating run: %w", createErr)
+		return 0, fmt.Errorf("error creating run: %w", createErr)
 	}
 
 	// Checking if the runID is within the int32 bounds to avoid integer overflow.
 	if *id < int64(math.MinInt32) || *id > int64(math.MaxInt32) {
-		return fmt.Errorf("runID %d out of int32 bounds", *id)
+		return 0, fmt.Errorf("runID %d out of int32 bounds", *id)
 	}
 	runID := int32(*id)
 
@@ -75,14 +77,14 @@ func (c Client) ReportE2ETestRun(fileName, product string) error {
 
 	resultReq := parseBulkResults(tcs, runID)
 	if err := c.createBulkTestResult(resultReq); err != nil {
-		return fmt.Errorf("error creating bulk test result: %w", err)
+		return 0, fmt.Errorf("error creating bulk test result: %w", err)
 	}
 
 	if completeErr := c.completeRun(runID); completeErr != nil {
-		return fmt.Errorf("error completing run: %w", completeErr)
+		return 0, fmt.Errorf("error completing run: %w", completeErr)
 	}
 
-	return nil
+	return runID, nil
 }
 
 // SpecReportTestResults receives the report from ginkgo and sends the test results to Qase.
@@ -211,18 +213,22 @@ func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
 	for _, overview := range testOverview {
 		for _, td := range overview.testCases {
 			var stackTrace Failures
+			var failureDetails *FailureDetails
+
 			if td.status == failStatus {
 				stackTrace = Failures{
 					Message: td.errorLog,
 				}
+				failureDetails = td.failureDetails
 			}
 
 			tc := TestCase{
-				Name:       td.testSuiteName + " " + td.testCaseName,
-				Status:     td.status,
-				StackTrace: stackTrace,
-				Elapsed:    int64(td.elapsedTime),
-				CaseID:     td.caseID,
+				Name:           td.testSuiteName + " " + td.testCaseName,
+				Status:         td.status,
+				StackTrace:     stackTrace,
+				Elapsed:        int64(td.elapsedTime),
+				CaseID:         td.caseID,
+				FailureDetails: failureDetails,
 			}
 
 			testCases = append(testCases, tc)
@@ -248,7 +254,7 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 		finalStatus := passStatus
 		var totalElapsed int64
 		var commentBuilder strings.Builder
-		commentBuilder.WriteString("Version Tested: Latest master commit ,see link above on description!")
+		commentBuilder.WriteString("Version Tested: Latest master commit, see link above on description!\n\n")
 
 		for _, tc := range group {
 			totalElapsed += tc.Elapsed
@@ -256,9 +262,15 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 			if tc.Status == failStatus {
 				finalStatus = failStatus
 				commentBuilder.WriteString(fmt.Sprintf(
-					"\nFailed sub-test: %s\nMessage: %s\n\n",
-					tc.Name, tc.StackTrace.Message,
+					"---\n**FAILED Sub-test:** %s\n\n",
+					tc.Name,
 				))
+
+				if tc.FailureDetails != nil {
+					commentBuilder.WriteString(formatFailureDetailsForQase(tc.FailureDetails))
+				} else if tc.StackTrace.Message != "" {
+					commentBuilder.WriteString(fmt.Sprintf("**Error Message:**\n```\n%s\n```\n\n", tc.StackTrace.Message))
+				}
 			} else {
 				commentBuilder.WriteString(fmt.Sprintf(
 					"Passed sub-test: %s\n",
@@ -280,6 +292,50 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 	}
 
 	return reqs
+}
+
+// formatFailureDetailsForQase formats the FailureDetails struct into a readable string for Qase comments.
+func formatFailureDetailsForQase(fd *FailureDetails) string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("**Error Type:** %s\n", fd.ErrorType))
+	sb.WriteString(fmt.Sprintf("**Duration:** %.2f seconds\n", fd.Duration))
+
+	if fd.TimeoutDuration != "" {
+		sb.WriteString(fmt.Sprintf("**Timeout:** %s\n", fd.TimeoutDuration))
+	}
+
+	if fd.FailedCommand != "" {
+		sb.WriteString(fmt.Sprintf("\n**Failed Command:**\n```\n%s\n```\n", fd.FailedCommand))
+	}
+
+	if fd.ErrorMessage != "" {
+		// truncate error message if too long for Qase.
+		errMsg := fd.ErrorMessage
+		if len(errMsg) > 3000 {
+			errMsg = errMsg[:3000] + "\n... (truncated)"
+		}
+		sb.WriteString(fmt.Sprintf("\n**Error Output:**\n```\n%s\n```\n", errMsg))
+	}
+
+	if fd.StackTrace != "" {
+		// truncate stack trace if too long...
+		stackTrace := fd.StackTrace
+		if len(stackTrace) > 1000 {
+			stackTrace = stackTrace[:1000] + "\n... (truncated)"
+		}
+		sb.WriteString(fmt.Sprintf("\n**Stack Trace:**\n```\n%s\n```\n", stackTrace))
+	}
+
+	if jsonBytes, err := json.MarshalIndent(fd, "", "  "); err == nil {
+		sb.WriteString("\n<details>\n<summary>Failure Details JSON</summary>\n\n```json\n")
+		_, _ = sb.Write(jsonBytes)
+		sb.WriteString("\n```\n</details>\n")
+	}
+
+	sb.WriteString("\n")
+
+	return sb.String()
 }
 
 func tcResultSummary(c *shared.Cluster, reportSummary string) string {

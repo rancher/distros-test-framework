@@ -54,7 +54,7 @@ func validateAirgap() {
 	cniSlice := []string{"calico", "flannel"}
 
 	// This is required in .env file as param ENV_MODULE=airgap.
-	if cfg.Module == "" ||  cfg.Module != "airgap" {
+	if cfg.Module == "" || cfg.Module != "airgap" {
 		shared.LogLevel("info", "ENV_MODULE is not set with value airgap. Setting the value...\n")
 		cfg.Module = "airgap"
 	}
