@@ -120,8 +120,8 @@ func installRancher(cluster *shared.Cluster, flags *customflag.FlagConfig) strin
 
 func chartsArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
 	helmArgs := flags.Charts.Args
-	if strings.Contains(helmArgs, ",") {
-		argsSlice := strings.Split(helmArgs, ",")
+	if strings.Contains(helmArgs, ";") {
+		argsSlice := strings.Split(helmArgs, ";")
 		for _, arg := range argsSlice {
 			if !strings.Contains(finalArgs, arg) {
 				finalArgs += fmt.Sprintf("--set %s ", arg)
