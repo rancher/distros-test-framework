@@ -95,7 +95,7 @@ func nodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryRepo
 		data.summaryData.WriteString("\n```\n")
 	}
 	// TODO: ADD split roles data once on airgap is supported.
-	if c.Config.SplitRoles.Add {
+	if c.Config.SplitRoles.Enabled {
 		splitRoleData := getSplitRoleData(&c.Config, c.ServerIPs)
 		data.summaryData.WriteString(splitRoleData)
 	}
