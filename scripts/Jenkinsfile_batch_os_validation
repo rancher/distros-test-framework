@@ -60,6 +60,15 @@ node {
               error("INSTALL_VERSIONS (${installVersions.size()}) and UPGRADE_VERSIONS (${upgradeVersions.size()}) must have the same number of entries.")
             }
 
+            def awsAmi = env.AWS_AMI?.trim() ?: ''
+            def awsAmiArm = env.AWS_AMI_ARM?.trim() ?: ''
+
+            if (!awsAmi && !awsAmiArm) {
+              error("At least one of AWS_AMI or AWS_AMI_ARM must be provided.")
+            }
+
+            def armTests = ['validatecluster_arm', 'upgradesuc_arm'] as Set
+
             def product_name = "${env.PRODUCT_NAME}"
             def suffix = (product_name == "rke2") ? "_rpm" : ""
             def testToJobMap = [
@@ -75,17 +84,39 @@ node {
             ]
 
             def jobs = [:]
+            def alphabet = ('a'..'z').toList()
 
             installVersions.eachWithIndex { installVersion, idx ->
               def upgradeVersion = upgradeVersions[idx]
 
-              echo "Planning tests for version pair: install=${installVersion} upgrade=${upgradeVersion}"
+              // Append a unique letter suffix per version slot to avoid AWS resource name collisions
+              def jobHostnamePrefix = installVersions.size() > 1 ? "${HOSTNAME_PREFIX}${alphabet[idx % alphabet.size()]}" : "${HOSTNAME_PREFIX}"
+              echo "Planning tests for version pair: install=${installVersion} upgrade=${upgradeVersion} (prefix=${jobHostnamePrefix})"
 
               test_dir.each { test_name ->
+                def isArmTest = armTests.contains(test_name)
+
+                // Skip ARM tests if no ARM AMI provided
+                if (isArmTest && !awsAmiArm) {
+                  echo "Skipping ARM test '${test_name}' - no AWS_AMI_ARM provided"
+                  return
+                }
+
+                // Skip amd64 tests if no amd64 AMI provided
+                if (!isArmTest && !awsAmi) {
+                  echo "Skipping amd64 test '${test_name}' - no AWS_AMI provided"
+                  return
+                }
+
                 def actual_testdir_name = test_name
                 def job_test_args = null
                 def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
                 def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
+
+                // Select the correct AMI/user/os based on arch
+                def jobAmi = isArmTest ? awsAmiArm : awsAmi
+                def jobUser = isArmTest ? (env.AWS_USER_ARM?.trim() ?: "${AWS_USER}") : "${AWS_USER}"
+                def jobNodeOs = isArmTest ? (env.NODE_OS_ARM?.trim() ?: "${NODE_OS}") : "${NODE_OS}"
 
                 if (test_name.contains("validatecluster")) {
                   actual_testdir_name = "validatecluster"
@@ -117,11 +148,11 @@ node {
                   string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
                   string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
                   string(name: 'UPGRADE_CHANNEL', value: "${UPGRADE_CHANNEL}"),
-                  string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"),
+                  string(name: 'HOSTNAME_PREFIX', value: jobHostnamePrefix),
                   string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
-                  string(name: 'BATCH_OS_AWS_AMI', value: "${AWS_AMI}"),
-                  string(name: 'BATCH_OS_AWS_USER', value: "${AWS_USER}"),
-                  string(name: 'BATCH_OS_NODE_OS', value: "${NODE_OS}"),
+                  string(name: 'BATCH_OS_AWS_AMI', value: jobAmi),
+                  string(name: 'BATCH_OS_AWS_USER', value: jobUser),
+                  string(name: 'BATCH_OS_NODE_OS', value: jobNodeOs),
                   string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
                   string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),
                   string(name: 'REPORT_TO_QASE', value: "${REPORT_TO_QASE}"),
