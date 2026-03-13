@@ -178,11 +178,21 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 
 // InstallHelm installs helm on the container.
 func InstallHelm() (res string, err error) {
-	// Install Helm from local tarball
-	cmd := fmt.Sprintf("tar -zxvf %v/bin/helm-v3.18.3-linux-amd64.tar.gz -C /tmp && "+
-		"cp /tmp/linux-amd64/helm /usr/local/bin/helm && "+
-		"chmod +x /usr/local/bin/helm && "+
-		"helm version", BasePath())
+	// get home directory
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", ReturnLogError("failed to get home dir: %w", err)
+	}
+
+	// get targeted architecture
+	arch := os.Getenv("arch")
+
+	// install Helm from local tarball
+	cmd := fmt.Sprintf("mkdir -p %v/bin && "+
+		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
+		"cp /tmp/linux-%v*/helm %v/bin/helm && "+
+		"chmod +x %v/bin/helm && "+
+		"helm version", homedir, BasePath(), arch, arch, homedir, homedir)
 
 	return RunCommandHost(cmd)
 }
@@ -349,13 +359,11 @@ func fileExists(files []os.DirEntry, workload string) bool {
 	return false
 }
 
-func FindPath(name, ip string) (string, error) {
-	if ip == "" {
-		return "", errors.New("ip should not be empty")
-	}
-
-	if name == "" {
-		return "", errors.New("name should not be empty")
+func getCommonPaths(ip string) (string, error) {
+	// get home directory on node
+	homedir, err := RunCommandOnNode("echo ~", ip)
+	if err != nil || homedir == "" {
+		return "", ReturnLogError("failed to get home dir: %w", err)
 	}
 
 	// adding common paths to the environment variable PATH since in some os's not all paths are available.
@@ -368,11 +376,30 @@ func FindPath(name, ip string) (string, error) {
 		"/var/rancher/k3s/bin:" +
 		"/opt/k3s/bin:" +
 		"/usr/local/bin:" +
-		"/usr/bin:"
+		"/usr/bin:" +
+		homedir + "/bin:"
+
+	return commonPaths, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	if ip == "" {
+		return "", errors.New("ip should not be empty")
+	}
+
+	if name == "" {
+		return "", errors.New("name should not be empty")
+	}
+
+	// get needed common paths
+	commonPaths, err := getCommonPaths(ip)
+	if err != nil {
+		return "", fmt.Errorf("failed to get common paths: %w", err)
+	}
 
 	// adding the common paths to the PATH environment variable by sourcing it from a file.
 	envFile := "find_path_env.sh"
-	err := ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
+	err = ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to create environment file: %w", err)
 	}
