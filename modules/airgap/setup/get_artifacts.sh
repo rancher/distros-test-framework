@@ -38,16 +38,29 @@ validate_args() {
   fi
 }
 
-check_arch() {
-  if [[ -n "$arch" ]] && [[ "$arch" =~ "arm" ]]; then
-    if [[ "$product" == "k3s" ]]; then
-      k3s_binary="k3s-arm64"
-    else
+override_arch() {
+  local os_arch
+  os_arch=$(uname -m)
+  echo "OS Architecture: $os_arch"
+
+  case "$os_arch" in
+    x86_64)
+      arch="amd64"
+      k3s_binary="k3s"
+      ;;
+    aarch64|arm64)
       arch="arm64"
-    fi
-  else
-    arch="amd64"
-  fi
+      [[ "$product" == "k3s" ]] && k3s_binary="k3s-arm64"
+      ;;
+    armhf|armv7l)
+      arch="arm"
+      [[ "$product" == "k3s" ]] && k3s_binary="k3s-armhf"
+      ;;
+    *)
+      echo "Error: Unsupported Architecture: $os_arch"
+      return 1
+      ;;
+  esac
 }
 
 get_url() {
@@ -259,7 +272,7 @@ save_to_directory() {
 
 main() {
   validate_args
-  check_arch
+  override_arch
   if [[ "$platform" == "windows" ]]; then
     get_windows_assets
     save_to_directory "windows"

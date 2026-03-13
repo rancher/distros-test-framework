@@ -49,7 +49,8 @@ node {
               Usage Guide for TEST_DIR:
               - For registries: Use 'privateregistry' or 'systemdefaultregistry'
               - For tarballs: Use 'tarball', 'tarball_prime_staging', or 'tarball_prime_release'
-              - For Windows: Append '_windows' to any key (this will force RKE2)
+              - For arm: Replace 'tarball' with 'tarball_arm'
+              - For Windows: Replace 'tarball' with 'tarball_windows' to any key (this will force RKE2)
               """
               error "TEST_DIR is empty. Please provide at least one valid test key."
             }
