@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
-	"github.com/stretchr/testify/require"
 )
 
 func setTerraformOptions(product, module string) (*terraform.Options, string, error) {
@@ -241,9 +240,14 @@ func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers 
 	}
 
 	for _, m := range mappings {
-		val := terraform.GetVariableAsStringFromVarFile(t, varDir, m.key)
+		val, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, m.key)
+		if err != nil {
+			return numServers, fmt.Errorf("failed to get %s from var file %q: %w", m.key, varDir, err)
+		}
 		count, err := strconv.Atoi(val)
-		require.NoError(t, err, "failed to parse %s", m.key)
+		if err != nil {
+			return numServers, fmt.Errorf("failed to parse %s (%q) as int: %w", m.key, val, err)
+		}
 
 		*m.ptr = count
 		numServers += count
@@ -251,8 +255,9 @@ func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers 
 
 	var err error
 	sp.RoleOrder, err = terraform.GetVariableAsStringFromVarFileE(t, varDir, "role_order")
-	require.NoError(t, err, "failed to get role_order")
-
+	if err != nil {
+		return 0, fmt.Errorf("failed to get role_order from var file %q: %w", varDir, err)
+	}
 	sp.Enabled, sp.NumServers = true, numServers
 
 	return numServers, nil

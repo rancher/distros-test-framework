@@ -2,7 +2,10 @@
 
 node {
   def branch = "main"
-  def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',')
+  def test_dir = "${env.TEST_DIRECTORY_LIST}"
+    .split(',')
+    .collect { it?.trim() }
+    .findAll { it }
 
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
@@ -46,13 +49,13 @@ node {
             def jobs = [:]
             if (test_dir.isEmpty()) {
               echo """
-              Usage Guide for TEST_DIR:
+              Usage Guide for TEST_DIRECTORY_LIST:
               - For registries: Use 'privateregistry' or 'systemdefaultregistry'
               - For tarballs: Use 'tarball', 'tarball_prime_staging', or 'tarball_prime_release'
               - For arm: Replace 'tarball' with 'tarball_arm'
               - For Windows: Replace 'tarball' with 'tarball_windows' to any key (this will force RKE2)
               """
-              error "TEST_DIR is empty. Please provide at least one valid test key."
+              error "TEST_DIRECTORY_LIST is empty. Please provide at least one valid test key."
             }
 
             test_dir.each { test_name ->
@@ -79,13 +82,6 @@ node {
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}")
               ]
-
-              def job_test_args = "${TEST_ARGS}"
-              if (test_name in ["privateregistry", "systemdefaultregistry"]) {
-                  job_test_args += " -tags=${test_name}"
-              } else if (test_name.contains("tarball")) {
-                  job_test_args += " -tags=tarball -tarballType tar.zst"
-              }
 
               def prefix = test_name.contains("windows") ? "rke2" : env.PRODUCT_NAME
               def base_name = test_name
