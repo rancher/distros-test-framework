@@ -93,14 +93,17 @@ node {
                        '\nresource_name = \"' + HOSTNAME_PREFIX + '\"' +
                        "\nproduct = \"${env.PRODUCT_NAME}\""
 
-                  // Override AMI and AWS user when triggered from batch OS validation
+                  // Override AMI, AWS user and node_os when triggered from batch OS validation
                   if (env.BATCH_OS_AWS_AMI && env.BATCH_OS_AWS_AMI != "null") {
+                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^aws_ami\s*=.*$\n?/, '')
                     tfvarsContent += "\naws_ami = \"${env.BATCH_OS_AWS_AMI}\""
                   }
                   if (env.BATCH_OS_AWS_USER && env.BATCH_OS_AWS_USER != "null") {
+                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^aws_user\s*=.*$\n?/, '')
                     tfvarsContent += "\naws_user = \"${env.BATCH_OS_AWS_USER}\""
                   }
                   if (env.BATCH_OS_NODE_OS && env.BATCH_OS_NODE_OS != "null") {
+                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^node_os\s*=.*$\n?/, '')
                     tfvarsContent += "\nnode_os = \"${env.BATCH_OS_NODE_OS}\""
                   }
 
