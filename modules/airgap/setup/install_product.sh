@@ -4,6 +4,7 @@
 
 ## Uncomment the following lines to enable debug mode
 set -x
+set -o pipefail
 
 exec 2> install_product.log
 # echo "$@"

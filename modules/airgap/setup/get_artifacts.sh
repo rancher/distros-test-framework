@@ -64,9 +64,15 @@ override_arch() {
 }
 
 get_url() {
-  if [[ -n "$registry_url" ]] && [[ "$registry_url" =~ "prime" ]]; then
-    url=$registry_url/$product/$version
-  elif [[ -z "$registry_url" ]]; then
+  local url=""
+  if [[ -n "$registry_url" ]]; then
+    if [[ "$registry_url" =~ "prime" ]]; then
+      url="$registry_url/$product/$version"
+    else
+      echo "Error: Unsupported registry_url '$registry_url'. Only 'prime' registries are currently supported." >&2
+      exit 1
+    fi
+  else
     if [[ "$product" == "k3s" ]]; then
       url="https://github.com/k3s-io/k3s/releases/download/$version"
     elif [[ "$product" == "rke2" ]]; then
