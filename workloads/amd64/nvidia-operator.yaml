@@ -10,6 +10,8 @@ spec:
   targetNamespace: gpu-operator
   createNamespace: true
   valuesContent: |-
+    cdi:
+      nriPluginEnabled: true
     toolkit:
       env:
       - name: CONTAINERD_SOCKET

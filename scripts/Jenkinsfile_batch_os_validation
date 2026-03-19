@@ -79,18 +79,19 @@ node {
               "upgradesuc_arm": "${product_name}_suc_upgrade_arm",
               "deployrancher": "${product_name}_deploy_rancher_prime_release",
               "clusterrestore": "${product_name}_cluster_restore",
-              "externaldb": "${product_name}_external_datastore",
+              "externaldb": "${product_name}_external_datastore_rpm",
               "mixedoscluster": "rke2_windows_agent"
             ]
 
             def jobs = [:]
-            def alphabet = ('a'..'z').toList()
+            def random = new Random()
+            def randomSuffix = { -> ('a'..'z')[random.nextInt(26)].toString() + ('a'..'z')[random.nextInt(26)].toString() }
 
             installVersions.eachWithIndex { installVersion, idx ->
               def upgradeVersion = upgradeVersions[idx]
 
-              // Append a unique letter suffix per version slot to avoid AWS resource name collisions
-              def jobHostnamePrefix = installVersions.size() > 1 ? "${HOSTNAME_PREFIX}${alphabet[idx % alphabet.size()]}" : "${HOSTNAME_PREFIX}"
+              // Append 2 random letters per version slot to avoid AWS resource name collisions
+              def jobHostnamePrefix = installVersions.size() > 1 ? "${HOSTNAME_PREFIX}${randomSuffix()}" : "${HOSTNAME_PREFIX}"
               echo "Planning tests for version pair: install=${installVersion} upgrade=${upgradeVersion} (prefix=${jobHostnamePrefix})"
 
               test_dir.each { test_name ->

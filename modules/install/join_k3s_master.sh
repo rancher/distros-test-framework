@@ -18,6 +18,7 @@
 # install_or_enable=${16}   # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
                             # After a node reboot, the second time the script is recalled with 'enable' which enables services.
                             # For all other node_os values, this value will be 'both' and this script will be called only once.
+# github_token=${17}        # GitHub token for commit-based installs
 # set -x                    # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 PS4='+(${LINENO}): '
@@ -41,6 +42,7 @@ server_flags=${13}
 rhel_username=${14}
 rhel_password=${15}
 install_or_enable=${16}
+github_token=${17}
 
 create_config() {
   hostname=$(hostname -f)
@@ -140,6 +142,18 @@ install_k3s() {
       sleep 2
   fi
 
+  # Install jq/unzip required for commit-based installs
+  if ! command -v jq >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "Installing jq and unzip dependencies..."
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update && apt-get install -y jq unzip || true
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y jq unzip || true
+    elif command -v zypper >/dev/null 2>&1; then
+      zypper install -y jq unzip || true
+    fi
+  fi
+
   url="https://get.k3s.io"
   params="$install_mode=$version"
 
@@ -149,6 +163,11 @@ install_k3s() {
 
   if [[ "$install_or_enable" == "install" ]]; then
     params="$params INSTALL_K3S_SKIP_ENABLE=true"
+  fi
+
+  # Pass GITHUB_TOKEN for commit-based installs (required by K3s install script)
+  if [[ "$install_mode" == "INSTALL_K3S_COMMIT" ]] && [[ -n "${github_token:-}" ]]; then
+    params="GITHUB_TOKEN=$github_token $params"
   fi
 
   install_cmd="curl -sfL $url | $params sh -"

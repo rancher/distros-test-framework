@@ -39,7 +39,8 @@ node {
         string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
         string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
         string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD'),
-        string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN')
+        string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
+        string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')
       ]) {
         withEnv(paramsMap.collect { k, v -> "$k=$v" }) {
           stage('Checkout') {
@@ -124,6 +125,7 @@ node {
                         --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
+                        -e GITHUB_TOKEN='${GITHUB_TOKEN}' \
                         ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
                          cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
