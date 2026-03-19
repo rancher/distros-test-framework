@@ -119,6 +119,18 @@ install_k3s() {
       sleep 2
   fi
 
+  # Install jq/unzip required for commit-based installs
+  if ! command -v jq >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "Installing jq and unzip dependencies..."
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update && apt-get install -y jq unzip || true
+    elif command -v yum >/dev/null 2>&1; then
+      yum install -y jq unzip || true
+    elif command -v zypper >/dev/null 2>&1; then
+      zypper install -y jq unzip || true
+    fi
+  fi
+
   url="https://get.k3s.io"
   params="$install_mode=$version"
   if [[ -n "$channel" ]]; then
