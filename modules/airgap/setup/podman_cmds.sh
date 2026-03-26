@@ -1,14 +1,15 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-
-exec 2> podman_cmds.log
+# set -x
 # echo "$@"
+
+set -e
+exec > >(tee -a podman_cmds.log) 2>&1
 
 # Perform image pull/tag/push/validate operations on listed images
 # Usage: ./podman_cmds.sh "product" "platform" "hostdns" "username" "password" "registry_url"
-# Usage: ./podman_cmds.sh "k3s" "ec2-host.com" "testuser" "testpass" "example.registry.com"
+# Usage: ./podman_cmds.sh "k3s" "linux" "ec2-host.com" "testuser" "testpass" "example.registry.com"
 
 # Define the input file
 product=${1}

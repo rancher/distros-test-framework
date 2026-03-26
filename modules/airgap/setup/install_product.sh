@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# ./install_product.sh product serverIP token nodeType nodeIP flags
+# Usage: ./install_product.sh product serverIP token nodeType nodeIP flags
 
 ## Uncomment the following lines to enable debug mode
-set -x
-set -o pipefail
-
-exec 2> install_product.log
+# set -x
 # echo "$@"
+
+set -e
+set -o pipefail
+exec > >(tee -a install_product.log) 2>&1
 
 product=${1}
 server_ip=${2}

@@ -72,7 +72,7 @@ node {
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
                 string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
                 string(name: 'REPO', value: "${REPO}"),
-                string(name: 'BRANCH', value: "${BRANCH}"),
+                string(name: 'BRANCH', value: "${branch}"),
                 string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),
                 string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),

@@ -354,6 +354,7 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, version, platform,
 		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType)
+	shared.LogLevel("debug", "Get artifacts cmd: %v", cmd)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 
 	return res, err
@@ -451,6 +452,61 @@ func LogClusterInfoUsingBastion(cluster *shared.Cluster) {
 		shared.LogLevel("error", "Error getting airgap cluster details: %v", err)
 	}
 	shared.LogLevel("info", "\n%v", clusterInfo)
+}
+
+// CheckImageList lists container images with crictl on a cluster node.
+func CheckImageList(cluster *shared.Cluster, flags *customflag.FlagConfig) (err error) {
+	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
+		cluster.Aws.KeyName, cluster.Aws.AwsUser,
+		cluster.BastionConfig.PublicIPv4Addr)
+	var checkImgCmd string
+	switch cluster.Config.Product {
+	case "k3s":
+		checkImgCmd = "sudo k3s crictl images"
+	case "rke2":
+		checkImgCmd = "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml images"
+	default:
+		return fmt.Errorf("unsupported product for image list: %s", cluster.Config.Product)
+	}
+
+	clusterImages, err := CmdForPrivateNode(cluster, checkImgCmd, cluster.ServerIPs[0])
+	if err != nil {
+		shared.LogLevel("error", "Error getting image list: %v", err)
+		return err
+	}
+	// TODO: Replace with config.yaml check
+	if flags.AirgapFlag.ImageRegistryUrl != "" {
+		shared.LogLevel("info", "RegistryURL: %v", flags.AirgapFlag.ImageRegistryUrl)
+	}
+	shared.LogLevel("info", "Image List: \n%v", clusterImages)
+
+	return nil
+}
+
+// CheckImageToPodRelation lists container image to pod relation with crictl on a cluster node.
+func CheckImageToPodRelation(cluster *shared.Cluster) (err error) {
+	shared.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
+		cluster.Aws.KeyName, cluster.Aws.AwsUser,
+		cluster.BastionConfig.PublicIPv4Addr)
+	var checkImgCmd string
+	switch cluster.Config.Product {
+	case "k3s":
+		checkImgCmd = "sudo k3s crictl ps"
+	case "rke2":
+		checkImgCmd = "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml ps"
+	default:
+		return fmt.Errorf("unsupported product for container to pod check: %s", cluster.Config.Product)
+	}
+
+	containerToPodList, err := CmdForPrivateNode(cluster, checkImgCmd, cluster.ServerIPs[0])
+	if err != nil {
+		shared.LogLevel("error", "Error getting container to pod relation list: %v", err)
+		return err
+	}
+
+	shared.LogLevel("info", "Container to Pod Relation List: \n%v", containerToPodList)
+
+	return nil
 }
 
 // ShCmdPrefix adds prefix to shell commands.
