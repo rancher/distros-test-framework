@@ -1,13 +1,14 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-
-exec 2> get_artifacts.log
+# set -x
 # echo "$@"
 
+set -e
+exec > >(tee -a get_artifacts.log) 2>&1
+
 # Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
-# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "server_flags" "tar.gz"
+# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "https://registry.example.com" "server_flags" "tar.gz"
 
 product=${1}
 version=${2}
@@ -50,11 +51,15 @@ override_arch() {
       ;;
     aarch64|arm64)
       arch="arm64"
-      [[ "$product" == "k3s" ]] && k3s_binary="k3s-arm64"
+      if [[ "$product" == "k3s" ]]; then
+        k3s_binary="k3s-arm64"
+      fi
       ;;
     armhf|armv7l)
       arch="arm"
-      [[ "$product" == "k3s" ]] && k3s_binary="k3s-armhf"
+      if [[ "$product" == "k3s" ]]; then
+        k3s_binary="k3s-armhf"
+      fi
       ;;
     *)
       echo "Error: Unsupported Architecture: $os_arch"
@@ -66,7 +71,7 @@ override_arch() {
 get_url() {
   local url=""
   if [[ -n "$registry_url" ]]; then
-    if [[ "$registry_url" =~ "prime" ]]; then
+    if [[ "$registry_url" =~ "rancher" ]]; then
       url="$registry_url/$product/$version"
     else
       echo "Error: Unsupported registry_url '$registry_url'. Only 'prime' registries are currently supported." >&2
@@ -95,7 +100,6 @@ download_retry() {
       attempt_num=$((attempt_num + 1))
       sleep 5
     fi
-  done
 
   if [[ $attempt_num -gt $max_attempts ]]; then
     echo "ERROR: Command failed after $max_attempts attempts."
@@ -186,6 +190,8 @@ safe_download_install() {
 
 get_assets() {
   echo "Downloading $product dependencies..."
+  url=$(get_url)
+  echo "Download assets using url: $url"
   if [[ "$product" == "k3s" ]]; then
     url=$(get_url)
     download_retry wget $url/sha256sum-$arch.txt
