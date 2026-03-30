@@ -41,7 +41,14 @@ save_creds() {
 
 docker_compose() {
     cd basic-registry && \
-    curl -L "https://github.com/docker/compose/releases/download/v2.28.0/docker-compose-$os-$arch" -o /usr/local/bin/docker-compose && \
+    COMPOSE_VERSION="v2.28.0" && \
+    if [ "$arch" = "aarch64" ]; then \
+        COMPOSE_SHA256="296076f4d14d2a816ad750f6890355fc118692814e4b4542942794817f869d37"; \
+    else \
+        COMPOSE_SHA256="359043c2336e243662d7038c3edfeadcd5b9fc28dabe6973dbaecf48c0c1f967"; \
+    fi && \
+    curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$os-$arch" -o /usr/local/bin/docker-compose && \
+    echo "${COMPOSE_SHA256}  /usr/local/bin/docker-compose" | sha256sum -c - && \
     chmod +x /usr/local/bin/docker-compose && \
     /usr/local/bin/docker-compose up -d && \
     cd ..

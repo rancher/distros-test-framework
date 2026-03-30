@@ -8,8 +8,7 @@ DEBUG="${DEBUG:-false}"
 TRIM_JOB_NAME=$(basename "$JOB_NAME")
 
 if [ "false" != "${DEBUG}" ]; then
-    echo "Environment:"
-    env | sort
+    env | sort | sed -E 's/(.*SECRET.*|.*TOKEN.*|.*PASSWORD.*|.*KEY_ID.*|.*ACCESS_KEY.*|.*PEM.*)=.*/\1=<REDACTED>/'
 fi
 
 count=0

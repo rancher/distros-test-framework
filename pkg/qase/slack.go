@@ -578,7 +578,7 @@ func saveRerunState(baseDir, channelID, threadTS, product string, failedTests []
 
 	statePath := filepath.Join(baseDir, "report", ".rerun-state.json")
 	tmpPath := statePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write temp state file: %w", err)
 	}
 	if err := os.Rename(tmpPath, statePath); err != nil {
@@ -613,7 +613,7 @@ func updateFailedTests(baseDir string, failedTests []string) error {
 	}
 
 	tmpPath := statePath + ".tmp"
-	if err := os.WriteFile(tmpPath, newData, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, newData, 0o600); err != nil {
 		return fmt.Errorf("failed to write temp state file: %w", err)
 	}
 	if err := os.Rename(tmpPath, statePath); err != nil {

@@ -60,12 +60,11 @@ get_url() {
 }
 
 download_retry() {
-  cmd=${1}
   max_attempts=3
   attempt_num=1
 
   while [[ $attempt_num -le $max_attempts ]]; do
-    if eval "$cmd"; then
+    if "$@"; then
       echo "Command succeeded after $attempt_num attempts."
       break
     else
@@ -75,39 +74,126 @@ download_retry() {
     fi
   done
 
-  if [[ $attempt_num -ge $max_attempts ]]; then
-    echo "Command failed after $max_attempts attempts."
+  if [[ $attempt_num -gt $max_attempts ]]; then
+    echo "ERROR: Command failed after $max_attempts attempts."
+    return 1
   fi
+}
+
+# Verify downloaded files against a sha256sum file.
+# Usage: verify_checksums <checksums_file> [file1 file2 ...]
+# If no files specified, verifies all files listed in the checksums file that exist locally.
+verify_checksums() {
+  checksums_file="$1"
+  shift
+
+  if [ ! -f "$checksums_file" ]; then
+    echo "ERROR: Checksums file not found: $checksums_file — aborting verification"
+    return 1
+  fi
+
+  if [ $# -gt 0 ]; then
+    # Verify specific files
+    for file in "$@"; do
+      basename=$(basename "$file")
+      if grep -q "$basename" "$checksums_file"; then
+        if grep "$basename" "$checksums_file" | sha256sum -c -; then
+          echo "Checksum OK: $basename"
+        else
+          echo "ERROR: Checksum FAILED for $basename"
+          return 1
+        fi
+      fi
+    done
+  else
+
+    # Verify all files in checksums that exist locally
+    while IFS= read -r line; do
+      file=$(echo "$line" | awk '{print $2}' | sed 's/^\*//')
+      if [ -f "$file" ]; then
+        if echo "$line" | sha256sum -c -; then
+          echo "Checksum OK: $file"
+        else
+          echo "ERROR: Checksum FAILED for $file"
+          return 1
+        fi
+      fi
+    done < "$checksums_file"
+  fi
+}
+
+# Safely download an install — download first, validate, then save.
+safe_download_install() {
+  url="$1"
+  output="$2"
+  tmp_script=$(mktemp /tmp/install-XXXXXX.sh)
+
+  if ! wget -qO "$tmp_script" "$url"; then
+    echo "ERROR: Failed to download install script from $url"
+    rm -f "$tmp_script"
+
+    return 1
+  fi
+
+  if [ ! -s "$tmp_script" ]; then
+    echo "ERROR: Downloaded script is empty"
+    rm -f "$tmp_script"
+
+    return 1
+  fi
+
+  first_line=$(head -1 "$tmp_script")
+  if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
+    echo "ERROR: Downloaded file does not appear to be a shell script (first line: $first_line)"
+    rm -f "$tmp_script"
+
+    return 1
+  fi
+
+  if grep -qiE '(base64 -d|/dev/tcp/|nc -e|eval.*\$\(curl)' "$tmp_script"; then
+    echo "ERROR: Suspicious patterns detected in downloaded script from $url"
+    rm -f "$tmp_script"
+
+    return 1
+  fi
+
+  mv "$tmp_script" "$output"
+  echo "Install script validated and saved: $output"
 }
 
 get_assets() {
   echo "Downloading $product dependencies..."
   if [[ "$product" == "k3s" ]]; then
     url="https://github.com/k3s-io/k3s/releases/download/$version"
-    download_retry "wget $url/k3s-images.txt"
-    download_retry "wget -O k3s-install.sh https://get.k3s.io/"
-    download_retry "wget -O k3s $url/$k3s_binary"
+    download_retry wget $url/sha256sum-$arch.txt
+    download_retry wget $url/k3s-images.txt
+    safe_download_install "https://get.k3s.io/" "k3s-install.sh"
+    download_retry wget -O $k3s_binary $url/$k3s_binary
     if [ -n "$tarball_type" ]; then
-      download_retry "wget $url/k3s-airgap-images-$arch.$tarball_type"
+      download_retry wget $url/k3s-airgap-images-$arch.$tarball_type
     fi
+    echo "Verifying K3s artifact checksums..."
+    verify_checksums "sha256sum-$arch.txt"
   elif [[ "$product" == "rke2" ]]; then
     url=$(get_url)
     echo "Download assets using url: $url"
-    download_retry "wget $url/sha256sum-$arch.txt"
+    download_retry wget $url/sha256sum-$arch.txt
     # Ref: https://docs.rke2.io/install/airgap
     if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]]; then
-      download_retry "wget $url/rke2-images-core.linux-$arch.txt"
+      download_retry wget $url/rke2-images-core.linux-$arch.txt
       if [ -n "$tarball_type" ]; then
-        download_retry "wget $url/rke2-images-core.linux-$arch.$tarball_type"
+        download_retry wget $url/rke2-images-core.linux-$arch.$tarball_type
       fi
     elif [[ -z "$server_flags" ]] || [[ "$server_flags" != *"cni"* ]]; then
-      download_retry "wget $url/rke2-images.linux-$arch.txt"
+      download_retry wget $url/rke2-images.linux-$arch.txt
       if [ -n "$tarball_type" ]; then
-        download_retry "wget $url/rke2-images.linux-$arch.$tarball_type"
+        download_retry wget $url/rke2-images.linux-$arch.$tarball_type
       fi
     fi
-    download_retry "wget $url/rke2.linux-$arch.tar.gz"
-    download_retry "wget -O rke2-install.sh https://get.rke2.io/"
+    download_retry wget $url/rke2.linux-$arch.tar.gz
+    safe_download_install "https://get.rke2.io/" "rke2-install.sh"
+    echo "Verifying RKE2 artifact checksums..."
+    verify_checksums "sha256sum-$arch.txt"
   else
     echo "Invalid product: $product. Please provide k3s or rke2 as product"
   fi
@@ -120,17 +206,17 @@ get_cni_assets() {
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
       if [[ "$server_flags" =~ $cni ]]; then
-        download_retry "wget $url/rke2-images-$cni.linux-$arch.txt"
+        download_retry wget $url/rke2-images-$cni.linux-$arch.txt
         if [ -n "$tarball_type" ]; then
-          download_retry "wget $url/rke2-images-$cni.linux-$arch.$tarball_type"
+          download_retry wget $url/rke2-images-$cni.linux-$arch.$tarball_type
         fi
         break
       fi
     done
     if [[ "$server_flags" =~ "multus" ]]; then
-      download_retry "wget $url/rke2-images-multus.linux-$arch.txt"
+      download_retry wget $url/rke2-images-multus.linux-$arch.txt
       if [ -n "$tarball_type" ]; then
-        download_retry "wget $url/rke2-images-multus.linux-$arch.$tarball_type"
+        download_retry wget $url/rke2-images-multus.linux-$arch.$tarball_type
       fi
     fi
   fi
@@ -141,13 +227,15 @@ get_cni_assets() {
 get_windows_assets() {
   url=$(get_url)
   echo "Download Windows assets using url: $url"
-  download_retry "wget $url/sha256sum-amd64.txt"
-  download_retry "wget $url/rke2-images.windows-amd64.txt"
-  download_retry "wget $url/rke2.windows-amd64.tar.gz"
-  download_retry "wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/master/install.ps1"
+  download_retry wget $url/sha256sum-amd64.txt
+  download_retry wget $url/rke2-images.windows-amd64.txt
+  download_retry wget $url/rke2.windows-amd64.tar.gz
+  download_retry wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/${version}/install.ps1
   if [ -n "$tarball_type" ]; then
-    download_retry "wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type"
+    download_retry wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type
   fi
+  echo "Verifying Windows artifact checksums..."
+  verify_checksums "sha256sum-amd64.txt"
   # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
 }
 

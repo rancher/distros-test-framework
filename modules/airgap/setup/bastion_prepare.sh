@@ -20,11 +20,62 @@ has_bin() {
 install_docker() {
   max_attempt=4
   delay=5
-  install_cmd="curl -fsSL https://get.docker.com | sh"
-  if ! eval "$install_cmd"; then
+  # Download and execute an install script with basic validation.
+  safe_install() {
+      url="$1"
+      shift
+      env_vars=()
+      extra_args=()
+      found_separator=false
+
+      for arg in "$@"; do
+          if [ "$arg" = "--" ]; then
+              found_separator=true
+              continue
+          fi
+          if $found_separator; then
+              extra_args+=("$arg")
+          else
+              env_vars+=("$arg")
+          fi
+      done
+
+      tmp_script=$(mktemp /tmp/install-XXXXXX.sh) || return 1
+      echo "Downloading install script from: $url"
+      if ! curl -fsSL "$url" -o "$tmp_script"; then
+          echo "ERROR: Failed to download from $url"
+          rm -f "$tmp_script"
+          return 1
+      fi
+      if [ ! -s "$tmp_script" ]; then
+          echo "ERROR: Downloaded script is empty"
+          rm -f "$tmp_script"
+          return 1
+      fi
+
+      first_line=$(head -1 "$tmp_script")
+      if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
+          echo "ERROR: Not a shell script"
+          rm -f "$tmp_script"
+          return 1
+      fi
+      if grep -qiE '(base64 -d|/dev/tcp/|nc -e)' "$tmp_script"; then
+          echo "ERROR: Suspicious patterns"
+          rm -f "$tmp_script"
+          return 1
+      fi
+
+      echo "Validation passed. Executing install script..."
+      env "${env_vars[@]}" sh "$tmp_script" "${extra_args[@]}"
+      exit_code=$?
+      rm -f "$tmp_script"
+
+      return $exit_code
+  }
+  if ! safe_install "https://get.docker.com"; then
     echo "Unable to install docker on node, Attempting retry..."
     for i in $(seq 1 $max_attempt); do
-      eval "$install_cmd"
+      safe_install "https://get.docker.com"
       result=$?
       echo "$result"
         if [ "$result" == "" ]; then
@@ -47,7 +98,10 @@ install_kubectl() {
   else
       KUBE_ARCH="amd64"
   fi
-  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$KUBE_ARCH/kubectl" && \
+  KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+  KUBECTL_SHA256=$(curl -sL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBE_ARCH}/kubectl.sha256")
+  curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBE_ARCH}/kubectl" && \
+  echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c - && \
   chmod +x ./kubectl && \
   mv ./kubectl /usr/local/bin
 }

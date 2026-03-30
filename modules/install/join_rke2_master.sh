@@ -186,19 +186,64 @@ install_rke2() {
   fi
 
   url="https://get.rke2.io"
-  params="$install_mode=$version INSTALL_RKE2_TYPE=server"
-  
-  if [ -n "$channel" ]; then
-    params="$params INSTALL_RKE2_CHANNEL=$channel"
-  fi
+  install=("$install_mode=$version" "INSTALL_RKE2_TYPE=server")
 
-  if [ -n "$install_method" ]; then
-    params="$params INSTALL_RKE2_METHOD=$install_method"
-  fi
+  [ -n "$channel" ] && install+=("INSTALL_RKE2_CHANNEL=$channel")
+  [ -n "$install_method" ] && install+=("INSTALL_RKE2_METHOD=$install_method")
 
-  install_cmd="curl -sfL $url | $params sh -"
-  echo "$install_cmd"
-  if ! eval "$install_cmd"; then
+# Download and execute an install script with basic validation.
+safe_install() {
+    url="$1"
+    shift
+    env_vars=()
+    extra_args=()
+    found_separator=false
+    for arg in "$@"; do
+        if [ "$arg" = "--" ]; then
+            found_separator=true
+            continue
+        fi
+        if $found_separator; then
+            extra_args+=("$arg")
+        else
+            env_vars+=("$arg")
+        fi
+    done
+
+    tmp_script=$(mktemp /tmp/install-XXXXXX.sh) || return 1
+    echo "Downloading install script from: $url"
+    if ! curl -fsSL "$url" -o "$tmp_script"; then
+        echo "ERROR: Failed to download from $url"
+        rm -f "$tmp_script"
+        return 1
+    fi
+    if [ ! -s "$tmp_script" ]; then
+        echo "ERROR: Downloaded script is empty"
+        rm -f "$tmp_script"
+        return 1
+    fi
+
+    first_line=$(head -1 "$tmp_script")
+    if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
+        echo "ERROR: Not a shell script"
+        rm -f "$tmp_script"
+        return 1
+    fi
+    if grep -qiE '(base64 -d|/dev/tcp/|nc -e)' "$tmp_script"; then
+        echo "ERROR: Suspicious patterns"
+        rm -f "$tmp_script"
+        return 1
+    fi
+
+    echo "Validation passed. Executing install script..."
+    env "${env_vars[@]}" sh "$tmp_script" "${extra_args[@]}"
+    exit_code=$?
+    rm -f "$tmp_script"
+
+    return $exit_code
+}
+  echo "safe_install $url ${install[*]}"
+  if ! safe_install "$url" "${install[@]}"; then
     echo "Failed to install rke2-server on joining node ip: $public_ip"
     exit 1
   fi

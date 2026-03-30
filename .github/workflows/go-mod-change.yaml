@@ -30,12 +30,15 @@ on:
     paths:
       - 'go.mod'
 
+permissions:
+  contents: read
+
 jobs:
   check_goMod:
     runs-on: ubuntu-latest
     steps:
       - name: checkout latest
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: '${{ github.event.inputs.repo }}'
           ref: '${{ github.event.inputs.target0 }}'
@@ -47,7 +50,7 @@ jobs:
           mkdir -p /tmp/comparisons/
            mv go.mod /tmp/comparisons/target0-go.mod
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: '${{ github.event.inputs.repo }}'
           ref: "${{ github.event.inputs.target1 }}"
@@ -58,7 +61,7 @@ jobs:
         run: |
           mv go.mod /tmp/comparisons/target1-go.mod
       - name: Checkout tools repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: '${{ github.event.inputs.repo }}'
           ref: "${{ github.event.inputs.target2 }}"
