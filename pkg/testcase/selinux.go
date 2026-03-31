@@ -267,44 +267,88 @@ const (
 //nolint:dupl // this is expected.
 var conf = []configuration{
 	{
-		distroName: "rke2_centos7",
+		distroName: "rke2_sles16",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*":                                                            ctxUnitFile,
-			cmdPrefix + " " + "/lib" + systemD + "/rke2*":                                                   ctxUnitFile,
-			cmdPrefix + " " + usrLocal + "/lib" + systemD + "/rke2*":                                        ctxUnitFile,
-			cmdPrefix + " " + usrBin + "/rke2":                                                              ctxExec,
-			cmdPrefix + " " + usrLocal + "/rke2":                                                            ctxExec,
-			cmdPrefix + " " + "/var/lib/cni " + ignoreDir:                                                   ctxVarLib,
-			cmdPrefix + " " + "/var/lib/cni/* " + ignoreDir:                                                 ctxVarLib,
-			cmdPrefix + " " + "/opt/cni " + ignoreDir:                                                       ctxFile,
-			cmdPrefix + " " + "/opt/cni/* " + ignoreDir:                                                     ctxFile,
-			cmdPrefix + " " + "/var/lib/kubelet/pods " + ignoreDir:                                          ctxFile,
-			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir:                                        ctxFile,
-			cmdPrefix + " " + rke2 + " " + ignoreDir:                                                        ctxVarLib,
-			cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                      ctxVarLib,
-			cmdPrefix + " " + rke2 + "/data":                                                                ctxExec,
-			cmdPrefix + " " + rke2 + "/data/*":                                                              ctxExec,
-			cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                       ctxConfig,
-			cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                     ctxConfig,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:        ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:      ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + " " + grepFilter:               ctxNone,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:        ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:      ctxShare,
-			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                            ctxLog,
-			cmdPrefix + " " + rke2 + "/server/logs/ " + ignoreDir:                                           ctxLog,
-			cmdPrefix + " " + "/var/run/flannel " + ignoreDir:                                               ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/flannel/* " + ignoreDir:                                             ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s " + ignoreDir:                                                   ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/* " + ignoreDir:                                                 ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm " + ignoreDir + " " + grepFilter:   ctxTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm/* " + ignoreDir + " " + grepFilter: ctxTmpfs,
-			cmdPrefix + " " + "/var/log/containers " + ignoreDir:                                            ctxLog,
-			cmdPrefix + " " + "/var/log/containers/* " + ignoreDir:                                          ctxLog,
-			cmdPrefix + " " + "/var/log/pods " + ignoreDir:                                                  ctxLog,
-			cmdPrefix + " " + "/var/log/pods/* " + ignoreDir:                                                ctxLog,
-			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                             ctxTLS,
-			cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                           ctxTLS,
+			cmdPrefix + " " + systemD + "/rke2*":                                                       ctxUnitFile,
+    		cmdPrefix + " " + "/usr/lib/systemd/system/rke2*":                                          ctxUnitFile,
+    
+    		// Binaries
+   		 	cmdPrefix + " " + usrBin + "/rke2":                                                         ctxExec,
+    		cmdPrefix + " " + usrLocal + "/rke2":                                                       ctxExec,
+    
+    		// Core Data Directories
+    		cmdPrefix + " " + rke2 + " " + ignoreDir:                                                   ctxVarLib,
+    		cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                 ctxVarLib,
+    
+    		// Configuration & Manifests
+    		cmdPrefix + " " + rke2 + "/server/manifests/* " + grepFilter:                               ctxConfig,
+    		cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                ctxConfig,
+    
+    		// Runtime & Containers (Internal containerd paths)
+    		cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir:                      ctxFile,
+    		cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir:                      ctxRoFile,
+    
+    		// Logs & TLS
+    		cmdPrefix + " " + rke2 + "/server/logs/* " + ignoreDir:                                     ctxLog,
+    		cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                      ctxTLS,
+    
+    		// SLES 16 Specific: SELinux logs (since it is now default)
+    		"/var/log/audit/audit.log":                                                                 ctxLog,
+
+			// 1. SELinux Logs (SLES 16 default, SLES 15 used AppArmor)
+    		cmdPrefix + " " + "/var/log/audit/audit.log":                                               ctxLog,
+
+    		// 2. New wtmp/lastlog Database Formats 
+    		// SLES 16 replaces legacy flat files (wtmp/lastlog) with databases (wtmpdb/lastlog2)
+    		cmdPrefix + " " + "/var/log/wtmpdb":                                                        ctxLog,
+    		cmdPrefix + " " + "/var/lib/lastlog/lastlog2.db":                                           ctxLog,
+
+    		// 3. "UsrEtc" Vendor Defaults
+    		// SLES 16 stores vendor-provided defaults in /usr instead of /etc
+    		cmdPrefix + " " + "/usr/etc/rancher/rke2/*":                                               ctxConfig,
+
+    		// 4. Transactional/Micro Log Handling (if using SLE Micro 6.0+)
+    		// Newer SLES 16-based Micro OS uses persistent journal storage by default
+    		cmdPrefix + " " + "/var/log/journal":                                                       ctxLog,
+    
+    		// 5. NetworkManager Logs (SLES 16 removed 'wicked')
+    		cmdPrefix + " " + "/var/log/NetworkManager":    											ctxLog,
+			// cmdPrefix + " " + systemD + "/rke2*":                                                            ctxUnitFile,
+			// cmdPrefix + " " + "/lib" + systemD + "/rke2*":                                                   ctxUnitFile,
+			// cmdPrefix + " " + usrLocal + "/lib" + systemD + "/rke2*":                                        ctxUnitFile,
+			// cmdPrefix + " " + usrBin + "/rke2":                                                              ctxExec,
+			// cmdPrefix + " " + usrLocal + "/rke2":                                                            ctxExec,
+			// cmdPrefix + " " + "/var/lib/cni " + ignoreDir:                                                   ctxVarLib,
+			// cmdPrefix + " " + "/var/lib/cni/* " + ignoreDir:                                                 ctxVarLib,
+			// cmdPrefix + " " + "/opt/cni " + ignoreDir:                                                       ctxFile,
+			// cmdPrefix + " " + "/opt/cni/* " + ignoreDir:                                                     ctxFile,
+			// cmdPrefix + " " + "/var/lib/kubelet/pods " + ignoreDir:                                          ctxFile,
+			// cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir:                                        ctxFile,
+			// cmdPrefix + " " + rke2 + " " + ignoreDir:                                                        ctxVarLib,
+			// cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                      ctxVarLib,
+			// cmdPrefix + " " + rke2 + "/data":                                                                ctxExec,
+			// cmdPrefix + " " + rke2 + "/data/*":                                                              ctxExec,
+			// cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                       ctxConfig,
+			// cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                     ctxConfig,
+			// cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:        ctxShare,
+			// cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:      ctxShare,
+			// cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + " " + grepFilter:               ctxNone,
+			// cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:        ctxShare,
+			// cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:      ctxShare,
+			// cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                            ctxLog,
+			// cmdPrefix + " " + rke2 + "/server/logs/ " + ignoreDir:                                           ctxLog,
+			// cmdPrefix + " " + "/var/run/flannel " + ignoreDir:                                               ctxRunTmpfs,
+			// cmdPrefix + " " + "/var/run/flannel/* " + ignoreDir:                                             ctxRunTmpfs,
+			// cmdPrefix + " " + "/var/run/k3s " + ignoreDir:                                                   ctxRunTmpfs,
+			// cmdPrefix + " " + "/var/run/k3s/* " + ignoreDir:                                                 ctxRunTmpfs,
+			// cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm " + ignoreDir + " " + grepFilter:   ctxTmpfs,
+			// cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm/* " + ignoreDir + " " + grepFilter: ctxTmpfs,
+			// cmdPrefix + " " + "/var/log/containers " + ignoreDir:                                            ctxLog,
+			// cmdPrefix + " " + "/var/log/containers/* " + ignoreDir:                                          ctxLog,
+			// cmdPrefix + " " + "/var/log/pods " + ignoreDir:                                                  ctxLog,
+			// cmdPrefix + " " + "/var/log/pods/* " + ignoreDir:                                                ctxLog,
+			// cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                             ctxTLS,
+			// cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                           ctxTLS,
 		},
 	},
 	{
