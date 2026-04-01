@@ -18,7 +18,6 @@
 # install_or_enable=${16}   # Values can be install, enable or both. In case of slemicro for node_os value, the first time this script is called with 'install'.
                             # After a node reboot, the second time the script is recalled with 'enable' which enables services.
                             # For all other node_os values, this value will be 'both' and this script will be called only once.
-# github_token=${17}        # GitHub token for commit-based installs
 # set -x                    # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
 PS4='+(${LINENO}): '
@@ -42,7 +41,6 @@ server_flags=${13}
 rhel_username=${14}
 rhel_password=${15}
 install_or_enable=${16}
-github_token=${17}
 
 create_config() {
   hostname=$(hostname -f)
@@ -159,7 +157,6 @@ install_k3s() {
 
   [[ -n "$channel" ]] && install+=("INSTALL_K3S_CHANNEL=$channel")
   [[ "$install_or_enable" == "install" ]] && install+=("INSTALL_K3S_SKIP_ENABLE=true")
-  [[ "$install_mode" == "INSTALL_K3S_COMMIT" ]] && [[ -n "${github_token:-}" ]] && install+=("GITHUB_TOKEN=$github_token")
 
 # Download and execute an install script with basic validation.
 safe_install() {
