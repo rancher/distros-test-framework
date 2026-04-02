@@ -35,6 +35,8 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
+	flag.Var(&flags.SelinuxTest, "selinux", "Run selinux test")
+	flag.Var(&flags.KillAllUninstallTest, "killalluninstall", "Run killall-uninstall test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
