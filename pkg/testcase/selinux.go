@@ -203,7 +203,13 @@ func TestUninstallPolicy(cluster *shared.Cluster, uninstall bool) {
 func verifyUninstallPolicy(product, ip, cmd string) {
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(res).Should(BeEmpty())
+
+	if strings.Contains(osPolicy, "sles16") {
+		Expect(res).Should(ContainSubstring("container-selinux"))
+		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
+	} else {
+		Expect(res).Should(BeEmpty())
+	}
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.
