@@ -81,7 +81,7 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 		})
 	}
 
-		if customflag.ServiceFlag.SelinuxTest {
+	if customflag.ServiceFlag.SelinuxTest {
 		It("Validate selinux is enabled", func() {
 			testcase.TestSelinuxEnabled(cluster)
 		})
