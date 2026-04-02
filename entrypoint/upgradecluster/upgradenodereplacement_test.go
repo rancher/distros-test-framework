@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
