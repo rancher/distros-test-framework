@@ -13,7 +13,6 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
 	"github.com/rancher/distros-test-framework/pkg/qase"
-	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/shared"
 )
 
@@ -35,8 +34,6 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
-	flag.Var(&flags.SelinuxTest, "selinux", "Run selinux test")
-	flag.Var(&flags.KillAllUninstallTest, "killalluninstall", "Run killall-uninstall test")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -84,13 +81,6 @@ var _ = AfterSuite(func() {
 	reportSummary, reportErr = shared.SummaryReportData(cluster, flags)
 	if reportErr != nil {
 		shared.LogLevel("error", "error getting report summary data: %v\n", reportErr)
-	}
-
-	if customflag.ServiceFlag.SelinuxTest {
-		if strings.Contains(os.Getenv("server_flags"), "selinux: true") {
-			shared.LogLevel("info", "Running selinux test post killall before cluster destroy with uninstall true")
-			testcase.TestUninstallPolicy(cluster, true)
-		}
 	}
 
 	if customflag.ServiceFlag.Destroy {
