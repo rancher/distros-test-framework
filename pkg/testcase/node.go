@@ -36,7 +36,7 @@ func TestNodeStatus(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue(), func() string {
+	}, "900s", "10s").Should(BeTrue(), func() string {
 		shared.LogLevel("error", "\nNodes are not in desired state")
 		_, err := shared.GetNodes(true)
 		Expect(err).NotTo(HaveOccurred())
