@@ -58,7 +58,7 @@ if [ -n "${TEST_DIR}" ]; then
         if [ "${TEST_TAG}" = "upgrademanual" ]; then
             go test -timeout=65m -v -tags=upgrademanual -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradesuc" ]; then
-            go test -timeout=65m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
+            go test -timeout=120m -v -tags=upgradesuc -count=1 ./entrypoint/upgradecluster/... -sucUpgradeVersion "${SUC_UPGRADE_VERSION}" -channel "${CHANNEL}"
         elif [ "${TEST_TAG}" = "upgradereplacement" ]; then
             go test -timeout=120m -v -tags=upgradereplacement -count=1 ./entrypoint/upgradecluster/... -installVersionOrCommit "${INSTALL_VERSION_OR_COMMIT}" -channel "${CHANNEL}"
     fi

@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/assert"
 	"github.com/rancher/distros-test-framework/pkg/testcase"
 	"github.com/rancher/distros-test-framework/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/pkg/customflag"
 )
 
 var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
@@ -78,6 +79,24 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
+		})
+	}
+
+	if customflag.ServiceFlag.SelinuxTest {
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
 		})
 	}
 
