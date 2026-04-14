@@ -23,6 +23,9 @@ on:
         required: false
         default: '150'
 
+permissions:
+  contents: read
+
 jobs:
   run-script-job:
     runs-on: ubuntu-latest
