@@ -59,7 +59,7 @@ node {
               }
 
               if (test_name.contains("mixedoscluster")) {
-                actual_testdir_name = "mixedosclsuter"
+                actual_testdir_name = "mixedoscluster"
               }
 
               def install_params = [

@@ -10,12 +10,20 @@ if [ -z "${TAG_NAME}" ]; then
     TAG_NAME="distros"
 fi
 
+# Write AWS credentials to a temp env file instead.
+AWS_ENV_FILE=$(mktemp /tmp/aws-env-XXXXXX)
+chmod 600 "$AWS_ENV_FILE"
+trap 'rm -f "$AWS_ENV_FILE"' EXIT
+cat > "$AWS_ENV_FILE" <<EOF
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+EOF
+
 # Runs a Docker container with the specified image name and tag read from .env file.
 test_run() {
   echo -e "\nRunning docker run script with:\ncontainer name: ${IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
   run=$(docker run -dt --name "acceptance-test-${IMG_NAME}" \
-    -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-    -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+    --env-file "$AWS_ENV_FILE" \
     --env-file ./config/.env \
     -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
     "acceptance-test-${TAG_NAME}")
@@ -45,8 +53,7 @@ test_run_new() {
     FULL_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"
     echo -e "\nRunning docker run script with:\ncontainer name: ${FULL_IMG_NAME}\ntag: ${TAG_NAME}\nproduct: ${ENV_PRODUCT}\n\n"
     run=$(docker run -dt --name "acceptance-test-${FULL_IMG_NAME}" \
-      -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-      -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+      --env-file "$AWS_ENV_FILE" \
       --env-file ./config/.env \
       -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
       "acceptance-test-${TAG_NAME}")
@@ -73,9 +80,9 @@ test_run_state() {
      fi
 
      if docker commit "${CONTAINER_ID}" teststate:latest; then
-         if docker run -dt --name "acceptance-test-${TEST_STATE}" --env-file ./config/.env \
-             -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-             -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+         if docker run -dt --name "acceptance-test-${TEST_STATE}" \
+             --env-file "$AWS_ENV_FILE" \
+             --env-file ./config/.env \
              -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
              -v "$(pwd)/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \
              teststate:latest; then
@@ -109,8 +116,7 @@ test_run_updates() {
 
         test_env_up "${TAG_NAME}"
         run=$(docker run -dt --name "acceptance-test-${NEW_IMG_NAME}" \
-            -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}" \
-            -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}" \
+            --env-file "$AWS_ENV_FILE" \
             --env-file ./config/.env \
             -v "${ACCESS_KEY_LOCAL}:/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem" \
             -v "${PWD}/scripts/test-runner.sh:/go/src/github.com/rancher/distros-test-framework/scripts/test-runner.sh" \

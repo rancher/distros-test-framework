@@ -79,7 +79,7 @@ node {
               "upgradesuc_arm": "${product_name}_suc_upgrade_arm",
               "deployrancher": "${product_name}_deploy_rancher_prime_release",
               "clusterrestore": "${product_name}_cluster_restore",
-              "externaldb": "${product_name}_external_datastore",
+              "externaldb": "${product_name}_external_datastore${suffix}",
               "mixedoscluster": "rke2_windows_agent"
             ]
 

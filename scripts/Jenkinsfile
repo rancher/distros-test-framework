@@ -39,7 +39,7 @@ node {
         string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
         string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
         string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD'),
-        string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN')
+        string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
       ]) {
         withEnv(paramsMap.collect { k, v -> "$k=$v" }) {
           stage('Checkout') {
@@ -59,6 +59,7 @@ node {
                              'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
                              'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
                 writeFile file: qaseEnvFile, text: qase
+                sh "chmod 600 ${qaseEnvFile}"
             }
           }
           dir('./') {
@@ -68,6 +69,7 @@ node {
                   dir('./config/.ssh') {
                     def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
                     writeFile file: 'aws_key.pem', text: decoded
+                    sh 'chmod 600 aws_key.pem'
                   }
                 }
                 dir('./config') {
@@ -76,7 +78,8 @@ node {
                   "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
                    "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
                     //adding data to .env file
-                    writeFile(file: '.env', text: data)
+                    writeFile(file: envFile, text: data)
+                    sh "chmod 600 ${envFile}"
 
                   //update tfvars file
                   def version_param_name = "${env.PRODUCT_NAME}_version"
@@ -108,9 +111,10 @@ node {
                   }
 
                   writeFile file: filename, text: tfvarsContent
+                  sh "chmod 600 ${filename}"
                   def testdata = readFile(file: filename)
-                  println('\n\nTFVARS TEST DATA')
-                  println(testdata)
+                  println('\n\nTFVARS TEST DATA (secrets redacted)')
+                  println(testdata.replaceAll(/(?i)(password|secret|token|pem)\s*=\s*"[^"]*"/, '$1 = "<REDACTED>"'))
                 }
                 stage('Docker Build') {
                   sh './scripts/configure.sh'
@@ -124,7 +128,7 @@ node {
                         --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
-                        ${imageName} sh -c "env && chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
+                        ${imageName} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
                          cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
               }
@@ -133,6 +137,7 @@ node {
                 sh "docker stop ${testContainer} || true"
                 sh "docker rm -v ${testContainer} || true"
                 sh "docker rmi -f ${imageName} || true"
+                sh "rm -f ${qaseEnvFile} || true"
               } // stage
             } // finally
           } // dir
