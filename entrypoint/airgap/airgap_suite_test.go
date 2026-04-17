@@ -82,9 +82,8 @@ func validateAirgap() {
 			os.Exit(1)
 		}
 		if os.Getenv("no_of_windows_worker_nodes") != "0" {
-			if !shared.SliceContainsString(cniSlice, serverFlags) ||
-				strings.Contains(serverFlags, "multus") {
-				shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
+			if !shared.SliceContainsString(cniSlice, serverFlags) {
+				shared.LogLevel("error", "only calico or flannel or multus cni is supported for Windows agent\n")
 				shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 				os.Exit(1)
 			}
