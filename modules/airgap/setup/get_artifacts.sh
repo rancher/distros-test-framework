@@ -100,7 +100,7 @@ download_retry() {
       attempt_num=$((attempt_num + 1))
       sleep 5
     fi
-
+  done
   if [[ $attempt_num -gt $max_attempts ]]; then
     echo "ERROR: Command failed after $max_attempts attempts."
     return 1
@@ -252,6 +252,14 @@ get_cni_assets() {
 }
 
 # TODO: Add function for ingress-controller: traefik
+get_other_assets() {
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "traefik" ]]; then
+    download_retry wget $url/rke2-images-traefik.linux-$arch.txt
+    if [ -n "$tarball_type" ]; then
+      download_retry wget $url/rke2-images-traefik.linux-$arch.$tarball_type
+    fi
+  fi
+}
 
 get_windows_assets() {
   url=$(get_url)
@@ -292,6 +300,7 @@ main() {
     get_assets
     if [[ "$product" == "rke2" ]]; then
       get_cni_assets
+      get_other_assets
       save_to_directory
     fi
   fi
