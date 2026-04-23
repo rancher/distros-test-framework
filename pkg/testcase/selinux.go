@@ -92,12 +92,16 @@ func getContext(product, ip string) (cmdCtx, error) {
 	policyMapping := map[string]string{
 		"ID_LIKE='suse' VARIANT_ID='sle-micro'": "sle_micro",
 		"ID_LIKE='suse'":                        "micro_os",
+		"ID='sles'":                             "sles",
 		"ID_LIKE='coreos'":                      "coreos",
 		"VARIANT_ID='coreos'":                   "coreos",
 	}
 
 	for k, v := range policyMapping {
 		if strings.Contains(res, k) {
+			if v == "sles" {
+				break
+			}
 			return selectSelinuxPolicy(product, v), nil
 		}
 	}
@@ -111,9 +115,10 @@ func getContext(product, ip string) (cmdCtx, error) {
 	}
 
 	versionMapping := map[string]string{
-		"7": "centos7",
-		"8": "centos8",
-		"9": "centos9",
+		"7":  "centos7",
+		"8":  "centos8",
+		"9":  "centos9",
+		"16": "sles16",
 	}
 
 	if policy, ok := versionMapping[version]; ok {
@@ -198,7 +203,7 @@ func verifyUninstallPolicy(product, ip, cmd string) {
 	res, err := shared.RunCommandOnNode(cmd, ip)
 	Expect(err).NotTo(HaveOccurred())
 
-	if strings.Contains(osPolicy, "centos7") {
+	if strings.Contains(osPolicy, "sles16") {
 		Expect(res).Should(ContainSubstring("container-selinux"))
 		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
 	} else {
@@ -267,44 +272,31 @@ const (
 //nolint:dupl // this is expected.
 var conf = []configuration{
 	{
-		distroName: "rke2_centos7",
+		distroName: "rke2_sles16",
 		cmdCtx: cmdCtx{
-			cmdPrefix + " " + systemD + "/rke2*":                                                            ctxUnitFile,
-			cmdPrefix + " " + "/lib" + systemD + "/rke2*":                                                   ctxUnitFile,
-			cmdPrefix + " " + usrLocal + "/lib" + systemD + "/rke2*":                                        ctxUnitFile,
-			cmdPrefix + " " + usrBin + "/rke2":                                                              ctxExec,
-			cmdPrefix + " " + usrLocal + "/rke2":                                                            ctxExec,
-			cmdPrefix + " " + "/var/lib/cni " + ignoreDir:                                                   ctxVarLib,
-			cmdPrefix + " " + "/var/lib/cni/* " + ignoreDir:                                                 ctxVarLib,
-			cmdPrefix + " " + "/opt/cni " + ignoreDir:                                                       ctxFile,
-			cmdPrefix + " " + "/opt/cni/* " + ignoreDir:                                                     ctxFile,
-			cmdPrefix + " " + "/var/lib/kubelet/pods " + ignoreDir:                                          ctxFile,
-			cmdPrefix + " " + "/var/lib/kubelet/pods/* " + ignoreDir:                                        ctxFile,
-			cmdPrefix + " " + rke2 + " " + ignoreDir:                                                        ctxVarLib,
-			cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                      ctxVarLib,
-			cmdPrefix + " " + rke2 + "/data":                                                                ctxExec,
-			cmdPrefix + " " + rke2 + "/data/*":                                                              ctxExec,
-			cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                       ctxConfig,
-			cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                     ctxConfig,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:        ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:      ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + " " + grepFilter:               ctxNone,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:        ctxShare,
-			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:      ctxShare,
-			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                            ctxLog,
-			cmdPrefix + " " + rke2 + "/server/logs/ " + ignoreDir:                                           ctxLog,
-			cmdPrefix + " " + "/var/run/flannel " + ignoreDir:                                               ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/flannel/* " + ignoreDir:                                             ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s " + ignoreDir:                                                   ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/* " + ignoreDir:                                                 ctxRunTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm " + ignoreDir + " " + grepFilter:   ctxTmpfs,
-			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm/* " + ignoreDir + " " + grepFilter: ctxTmpfs,
-			cmdPrefix + " " + "/var/log/containers " + ignoreDir:                                            ctxLog,
-			cmdPrefix + " " + "/var/log/containers/* " + ignoreDir:                                          ctxLog,
-			cmdPrefix + " " + "/var/log/pods " + ignoreDir:                                                  ctxLog,
-			cmdPrefix + " " + "/var/log/pods/* " + ignoreDir:                                                ctxLog,
-			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                             ctxTLS,
-			cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                           ctxTLS,
+			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
+			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
+			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2.*":                                      ctxUnitFile,
+			cmdPrefix + " " + usrBin + "/rke2":                                                            ctxExec,
+			cmdPrefix + " " + usrLocal + "/rke2":                                                          ctxExec,
+			cmdPrefix + " " + "/opt/rke2/bin/rke2":                                                        ctxExec,
+			cmdPrefix + " " + "/opt/cni " + ignoreDir:                                                     ctxFile,
+			cmdPrefix + " " + "/opt/cni/* " + ignoreDir:                                                   ctxFile,
+			cmdPrefix + " " + rke2 + " " + ignoreDir:                                                      ctxVarLib,
+			cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                    ctxVarLib,
+			cmdPrefix + " " + rke2 + "/data " + ignoreDir:                                                 ctxExec,
+			cmdPrefix + " " + rke2 + "/data/* " + ignoreDir:                                                ctxExec,
+			cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                     ctxConfig,
+			cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                   ctxConfig,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxShare,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter:    ctxShare,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxShare,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxShare,
+			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                          ctxLog,
+			cmdPrefix + " " + rke2 + "/server/logs/* " + ignoreDir:                                        ctxLog,
+			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                           ctxTLS,
+			cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                         ctxTLS,
 		},
 	},
 	{

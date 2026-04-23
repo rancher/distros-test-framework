@@ -15,8 +15,8 @@ retry_delay=11
 
 download_retry(){
   i=1
- 
-  until $1 || [ $i -gt $max_retries ]; do
+
+  until "$@" || [ $i -gt $max_retries ]; do
     echo "Retry $i failed. Waiting $retry_delay seconds before retrying..."
     sleep $retry_delay
     ((i++))
@@ -30,27 +30,40 @@ download_retry(){
 
 installation(){
     echo "Installing sonobuoy version ${version}"
-    if [ ! -d "my-sonobuoy-plugins" ]; 
+    if [ ! -d "my-sonobuoy-plugins" ];
     then
         echo "Cloning repo: https://github.com/phillipsj/my-sonobuoy-plugins.git"
-        download_retry "${mixed_plugins_url}"
+        download_retry ${mixed_plugins_url}
     fi
     wait
-    echo "Downloading sonobouy installer..."
+    echo "Downloading sonobuoy installer..."
+    checksum_url="https://github.com/vmware-tanzu/sonobuoy/releases/download/v${version}/sonobuoy_${version}_checksums.txt"
     if [[ $(command -v wget) ]]; then
-        download_retry "wget -q ${sonobuoy_url} -O sonobuoy.tar.gz"
+        download_retry wget -q "${sonobuoy_url}" -O sonobuoy.tar.gz
+        download_retry wget -q "${checksum_url}" -O sonobuoy_checksums.txt
         wait
     elif [[ $(command -v curl) ]]; then
-        download_retry "curl -s ${sonobuoy_url} --output sonobuoy.tar.gz"
+        download_retry curl -s "${sonobuoy_url}" --output sonobuoy.tar.gz
+        download_retry curl -s "${checksum_url}" --output sonobuoy_checksums.txt
         wait
     else
         echo "Unable to use wget or curl to download sonobuoy installer, consider a networking error or an under configured OS if this error persists"
     fi
     wait
+    EXPECTED_SUM=$(grep "sonobuoy_${version}_linux_${arch}.tar.gz" sonobuoy_checksums.txt | awk '{print $1}')
+    if [ -z "${EXPECTED_SUM}" ]; then
+        echo "ERROR: Could not find checksum for sonobuoy_${version}_linux_${arch}.tar.gz"
+        exit 1
+    fi
+    if ! echo "${EXPECTED_SUM}  sonobuoy.tar.gz" | sha256sum -c -; then
+        echo "ERROR: Checksum verification failed for sonobuoy.tar.gz"
+        exit 1
+    fi
     tar -xvf sonobuoy.tar.gz
     wait
     mv sonobuoy /usr/local/bin/sonobuoy
     chmod +x /usr/local/bin/sonobuoy
+    rm -f sonobuoy_checksums.txt
 }
 
 deletion(){

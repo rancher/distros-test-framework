@@ -197,7 +197,7 @@ func acquirePollerLock() bool {
 		_ = os.Remove(pollLockFile)
 	}
 
-	if err := os.WriteFile(pollLockFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+	if err := os.WriteFile(pollLockFile, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
 		shared.LogLevel("error", "Failed to create poller lock: %v", err)
 		return false
 	}
@@ -279,7 +279,7 @@ func saveState(stateFile string, state *rerunState) error {
 	}
 
 	tmpFile := stateFile + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0o644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0o600); err != nil {
 		return fmt.Errorf("cannot write temp state: %w", err)
 	}
 	if err := os.Rename(tmpFile, stateFile); err != nil {
