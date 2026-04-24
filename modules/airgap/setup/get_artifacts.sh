@@ -151,9 +151,9 @@ verify_checksums() {
 
 # Safely download an install — download first, validate, then save.
 safe_download_install() {
-  url="$1"
-  output="$2"
-  tmp_script=$(mktemp /tmp/install-XXXXXX.sh)
+  local url="$1"
+  local output="$2"
+  local tmp_script=$(mktemp /tmp/install-XXXXXX.sh)
 
   if ! wget -qO "$tmp_script" "$url"; then
     echo "ERROR: Failed to download install script from $url"
@@ -189,22 +189,19 @@ safe_download_install() {
 }
 
 get_assets() {
-  echo "Downloading $product dependencies..."
-  url=$(get_url)
-  echo "Download assets using url: $url"
+  local url=$(get_url)
+  echo "Download $product assets using url: $url"
   if [[ "$product" == "k3s" ]]; then
-    url=$(get_url)
     download_retry wget $url/sha256sum-$arch.txt
     download_retry wget $url/k3s-images.txt
     safe_download_install "https://get.k3s.io/" "k3s-install.sh"
-    download_retry wget -O $k3s_binary $url/$k3s_binary
+    download_retry wget -O k3s $url/$k3s_binary
     if [ -n "$tarball_type" ]; then
       download_retry wget $url/k3s-airgap-images-$arch.$tarball_type
     fi
     echo "Verifying K3s artifact checksums..."
     verify_checksums "sha256sum-$arch.txt"
   elif [[ "$product" == "rke2" ]]; then
-    url=$(get_url)
     echo "Download assets using url: $url"
     download_retry wget $url/sha256sum-$arch.txt
     # Ref: https://docs.rke2.io/install/airgap
@@ -229,8 +226,8 @@ get_assets() {
 }
 
 get_cni_assets() {
+  local url=$(get_url)
   if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ "$server_flags" != *"cni: none"* ]]; then
-    url=$(get_url)
     echo "Download cni assets using url: $url"
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
@@ -253,6 +250,7 @@ get_cni_assets() {
 
 # TODO: Add function for ingress-controller: traefik
 get_other_assets() {
+  local url=$(get_url)
   if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "traefik" ]]; then
     download_retry wget $url/rke2-images-traefik.linux-$arch.txt
     if [ -n "$tarball_type" ]; then
@@ -262,7 +260,7 @@ get_other_assets() {
 }
 
 get_windows_assets() {
-  url=$(get_url)
+  local url=$(get_url)
   echo "Download Windows assets using url: $url"
   download_retry wget $url/sha256sum-amd64.txt
   download_retry wget $url/rke2-images.windows-amd64.txt
