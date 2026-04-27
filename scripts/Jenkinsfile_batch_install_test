@@ -65,7 +65,7 @@ node {
               def install_params = [
                 string(name: 'TEST_ARGS', value: "${TEST_ARGS}"),
                 string(name: 'REPO', value: "${REPO}"), 
-                string(name: 'BRANCH', value: "${BRANCH}"),                                         
+                string(name: 'BRANCH', value: "${branch}"),                                         
                 string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),                    
                 string(name: 'INSTALL_VERSION', value: "${INSTALL_VERSION}"),
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+## Uncomment the following lines to enable debug mode
 # set -x
 # echo "$@"
 

@@ -74,10 +74,6 @@ func validateAirgap() {
 			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
 			os.Exit(1)
 		}
-		if flags.AirgapFlag.ImageRegistryUrl != "" {
-			shared.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
-			flags.AirgapFlag.ImageRegistryUrl = ""
-		}
 	}
 
 	if cfg.Product == "rke2" {
@@ -86,9 +82,8 @@ func validateAirgap() {
 			os.Exit(1)
 		}
 		if os.Getenv("no_of_windows_worker_nodes") != "0" {
-			if !shared.SliceContainsString(cniSlice, serverFlags) ||
-				strings.Contains(serverFlags, "multus") {
-				shared.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
+			if !shared.SliceContainsString(cniSlice, serverFlags) {
+				shared.LogLevel("error", "only calico or flannel or multus cni is supported for Windows agent\n")
 				shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 				os.Exit(1)
 			}

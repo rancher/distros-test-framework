@@ -1,13 +1,14 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-
-exec 2> get_artifacts.log
+# set -x
 # echo "$@"
 
+set -e
+exec > >(tee -a get_artifacts.log) 2>&1
+
 # Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
-# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "server_flags" "tar.gz"
+# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "https://registry.example.com" "server_flags" "tar.gz"
 
 product=${1}
 version=${2}
@@ -38,23 +39,50 @@ validate_args() {
   fi
 }
 
-check_arch() {
-  if [[ -n "$arch" ]] && [[ "$arch" =~ "arm" ]]; then
-    if [[ "$product" == "k3s" ]]; then
-      k3s_binary="k3s-arm64"
-    else
+override_arch() {
+  local os_arch
+  os_arch=$(uname -m)
+  echo "OS Architecture: $os_arch"
+
+  case "$os_arch" in
+    x86_64)
+      arch="amd64"
+      k3s_binary="k3s"
+      ;;
+    aarch64|arm64)
       arch="arm64"
-    fi
-  else
-    arch="amd64"
-  fi
+      if [[ "$product" == "k3s" ]]; then
+        k3s_binary="k3s-arm64"
+      fi
+      ;;
+    armhf|armv7l)
+      arch="arm"
+      if [[ "$product" == "k3s" ]]; then
+        k3s_binary="k3s-armhf"
+      fi
+      ;;
+    *)
+      echo "Error: Unsupported Architecture: $os_arch"
+      return 1
+      ;;
+  esac
 }
 
 get_url() {
+  local url=""
   if [[ -n "$registry_url" ]]; then
-    url=$registry_url/rke2/$version
+    if [[ "$registry_url" =~ "rancher" ]]; then
+      url="$registry_url/$product/$version"
+    else
+      echo "Error: Unsupported registry_url '$registry_url'. Only 'prime' registries are currently supported." >&2
+      exit 1
+    fi
   else
-    url="https://github.com/rancher/rke2/releases/download/$version"
+    if [[ "$product" == "k3s" ]]; then
+      url="https://github.com/k3s-io/k3s/releases/download/$version"
+    elif [[ "$product" == "rke2" ]]; then
+      url="https://github.com/rancher/rke2/releases/download/$version"
+    fi
   fi
   echo "$url"
 }
@@ -73,7 +101,6 @@ download_retry() {
       sleep 5
     fi
   done
-
   if [[ $attempt_num -gt $max_attempts ]]; then
     echo "ERROR: Command failed after $max_attempts attempts."
     return 1
@@ -124,9 +151,9 @@ verify_checksums() {
 
 # Safely download an install — download first, validate, then save.
 safe_download_install() {
-  url="$1"
-  output="$2"
-  tmp_script=$(mktemp /tmp/install-XXXXXX.sh)
+  local url="$1"
+  local output="$2"
+  local tmp_script=$(mktemp /tmp/install-XXXXXX.sh)
 
   if ! wget -qO "$tmp_script" "$url"; then
     echo "ERROR: Failed to download install script from $url"
@@ -162,20 +189,19 @@ safe_download_install() {
 }
 
 get_assets() {
-  echo "Downloading $product dependencies..."
+  local url=$(get_url)
+  echo "Download $product assets using url: $url"
   if [[ "$product" == "k3s" ]]; then
-    url="https://github.com/k3s-io/k3s/releases/download/$version"
     download_retry wget $url/sha256sum-$arch.txt
     download_retry wget $url/k3s-images.txt
     safe_download_install "https://get.k3s.io/" "k3s-install.sh"
-    download_retry wget -O $k3s_binary $url/$k3s_binary
+    download_retry wget -O k3s $url/$k3s_binary
     if [ -n "$tarball_type" ]; then
       download_retry wget $url/k3s-airgap-images-$arch.$tarball_type
     fi
     echo "Verifying K3s artifact checksums..."
     verify_checksums "sha256sum-$arch.txt"
   elif [[ "$product" == "rke2" ]]; then
-    url=$(get_url)
     echo "Download assets using url: $url"
     download_retry wget $url/sha256sum-$arch.txt
     # Ref: https://docs.rke2.io/install/airgap
@@ -200,8 +226,8 @@ get_assets() {
 }
 
 get_cni_assets() {
+  local url=$(get_url)
   if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "cni" ]] && [[ "$server_flags" != *"cni: none"* ]]; then
-    url=$(get_url)
     echo "Download cni assets using url: $url"
     cnis=("calico" "canal" "cilium" "flannel")
     for cni in "${cnis[@]}"; do
@@ -223,9 +249,18 @@ get_cni_assets() {
 }
 
 # TODO: Add function for ingress-controller: traefik
+get_other_assets() {
+  local url=$(get_url)
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "traefik" ]]; then
+    download_retry wget $url/rke2-images-traefik.linux-$arch.txt
+    if [ -n "$tarball_type" ]; then
+      download_retry wget $url/rke2-images-traefik.linux-$arch.$tarball_type
+    fi
+  fi
+}
 
 get_windows_assets() {
-  url=$(get_url)
+  local url=$(get_url)
   echo "Download Windows assets using url: $url"
   download_retry wget $url/sha256sum-amd64.txt
   download_retry wget $url/rke2-images.windows-amd64.txt
@@ -255,7 +290,7 @@ save_to_directory() {
 
 main() {
   validate_args
-  check_arch
+  override_arch
   if [[ "$platform" == "windows" ]]; then
     get_windows_assets
     save_to_directory "windows"
@@ -263,6 +298,7 @@ main() {
     get_assets
     if [[ "$product" == "rke2" ]]; then
       get_cni_assets
+      get_other_assets
       save_to_directory
     fi
   fi
