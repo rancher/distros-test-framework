@@ -13,6 +13,41 @@ max_retries=5
 retry_delay=11
 # adopt golang error handling in bash check variables are passed in appropriately - if not return appropriate error message
 
+get_binpath(){
+  # Default location for non-root user
+  binpath=~/bin
+
+  # /usr/local/bin is only accessible if we are root
+  if (( $(id -u) == 0 )); then
+    # Default location for root user
+    binpath=/usr/local/bin
+
+    # Check if /usr/local/bin is on a read-only filesystem, use ~/bin if so
+    realdir=$(findmnt -n -o SOURCE --target "${binpath}")
+
+    # This line is mainly here to support LVM-based configuration
+    realdir=$(sed 's/.*\[\/@\(.*\)\]/\1/' <<<${realdir})
+    if [[ -z "${realdir}" ]]; then
+      echo "ERROR: cannot find local /bin directory!"
+      exit 1
+    fi
+
+    # Use "homed" bin location if /usr is read-only
+    mountperm=$(findmnt -n -o OPTIONS ${realdir} | cut -d, -f1)
+    if [[ -z "${mountperm}" ]]; then
+      echo "ERROR: cannot get permissions of ${realdir} directory!"
+      exit 1
+    elif [[ "${mountperm}" == "ro" ]]; then
+      binpath=~/bin
+    fi
+  fi
+
+  # To be sure that the path is available (it does not hurt to do it)
+  mkdir -p ${binpath}
+
+  echo ${binpath}
+}
+
 download_retry(){
   i=1
 
@@ -61,8 +96,9 @@ installation(){
     fi
     tar -xvf sonobuoy.tar.gz
     wait
-    mv sonobuoy /usr/local/bin/sonobuoy
-    chmod +x /usr/local/bin/sonobuoy
+    binpath=$(get_binpath)
+    mv sonobuoy ${binpath}/sonobuoy
+    chmod +x ${binpath}/sonobuoy
     rm -f sonobuoy_checksums.txt
 }
 
@@ -70,7 +106,7 @@ deletion(){
     echo "Deleting sonobuoy installer"
     rm -rf my-sonobuoy-plugins
     rm -rf sonobuoy_*
-    rm -rf /usr/local/bin/sonobuoy
+    rm -rf $(get_binpath)/sonobuoy
 }
 
 if [ "$action" == "install" ];
