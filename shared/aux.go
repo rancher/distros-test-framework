@@ -186,13 +186,26 @@ func InstallHelm() (res string, err error) {
 
 	// get targeted architecture
 	arch := os.Getenv("arch")
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+
+	switch arch {
+	case "x86_64":
+		arch = "amd64"
+	case "amd64", "arm64":
+		// Supported as-is
+	default:
+		return "", ReturnLogError("unsupported architecture for Helm installation: %q", arch)
+	}
 
 	// install Helm from local tarball
-	cmd := fmt.Sprintf("mkdir -p %v/bin && "+
+	localbin := fmt.Sprintf("%v/bin", homedir)
+	cmd := fmt.Sprintf("mkdir -p %v && "+
 		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
-		"cp /tmp/linux-%v*/helm %v/bin/helm && "+
-		"chmod +x %v/bin/helm && "+
-		"helm version", homedir, BasePath(), arch, arch, homedir, homedir)
+		"cp /tmp/linux-%v*/helm %v/helm && "+
+		"chmod +x %v/helm && "+
+		"%v/helm version", localbin, BasePath(), arch, arch, localbin, localbin, localbin)
 
 	return RunCommandHost(cmd)
 }
@@ -361,9 +374,13 @@ func fileExists(files []os.DirEntry, workload string) bool {
 
 func getCommonPaths(ip string) (string, error) {
 	// get home directory on node
-	homedir, err := RunCommandOnNode("echo ~", ip)
-	if err != nil || homedir == "" {
+	homedir, err := RunCommandOnNode(`echo "$HOME"`, ip)
+	if err != nil {
 		return "", ReturnLogError("failed to get home dir: %w", err)
+	}
+	homedir = strings.TrimSpace(homedir)
+	if homedir == "" {
+		return "", ReturnLogError("failed to get home dir: HOME is empty")
 	}
 
 	// adding common paths to the environment variable PATH since in some os's not all paths are available.
