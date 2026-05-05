@@ -15,6 +15,10 @@ spec:
     - operator: Exists
   serviceAccountName: system-upgrade
   cordon: true
+  drain:
+    force: true
+    skipWaitForDeleteTimeout: 30 # Don't wait forever for pods to exit
+    timeout: 300s                # Force the drain to give up after 5 mins
   upgrade:
     image: rancher/rke2-upgrade
 ---
@@ -38,5 +42,7 @@ spec:
     args: ["prepare", "rke2-server"]
   drain:
     force: true
+    skipWaitForDeleteTimeout: 30 # Don't wait forever for pods to exit
+    timeout: 300s                # Force the drain to give up after 5 mins
   upgrade:
     image: rancher/rke2-upgrade
