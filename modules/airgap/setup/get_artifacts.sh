@@ -256,6 +256,11 @@ get_other_assets() {
     if [ -n "$tarball_type" ]; then
       download_retry wget $url/rke2-images-traefik.linux-$arch.$tarball_type
     fi
+  elif [[ -n "$server_flags" ]] && [[ "$server_flags" =~ "ingress-nginx" ]]; then
+    download_retry wget $url/rke2-images-ingress-nginx.linux-$arch.txt
+    if [ -n "$tarball_type" ]; then
+      download_retry wget $url/rke2-images-ingress-nginx.linux-$arch.$tarball_type
+    fi
   fi
 }
 
