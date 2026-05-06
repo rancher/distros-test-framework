@@ -78,6 +78,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 			cluster,
 			assert.NodeAssertReadyStatus(),
 			assert.NodeAssertVersionUpgraded(),
+			"1500s"
 		)
 	})
 

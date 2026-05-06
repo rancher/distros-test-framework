@@ -15,10 +15,16 @@ func TestNodeStatus(
 	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
+	timeouts ...string,
 ) {
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 	if cluster.Config.Product == "rke2" {
 		expectedNodeCount += cluster.NumWinAgents
+	}
+
+	timeout := "600s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
 	}
 
 	Eventually(func(g Gomega) bool {
@@ -36,7 +42,7 @@ func TestNodeStatus(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue(), func() string {
+	}, timeout, "10s").Should(BeTrue(), func() string {
 		shared.LogLevel("error", "\nNodes are not in desired state")
 		_, err := shared.GetNodes(true)
 		Expect(err).NotTo(HaveOccurred())
@@ -59,11 +65,17 @@ func TestNodeStatusUsingBastion(
 	cluster *shared.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
+	timeouts ...string,
 ) {
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
 		expectedNodeCount += cluster.NumWinAgents
+	}
+
+	timeout := "600s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
 	}
 
 	var nodeDetails string
@@ -84,7 +96,7 @@ func TestNodeStatusUsingBastion(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue())
+	}, timeout, "10s").Should(BeTrue())
 }
 
 func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
