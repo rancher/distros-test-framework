@@ -6,6 +6,7 @@ metadata:
   labels:
     rke2-upgrade: server
 spec:
+  jobActiveDeadlineSecs: 1500 # Don't let the job run for more than 25 mins
   concurrency: 1
   version: $UPGRADEVERSION
   nodeSelector:
@@ -15,6 +16,10 @@ spec:
     - operator: Exists
   serviceAccountName: system-upgrade
   cordon: true
+  drain:
+    force: true
+    skipWaitForDeleteTimeout: 30 # Don't wait forever for pods to exit
+    timeout: 300s                # Force the drain to give up after 5 mins
   upgrade:
     image: rancher/rke2-upgrade
 ---
@@ -26,6 +31,7 @@ metadata:
   labels:
     rke2-upgrade: server
 spec:
+  jobActiveDeadlineSecs: 1500 # Don't let the job run for more than 25 mins
   concurrency: 1
   version: $UPGRADEVERSION
   nodeSelector:
@@ -41,6 +47,8 @@ spec:
   cordon: true
   drain:
     force: true
+    skipWaitForDeleteTimeout: 30 # Don't wait forever for pods to exit
+    timeout: 300s                # Force the drain to give up after 5 mins
   upgrade:
     image: rancher/rke2-upgrade
 ---
@@ -52,6 +60,7 @@ metadata:
   labels:
     rke2-upgrade: agent
 spec:
+  jobActiveDeadlineSecs: 1500 # Don't let the job run for more than 25 mins
   concurrency: 2
   version: $UPGRADEVERSION
   nodeSelector:
@@ -64,5 +73,7 @@ spec:
     args: ["prepare", "rke2-server-etcd"]
   drain:
     force: true
+    skipWaitForDeleteTimeout: 30 # Don't wait forever for pods to exit
+    timeout: 300s                # Force the drain to give up after 5 mins
   upgrade:
     image: rancher/rke2-upgrade
