@@ -83,11 +83,10 @@ test_services_stopped() {
 test_directories_removed() {
     echo -e "\n${YELLOW}3- Testing if important directories are removed:${NC}"
 
-    directories=(/var/lib/cni/ /run/netns/cni-*)
+    # /var/lib/cni, /var/log/pods, /var/log/containers are uninstall-only paths
+    directories=(/run/netns/cni-*)
     if [ "$PRODUCT" == "rke2" ]; then
         directories+=(
-        "/var/log/pods"
-        "/var/log/containers"
         "$PRODUCT_DATA_DIR/agent/pod-manifests/etcd.yaml"
         "$PRODUCT_DATA_DIR/agent/pod-manifests/kube-apiserver.yaml"
         "$PRODUCT_DATA_DIR/agent/pod-manifests/kube-controller-manager.yaml"

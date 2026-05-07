@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -143,13 +144,20 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
 	}
 
+	// AccessKey is bind-mounted into the container, so `chmod 400` on it fails
+	// with "Permission denied" sometimes.
+	keyPath, err := prepareScpKey(c.Aws.AccessKey)
+	if err != nil {
+		return ReturnLogError("failed to prepare scp key: %w", err)
+	}
+
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
 			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
-				"chmod 400 %[2]s && scp -i %[2]s %[3]s %[4]s@%[1]s:%[5]s",
+				"scp -i %[2]s -o StrictHostKeyChecking=no %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
-			c.Aws.AccessKey,
+			keyPath,
 			localPath,
 			c.Aws.AwsUser,
 			remotePath,
@@ -174,6 +182,38 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	}
 
 	return nil
+}
+
+var (
+	scpKeyOnce sync.Once
+	scpKeyPath string
+	scpKeyErr  error
+)
+
+// prepareScpKey copies the AccessKey to a writable path in the container and
+// chmods the copy to 0400.
+func prepareScpKey(src string) (string, error) {
+	scpKeyOnce.Do(func() {
+		dst := "/tmp/aws_key.pem"
+		data, readErr := os.ReadFile(src)
+		if readErr != nil {
+			scpKeyErr = fmt.Errorf("read key %s: %w", src, readErr)
+			return
+		}
+
+		if writeErr := os.WriteFile(dst, data, 0o400); writeErr != nil {
+			scpKeyErr = fmt.Errorf("write key %s: %w", dst, writeErr)
+			return
+		}
+
+		if chmodErr := os.Chmod(dst, 0o400); chmodErr != nil {
+			scpKeyErr = fmt.Errorf("chmod key %s: %w", dst, chmodErr)
+			return
+		}
+		scpKeyPath = dst
+	})
+
+	return scpKeyPath, scpKeyErr
 }
 
 // InstallHelm installs helm on the container.
@@ -328,6 +368,9 @@ func formatLogArgs(format string, args ...interface{}) error {
 		return fmt.Errorf("%s", format)
 	}
 	if e, ok := args[0].(error); ok {
+		if strings.Contains(format, "%w") {
+			return fmt.Errorf(format, args...)
+		}
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}

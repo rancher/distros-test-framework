@@ -47,17 +47,20 @@ func nodeSummaryData(c *Cluster, flags *customflag.FlagConfig, data *summaryRepo
 	data.summaryData.WriteString(data.osReleaseData)
 	data.summaryData.WriteString("\n```\n")
 
-	// config.yaml from server node.
+	// config.yaml from server node. Tests like killalluninstall remove the
+	// product before this runs, so a missing file is expected — log and skip
+	// this section instead of failing the whole summary.
 	cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
 	catConfigYaml, configYamlErr := RunCommandOnNode(cmd, c.ServerIPs[0])
 	if configYamlErr != nil {
-		return fmt.Errorf("error retrieving config.yaml from server: %s, %w", c.ServerIPs[0], configYamlErr)
+		LogLevel("warn", "config.yaml not available on server %s: %v", c.ServerIPs[0], configYamlErr)
+	} else {
+		data.configYaml = strings.TrimSpace(catConfigYaml)
+		data.summaryData.WriteString("\n" + "**Config YAML**" + "\n")
+		data.summaryData.WriteString("```yaml\n")
+		data.summaryData.WriteString(data.configYaml)
+		data.summaryData.WriteString("\n```\n")
 	}
-	data.configYaml = strings.TrimSpace(catConfigYaml)
-	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n")
-	data.summaryData.WriteString("```yaml\n")
-	data.summaryData.WriteString(data.configYaml)
-	data.summaryData.WriteString("\n```\n")
 
 	// for now only gather selinux info from RPM based and not airgap nodes.
 	if isRPMBasedOS(data.osReleaseData) {
