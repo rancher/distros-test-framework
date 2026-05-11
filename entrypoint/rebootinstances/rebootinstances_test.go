@@ -29,6 +29,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
+	It("Verifies node CPU usage does not exceed 80% before reboot", func() {
+		testcase.TestNodeCPUUsageBelowThreshold(80, true, true)
+	})
+
 	It("Verifies ClusterIP Service", func() {
 		testcase.TestServiceClusterIP(true, true)
 	})

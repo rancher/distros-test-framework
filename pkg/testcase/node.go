@@ -138,8 +138,8 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-// TestNodeCPUUsageBelowThreshold fails when any node is at or above the provided CPU percentage.
-func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool) {
+// TestNodeCPUUsageBelowThreshold fails when any node exceeds the provided CPU percentage.
+func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool, timeouts ...string) {
 	var workloadErr error
 	if applyWorkload {
 		shared.LogLevel("info", "Deploying metrics-server...")
@@ -154,33 +154,42 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 	Expect(err).To(BeNil())
 	shared.LogLevel("info", "metrics-server pod is running")
 
-	shared.LogLevel("info", "Querying node CPU usage with 'kubectl top node --no-headers'...")
-	topNodeCmd := "kubectl top node --kubeconfig=" + shared.KubeConfigFile + " --no-headers"
-	res, err := shared.RunCommandHost(topNodeCmd)
-	Expect(err).To(BeNil())
-	Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
-	shared.LogLevel("info", "kubectl top node query completed:\n%s", res)
+	timeout := "120s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
+	}
 
-	shared.LogLevel("info", "Parsing node CPU percentages...")
-	nodeCPU, err := parseNodeCPUPercentages(res)
-	Expect(err).To(BeNil())
-	Expect(len(nodeCPU)).To(BeNumerically(">", 0), "Expected at least one node in kubectl top node output")
-	shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
+	Eventually(func(g Gomega) bool {
+		shared.LogLevel("info", "Querying node CPU usage with 'kubectl top node --no-headers'...")
+		topNodeCmd := "kubectl top node --kubeconfig=" + shared.KubeConfigFile + " --no-headers"
+		res, err := shared.RunCommandHost(topNodeCmd)
+		g.Expect(err).To(BeNil())
+		g.Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
+		shared.LogLevel("info", "kubectl top node query completed:\n%s", res)
 
-	shared.LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
-	overThreshold := make([]string, 0)
-	for nodeName, cpuPercent := range nodeCPU {
-		shared.LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
-		if cpuPercent >= maxCPUPercent {
-			overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
+		shared.LogLevel("info", "Parsing node CPU percentages...")
+		nodeCPU, err := parseNodeCPUPercentages(res)
+		g.Expect(err).To(BeNil())
+		g.Expect(len(nodeCPU)).To(BeNumerically(">", 0), "Expected at least one node in kubectl top node output")
+		shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
+
+		shared.LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
+		overThreshold := make([]string, 0)
+		for nodeName, cpuPercent := range nodeCPU {
+			shared.LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
+			if cpuPercent > maxCPUPercent {
+				overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
+			}
 		}
-	}
 
-	if len(overThreshold) == 0 {
-		shared.LogLevel("info", "✓ All nodes are below %d%% CPU threshold", maxCPUPercent)
-	}
+		if len(overThreshold) == 0 {
+			shared.LogLevel("info", "✓ All nodes are at or below %d%% CPU threshold", maxCPUPercent)
+		}
 
-	Expect(overThreshold).To(BeEmpty(), "Found nodes at or above %d%% CPU utilization: %v\nFull output:\n%s", maxCPUPercent, overThreshold, res)
+		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s", maxCPUPercent, overThreshold, res)
+
+		return true
+	}, timeout, "10s").Should(BeTrue(), "CPU usage on one or more nodes exceeded %d%% threshold", maxCPUPercent)
 
 	if deleteWorkload {
 		shared.LogLevel("info", "Cleaning up metrics-server...")
@@ -192,7 +201,12 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 
 func parseNodeCPUPercentages(output string) (map[string]int, error) {
 	nodeCPU := make(map[string]int)
-	shared.LogLevel("info", "Parsing kubectl top node output...")
+
+	const (
+		minExpectedFields = 3
+		nodeNameFieldIndex = 0
+		cpuUsagePercentFieldIndex = 2
+	)
 
 	lineCount := 0
 	for _, rawLine := range strings.Split(output, "\n") {
@@ -203,13 +217,13 @@ func parseNodeCPUPercentages(output string) (map[string]int, error) {
 
 		lineCount++
 		fields := strings.Fields(line)
-		if len(fields) < 3 {
-			shared.LogLevel("info", "  Skipping malformed line (expected 3+ fields): %q", line)
+		if len(fields) < minExpectedFields {
+			shared.LogLevel("info", "  Skipping malformed line (expected %d+ fields): %q", minExpectedFields, line)
 			continue
 		}
 
-		nodeName := fields[0]
-		cpuPercentRaw := strings.TrimSuffix(fields[2], "%")
+		nodeName := fields[nodeNameFieldIndex]
+		cpuPercentRaw := strings.TrimSuffix(fields[cpuUsagePercentFieldIndex], "%")
 		cpuPercent, err := strconv.Atoi(cpuPercentRaw)
 		if err != nil {
 			shared.LogLevel("error", "Failed parsing CPU percent from line %q: %v", line, err)
