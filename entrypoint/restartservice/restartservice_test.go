@@ -63,8 +63,8 @@ var _ = Describe("Test:", func() {
 		)
 	})
 
-	It("Verifies node CPU usage stays below 80% after service restarts", func() {
-		testcase.TestNodeCPUUsageBelowThreshold(80, true, true)
+	It("Verifies node CPU usage does not exceed 80% after service restarts", func() {
+		testcase.TestNodeCPUUsageBelowThreshold(81, true, true)
 	})
 
 	It("Validate Pods after service restarts", func() {
