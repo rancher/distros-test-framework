@@ -167,25 +167,8 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 		g.Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
 		shared.LogLevel("info", "kubectl top node query completed:\n%s", res)
 
-		shared.LogLevel("info", "Parsing node CPU percentages...")
-		nodeCPU, err := parseNodeCPUPercentages(res)
-		g.Expect(err).To(BeNil())
-		g.Expect(len(nodeCPU)).To(BeNumerically(">", 0), "Expected at least one node in kubectl top node output")
-		shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
-
-		shared.LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
-		overThreshold := make([]string, 0)
-		for nodeName, cpuPercent := range nodeCPU {
-			shared.LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
-			if cpuPercent > maxCPUPercent {
-				overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
-			}
-		}
-
-		if len(overThreshold) == 0 {
-			shared.LogLevel("info", "✓ All nodes are at or below %d%% CPU threshold", maxCPUPercent)
-		}
-
+		overThreshold, checkErr := checkNodeCPUThreshold(maxCPUPercent, res)
+		g.Expect(checkErr).To(BeNil())
 		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s", maxCPUPercent, overThreshold, res)
 
 		return true
@@ -202,11 +185,9 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 func parseNodeCPUPercentages(output string) (map[string]int, error) {
 	nodeCPU := make(map[string]int)
 
-	const (
-		minExpectedFields = 3
-		nodeNameFieldIndex = 0
-		cpuUsagePercentFieldIndex = 2
-	)
+	minExpectedFields := 3
+	nodeNameFieldIndex := 0
+	cpuUsagePercentFieldIndex := 2
 
 	lineCount := 0
 	for _, rawLine := range strings.Split(output, "\n") {
@@ -236,4 +217,33 @@ func parseNodeCPUPercentages(output string) (map[string]int, error) {
 
 	shared.LogLevel("info", "Parsed %d lines total, extracted %d nodes", lineCount, len(nodeCPU))
 	return nodeCPU, nil
+	
+}
+
+// checkNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
+func checkNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
+	shared.LogLevel("info", "Parsing node CPU percentages...")
+	nodeCPU, err := parseNodeCPUPercentages(output)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeCPU) == 0 {
+		return nil, fmt.Errorf("expected at least one node in kubectl top node output")
+	}
+	shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
+
+	shared.LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
+	overThreshold := make([]string, 0)
+	for nodeName, cpuPercent := range nodeCPU {
+		shared.LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
+		if cpuPercent > maxCPUPercent {
+			overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
+		}
+	}
+
+	if len(overThreshold) == 0 {
+		shared.LogLevel("info", "✓ All nodes are at or below %d%% CPU threshold", maxCPUPercent)
+	}
+
+	return overThreshold, nil
 }
