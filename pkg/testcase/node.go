@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -216,8 +217,8 @@ func parseNodeCPUPercentages(output string) (map[string]int, error) {
 	}
 
 	shared.LogLevel("info", "Parsed %d lines total, extracted %d nodes", lineCount, len(nodeCPU))
-	return nodeCPU, nil
 
+	return nodeCPU, nil
 }
 
 // checkNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
@@ -228,7 +229,7 @@ func checkNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
 		return nil, err
 	}
 	if len(nodeCPU) == 0 {
-		return nil, fmt.Errorf("expected at least one node in kubectl top node output")
+		return nil, errors.New("expected at least one node in kubectl top node output")
 	}
 	shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
 
