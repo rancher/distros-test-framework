@@ -30,7 +30,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Verifies node CPU usage does not exceed 80% before service restarts", func() {
-		testcase.TestNodeCPUUsageBelowThreshold(81, true, true)
+		testcase.TestNodeCPUUsageBelowThreshold(80, true, true)
 	})
 
 	It("Verifies ClusterIP Service before service restarts", func() {
