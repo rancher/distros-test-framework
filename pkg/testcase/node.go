@@ -143,17 +143,17 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool, timeouts ...string) {
 	var workloadErr error
 	if applyWorkload {
-		shared.LogLevel("info", "Deploying metrics-server...")
+		shared.LogLevel("info", "Deploying test metrics-server workload...")
 		workloadErr = shared.ManageWorkload("apply", "metrics-server.yaml")
 		Expect(workloadErr).To(BeNil())
-		shared.LogLevel("info", "metrics-server deployed successfully")
+		shared.LogLevel("info", "Test metrics-server workload deployed successfully")
 	}
 
-	shared.LogLevel("info", "Verifying metrics-server pod is running...")
+	shared.LogLevel("info", "Verifying test metrics-server workload pod is running...")
 	cmd := "kubectl get pods -n test-metrics-server --kubeconfig=" + shared.KubeConfigFile + " | grep metrics-server"
 	err := assert.ValidateOnHost(cmd, "Running")
 	Expect(err).To(BeNil())
-	shared.LogLevel("info", "metrics-server pod is running")
+	shared.LogLevel("info", "Test metrics-server workload pod is running")
 
 	timeout := "120s"
 	if len(timeouts) > 0 && timeouts[0] != "" {
@@ -177,10 +177,10 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 	}, timeout, "10s").Should(BeTrue(), "CPU usage on one or more nodes exceeded %d%% threshold", maxCPUPercent)
 
 	if deleteWorkload {
-		shared.LogLevel("info", "Cleaning up metrics-server...")
+		shared.LogLevel("info", "Cleaning up test metrics-server workload...")
 		workloadErr = shared.ManageWorkload("delete", "metrics-server.yaml")
 		Expect(workloadErr).To(BeNil())
-		shared.LogLevel("info", "metrics-server cleaned up successfully")
+		shared.LogLevel("info", "Test workload cleaned up successfully")
 	}
 }
 
