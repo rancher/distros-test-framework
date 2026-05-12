@@ -171,7 +171,7 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 		overThreshold, checkErr := checkNodeCPUThreshold(maxCPUPercent, res)
 		g.Expect(checkErr).To(BeNil())
 		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s",
-		 maxCPUPercent, overThreshold, res)
+			maxCPUPercent, overThreshold, res)
 
 		return true
 	}, timeout, "10s").Should(BeTrue(), "CPU usage on one or more nodes exceeded %d%% threshold", maxCPUPercent)
