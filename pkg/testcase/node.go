@@ -217,7 +217,7 @@ func parseNodeCPUPercentages(output string) (map[string]int, error) {
 
 	shared.LogLevel("info", "Parsed %d lines total, extracted %d nodes", lineCount, len(nodeCPU))
 	return nodeCPU, nil
-	
+
 }
 
 // checkNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
