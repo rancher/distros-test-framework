@@ -139,8 +139,8 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 	}
 }
 
-// TestNodeCPUUsageBelowThreshold fails when any node exceeds the provided CPU percentage.
-func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool, timeouts ...string) {
+// TestNodeCPUThreshold fails when any node exceeds the provided CPU percentage.
+func TestNodeCPUThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool, timeouts ...string) {
 	var workloadErr error
 	if applyWorkload {
 		shared.LogLevel("info", "Deploying test metrics-server workload...")
@@ -159,15 +159,13 @@ func TestNodeCPUUsageBelowThreshold(maxCPUPercent int, applyWorkload, deleteWork
 	if len(timeouts) > 0 && timeouts[0] != "" {
 		timeout = timeouts[0]
 	}
+	shared.LogLevel("info", "Querying node CPU usage with 'kubectl top node --no-headers'...")
 
 	Eventually(func(g Gomega) bool {
-		shared.LogLevel("info", "Querying node CPU usage with 'kubectl top node --no-headers'...")
 		topNodeCmd := "kubectl top node --kubeconfig=" + shared.KubeConfigFile + " --no-headers"
 		res, err := shared.RunCommandHost(topNodeCmd)
 		g.Expect(err).To(BeNil())
 		g.Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
-		shared.LogLevel("info", "kubectl top node query completed:\n%s", res)
-
 		overThreshold, checkErr := checkNodeCPUThreshold(maxCPUPercent, res)
 		g.Expect(checkErr).To(BeNil())
 		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s",
@@ -201,15 +199,15 @@ func parseNodeCPUPercentages(output string) (map[string]int, error) {
 		lineCount++
 		fields := strings.Fields(line)
 		if len(fields) < minExpectedFields {
-			shared.LogLevel("info", "  Skipping malformed line (expected %d+ fields): %q", minExpectedFields, line)
-			continue
+			shared.LogLevel("error", "Malformed line (expected %d+ fields): %q", minExpectedFields, line)
+			return nil, fmt.Errorf("malformed kubectl top node line (expected %d+ fields): %q", minExpectedFields, line)
 		}
 
 		nodeName := fields[nodeNameFieldIndex]
 		cpuPercentRaw := strings.TrimSuffix(fields[cpuUsagePercentFieldIndex], "%")
 		cpuPercent, err := strconv.Atoi(cpuPercentRaw)
 		if err != nil {
-			shared.LogLevel("error", "Failed parsing CPU percent from line %q: %v", line, err)
+			shared.LogLevel("error", "Failed parsing CPU percent from line %q: %v retrying...", line, err)
 			return nil, fmt.Errorf("failed parsing CPU percent from line %q: %w", line, err)
 		}
 

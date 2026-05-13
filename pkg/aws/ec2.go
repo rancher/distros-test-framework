@@ -350,7 +350,7 @@ func (c Client) waitForInstanceRunning(instanceId string) error {
 	}
 
 	ticker := time.NewTicker(15 * time.Second)
-	timeout := time.After(10 * time.Minute)
+	timeout := time.After(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
