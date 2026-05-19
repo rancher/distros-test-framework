@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 // validateAirgap pre-validation for airgap tests.
 func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
-	cniSlice := []string{"calico", "flannel"}
+	cniSlice := []string{"calico", "flannel", "multus,calico", "multus,flannel"}
 
 	// This is required in .env file as param ENV_MODULE=airgap.
 	if cfg.Module == "" || cfg.Module != "airgap" {
@@ -71,19 +71,20 @@ func validateAirgap() {
 
 	if cfg.Product == "k3s" {
 		if strings.Contains(serverFlags, "protect") {
-			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
+			shared.LogLevel("error", "airgap with hardened k3s setup is not supported\n")
 			os.Exit(1)
 		}
 	}
 
 	if cfg.Product == "rke2" {
 		if strings.Contains(serverFlags, "profile") {
-			shared.LogLevel("error", "airgap with hardened setup is not supported\n")
+			shared.LogLevel("error", "airgap with hardened rke2 setup is not supported\n")
 			os.Exit(1)
 		}
 		if os.Getenv("no_of_windows_worker_nodes") != "0" {
 			if !shared.SliceContainsString(cniSlice, serverFlags) {
-				shared.LogLevel("error", "only calico or flannel or multus cni is supported for Windows agent\n")
+				shared.LogLevel("error", "only calico or flannel cni or "+
+					"multus,calico or multus,flannel is supported for Windows agent\n")
 				shared.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 				os.Exit(1)
 			}

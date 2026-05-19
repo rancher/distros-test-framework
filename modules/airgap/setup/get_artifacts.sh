@@ -71,7 +71,7 @@ override_arch() {
 get_url() {
   local url=""
   if [[ -n "$registry_url" ]]; then
-    if [[ "$registry_url" =~ "rancher" ]]; then
+    if [[ "$registry_url" =~ "prime" ]]; then
       url="$registry_url/$product/$version"
     else
       echo "Error: Unsupported registry_url '$registry_url'. Only 'prime' registries are currently supported." >&2
