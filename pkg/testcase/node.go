@@ -1,9 +1,6 @@
 package testcase
 
 import (
-	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/assert"
@@ -166,7 +163,7 @@ func TestNodeCPUThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool,
 		res, err := shared.RunCommandHost(topNodeCmd)
 		g.Expect(err).To(BeNil())
 		g.Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
-		overThreshold, checkErr := checkNodeCPUThreshold(maxCPUPercent, res)
+		overThreshold, checkErr := shared.CheckNodeCPUThreshold(maxCPUPercent, res)
 		g.Expect(checkErr).To(BeNil())
 		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s",
 			maxCPUPercent, overThreshold, res)
@@ -180,70 +177,4 @@ func TestNodeCPUThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool,
 		Expect(workloadErr).To(BeNil())
 		shared.LogLevel("info", "Test workload cleaned up successfully")
 	}
-}
-
-func parseNodeCPUPercentages(output string) (map[string]int, error) {
-	nodeCPU := make(map[string]int)
-
-	minExpectedFields := 3
-	nodeNameFieldIndex := 0
-	cpuUsagePercentFieldIndex := 2
-
-	lineCount := 0
-	for _, rawLine := range strings.Split(output, "\n") {
-		line := strings.TrimSpace(rawLine)
-		if line == "" {
-			continue
-		}
-
-		lineCount++
-		fields := strings.Fields(line)
-		if len(fields) < minExpectedFields {
-			shared.LogLevel("error", "Malformed line (expected %d+ fields): %q", minExpectedFields, line)
-			return nil, fmt.Errorf("malformed kubectl top node line (expected %d+ fields): %q", minExpectedFields, line)
-		}
-
-		nodeName := fields[nodeNameFieldIndex]
-		cpuPercentRaw := strings.TrimSuffix(fields[cpuUsagePercentFieldIndex], "%")
-		cpuPercent, err := strconv.Atoi(cpuPercentRaw)
-		if err != nil {
-			shared.LogLevel("error", "Failed parsing CPU percent from line %q: %v retrying...", line, err)
-			return nil, fmt.Errorf("failed parsing CPU percent from line %q: %w", line, err)
-		}
-
-		nodeCPU[nodeName] = cpuPercent
-		shared.LogLevel("info", "  Parsed node %s with CPU usage %d%%", nodeName, cpuPercent)
-	}
-
-	shared.LogLevel("info", "Parsed %d lines total, extracted %d nodes", lineCount, len(nodeCPU))
-
-	return nodeCPU, nil
-}
-
-// checkNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
-func checkNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
-	shared.LogLevel("info", "Parsing node CPU percentages...")
-	nodeCPU, err := parseNodeCPUPercentages(output)
-	if err != nil {
-		return nil, err
-	}
-	if len(nodeCPU) == 0 {
-		return nil, errors.New("expected at least one node in kubectl top node output")
-	}
-	shared.LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
-
-	shared.LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
-	overThreshold := make([]string, 0)
-	for nodeName, cpuPercent := range nodeCPU {
-		shared.LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
-		if cpuPercent > maxCPUPercent {
-			overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
-		}
-	}
-
-	if len(overThreshold) == 0 {
-		shared.LogLevel("info", "✓ All nodes are at or below %d%% CPU threshold", maxCPUPercent)
-	}
-
-	return overThreshold, nil
 }

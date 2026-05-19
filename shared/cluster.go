@@ -1,11 +1,13 @@
 package shared
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -887,4 +889,71 @@ func CleanupPod(podName string) error {
 	LogLevel("info", "Pod %s cleaned up successfully: %s", podName, res)
 
 	return nil
+}
+
+// ParseNodeCPUPercentages parses the output of 'kubectl top node' and returns a map of node names to CPU percentages.
+func ParseNodeCPUPercentages(output string) (map[string]int, error) {
+	nodeCPU := make(map[string]int)
+
+	minExpectedFields := 3
+	nodeNameFieldIndex := 0
+	cpuUsagePercentFieldIndex := 2
+
+	lineCount := 0
+	for _, rawLine := range strings.Split(output, "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+
+		lineCount++
+		fields := strings.Fields(line)
+		if len(fields) < minExpectedFields {
+			LogLevel("error", "Malformed line (expected %d+ fields): %q", minExpectedFields, line)
+			return nil, fmt.Errorf("malformed kubectl top node line (expected %d+ fields): %q", minExpectedFields, line)
+		}
+
+		nodeName := fields[nodeNameFieldIndex]
+		cpuPercentRaw := strings.TrimSuffix(fields[cpuUsagePercentFieldIndex], "%")
+		cpuPercent, err := strconv.Atoi(cpuPercentRaw)
+		if err != nil {
+			LogLevel("error", "Failed parsing CPU percent from line %q: %v retrying...", line, err)
+			return nil, fmt.Errorf("failed parsing CPU percent from line %q: %w", line, err)
+		}
+
+		nodeCPU[nodeName] = cpuPercent
+		LogLevel("info", "  Parsed node %s with CPU usage %d%%", nodeName, cpuPercent)
+	}
+
+	LogLevel("info", "Parsed %d lines total, extracted %d nodes", lineCount, len(nodeCPU))
+
+	return nodeCPU, nil
+}
+
+// CheckNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
+func CheckNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
+	LogLevel("info", "Parsing node CPU percentages...")
+	nodeCPU, err := ParseNodeCPUPercentages(output)
+	if err != nil {
+		return nil, err
+	}
+	if len(nodeCPU) == 0 {
+		return nil, errors.New("expected at least one node in kubectl top node output")
+	}
+	LogLevel("info", "Successfully parsed CPU data for %d nodes", len(nodeCPU))
+
+	LogLevel("info", "Checking if any nodes exceed %d%% CPU threshold...", maxCPUPercent)
+	overThreshold := make([]string, 0)
+	for nodeName, cpuPercent := range nodeCPU {
+		LogLevel("info", "  Node %s: %d%% CPU", nodeName, cpuPercent)
+		if cpuPercent > maxCPUPercent {
+			overThreshold = append(overThreshold, fmt.Sprintf("%s=%d%%", nodeName, cpuPercent))
+		}
+	}
+
+	if len(overThreshold) == 0 {
+		LogLevel("info", "✓ All nodes are at or below %d%% CPU threshold", maxCPUPercent)
+	}
+
+	return overThreshold, nil
 }
