@@ -47,11 +47,11 @@ var _ = Describe("Test Dual Stack Cluster:", func() {
 
 	// https://github.com/k3s-io/k3s/issues/10053
 	It("[k3s/10053] Validates Ingress after Pod Restart when Network Policies are present", func() {
- 		if cluster == nil || cluster.Config.Product != "k3s" {
- 			Skip("skipping k3s-specific test")
- 		}
- 		testcase.TestIngressWithPodRestartAndNetPol(cluster, true)
- 	})
+		if cluster == nil || cluster.Config.Product != "k3s" {
+			Skip("skipping k3s-specific test")
+		}
+		testcase.TestIngressWithPodRestartAndNetPol(cluster, true)
+	})
 })
 
 var _ = AfterEach(func() {
