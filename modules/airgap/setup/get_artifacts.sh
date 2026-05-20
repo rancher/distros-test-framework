@@ -69,22 +69,31 @@ override_arch() {
 }
 
 get_url() {
-  local url=""
   if [[ -n "$registry_url" ]]; then
-    if [[ "$registry_url" =~ "prime" ]]; then
-      url="$registry_url/$product/$version"
-    else
+    if [[ "$registry_url" != *"prime"* ]]; then
       echo "Error: Unsupported registry_url '$registry_url'. Only 'prime' registries are currently supported." >&2
-      exit 1
+      return 1 
     fi
-  else
-    if [[ "$product" == "k3s" ]]; then
-      url="https://github.com/k3s-io/k3s/releases/download/$version"
-    elif [[ "$product" == "rke2" ]]; then
-      url="https://github.com/rancher/rke2/releases/download/$version"
-    fi
+    
+    echo "$registry_url/$product/$version"
+    return 0
   fi
-  echo "$url"
+
+  local product_uri
+  case "$product" in
+    k3s)
+      product_uri="k3s-io/k3s"
+      ;;
+    rke2)
+      product_uri="rancher/rke2"
+      ;;
+    *)
+      # 3. Catch missing or unsupported products
+      echo "Error: Unsupported product '$product'. Cannot construct URL." >&2
+      return 1
+      ;;
+  esac
+  echo "https://github.com/$product_uri/releases/download/$version"
 }
 
 download_retry() {
