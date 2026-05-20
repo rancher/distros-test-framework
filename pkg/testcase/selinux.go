@@ -285,7 +285,7 @@ var conf = []configuration{
 			cmdPrefix + " " + rke2 + " " + ignoreDir:                                                      ctxVarLib,
 			cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                    ctxVarLib,
 			cmdPrefix + " " + rke2 + "/data " + ignoreDir:                                                 ctxExec,
-			cmdPrefix + " " + rke2 + "/data/* " + ignoreDir:                                                ctxExec,
+			cmdPrefix + " " + rke2 + "/data/* " + ignoreDir:                                               ctxExec,
 			cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                     ctxConfig,
 			cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                   ctxConfig,
 			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxShare,

@@ -32,7 +32,11 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Validate Metrics Server pre-upgrade", func() {
-		testcase.TestNodeMetricsServer(true, true)
+		testcase.TestNodeMetricsServer(true, false)
+	})
+
+	It("Verifies node CPU usage does not exceed 80% pre-upgrade", func() {
+		testcase.TestNodeCPUThreshold(80, false, true)
 	})
 
 	It("Verifies ClusterIP Service pre-upgrade", func() {
@@ -90,7 +94,11 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	})
 
 	It("Validate Metrics Server post-upgrade", func() {
-		testcase.TestNodeMetricsServer(true, true)
+		testcase.TestNodeMetricsServer(true, false)
+	})
+
+	It("Verifies node CPU usage does not exceed 80% post-upgrade", func() {
+		testcase.TestNodeCPUThreshold(80, false, true)
 	})
 
 	It("Verifies ClusterIP Service post-upgrade", func() {
