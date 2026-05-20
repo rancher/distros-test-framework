@@ -892,7 +892,7 @@ func CleanupPod(podName string) error {
 }
 
 // ParseNodeCPUPercentages parses the output of 'kubectl top node' and returns a map of node names to CPU percentages.
-func ParseNodeCPUPercentages(output string) (map[string]int, error) {
+func parseNodeCPUPercentages(output string) (map[string]int, error) {
 	nodeCPU := make(map[string]int)
 
 	minExpectedFields := 3
@@ -933,7 +933,7 @@ func ParseNodeCPUPercentages(output string) (map[string]int, error) {
 // CheckNodeCPUThreshold returns a list of nodes exceeding maxCPUPercent, or nil if all nodes pass.
 func CheckNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
 	LogLevel("info", "Parsing node CPU percentages...")
-	nodeCPU, err := ParseNodeCPUPercentages(output)
+	nodeCPU, err := parseNodeCPUPercentages(output)
 	if err != nil {
 		return nil, err
 	}
