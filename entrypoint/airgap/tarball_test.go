@@ -21,6 +21,10 @@ var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 		testcase.TestTarball(cluster, flags)
 	})
 
+	It("Check Images on the airgap node", func() {
+		testcase.TestCheckImagesOnNode(cluster, flags)
+	})
+
 	It("Validates Nodes", func() {
 		testcase.TestNodeStatusUsingBastion(
 			cluster,
@@ -34,6 +38,10 @@ var _ = Describe("Test Airgap cluster using Tarball Method:", Ordered, func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
+	})
+
+	It("Check Image to Pod relation on the airgap node", func() {
+		testcase.TestCheckImageToPodRelationOnNode(cluster)
 	})
 
 	AfterAll(func() {

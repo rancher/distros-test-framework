@@ -74,13 +74,14 @@ type clusterConfig struct {
 }
 
 type splitRolesConfig struct {
-	Add                bool
+	Enabled            bool
 	NumServers         int
 	ControlPlaneOnly   int
 	ControlPlaneWorker int
 	EtcdOnly           int
 	EtcdCP             int
 	EtcdWorker         int
+	RoleOrder          string
 }
 
 type testConfig struct {
@@ -269,7 +270,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 			ExternalDbEndpoint:  os.Getenv("rendered_template"),
 			Arch:                os.Getenv("arch"),
 			SplitRoles: splitRolesConfig{
-				Add: os.Getenv("split_roles") == "true",
+				Enabled: os.Getenv("split_roles") == "true",
 				NumServers: parseEnvInt("etcd_only_nodes", 0) +
 					parseEnvInt("etcd_cp_nodes", 0) +
 					parseEnvInt("etcd_worker_nodes", 0) +
@@ -280,6 +281,7 @@ func addClusterFromKubeConfig(nodes []Node) (*Cluster, error) {
 				EtcdOnly:           parseEnvInt("etcd_only_nodes", 0),
 				EtcdCP:             parseEnvInt("etcd_cp_nodes", 0),
 				EtcdWorker:         parseEnvInt("etcd_worker_nodes", 0),
+				RoleOrder:          os.Getenv("role_order"),
 			},
 		},
 		BastionConfig: bastionConfig{
