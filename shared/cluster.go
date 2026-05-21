@@ -891,7 +891,7 @@ func CleanupPod(podName string) error {
 	return nil
 }
 
-// ParseNodeCPUPercentages parses the output of 'kubectl top node' and returns a map of node names to CPU percentages.
+// parseNodeCPUPercentages parses the output of 'kubectl top node' and returns a map of node names to CPU percentages.
 func parseNodeCPUPercentages(output string) (map[string]int, error) {
 	nodeCPU := make(map[string]int)
 
