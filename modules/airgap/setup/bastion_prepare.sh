@@ -1,10 +1,11 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-
-exec 2> bastion_prep.log
+# set -x
 # echo "$@"
+
+set -e
+exec > >(tee -a bastion_prep.log) 2>&1
 
 arch=$(uname -m)
 
