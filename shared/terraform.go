@@ -228,56 +228,37 @@ func loadTFoutput(t *testing.T, terraformOptions *terraform.Options, c *Cluster,
 }
 
 func addSplitRole(t *testing.T, sp *splitRolesConfig, varDir string, numServers int) (int, error) {
-	etcdNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_only_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_only_nodes %w", err)
-	}
-	etcdCpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_cp_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_cp_nodes %w", err)
-	}
-	etcdWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"etcd_worker_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting etcd_worker_nodes %w", err)
-	}
-	cpNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"cp_only_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting cp_only_nodes %w", err)
-	}
-	cpWorkerNodes, err := strconv.Atoi(terraform.GetVariableAsStringFromVarFile(
-		t,
-		varDir,
-		"cp_worker_nodes",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("error getting cp_worker_nodes %w", err)
+	mappings := []struct {
+		key string
+		ptr *int
+	}{
+		{"etcd_only_nodes", &sp.EtcdOnly},
+		{"etcd_cp_nodes", &sp.EtcdCP},
+		{"etcd_worker_nodes", &sp.EtcdWorker},
+		{"cp_only_nodes", &sp.ControlPlaneOnly},
+		{"cp_worker_nodes", &sp.ControlPlaneWorker},
 	}
 
-	numServers = numServers + etcdNodes + etcdCpNodes + etcdWorkerNodes + cpNodes + cpWorkerNodes
+	for _, m := range mappings {
+		val, err := terraform.GetVariableAsStringFromVarFileE(t, varDir, m.key)
+		if err != nil {
+			return numServers, fmt.Errorf("failed to get %s from var file %q: %w", m.key, varDir, err)
+		}
+		count, err := strconv.Atoi(val)
+		if err != nil {
+			return numServers, fmt.Errorf("failed to parse %s (%q) as int: %w", m.key, val, err)
+		}
 
-	sp.Add = true
-	sp.ControlPlaneOnly = cpNodes
-	sp.EtcdOnly = etcdNodes
-	sp.EtcdCP = etcdCpNodes
-	sp.EtcdWorker = etcdWorkerNodes
-	sp.ControlPlaneWorker = cpWorkerNodes
-	sp.NumServers = numServers
+		*m.ptr = count
+		numServers += count
+	}
+
+	var err error
+	sp.RoleOrder, err = terraform.GetVariableAsStringFromVarFileE(t, varDir, "role_order")
+	if err != nil {
+		return 0, fmt.Errorf("failed to get role_order from var file %q: %w", varDir, err)
+	}
+	sp.Enabled, sp.NumServers = true, numServers
 
 	return numServers, nil
 }

@@ -141,7 +141,7 @@ node {
 
                 def os_validation_params = [
                   string(name: 'REPO', value: "${REPO}"),
-                  string(name: 'BRANCH', value: "${BRANCH}"),
+                  string(name: 'BRANCH', value: "${branch}"),
                   string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),
                   string(name: 'INSTALL_VERSION', value: installVersion),
                   string(name: 'UPGRADE_VERSION', value: upgradeVersion),
