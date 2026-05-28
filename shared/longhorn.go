@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,7 +20,8 @@ func InstallLonghorn() error {
 		return fmt.Errorf("failed to add longhorn helm repo: %w", err)
 	}
 
-	installCmd := "helm install longhorn longhorn/longhorn --namespace longhorn --create-namespace --kubeconfig=" + KubeConfigFile
+	installCmd := "helm install longhorn longhorn/longhorn --namespace longhorn --create-namespace " +
+		"--kubeconfig=" + KubeConfigFile
 	if _, err := RunCommandHost(installCmd); err != nil {
 		return fmt.Errorf("failed to install longhorn: %w", err)
 	}
@@ -31,7 +33,7 @@ func InstallLonghorn() error {
 func InstallLonghornPrerequisites() error {
 	ips := FetchNodeExternalIPs()
 	if len(ips) == 0 {
-		return fmt.Errorf("no nodes found to install prerequisites")
+		return errors.New("no nodes found to install prerequisites")
 	}
 
 	for _, ip := range ips {
@@ -49,6 +51,7 @@ func InstallLonghornPrerequisites() error {
 			return fmt.Errorf("failed to install prerequisites on node %s: %w", ip, err)
 		}
 	}
+
 	return nil
 }
 
@@ -59,7 +62,8 @@ func VerifyLonghornInstallation() error {
 	}
 
 	LogLevel("info", "Verifying longhorn storage class")
-	scCmd := "kubectl get sc/longhorn -A -o yaml --kubeconfig=" + KubeConfigFile + " | grep 'storageclass.kubernetes.io/is-default-class'"
+	scCmd := "kubectl get sc/longhorn -A -o yaml --kubeconfig=" + KubeConfigFile +
+		" | grep 'storageclass.kubernetes.io/is-default-class'"
 	if res, err := RunCommandHost(scCmd); err != nil {
 		return fmt.Errorf("failed to verify longhorn storage class: %w, output: %s", err, res)
 	}
@@ -99,14 +103,15 @@ func WaitForLonghornReady() error {
 			}
 
 			if len(pods) == 0 {
-				return fmt.Errorf("no longhorn pods found yet")
+				return errors.New("no longhorn pods found yet")
 			}
 
-			for _, pod := range pods {
-				if pod.Status != "Running" && pod.Status != "Completed" {
-					return fmt.Errorf("pod %s is in state %s", pod.Name, pod.Status)
+			for i := range pods {
+				if pods[i].Status != "Running" && pods[i].Status != "Completed" {
+					return fmt.Errorf("pod %s is in state %s", pods[i].Name, pods[i].Status)
 				}
 			}
+
 			return nil
 		},
 		retry.Attempts(18),
