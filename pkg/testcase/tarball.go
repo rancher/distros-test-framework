@@ -36,3 +36,15 @@ func TestTarball(cluster *shared.Cluster, flags *customflag.FlagConfig) {
 		shared.LogLevel("info", "%v install on airgap Windows agents: Completed!", cluster.Config.Product)
 	}
 }
+
+func TestCheckImagesOnNode(cluster *shared.Cluster, flags *customflag.FlagConfig) {
+	shared.LogLevel("info", "Checking images used by the cluster from tarball...")
+	err := support.CheckImageList(cluster, flags)
+	Expect(err).To(BeNil(), err)
+}
+
+func TestCheckImageToPodRelationOnNode(cluster *shared.Cluster) {
+	shared.LogLevel("info", "Checking images to pod relation on node from tarball...")
+	err := support.CheckImageToPodRelation(cluster)
+	Expect(err).To(BeNil(), err)
+}
