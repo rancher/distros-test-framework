@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ## Uncomment the following lines to enable debug mode
-set -x
-set -eo pipefail
-
-exec 2> bastion_prep.log
+# set -x
 # echo "$@"
+
+set -eo pipefail
+exec > >(tee -a bastion_prep.log) 2>&1
 
 arch=$(uname -m)
 
@@ -112,6 +112,11 @@ install_kubectl() {
 install_podman() {
   [ -r /etc/os-release ] && . /etc/os-release
   if [ "$(expr "${ID_LIKE}" : ".*suse.*")" != 0 ]; then
+    echo "Checking for package manager locks if so, removing them."
+    pkill -f zypper 2>/dev/null || true
+    rm -f /var/run/zypp.pid 2>/dev/null || true
+    sleep 15
+
     echo "Installing podman using zypper..."
     zypper install -y podman
   else

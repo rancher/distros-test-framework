@@ -66,6 +66,7 @@ update_config() {
       echo -e "node-external-ip: $ipv6_ip" >>/etc/rancher/k3s/config.yaml
       server_ip="[$server_ip]"
       hostname="$hostname-srv$RANDOM"
+      echo -e "flannel-ipv6-masq: true" >>/etc/rancher/k3s/config.yaml
     else
       echo -e "node-external-ip: $public_ip" >>/etc/rancher/k3s/config.yaml
       echo -e "node-ip: $private_ip" >>/etc/rancher/k3s/config.yaml
@@ -106,17 +107,29 @@ disable_cloud_setup() {
 policy_files() {
   if [[ -n "$server_flags" ]] && [[ "$server_flags" == *"protect-kernel-defaults"* ]]; then
     sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/logs
-    sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+    sudo mkdir -p -m 700 /var/lib/rancher/k3s/server/manifests
     cat /tmp/cis_master_config.yaml >>/etc/rancher/k3s/config.yaml
     printf "%s\n" "vm.panic_on_oom=0" "vm.overcommit_memory=1" "kernel.panic=10" "kernel.panic_on_oops=1" "kernel.keys.root_maxbytes=25000000" >>/etc/sysctl.d/90-kubelet.conf
     sysctl -p /etc/sysctl.d/90-kubelet.conf
     systemctl restart systemd-sysctl
     cat /tmp/policy.yaml >/var/lib/rancher/k3s/server/manifests/policy.yaml
+    cat /tmp/admission-config.yaml >/var/lib/rancher/k3s/server/admission-config.yaml
     cat /tmp/audit.yaml >/var/lib/rancher/k3s/server/audit.yaml
-    cat /tmp/cluster-level-pss.yaml >/var/lib/rancher/k3s/server/cluster-level-pss.yaml
     cat /tmp/ingresspolicy.yaml >/var/lib/rancher/k3s/server/manifests/ingresspolicy.yaml
   fi
   sleep 5
+}
+
+ipv6_setup() {
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
+    fi
+  fi
 }
 
 install_k3s() {
@@ -145,61 +158,58 @@ install_k3s() {
   [[ -n "$channel" ]] && install+=("INSTALL_K3S_CHANNEL=$channel")
   [[ "$install_or_enable" == "install" ]] && install+=("INSTALL_K3S_SKIP_ENABLE=true")
 
-  # Download and execute an install script with basic validation.
-  safe_install() {
-    local url="$1"
+# Download and execute an install script with basic validation.
+safe_install() {
+    url="$1"
     shift
-    local env_vars=()
-    local extra_args=()
-    local found_separator=false
+    env_vars=()
+    extra_args=()
+    found_separator=false
 
     for arg in "$@"; do
-      if [ "$arg" = "--" ]; then
-        found_separator=true
-        continue
-      fi
-      if $found_separator; then
-        extra_args+=("$arg")
-      else
-        env_vars+=("$arg")
-      fi
+        if [ "$arg" = "--" ]; then
+            found_separator=true
+            continue
+        fi
+        if $found_separator; then
+            extra_args+=("$arg")
+        else
+            env_vars+=("$arg")
+        fi
     done
 
-    local tmp_script
     tmp_script=$(mktemp /tmp/install-XXXXXX.sh) || return 1
     echo "Downloading install script from: $url"
     if ! curl -fsSL "$url" -o "$tmp_script"; then
-      echo "ERROR: Failed to download from $url"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Failed to download from $url"
+        rm -f "$tmp_script"
+        return 1
     fi
     if [ ! -s "$tmp_script" ]; then
-      echo "ERROR: Downloaded script is empty"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Downloaded script is empty"
+        rm -f "$tmp_script"
+        return 1
     fi
 
-    local first_line
     first_line=$(head -1 "$tmp_script")
     if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
-      echo "ERROR: Not a shell script"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Not a shell script"
+        rm -f "$tmp_script"
+        return 1
     fi
     if grep -qiE '(base64 -d|/dev/tcp/|nc -e)' "$tmp_script"; then
-      echo "ERROR: Suspicious patterns"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Suspicious patterns"
+        rm -f "$tmp_script"
+        return 1
     fi
 
     echo "Validation passed. Executing install script..."
     env "${env_vars[@]}" sh "$tmp_script" "${extra_args[@]}"
-    local exit_code=$?
+    exit_code=$?
     rm -f "$tmp_script"
 
     return $exit_code
-  }
-
+}
   echo "safe_install $url ${install[*]}"
   if ! safe_install "$url" "${install[@]}"; then
     echo "Failed to install k3s-server on node: $public_ip"
@@ -245,6 +255,7 @@ main() {
     policy_files
     subscription_manager
     disable_cloud_setup
+    ipv6_setup
     install
   fi
   if [[ "${install_or_enable}" == "enable" ]]; then

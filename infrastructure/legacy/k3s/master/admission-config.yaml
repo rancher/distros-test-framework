@@ -1,6 +1,20 @@
 apiVersion: apiserver.config.k8s.io/v1
 kind: AdmissionConfiguration
 plugins:
+  - name: EventRateLimit
+    configuration:
+      apiVersion: eventratelimit.admission.k8s.io/v1alpha1
+      kind: Configuration
+      limits:
+        - type: Server
+          qps: 50
+          burst: 100
+        - type: Namespace
+          qps: 10
+          burst: 20
+        - type: User
+          qps: 10
+          burst: 20
   - name: PodSecurity
     configuration:
       apiVersion: pod-security.admission.config.k8s.io/v1

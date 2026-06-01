@@ -22,7 +22,7 @@
                             # For all other node_os values, this value will be 'both' and this script will be called only once.
 # set -x                    # Use for debugging script. Use 'set +x' to turn off debugging at a later stage, if needed.
 
-# Args intentionally not echoed — they contain node_token and rhel_password.
+# Args intentionally not echoed — they contain rhel_password.
 
 PS4='+(${LINENO}): '
 set -e
@@ -115,26 +115,64 @@ disable_cloud_setup() {
   fi
 }
 
-cis_setup() {
-  if [ -n "$server_flags" ] && [[ "$server_flags" == *"cis"* ]]; then
-    if [[ "$node_os" == *"rhel"* ]] || [[ "$node_os" == *"centos"* ]] || [[ "$node_os" == *"oracle"* ]]; then
-      cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-    elif [[ "$node_os" == *"slemicro"* ]]; then
-      groupadd --system etcd && useradd -s /sbin/nologin --system -g etcd etcd
-      cat <<EOF >> ~/60-rke2-cis.conf
-on_oovm.panic_on_oom=0
+profile_setup() {
+  ensure_etcd_user() {
+    getent group etcd >/dev/null 2>&1 || groupadd --system etcd
+    id -u etcd >/dev/null 2>&1 || useradd -r -s /sbin/nologin -M -g etcd etcd
+  }
+
+  [[ -z "$server_flags" || ! "$server_flags" =~ (cis|etcd) ]] && return 0
+  ensure_etcd_user
+
+  if [[ -n "$server_flags" ]] && [[ "$server_flags" =~ cis ]]; then
+    cis_sysctl_file="/etc/sysctl.d/60-rke2-cis.conf"
+
+    case "$node_os" in
+      *slemicro*)
+        echo "Setting up CIS for SLE Micro"
+        cat <<EOF > "$cis_sysctl_file"
 vm.overcommit_memory=1
 kernel.panic=10
-kernel.panic_ps=1
 kernel.panic_on_oops=1
 EOF
-      cp ~/60-rke2-cis.conf /etc/sysctl.d/;
-    else
-      cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-    fi
+        ;;
+
+      rhel*|centos*|oracle*|sles*|suse*|ubuntu*)
+        echo "Applying CIS sysctl file for $node_os"
+        src_paths=(
+          "/usr/share/rke2/rke2-cis-sysctl.conf"
+          "/usr/local/share/rke2/rke2-cis-sysctl.conf"
+          "/opt/rke2/share/rke2/rke2-cis-sysctl.conf"
+        )
+
+        for path in "${src_paths[@]}"; do
+          [[ -f "$path" ]] && { cp -f "$path" "$cis_sysctl_file"; break; }
+        done
+
+        [[ ! -f "$cis_sysctl_file" ]] && {
+          echo "ERROR: rke2-cis-sysctl.conf not found" >&2
+          return 1
+        }
+        ;;
+
+      *)
+        echo "ERROR: CIS mode not supported for OS '$node_os'" >&2
+        return 1
+        ;;
+    esac
+
     systemctl restart systemd-sysctl
-    if [[ "$node_os" != *"slemicro"* ]]; then
-      useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+  fi 
+}
+
+ipv6_setup() {
+  if [[ "$node_os" = *"sles"* ]] || [[ "$node_os" = "slemicro" ]]; then
+    if [ -n "$ipv6_ip" ]; then
+      echo "Configuring sysctl for ipv6"
+      echo "net.ipv6.conf.all.accept_ra=2" > ~/99-ipv6.conf
+      cp ~/99-ipv6.conf /etc/sysctl.d/99-ipv6.conf
+      sysctl -p /etc/sysctl.d/99-ipv6.conf
+      systemctl restart systemd-sysctl
     fi
   fi
 }
@@ -153,60 +191,57 @@ install_rke2() {
   [ -n "$channel" ] && install+=("INSTALL_RKE2_CHANNEL=$channel")
   [ -n "$install_method" ] && install+=("INSTALL_RKE2_METHOD=$install_method")
 
-  # Download and execute an install script with basic validation.
-  safe_install() {
-    local url="$1"
+# Download and execute an install script with basic validation.
+safe_install() {
+    url="$1"
     shift
-    local env_vars=()
-    local extra_args=()
-    local found_separator=false
+    env_vars=()
+    extra_args=()
+    found_separator=false
     for arg in "$@"; do
-      if [ "$arg" = "--" ]; then
-        found_separator=true
-        continue
-      fi
-      if $found_separator; then
-        extra_args+=("$arg")
-      else
-        env_vars+=("$arg")
-      fi
+        if [ "$arg" = "--" ]; then
+            found_separator=true
+            continue
+        fi
+        if $found_separator; then
+            extra_args+=("$arg")
+        else
+            env_vars+=("$arg")
+        fi
     done
 
-    local tmp_script
     tmp_script=$(mktemp /tmp/install-XXXXXX.sh) || return 1
     echo "Downloading install script from: $url"
     if ! curl -fsSL "$url" -o "$tmp_script"; then
-      echo "ERROR: Failed to download from $url"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Failed to download from $url"
+        rm -f "$tmp_script"
+        return 1
     fi
     if [ ! -s "$tmp_script" ]; then
-      echo "ERROR: Downloaded script is empty"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Downloaded script is empty"
+        rm -f "$tmp_script"
+        return 1
     fi
 
-    local first_line
     first_line=$(head -1 "$tmp_script")
     if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
-      echo "ERROR: Not a shell script"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Not a shell script"
+        rm -f "$tmp_script"
+        return 1
     fi
     if grep -qiE '(base64 -d|/dev/tcp/|nc -e)' "$tmp_script"; then
-      echo "ERROR: Suspicious patterns"
-      rm -f "$tmp_script"
-      return 1
+        echo "ERROR: Suspicious patterns"
+        rm -f "$tmp_script"
+        return 1
     fi
 
     echo "Validation passed. Executing install script..."
     env "${env_vars[@]}" sh "$tmp_script" "${extra_args[@]}"
-    local exit_code=$?
+    exit_code=$?
     rm -f "$tmp_script"
 
     return $exit_code
-  }
-
+}
   echo "safe_install $url ${install[*]}"
   if ! safe_install "$url" "${install[@]}"; then
     echo "Failed to install rke2-server on joining node ip: $public_ip"
@@ -222,18 +257,23 @@ install_dependencies() {
 
 enable_service() {
   if ! sudo systemctl enable rke2-server --now; then
-    echo "rke2-server failed to start on node: $public_ip, Waiting for 20s to check if it starts"
+    echo "rke2-server failed to start on node: $public_ip, Waiting up to 5 minutes..."
 
-    ## rke2 can sometimes fail to start but some time after it starts successfully.
-    sleep 20
-
-    if ! sudo systemctl is-active --quiet rke2-server; then
-      echo "rke2-server exiting after failed to start on node: $public_ip while joining server: $server_ip"
-      sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
-      exit 1
-    else
-      echo "rke2-server started successfully on node: $public_ip"
-    fi
+    max_wait=300 
+    elapsed=0
+    
+    while [ $elapsed -lt $max_wait ]; do
+      if sudo systemctl is-active --quiet rke2-server; then
+        echo "rke2-server started successfully on node: $public_ip after ${elapsed}s"
+        return 0
+      fi
+      sleep 5
+      elapsed=$((elapsed + 5))
+    done
+    
+    echo "rke2-server exiting after failed to start on node: $public_ip"
+    sudo journalctl -xeu rke2-server.service --no-pager | grep -i "failed\|fatal"
+    exit 1
   fi
 }
 
@@ -241,7 +281,7 @@ install() {
   install_dependencies
   install_rke2
   sleep 10
-  cis_setup
+  profile_setup
 }
 
 path_setup() {
@@ -261,6 +301,7 @@ main() {
     update_config
     subscription_manager
     disable_cloud_setup
+    ipv6_setup
     install
     path_setup
   fi

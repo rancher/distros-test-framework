@@ -124,8 +124,8 @@ resource "aws_instance" "master" {
     destination = "/tmp/audit.yaml"
   }
   provisioner "file" {
-    source = "${path.module}/cluster-level-pss.yaml"
-    destination = "/tmp/cluster-level-pss.yaml"
+    source = "${path.module}/admission-config.yaml"
+    destination = "/tmp/admission-config.yaml"
   }
   provisioner "file" {
     source = "${path.module}/ingresspolicy.yaml"
@@ -289,8 +289,8 @@ resource "aws_instance" "master2-ha" {
     destination = "/tmp/audit.yaml"
   }
   provisioner "file" {
-    source = "${path.module}/cluster-level-pss.yaml"
-    destination = "/tmp/cluster-level-pss.yaml"
+    source = "${path.module}/admission-config.yaml"
+    destination = "/tmp/admission-config.yaml"
   }
   provisioner "file" {
     source = "${path.module}/ingresspolicy.yaml"
