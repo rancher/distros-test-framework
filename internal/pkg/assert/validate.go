@@ -40,7 +40,7 @@ func validate(exec func(string) (string, error), args ...string) error {
 
 			err := runAssertion(cmd, assert, exec, ticker.C, timeout)
 			if err != nil {
-				return resources.ReturnLogError("error from runAssertion():\n %v\n", err)
+				return fmt.Errorf("error from runAssertion(): %w", err)
 			}
 		}
 	}

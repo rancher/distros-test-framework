@@ -282,7 +282,7 @@ func (c Client) ReleaseElasticIps(ipAddress string) error {
 						return resources.ReturnLogError("error releasing elastic ip: %w\n", addrErr)
 					}
 
-					resources.LogLevel("info", "released eips from intances: %v", *i.InstanceId)
+					resources.LogLevel("info", "released eips %s from intances: %v", *i.PublicIpAddress, *i.InstanceId)
 				}
 			}
 		}
