@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Update and install necessary packages
         run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
@@ -69,3 +69,4 @@ jobs:
         run: |
           echo "One or more steps failed, marking job as failed."
           exit 1
+
