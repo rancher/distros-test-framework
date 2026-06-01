@@ -11,7 +11,7 @@ import (
 )
 
 func TestCertRotate(cluster *driver.Cluster) {
-	ms := resources.NewManageService(5, 5)
+	ms := resources.NewManageService(10, 10)
 	certRotate(ms, cluster.Config.Product, cluster.ServerIPs)
 
 	actions := []resources.ServiceAction{

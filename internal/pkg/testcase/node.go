@@ -16,10 +16,16 @@ func TestNodeStatus(
 	cluster *driver.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
+	timeouts ...string,
 ) {
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 	if cluster.Config.Product == "rke2" {
 		expectedNodeCount += cluster.NumWinAgents
+	}
+
+	timeout := "600s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
 	}
 
 	Eventually(func(g Gomega) bool {
@@ -37,7 +43,7 @@ func TestNodeStatus(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue(), func() string {
+	}, timeout, "10s").Should(BeTrue(), func() string {
 		resources.LogLevel("error", "\nNodes are not in desired state")
 		_, err := resources.GetNodes(true)
 		Expect(err).NotTo(HaveOccurred())
@@ -60,11 +66,17 @@ func TestNodeStatusUsingBastion(
 	cluster *driver.Cluster,
 	nodeAssertReadyStatus assert.NodeAssertFunc,
 	nodeAssertVersion assert.NodeAssertFunc,
+	timeouts ...string,
 ) {
 	expectedNodeCount := cluster.NumServers + cluster.NumAgents
 
 	if cluster.Config.Product == "rke2" {
 		expectedNodeCount += cluster.NumWinAgents
+	}
+
+	timeout := "600s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
 	}
 
 	var nodeDetails string
@@ -85,7 +97,7 @@ func TestNodeStatusUsingBastion(
 		}
 
 		return true
-	}, "600s", "10s").Should(BeTrue())
+	}, timeout, "10s").Should(BeTrue())
 }
 
 func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
@@ -122,5 +134,48 @@ func TestNodeMetricsServer(applyWorkload, deleteWorkload bool) {
 	if deleteWorkload {
 		workloadErr = resources.ManageWorkload("delete", "metrics-server.yaml")
 		Expect(workloadErr).To(BeNil())
+	}
+}
+
+// TestNodeCPUThreshold fails when any node exceeds the provided CPU percentage.
+func TestNodeCPUThreshold(maxCPUPercent int, applyWorkload, deleteWorkload bool, timeouts ...string) {
+	var workloadErr error
+	if applyWorkload {
+		resources.LogLevel("info", "Deploying test metrics-server workload...")
+		workloadErr = resources.ManageWorkload("apply", "metrics-server.yaml")
+		Expect(workloadErr).To(BeNil())
+		resources.LogLevel("info", "Test metrics-server workload deployed successfully")
+	}
+
+	resources.LogLevel("info", "Verifying test metrics-server workload pod is running...")
+	cmd := "kubectl get pods -n test-metrics-server --kubeconfig=" + resources.KubeConfigFile + " | grep metrics-server"
+	err := assert.ValidateOnHost(cmd, "Running")
+	Expect(err).To(BeNil())
+	resources.LogLevel("info", "Test metrics-server workload pod is running")
+
+	timeout := "120s"
+	if len(timeouts) > 0 && timeouts[0] != "" {
+		timeout = timeouts[0]
+	}
+	resources.LogLevel("info", "Querying node CPU usage with 'kubectl top node --no-headers'...")
+
+	Eventually(func(g Gomega) bool {
+		topNodeCmd := "kubectl top node --kubeconfig=" + resources.KubeConfigFile + " --no-headers"
+		res, err := resources.RunCommandHost(topNodeCmd)
+		g.Expect(err).To(BeNil())
+		g.Expect(strings.TrimSpace(res)).NotTo(Equal(""), "kubectl top node returned no data")
+		overThreshold, checkErr := resources.CheckNodeCPUThreshold(maxCPUPercent, res)
+		g.Expect(checkErr).To(BeNil())
+		g.Expect(overThreshold).To(BeEmpty(), "Found nodes above %d%% CPU utilization: %v\nFull output:\n%s",
+			maxCPUPercent, overThreshold, res)
+
+		return true
+	}, timeout, "10s").Should(BeTrue(), "CPU usage on one or more nodes exceeded %d%% threshold", maxCPUPercent)
+
+	if deleteWorkload {
+		resources.LogLevel("info", "Cleaning up test metrics-server workload...")
+		workloadErr = resources.ManageWorkload("delete", "metrics-server.yaml")
+		Expect(workloadErr).To(BeNil())
+		resources.LogLevel("info", "Test workload cleaned up successfully")
 	}
 }

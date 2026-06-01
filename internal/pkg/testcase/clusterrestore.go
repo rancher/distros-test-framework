@@ -143,21 +143,10 @@ func restoreS3Snapshot(
 		cluster.Aws.SecretAccessKey,
 		token)
 
-	switch cluster.Config.Product {
-	case "k3s":
-		restoreCmdRes, restoreCmdErr = resources.RunCommandOnNode(restoreCmd, newClusterIP)
-		Expect(restoreCmdErr).NotTo(HaveOccurred())
-		Expect(restoreCmdRes).To(ContainSubstring("Managed etcd cluster"))
-		Expect(restoreCmdRes).To(ContainSubstring("has been reset"))
-	case "rke2":
-		_, restoreCmdErr = resources.RunCommandOnNode(restoreCmd, newClusterIP)
-		Expect(restoreCmdErr).To(HaveOccurred())
-		Expect(restoreCmdErr.Error()).To(Not(BeNil()))
-		Expect(restoreCmdErr.Error()).To(ContainSubstring("Managed etcd cluster"))
-		Expect(restoreCmdErr.Error()).To(ContainSubstring("has been reset"))
-	default:
-		Expect(fmt.Errorf("product not supported: %s", cluster.Config.Product)).NotTo(HaveOccurred())
-	}
+	restoreCmdRes, restoreCmdErr = resources.RunCommandOnNode(restoreCmd, newClusterIP)
+	Expect(restoreCmdErr).NotTo(HaveOccurred())
+	Expect(restoreCmdRes).To(ContainSubstring("Managed etcd cluster"))
+	Expect(restoreCmdRes).To(ContainSubstring("has been reset"))
 }
 
 func deleteOldNodes(cluster *driver.Cluster) {

@@ -18,7 +18,9 @@ resource "aws_instance" "worker" {
   count                       = var.no_of_worker_nodes
   root_block_device {
     volume_size = var.volume_size
-    volume_type = "standard"
+    volume_type = "gp3"
+    iops                 = 3000
+    throughput           = 125
   }
   subnet_id              = var.subnets
   availability_zone      = var.availability_zone

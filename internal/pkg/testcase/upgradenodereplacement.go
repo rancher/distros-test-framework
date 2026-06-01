@@ -104,7 +104,7 @@ func scpRke2Files(cluster *driver.Cluster, nodeType, ip string) error {
 	if nodeType != master && nodeType != agent {
 		return resources.ReturnLogError("unsupported nodetype: %s\n", nodeType)
 	}
-	joinLocalPath := resources.BasePath() + fmt.Sprintf("/modules/install/join_rke2_%s.sh", nodeType)
+	joinLocalPath := resources.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_rke2_%s.sh", nodeType)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_rke2_%s.sh", nodeType)
 
 	if err := resources.RunScp(cluster, ip, []string{joinLocalPath}, []string{joinRemotePath}); err != nil {
@@ -131,10 +131,10 @@ func scpK3sFiles(cluster *driver.Cluster, nodeType, ip string) error {
 }
 
 func k3sAgentSCP(cluster *driver.Cluster, ip string) error {
-	cisWorkerLocalPath := resources.BasePath() + "/modules/k3s/worker/cis_worker_config.yaml"
+	cisWorkerLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/worker/cis_worker_config.yaml"
 	cisWorkerRemotePath := "/tmp/cis_worker_config.yaml"
 
-	joinLocalPath := resources.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", agent)
+	joinLocalPath := resources.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_k3s_%s.sh", agent)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", agent)
 
 	return resources.RunScp(
@@ -146,22 +146,22 @@ func k3sAgentSCP(cluster *driver.Cluster, ip string) error {
 }
 
 func k3sServerSCP(cluster *driver.Cluster, ip string) error {
-	cisMasterLocalPath := resources.BasePath() + "/modules/k3s/master/cis_master_config.yaml"
+	cisMasterLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/master/cis_master_config.yaml"
 	cisMasterRemotePath := "/tmp/cis_master_config.yaml"
 
-	clusterLevelpssLocalPath := resources.BasePath() + "/modules/k3s/master/cluster-level-pss.yaml"
-	clusterLevelpssRemotePath := "/tmp/cluster-level-pss.yaml"
+	admissionConfigLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/master/admission-config.yaml"
+	admissionConfigRemotePath := "/tmp/admission-config.yaml"
 
-	auditLocalPath := resources.BasePath() + "/modules/k3s/master/audit.yaml"
+	auditLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/master/audit.yaml"
 	auditRemotePath := "/tmp/audit.yaml"
 
-	policyLocalPath := resources.BasePath() + "/modules/k3s/master/policy.yaml"
+	policyLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/master/policy.yaml"
 	policyRemotePath := "/tmp/policy.yaml"
 
-	ingressPolicyLocalPath := resources.BasePath() + "/modules/k3s/master/ingresspolicy.yaml"
+	ingressPolicyLocalPath := resources.BasePath() + "/infrastructure/legacy/k3s/master/ingresspolicy.yaml"
 	ingressPolicyRemotePath := "/tmp/ingresspolicy.yaml"
 
-	joinLocalPath := resources.BasePath() + fmt.Sprintf("/modules/install/join_k3s_%s.sh", master)
+	joinLocalPath := resources.BasePath() + fmt.Sprintf("/infrastructure/legacy/install/join_k3s_%s.sh", master)
 	joinRemotePath := fmt.Sprintf("/var/tmp/join_k3s_%s.sh", master)
 
 	return resources.RunScp(
@@ -169,7 +169,7 @@ func k3sServerSCP(cluster *driver.Cluster, ip string) error {
 		ip,
 		[]string{
 			cisMasterLocalPath,
-			clusterLevelpssLocalPath,
+			admissionConfigLocalPath,
 			auditLocalPath,
 			policyLocalPath,
 			ingressPolicyLocalPath,
@@ -177,7 +177,7 @@ func k3sServerSCP(cluster *driver.Cluster, ip string) error {
 		},
 		[]string{
 			cisMasterRemotePath,
-			clusterLevelpssRemotePath,
+			admissionConfigRemotePath,
 			auditRemotePath,
 			policyRemotePath,
 			ingressPolicyRemotePath,

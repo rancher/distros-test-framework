@@ -173,58 +173,68 @@ func podmanCmds(cluster *driver.Cluster, platform string, flags *customflag.Flag
 	return err
 }
 
-// CopyAssetsOnNodes copies all the assets from bastion to private nodes.
-func CopyAssetsOnNodes(cluster *driver.Cluster, airgapMethod string, tarballType *string) (err error) {
-	nodeIPs := cluster.ServerIPs
+func CopyAssetsOnNodes(cluster *driver.Cluster, airgapMethod string, tarballType *string) error {
+	nodeIPs := make([]string, 0, len(cluster.ServerIPs)+len(cluster.AgentIPs))
+	nodeIPs = append(nodeIPs, cluster.ServerIPs...)
 	nodeIPs = append(nodeIPs, cluster.AgentIPs...)
+
 	errChan := make(chan error, len(nodeIPs))
 	var wg sync.WaitGroup
 
 	for _, nodeIP := range nodeIPs {
 		wg.Add(1)
-		go func(nodeIP string) {
+		go func(ip string) {
 			defer wg.Done()
-			resources.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, nodeIP)
-			err = copyAssets(cluster, airgapMethod, nodeIP)
-			if err != nil {
-				errChan <- resources.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", nodeIP, err)
-			}
-			switch airgapMethod {
-			case "private_registry":
-				resources.LogLevel("debug", "Copying registry.yaml on node IP: %s", nodeIP)
-				err = copyRegistry(cluster, nodeIP)
-				if err != nil {
-					errChan <- resources.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "system_default_registry":
-				resources.LogLevel("debug", "Trust CA Certs on node IP: %s", nodeIP)
-				err = trustCert(cluster, nodeIP)
-				if err != nil {
-					errChan <- resources.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			case "tarball":
-				resources.LogLevel("debug", "Copying tarball on node IP: %s", nodeIP)
-				err = copyTarball(cluster, *tarballType, nodeIP)
-				if err != nil {
-					errChan <- resources.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", nodeIP, err)
-				}
-			default:
-				resources.LogLevel("error", "Invalid airgap method: %s", airgapMethod)
-			}
-			resources.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, nodeIP)
-			err = makeExecutable(cluster, nodeIP)
-			if err != nil {
-				errChan <- resources.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", nodeIP, err)
+			if err := copyAssetsToNode(cluster, airgapMethod, tarballType, ip); err != nil {
+				errChan <- err
 			}
 		}(nodeIP)
 	}
-	wg.Wait()
-	close(errChan)
+
+	go func() {
+		wg.Wait()
+		close(errChan)
+	}()
 
 	for err := range errChan {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// copyAssetsToNode Helper function to handle the logic for a single node.
+func copyAssetsToNode(cluster *driver.Cluster, method string, tarballType *string, ip string) error {
+	resources.LogLevel("debug", "Copying %v assets on node IP: %s", cluster.Config.Product, ip)
+	if err := copyAssets(cluster, method, ip); err != nil {
+		return resources.ReturnLogError("error copying assets on airgap node: %v\n, err: %w", ip, err)
+	}
+
+	switch method {
+	case "private_registry":
+		resources.LogLevel("debug", "Copying registry.yaml on node IP: %s", ip)
+		if err := copyRegistry(cluster, ip); err != nil {
+			return resources.ReturnLogError("error copying registry to airgap node: %v\n, err: %w", ip, err)
+		}
+	case "system_default_registry":
+		resources.LogLevel("debug", "Trust CA Certs on node IP: %s", ip)
+		if err := trustCert(cluster, ip); err != nil {
+			return resources.ReturnLogError("error trusting ssl cert on airgap node: %v\n, err: %w", ip, err)
+		}
+	case "tarball":
+		resources.LogLevel("debug", "Copying tarball on node IP: %s", ip)
+		if err := copyTarball(cluster, *tarballType, ip); err != nil {
+			return resources.ReturnLogError("error copying tarball on airgap node: %v\n, err: %w", ip, err)
+		}
+	default:
+		return resources.ReturnLogError("invalid airgap method: %s", method)
+	}
+
+	resources.LogLevel("debug", "Make %s executable on node IP: %s", cluster.Config.Product, ip)
+	if err := makeExecutable(cluster, ip); err != nil {
+		return resources.ReturnLogError("error making asset exec on airgap node: %v\n, err: %w", ip, err)
 	}
 
 	return nil
@@ -347,6 +357,7 @@ func GetArtifacts(cluster *driver.Cluster, platform, registryURL, tarballType st
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, version, platform,
 		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType)
+	resources.LogLevel("debug", "Get artifacts cmd: %v", cmd)
 	res, err = resources.RunCommandOnNode(cmd, cluster.Bastion.PublicIPv4Addr)
 
 	return res, err
@@ -444,6 +455,61 @@ func LogClusterInfoUsingBastion(cluster *driver.Cluster) {
 		resources.LogLevel("error", "Error getting airgap cluster details: %v", err)
 	}
 	resources.LogLevel("info", "\n%v", clusterInfo)
+}
+
+// CheckImageList lists container images with crictl on a cluster node.
+func CheckImageList(cluster *driver.Cluster, flags *customflag.FlagConfig) (err error) {
+	resources.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
+		cluster.SSH.KeyName, cluster.SSH.User,
+		cluster.Bastion.PublicIPv4Addr)
+	var checkImgCmd string
+	switch cluster.Config.Product {
+	case "k3s":
+		checkImgCmd = "sudo k3s crictl images"
+	case "rke2":
+		checkImgCmd = "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml images"
+	default:
+		return fmt.Errorf("unsupported product for image list: %s", cluster.Config.Product)
+	}
+
+	clusterImages, err := CmdForPrivateNode(cluster, checkImgCmd, cluster.ServerIPs[0])
+	if err != nil {
+		resources.LogLevel("error", "Error getting image list: %v", err)
+		return err
+	}
+	// TODO: Replace with config.yaml check
+	if flags.AirgapFlag.ImageRegistryUrl != "" {
+		resources.LogLevel("info", "RegistryURL: %v", flags.AirgapFlag.ImageRegistryUrl)
+	}
+	resources.LogLevel("info", "Image List: \n%v", clusterImages)
+
+	return nil
+}
+
+// CheckImageToPodRelation lists container image to pod relation with crictl on a cluster node.
+func CheckImageToPodRelation(cluster *driver.Cluster) (err error) {
+	resources.LogLevel("info", "Bastion login: ssh -i %v.pem %v@%v",
+		cluster.SSH.KeyName, cluster.SSH.User,
+		cluster.Bastion.PublicIPv4Addr)
+	var checkImgCmd string
+	switch cluster.Config.Product {
+	case "k3s":
+		checkImgCmd = "sudo k3s crictl ps"
+	case "rke2":
+		checkImgCmd = "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml ps"
+	default:
+		return fmt.Errorf("unsupported product for container to pod check: %s", cluster.Config.Product)
+	}
+
+	containerToPodList, err := CmdForPrivateNode(cluster, checkImgCmd, cluster.ServerIPs[0])
+	if err != nil {
+		resources.LogLevel("error", "Error getting container to pod relation list: %v", err)
+		return err
+	}
+
+	resources.LogLevel("info", "Container to Pod Relation List: \n%v", containerToPodList)
+
+	return nil
 }
 
 // ShCmdPrefix adds prefix to shell commands.
