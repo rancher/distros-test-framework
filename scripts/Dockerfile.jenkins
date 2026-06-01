@@ -15,8 +15,8 @@ RUN apk update && \
 # Install kubectl with hardcoded checksum validation
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     case "${ARCH}" in \
-        amd64) KUBECTL_SUM="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6" ;; \
-        arm64) KUBECTL_SUM="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14" ;; \
+    amd64) KUBECTL_SUM="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6" ;; \
+    arm64) KUBECTL_SUM="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14" ;; \
     esac && \
     curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
     echo "${KUBECTL_SUM}  kubectl" | sha256sum -c - && \
@@ -34,13 +34,16 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     chmod +x /usr/local/bin/terraform && \
     rm -f terraform.zip tf_checksums.txt
 
-# Install OpenTofu (keeping existing flow; checksum validation can be added if/when published)
+# Install OpenTofu with checksum validation
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     if [ "${ARCH}" = "arm64" ]; then TOFU_ARCH="linux_arm64"; else TOFU_ARCH="linux_amd64"; fi && \
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tofu.zip && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" -o tofu_checksums.txt && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tofu.zip && \
+    TOFU_EXPECTED=$(grep "tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" tofu_checksums.txt | awk '{print $1}') && \
+    echo "${TOFU_EXPECTED}  tofu.zip" | sha256sum -c - && \
     unzip tofu.zip -d /usr/local/bin && \
     chmod +x /usr/local/bin/tofu && \
-    rm -f tofu.zip
+    rm -f tofu.zip tofu_checksums.txt
 
 RUN mkdir -p /root/.ssh && \
     mkdir -p /root/.aws

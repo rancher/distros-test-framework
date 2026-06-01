@@ -144,6 +144,23 @@ test_data_dir_removal() {
         fi
     done
 
+    # Additional paths removed by rke2-uninstall.sh that the killall test used to assert.
+    # Use [ -e ] || [ -L ] so we catch lingering files or broken symlinks.
+    if [ "$test_pass" = true ] && [ "$PRODUCT" == "rke2" ]; then
+        uninstall_only_paths=(
+            "/var/lib/cni"
+            "/var/log/pods"
+            "/var/log/containers"
+        )
+        for p in "${uninstall_only_paths[@]}"; do
+            if [ -e "$p" ] || [ -L "$p" ]; then
+                test_pass=false
+                dir="$p"
+                break
+            fi
+        done
+    fi
+
     if [ "$test_pass" = true ]; then
         check_result 0 "Data and runtime directories removed"
         tests_passed=$((tests_passed + 1))

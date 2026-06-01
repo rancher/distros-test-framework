@@ -16,8 +16,8 @@ RUN apk update && \
 # Install kubectl with hardcoded checksum validation
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     case "${ARCH}" in \
-        amd64) KUBECTL_SUM="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6" ;; \
-        arm64) KUBECTL_SUM="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14" ;; \
+    amd64) KUBECTL_SUM="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6" ;; \
+    arm64) KUBECTL_SUM="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14" ;; \
     esac && \
     curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
     echo "${KUBECTL_SUM}  kubectl" | sha256sum -c - && \
@@ -35,13 +35,16 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     chmod +x /usr/local/bin/terraform && \
     rm -f terraform.zip tf_checksums.txt
 
-# Install OpenTofu (keeping existing flow; checksum validation can be added if/when published)
+# Install OpenTofu with checksum validation
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     if [ "${ARCH}" = "arm64" ]; then TOFU_ARCH="linux_arm64"; else TOFU_ARCH="linux_amd64"; fi && \
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tofu.zip && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" -o tofu_checksums.txt && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tofu.zip && \
+    TOFU_EXPECTED=$(grep "tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" tofu_checksums.txt | awk '{print $1}') && \
+    echo "${TOFU_EXPECTED}  tofu.zip" | sha256sum -c - && \
     unzip tofu.zip -d /usr/local/bin && \
     chmod +x /usr/local/bin/tofu && \
-    rm -f tofu.zip
+    rm -f tofu.zip tofu_checksums.txt
 
 RUN mkdir -p /root/.ssh && \
     mkdir -p /root/.aws && \
@@ -60,9 +63,9 @@ RUN aws --version
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     GOLANGCI_VERSION=v1.55.2 && \
     case "${ARCH}" in \
-        amd64) GOLANGCI_SHA256="ca21c961a33be3bc15e4292dc40c98c8dcc5463a7b6768a3afc123761630c09c" ;; \
-        arm64) GOLANGCI_SHA256="8eb0cee9b1dbf0eaa49871798c7f8a5b35f2960c52d776a5f31eb7d886b92746" ;; \
-        *) echo "Unsupported architecture for golangci-lint: ${ARCH}" && exit 1 ;; \
+    amd64) GOLANGCI_SHA256="ca21c961a33be3bc15e4292dc40c98c8dcc5463a7b6768a3afc123761630c09c" ;; \
+    arm64) GOLANGCI_SHA256="8eb0cee9b1dbf0eaa49871798c7f8a5b35f2960c52d776a5f31eb7d886b92746" ;; \
+    *) echo "Unsupported architecture for golangci-lint: ${ARCH}" && exit 1 ;; \
     esac && \
     cd /tmp && \
     curl -fsSL "https://github.com/golangci/golangci-lint/releases/download/${GOLANGCI_VERSION}/golangci-lint-${GOLANGCI_VERSION#v}-linux-${ARCH}.tar.gz" -o golangci-lint.tar.gz && \
