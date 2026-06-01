@@ -68,13 +68,14 @@ type Config struct {
 
 // SplitRolesConfig holds split roles configuration.
 type SplitRolesConfig struct {
-	Add                bool
+	Enabled            bool
 	NumServers         int
 	ControlPlaneOnly   int
 	ControlPlaneWorker int
 	EtcdOnly           int
 	EtcdCP             int
 	EtcdWorker         int
+	RoleOrder          string
 }
 
 // TestConfig holds test-specific configuration.

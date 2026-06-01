@@ -192,7 +192,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 	sshUser, sshKeyPath := resolveSSHConfig()
 	authMethod, err := publicKey(sshKeyPath)
 	if err != nil {
-		return nil, ReturnLogError("failed to get public key: %w", err)
+		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
 
 	cfg = &ssh.ClientConfig{
@@ -242,7 +242,7 @@ func resolveSSHConfig() (user, path string) {
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {
-		return "", "", ReturnLogError("failed to create session: %w\n", err)
+		return "", "", fmt.Errorf("failed to create session: %w\n", err)
 	}
 	defer session.Close()
 
@@ -292,7 +292,7 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	connPool.connClient[host] = newConn
 	connPool.Unlock()
 
-	LogLevel("info", "SSH connection pool: %v\n", &connPool.connClient)
+	LogLevel("debug", "SSH connection pool: %v\n", &connPool.connClient)
 
 	return newConn, nil
 }

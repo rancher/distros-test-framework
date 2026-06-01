@@ -80,6 +80,9 @@ func formatLogArgs(format string, args ...interface{}) error {
 		return fmt.Errorf("%s", format)
 	}
 	if e, ok := args[0].(error); ok {
+		if strings.Contains(format, "%w") {
+			return fmt.Errorf(format, args...)
+		}
 		if len(args) > 1 {
 			return fmt.Errorf(format, args[1:]...)
 		}

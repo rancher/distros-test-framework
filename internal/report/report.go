@@ -24,7 +24,7 @@ func SummaryReportData(c *driver.Cluster, flags *customflag.FlagConfig) (string,
 	var data summaryReportData
 
 	if c.NumBastion == 0 {
-		if nodeDataErr := nodeSummaryData(c, &data); nodeDataErr != nil {
+		if nodeDataErr := nodeSummaryData(c, flags, &data); nodeDataErr != nil {
 			return "", fmt.Errorf("error retrieving node summary data: %w", nodeDataErr)
 		}
 	} else {
@@ -36,7 +36,8 @@ func SummaryReportData(c *driver.Cluster, flags *customflag.FlagConfig) (string,
 	return data.summaryData.String(), nil
 }
 
-func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
+//nolint:funlen // no big deal here, reporting stuff only.
+func nodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
 	// os-release data from the first server node.
 	res, err := resources.RunCommandOnNode("cat /etc/os-release", c.ServerIPs[0])
 	if err != nil {
@@ -54,13 +55,16 @@ func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
 	cmd := fmt.Sprintf("sudo cat /etc/rancher/%s/config.yaml", c.Config.Product)
 	catConfigYaml, configYamlErr := resources.RunCommandOnNode(cmd, c.ServerIPs[0])
 	if configYamlErr != nil {
-		return fmt.Errorf("error retrieving config.yaml from server: %s, %w", c.ServerIPs[0], configYamlErr)
+		// Tests like killalluninstall remove the product before this runs, so a
+		// missing file is expected — log and skip this section instead of failing.
+		resources.LogLevel("warn", "config.yaml not available on server %s: %v", c.ServerIPs[0], configYamlErr)
+	} else {
+		data.configYaml = strings.TrimSpace(catConfigYaml)
+		data.summaryData.WriteString("\n" + "**Config YAML**" + "\n")
+		data.summaryData.WriteString("```yaml\n")
+		data.summaryData.WriteString(data.configYaml)
+		data.summaryData.WriteString("\n```\n")
 	}
-	data.configYaml = strings.TrimSpace(catConfigYaml)
-	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n")
-	data.summaryData.WriteString("```yaml\n")
-	data.summaryData.WriteString(data.configYaml)
-	data.summaryData.WriteString("\n```\n")
 
 	// for now only gather selinux info from RPM based and not airgap nodes.
 	if isRPMBasedOS(data.osReleaseData) {
@@ -92,8 +96,14 @@ func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
 		data.summaryData.WriteString("\n```\n")
 	}
 
+	if c.Config.Product == "rke2" && flags.Nvidia.Version != "" {
+		nvidiaVersion := fmt.Sprintf("\n**NVIDIA Version**: %s\n", flags.Nvidia.Version)
+		data.summaryData.WriteString(nvidiaVersion)
+		data.summaryData.WriteString("\n```\n")
+	}
+
 	// TODO: ADD split roles data once on airgap is supported.
-	if c.Config.SplitRoles.Add {
+	if c.Config.SplitRoles.Enabled {
 		splitRoleData := getSplitRoleData(&c.Config, c.ServerIPs)
 		data.summaryData.WriteString(splitRoleData)
 	}
