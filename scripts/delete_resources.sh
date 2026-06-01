@@ -225,7 +225,9 @@ do
       - This will delete all resources for the names resourceprefix1,resourceprefix2 and resourceprefix2
       Ex 2:
       ./delete_resources.sh
-      - This will lookup the resource name from local tfvars file and delete the resources. This is interactive and will ask for confirmation before delete
+      - Reads RESOURCE_NAME (and ENV_PRODUCT for sanity checking) from
+        config/.env, derives the AWS prefix "dsf-<RESOURCE_NAME>-", and
+        deletes every matching resource after asking for confirmation.
       Ex 3: 
       ./delete_resources.sh -h
       - Print usage details for reference.
@@ -239,46 +241,54 @@ do
 done
 
 if [ "${RESOURCES}" = "" ]; then
-    echo "Working with local .env and .tfvars file to get resource name for deletion"
+    echo "Reading config/.env to derive the AWS resource prefix"
     # Find the correct config directory path, based on which directory you are running the script from.
     BASE_DIR=$(echo "$PWD" | sed 's/scripts//')
     CONFIG_DIR="${BASE_DIR}/config"
+    ENV_FILE="${CONFIG_DIR}/.env"
     echo "config directory path: $CONFIG_DIR"
-    #Get resource name from tfvarslocal && change name to make more sense in this context
-    # Split string based on delimiter =
-    PRODUCT_NAME=$(cat "${CONFIG_DIR}"/.env | grep ENV_PRODUCT | grep -v '#' | cut -d= -f2 | tr -d ' "')
-    if echo "${PRODUCT_NAME}" | grep -q "ENV_PRODUCT"; then
-      # Split string based on delimiter :
-      PRODUCT_NAME=$(echo "${PRODUCT_NAME}" | cut -d ":" -f 2)  
-    fi
-    echo "PRODUCT NAME is: $PRODUCT_NAME"
-  
-    if echo "$PRODUCT_NAME" | grep -q "k3s" && echo "$PRODUCT_NAME" | grep -q "rke2"; then
-      echo "Please have ONLY ONE product name. Either k3s or rke2. Exiting."
-      exit 1
-    fi
-    if [[ -z "$PRODUCT_NAME" || ! "$PRODUCT_NAME" =~ ^(rke2|k3s)$ ]]; then
-      echo "Wrong or empty product name found in .env file for: $PRODUCT_NAME"
+
+    if [[ ! -f "${ENV_FILE}" ]]; then
+      echo "No .env file found at ${ENV_FILE}"
       exit 1
     fi
 
-    #Validate path to the tfvars file
-    if [[ ! -f "${CONFIG_DIR}"/"$PRODUCT_NAME".tfvars ]]; then
-      echo "No $PRODUCT_NAME.tfvars file found in config directory"
+    # Helper: read a KEY=VALUE pair from .env, ignoring comments and stripping
+    # surrounding quotes/whitespace. Picks the last non-comment occurrence.
+    read_env_var () {
+      grep -E "^[[:space:]]*$1=" "${ENV_FILE}" \
+        | grep -v '^[[:space:]]*#' \
+        | tail -n1 \
+        | cut -d= -f2- \
+        | tr -d ' "'
+    }
+
+    PRODUCT_NAME=$(read_env_var ENV_PRODUCT)
+    echo "PRODUCT NAME is: ${PRODUCT_NAME:-<unset>}"
+
+    if [[ -n "${PRODUCT_NAME}" && ! "${PRODUCT_NAME}" =~ ^(rke2|k3s)$ ]]; then
+      echo "Unexpected ENV_PRODUCT value in .env: '${PRODUCT_NAME}' (expected rke2 or k3s)"
       exit 1
     fi
 
-    #Get resource name from tfvars file and validate
-    RESOURCE_NAME=$(cat "${CONFIG_DIR}"/"$PRODUCT_NAME".tfvars | grep resource_name | grep -v "#" | cut -d= -f2 | tr -d ' "')
-    if [[ -z "$RESOURCE_NAME" ]]; then
-      echo "No resource name found for: $PRODUCT_NAME.tfvars file"
+    # The framework assembles aws_hostname_prefix as
+    #   "dsf-<RESOURCE_NAME>-<product>-<uniqueID>"
+    # in internal/provisioning/qainfra/opentofu.go::updateVarsFile, so to match
+    # every resource for a given RESOURCE_NAME (across all uniqueID variants)
+    # we filter by "dsf-<RESOURCE_NAME>-".
+    RESOURCE_NAME=$(read_env_var RESOURCE_NAME)
+    if [[ -z "${RESOURCE_NAME}" ]]; then
+      echo "RESOURCE_NAME is not set in ${ENV_FILE}"
       exit 1
     fi
 
-    printf "This is going to delete all AWS resources with the prefix '%s'\nContinue (yes/no)? " "$RESOURCE_NAME"
+    PREFIX="dsf-${RESOURCE_NAME}-"
+    echo "Computed AWS resource prefix: ${PREFIX}"
+
+    printf "This is going to delete all AWS resources with the prefix '%s'\nContinue (yes/no)? " "${PREFIX}"
     read -r REPLY
     if [[ "$REPLY" =~ ^[Yy][Ee][Ss]$ ]]; then
-      delete_all_resources "${RESOURCE_NAME}"
+      delete_all_resources "${PREFIX}"
     else
       echo "Exiting: No resources deleted as per user input. Please delete the resources manually"
       exit 1

@@ -2,6 +2,7 @@
 
 ## Uncomment the following lines to enable debug mode
 set -x
+set -eo pipefail
 
 exec 2> bastion_prep.log
 # echo "$@"
@@ -9,7 +10,8 @@ exec 2> bastion_prep.log
 arch=$(uname -m)
 
 has_bin() {
-  bin="$(command -v "$1")"
+  # Probe: command -v exits non-zero when not found; swallow so set -e doesn't abort.
+  bin="$(command -v "$1" || true)"
   if [ "$bin" == "" ]; then
     echo "error: ${1} is not found."
   else
@@ -20,34 +22,89 @@ has_bin() {
 install_docker() {
   max_attempt=4
   delay=5
-  install_cmd="curl -fsSL https://get.docker.com | sh"
-  if ! eval "$install_cmd"; then
+  # Download and execute an install script with basic validation.
+  safe_install() {
+      url="$1"
+      shift
+      env_vars=()
+      extra_args=()
+      found_separator=false
+
+      for arg in "$@"; do
+          if [ "$arg" = "--" ]; then
+              found_separator=true
+              continue
+          fi
+          if $found_separator; then
+              extra_args+=("$arg")
+          else
+              env_vars+=("$arg")
+          fi
+      done
+
+      tmp_script=$(mktemp /tmp/install-XXXXXX.sh) || return 1
+      echo "Downloading install script from: $url"
+      if ! curl -fsSL "$url" -o "$tmp_script"; then
+          echo "ERROR: Failed to download from $url"
+          rm -f "$tmp_script"
+          return 1
+      fi
+      if [ ! -s "$tmp_script" ]; then
+          echo "ERROR: Downloaded script is empty"
+          rm -f "$tmp_script"
+          return 1
+      fi
+
+      first_line=$(head -1 "$tmp_script")
+      if ! echo "$first_line" | grep -qE '^#!\s*/(bin|usr/bin)/(sh|bash|env\s+(sh|bash))'; then
+          echo "ERROR: Not a shell script"
+          rm -f "$tmp_script"
+          return 1
+      fi
+      if grep -qiE '(base64 -d|/dev/tcp/|nc -e)' "$tmp_script"; then
+          echo "ERROR: Suspicious patterns"
+          rm -f "$tmp_script"
+          return 1
+      fi
+
+      echo "Validation passed. Executing install script..."
+      env "${env_vars[@]}" sh "$tmp_script" "${extra_args[@]}"
+      exit_code=$?
+      rm -f "$tmp_script"
+
+      return $exit_code
+  }
+  if ! safe_install "https://get.docker.com"; then
     echo "Unable to install docker on node, Attempting retry..."
+    success=false
     for i in $(seq 1 $max_attempt); do
-      eval "$install_cmd"
-      result=$?
-      echo "$result"
-        if [ "$result" == "" ]; then
-          echo "Retry successful!"
-          break
-        else
-          echo "Retry attempt: $i after $delay seconds..."
-          sleep $delay
-          ((i++))
-        fi
+      if safe_install "https://get.docker.com"; then
+        echo "Retry successful!"
+        success=true
+        break
+      fi
+      echo "Retry attempt: $i after $delay seconds..."
+      sleep $delay
     done
-    echo "Retry attempt reached max_attempt: $max_attempt"
-    echo "Failed to install docker on node! Please try to install manually..."
+    if [ "$success" = false ]; then
+      echo "Retry attempt reached max_attempt: $max_attempt"
+      echo "Failed to install docker on node! Please try to install manually..."
+      return 1
+    fi
   fi
 }
 
 install_kubectl() {
+  KUBECTL_VERSION="v1.35.3"
   if [ "$arch" = "aarch64" ]; then
       KUBE_ARCH="arm64"
+      KUBECTL_SHA256="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14"
   else
       KUBE_ARCH="amd64"
+      KUBECTL_SHA256="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6"
   fi
-  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$KUBE_ARCH/kubectl" && \
+  curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBE_ARCH}/kubectl" && \
+  echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c - && \
   chmod +x ./kubectl && \
   mv ./kubectl /usr/local/bin
 }

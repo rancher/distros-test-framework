@@ -13,11 +13,11 @@ import (
 func TestTarball(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	resources.LogLevel("info", "Downloading tarball artifacts...")
 	_, err := support.GetArtifacts(cluster, "linux", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	resources.LogLevel("info", "Copying assets on the airgap nodes...")
 	err = support.CopyAssetsOnNodes(cluster, support.Tarball, &flags.AirgapFlag.TarballType)
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	resources.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
 	support.InstallOnAirgapServers(cluster, support.Tarball)
@@ -28,11 +28,11 @@ func TestTarball(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	if support.HasWindowsAgent(cluster) {
 		resources.LogLevel("info", "Downloading %v artifacts for Windows...", cluster.Config.Product)
 		_, err = support.GetArtifacts(cluster, "windows", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
-		Expect(err).To(BeNil(), err)
+		Expect(err).To(BeNil())
 
 		resources.LogLevel("info", "Copy assets on Windows airgap nodes...")
 		err = support.CopyAssetsOnNodesWindows(cluster, support.Tarball)
-		Expect(err).To(BeNil(), err)
+		Expect(err).To(BeNil())
 
 		support.InstallOnAirgapAgentsWindows(cluster, support.Tarball)
 		resources.LogLevel("info", "%v install on airgap Windows agents: Completed!", cluster.Config.Product)

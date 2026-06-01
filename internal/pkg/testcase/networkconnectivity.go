@@ -25,12 +25,12 @@ func TestInternodeConnectivityMixedOS(cluster *driver.Cluster, applyWorkload, de
 	checkPodsRunning := "kubectl get pods -n default -l app=client" +
 		" --field-selector=status.phase=Running --kubeconfig="
 	err := assert.ValidateOnHost(checkPodsRunning+resources.KubeConfigFile, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	checkPodsRunning = "kubectl get pods -n default -l app=windows-app" +
 		" --field-selector=status.phase=Running  --kubeconfig="
 	err = assert.ValidateOnHost(checkPodsRunning+resources.KubeConfigFile, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})
 
@@ -50,7 +50,7 @@ func TestInternodeConnectivityMixedOS(cluster *driver.Cluster, applyWorkload, de
 // testIPsInCIDRRange Validates Pod IPs and Cluster IPs in CIDR range.
 func testIPsInCIDRRange(cluster *driver.Cluster, label, svc string) {
 	nodeArgs, err := resources.GetNodeArgsMap(cluster, "server")
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	clusterCIDR := strings.Split(nodeArgs["cluster-cidr"], ",")
 	serviceCIDR := strings.Split(nodeArgs["service-cidr"], ",")

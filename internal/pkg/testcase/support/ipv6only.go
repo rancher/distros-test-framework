@@ -82,11 +82,11 @@ func InstallOnIPv6Servers(cluster *driver.Cluster) {
 			cmd := buildInstallCmd(cluster, "master", "", serverIP)
 			resources.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 
 			cmd = fmt.Sprintf("sudo cat /var/lib/rancher/%v/server/token", cluster.Config.Product)
 			token, err = CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 			Expect(token).NotTo(BeEmpty())
 			resources.LogLevel("debug", "token: %v", token)
 		}
@@ -96,7 +96,7 @@ func InstallOnIPv6Servers(cluster *driver.Cluster) {
 			cmd := buildInstallCmd(cluster, "master", token, serverIP)
 			resources.LogLevel("debug", "Install cmd: %v", cmd)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 		}
 	}
 
@@ -115,7 +115,7 @@ func InstallOnIPv6Agents(cluster *driver.Cluster) {
 		cmd := buildInstallCmd(cluster, "agent", token, agentIP)
 		resources.LogLevel("debug", "Install cmd: %v", cmd)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
-		Expect(err).To(BeNil(), err)
+		Expect(err).To(BeNil())
 	}
 }
 

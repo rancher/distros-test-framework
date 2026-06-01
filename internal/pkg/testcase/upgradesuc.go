@@ -29,7 +29,7 @@ func TestUpgradeClusterSUC(cluster *driver.Cluster, k8sClient *k8s.Client, versi
 		"system-upgrade-controller",
 		statusRunning,
 	)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	originalFilePath := resources.BasePath() + fmt.Sprintf("/workloads/%s/%s-",
 		cluster.Config.Arch, cluster.Config.Product)

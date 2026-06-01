@@ -14,7 +14,7 @@ import (
 
 func TestDeployCertManager(cluster *driver.Cluster, version string) {
 	err := addRepo("jetstack", "https://charts.jetstack.io")
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	applyCrdsCmd := fmt.Sprintf(
 		"kubectl apply --kubeconfig=%s --validate=false -f "+
@@ -90,7 +90,7 @@ func TestDeployRancher(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 
 func installRancher(cluster *driver.Cluster, flags *customflag.FlagConfig) string {
 	err := addRepo(flags.Charts.RepoName, flags.Charts.RepoUrl)
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	installRancherCmd := fmt.Sprintf(
 		"kubectl create namespace cattle-system --kubeconfig=%s && "+

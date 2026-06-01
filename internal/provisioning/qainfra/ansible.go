@@ -1,9 +1,11 @@
 package qainfra
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,7 +19,7 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 
 	if err := runCmdWithTimeout(config.InfraProvisioner.RootDir, 2*time.Minute,
 		"git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
-		"fix/worker-kube-api-host", "https://github.com/fmoral2/qa-infra-automation.git", config.InfraProvisioner.TempDir); err != nil {
+		"main", "https://github.com/rancher/qa-infra-automation.git", config.InfraProvisioner.TempDir); err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
@@ -25,6 +27,10 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	if err := runCmdWithTimeout(config.InfraProvisioner.TempDir, 2*time.Minute,
 		"git", "sparse-checkout", "set", ansibleDir, "ansible/roles"); err != nil {
 		return fmt.Errorf("sparse checkout failed: %w", err)
+	}
+
+	if err := patchRKE2ConfigTemplate(config); err != nil {
+		return fmt.Errorf("failed to patch rke2_config template: %w", err)
 	}
 
 	if err := installAnsibleCollection(config.InfraProvisioner.TempDir); err != nil {
@@ -39,6 +45,51 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 		return fmt.Errorf("template inventory generation failed: %w", err)
 	}
 
+	return nil
+}
+
+// patchRKE2ConfigTemplate appends a node-external-ip directive to the cloned
+// rke2_config role's config.yaml.j2 so the kubelet on each node advertises
+// its AWS public IP. Upstream rancher/qa-infra-automation's template doesn't
+// emit node-external-ip at all, which leaves `kubectl get nodes -o wide`
+// reporting EXTERNAL-IP=<none>. Tests that call FetchNodeExternalIPs() then
+// receive empty strings and SSH-to-"" fails.
+//
+// We append to the template instead of editing in place so other servers/
+// agent-specific blocks are untouched; node-external-ip is a top-level key
+// in /etc/rancher/rke2/config.yaml and applies equally to both roles.
+//
+// The substitution uses ansible_host, which our static inventory populates
+// from cluster_nodes_json[].public_ip per node.
+func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
+	templatePath := filepath.Join(
+		config.InfraProvisioner.TempDir,
+		"ansible", "roles", "rke2_config", "templates", "config.yaml.j2",
+	)
+	if _, err := os.Stat(templatePath); err != nil {
+		// Sparse checkout may exclude this path on a future upstream
+		// reorganization; warn loudly but don't hard-fail provisioning.
+		resources.LogLevel("warn",
+			"rke2_config template not found at %s — kubelet will not advertise "+
+				"node-external-ip and FetchNodeExternalIPs() will be empty (err: %v)",
+			templatePath, err)
+		return nil
+	}
+
+	patch := "\n# Injected by distros-test-framework: surface AWS public IP via kubelet.\n" +
+		"node-external-ip: {{ ansible_host }}\n"
+
+	f, err := os.OpenFile(templatePath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open template for append: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(patch); err != nil {
+		return fmt.Errorf("append node-external-ip stanza: %w", err)
+	}
+
+	resources.LogLevel("info",
+		"Patched rke2_config template to advertise node-external-ip from ansible_host")
 	return nil
 }
 
@@ -78,7 +129,7 @@ func setAnsibleEnvVars(config *driver.InfraConfig) error {
 
 		// Ansible configuration.
 		"ANSIBLE_CONFIG":            filepath.Join(config.InfraProvisioner.Ansible.Dir, "ansible.cfg"),
-		"ANSIBLE_INVENTORY_ENABLED": "host_list,script,auto,yaml,ini,cloud.terraform.terraform_state",
+		"ANSIBLE_INVENTORY_ENABLED": "host_list,script,auto,yaml,ini",
 		"ANSIBLE_COLLECTIONS_PATHS": "/root/.ansible/collections:/usr/share/ansible/collections:~/.ansible/collections",
 		"ANSIBLE_TIMEOUT":           "30",
 		"ANSIBLE_CONNECT_TIMEOUT":   "30",
@@ -110,29 +161,25 @@ func setAnsibleEnvVars(config *driver.InfraConfig) error {
 	return nil
 }
 
-// generateTemplateInventory sets up dynamic inventory using the template.
+// generateTemplateInventory builds a fully-resolved static Ansible inventory
+// from the Tofu cluster_nodes_json output (see inventory.go). No dynamic
+// plugin involvement at playbook runtime — every node, role and group is
+// hardcoded in the YAML we write.
 func generateTemplateInventory(config *driver.InfraConfig) error {
 	if err := setAnsibleEnvVars(config); err != nil {
 		return fmt.Errorf("failed to set environment variables: %w", err)
 	}
 
-	templatePath := filepath.Join(config.InfraProvisioner.TempDir,
-		fmt.Sprintf("ansible/%s/default/inventory-template.yml", config.Product))
-	inventoryPath := config.InfraProvisioner.Inventory.Path
-
-	cmd := fmt.Sprintf("TERRAFORM_NODE_SOURCE='%s' envsubst < %s > %s",
-		config.InfraProvisioner.TFNodeSource, templatePath, inventoryPath)
-	// We run envsubst with the absolute path so the inventory plugin can find the state file.
-	// The playbook itself requires a relative path (handled by setAnsibleEnvVars).
-	if err := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, 2*time.Minute, "bash", "-c", cmd); err != nil {
-		return fmt.Errorf("failed to generate inventory from template: %w", err)
+	if err := writeStaticInventory(config); err != nil {
+		return fmt.Errorf("failed to write static inventory: %w", err)
 	}
 
 	if err := ensureSSHAnsibleConfig(config); err != nil {
 		resources.LogLevel("warn", "Failed to update ansible.cfg: %v", err)
 	}
 
-	resources.LogLevel("info", "Dynamic inventory generated from template with content from: %s", templatePath)
+	resources.LogLevel("info", "Static inventory written to %s",
+		config.InfraProvisioner.Inventory.Path)
 
 	return nil
 }
@@ -237,17 +284,96 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 		"--extra-vars", "kubernetes_version=" + installVersion,
 	}
 
-	args = addServerFlags(args, config.Cluster.Config.ServerFlags)
+	// The framework intentionally does NOT default ingress-controller. RKE2's
+	// own per-version default is what we want (nginx <1.36, traefik >=1.36),
+	// and silently injecting a value that matches the default is just noise
+	// in config.yaml. Callers who need a different ingress can set
+	// "ingress-controller: <x>" in their SERVER_FLAGS env value — and the
+	// suite-level checkIngressCompat guard catches the only incompatible
+	// combo (rke2 + <1.36 + ingress-controller: traefik).
+	serverFlags := config.Cluster.Config.ServerFlags
+
+	args = addServerFlags(args, serverFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
 	args = addChannel(args, config.Cluster.Config.Channel)
 
 	if strings.Contains(config.Product, "rke2") {
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
-		args = append(args, "--extra-vars", "ingress_controller=nginx")
+		args = addRKE2AdditionalConfig(args, serverFlags)
 	}
 
 	return args, nil
+}
+
+// addRKE2AdditionalConfig parses server_flags (the multi-line YAML scalar
+// passed in via SERVER_FLAGS env) into a JSON object and forwards it to the
+// upstream rke2_config role under its `rke2_additional_config` variable.
+//
+// Why this is needed: upstream's rke2_config role doesn't read `server_flags`
+// at all when generating /etc/rancher/rke2/config.yaml. It only emits the
+// hardcoded `rke2_server_config` dict and the operator-supplied
+// `rke2_additional_config` dict (see ansible/roles/rke2_config/templates/
+// config.yaml.j2). Without this hop, every key in SERVER_FLAGS — selinux,
+// write-kubeconfig-mode, ingress-controller, profile, etc. — is silently
+// dropped on the floor, and the cluster comes up with role defaults.
+func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
+	extras := parseServerFlagsToDict(resources.NormalizeString(serverFlags))
+	if len(extras) == 0 {
+		return args
+	}
+
+	// Wrap in {var: dict} JSON so Ansible parses the value as a dict.
+	// Bare "key=json" CLI form treats the value as a literal string.
+	wrapper := map[string]any{"rke2_additional_config": extras}
+	jsonBytes, err := json.Marshal(wrapper)
+	if err != nil {
+		resources.LogLevel("warn",
+			"failed to marshal rke2_additional_config (%v); SERVER_FLAGS will "+
+				"NOT be written into /etc/rancher/rke2/config.yaml", err)
+		return args
+	}
+
+	keys := make([]string, 0, len(extras))
+	for k := range extras {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	resources.LogLevel("info",
+		"Forwarding %d SERVER_FLAGS key(s) into rke2_additional_config: %v",
+		len(keys), keys)
+
+	return append(args, "--extra-vars", string(jsonBytes))
+}
+
+// parseServerFlagsToDict turns the multi-line YAML scalar that lives behind
+// SERVER_FLAGS into a flat string→string map. Each non-empty, non-comment
+// line is parsed as "key: value"; surrounding whitespace and optional quotes
+// on the value are trimmed. Lines without a colon are skipped.
+//
+// Values stay as strings; the upstream config.yaml.j2 template emits them
+// unquoted, and RKE2's YAML parser coerces "true"/"644"/"nginx" to the
+// proper Go type at config-read time.
+func parseServerFlagsToDict(s string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		i := strings.IndexByte(line, ':')
+		if i <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:i])
+		val := strings.TrimSpace(line[i+1:])
+		val = strings.Trim(val, `"'`)
+		if key == "" {
+			continue
+		}
+		out[key] = val
+	}
+	return out
 }
 
 func addChannel(args []string, channel string) []string {
@@ -275,7 +401,13 @@ func addCNI(args []string, cni string) []string {
 	if cniValue == "" {
 		cniValue = "canal"
 	}
+	// The upstream rke2-playbook asserts `cni is defined && cni | length > 0`,
+	// so we set both `cni` (for the assertion) and `rke2_cni` (the var that
+	// the rke2_config role actually reads — see ansible/roles/rke2_config/
+	// defaults/main.yml). Without rke2_cni, the role's default "calico"
+	// always wins regardless of what the caller asked for.
 	args = append(args, "--extra-vars", "cni="+cniValue)
+	args = append(args, "--extra-vars", "rke2_cni="+cniValue)
 
 	return args
 }

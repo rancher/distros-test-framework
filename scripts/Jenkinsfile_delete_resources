@@ -65,11 +65,12 @@ node {
                 }
                 dir("./.aws") {
                   writeFile file: 'credentials', text: '[default]' +
-                    "\naws_access_key_id = ${AWS_ACCESS_KEY_ID}" + 
+                    "\naws_access_key_id = ${AWS_ACCESS_KEY_ID}" +
                     "\naws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}"
+                  sh 'chmod 600 credentials'
                   writeFile file: 'config', text: '[default]' +
-                    "\nregion = ${REGION}" + 
-                    "\noutput = yaml" 
+                    "\nregion = ${REGION}" +
+                    "\noutput = yaml"
                 } // dir .aws
                 sh "./scripts/build.sh"
               } // stage Build Container
@@ -96,6 +97,7 @@ node {
                   sh "docker stop ${testContainer} || true"
                   sh "docker rm -v ${testContainer} || true"
                   sh "docker rmi -f ${imageName} || true"
+                  sh "rm -rf ./.aws || true"
                 } // else
               } // stage Cleanup
             } // finally

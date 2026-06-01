@@ -31,7 +31,7 @@ func InstallOnAirgapAgentsWindows(cluster *driver.Cluster, airgapMethod string) 
 			`powershell .\windows_install.ps1 "%v" "%v" "%v" "%v" "%v"`,
 			serverIP, token, agentIP, airgapMethod, agentFlags)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
-		Expect(err).To(BeNil(), err)
+		Expect(err).To(BeNil())
 	}
 
 	resources.LogLevel("info", "Waiting while Windows node joins...")
@@ -39,10 +39,10 @@ func InstallOnAirgapAgentsWindows(cluster *driver.Cluster, airgapMethod string) 
 	Eventually(func(g Gomega) {
 		res, err := GetNodesViaBastion(cluster)
 		g.Expect(res).NotTo(BeEmpty())
-		g.Expect(err).NotTo(HaveOccurred(), err)
+		g.Expect(err).NotTo(HaveOccurred())
 
 		nodes, err := resources.GetNodes(false)
-		g.Expect(err).NotTo(HaveOccurred(), err)
+		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(nodes).NotTo(BeEmpty())
 		g.Expect(len(nodes)).To(Equal(nodeCount))
 	}, "300s", "15s").Should(Succeed(), "Node count is not matching")

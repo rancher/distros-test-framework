@@ -35,13 +35,12 @@ create_milestone() {
         exit 1
     fi
 
-    RESPONSE=$(curl --request POST \
+    RESPONSE=$(curl -s --request POST \
         --url "https://api.qase.io/v1/milestone/$QASE_PROJECT_CODE" \
-        --header "Token: $QASE_API_TOKEN" \
-        --header 'Content-Type: application/json' \
+        --header "Token: $QASE_API_TOKEN" --header 'Content-Type: application/json' \
         --data '{
                 "title": "'"$QASE_MILESTONE"'"
-            }')
+            }' )
 
     # extract milestone ID from response.
     MILESTONE_ID=$(echo "$RESPONSE" | jq '.result.id')
@@ -91,10 +90,9 @@ process() {
 create_test_run() {
     TAG_JSON='["'"$QASE_TAG"'"]'
 
-    RESPONSE=$(curl --request POST \
+    RESPONSE=$(curl -s --request POST \
         --url "https://api.qase.io/v1/run/$QASE_PROJECT_CODE" \
-        --header "Token: $QASE_API_TOKEN" \
-        --header 'Content-Type: application/json' \
+        --header "Token: $QASE_API_TOKEN" --header 'Content-Type: application/json' \
         --data '{
                 "title": "'"$TITLE"'",
                 "description": "'"$DESCRIPTION"'",
@@ -102,8 +100,8 @@ create_test_run() {
                 "tags": '"$TAG_JSON"',
                 "include_all_cases": false,
                 "plan_id": '"$QASE_TEST_PLAN_ID"'
-            }')
-    echo "response status is: $RESPONSE"
+            }' )
+    echo "response status is: $(echo "$RESPONSE" | jq -r '.status // .error // "unknown"')"
 
     echo "Created Qase Test Run with:"
     echo "Title: $TITLE"

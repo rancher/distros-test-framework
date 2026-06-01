@@ -13,11 +13,11 @@ import (
 func TestSystemDefaultRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) {
 	resources.LogLevel("info", "Setting bastion as system default registry...")
 	err := support.SetupAirgapRegistry(cluster, flags, support.SystemDefaultRegistry)
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	resources.LogLevel("info", "Copying assets on the airgap nodes...")
 	err = support.CopyAssetsOnNodes(cluster, support.SystemDefaultRegistry, nil)
-	Expect(err).To(BeNil(), err)
+	Expect(err).To(BeNil())
 
 	resources.LogLevel("info", "Installing %v on airgap nodes...", cluster.Config.Product)
 	support.InstallOnAirgapServers(cluster, support.SystemDefaultRegistry)

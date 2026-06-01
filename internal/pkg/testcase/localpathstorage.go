@@ -30,7 +30,7 @@ func TestLocalPathProvisionerStorage(cluster *driver.Cluster, applyWorkload, del
 	if err != nil {
 		logDebugData(cluster)
 	}
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	_, err = resources.WriteDataPod(cluster, namespace)
 	Expect(err).NotTo(HaveOccurred(), "error writing data to pod: %v", err)

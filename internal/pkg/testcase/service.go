@@ -19,7 +19,7 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
 		"--field-selector=status.phase=Running --kubeconfig="
 	err := assert.ValidateOnHost(getClusterIP+resources.KubeConfigFile, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	clusterip, port, _ := resources.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 
@@ -27,7 +27,7 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
 			":"+port+"/name.html", "test-clusterip")
-		Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	if deleteWorkload {
@@ -45,7 +45,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 
 	nodeExternalIP := resources.FetchNodeExternalIPs()
 	nodeport, err := resources.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	getNodeport := "kubectl get pods -n test-nodeport -l k8s-app=nginx-app-nodeport " +
 		"--field-selector=status.phase=Running --kubeconfig="
@@ -53,7 +53,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 		getNodeport+resources.KubeConfigFile,
 		statusRunning,
 	)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	expectedPodName := "test-nodeport"
 	for _, ip := range nodeExternalIP {
@@ -61,7 +61,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
 			expectedPodName)
 	}
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	if deleteWorkload {
 		workloadErr = resources.ManageWorkload("delete", "nodeport.yaml")
@@ -79,24 +79,24 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
 		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
 	port, err := resources.RunCommandHost(getLoadbalancerSVC + resources.KubeConfigFile)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
 		"--field-selector=status.phase=Running --kubeconfig="
 	expectedPodName := "test-loadbalancer"
 	validNodes, err := resources.GetNodesByRoles("control-plane", "worker")
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = assert.ValidateOnHost(
 		getAppLoadBalancer+resources.KubeConfigFile,
 		expectedPodName)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
 			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
 			expectedPodName)
-		Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	if deleteWorkload {
@@ -108,7 +108,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
 	nodeExternalIP := resources.FetchNodeExternalIPs()
 	nodeport, err := resources.FetchServiceNodePort(td.Namespace, td.SVC)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	for _, ip := range nodeExternalIP {
 		if strings.Contains(ip, ":") {
@@ -118,14 +118,14 @@ func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
 			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
 			cluster.Bastion.PublicIPv4Addr,
 			td.Expected)
-		Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 }
 
 func testServiceClusterIPs(td testData) {
 	clusterIPs, port, err := resources.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 	nodeExternalIPs := resources.FetchNodeExternalIPs()
 
 	for _, clusterIP := range clusterIPSlice {
@@ -134,6 +134,6 @@ func testServiceClusterIPs(td testData) {
 		}
 		err := assert.ValidateOnNode(nodeExternalIPs[0],
 			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
-		Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 }

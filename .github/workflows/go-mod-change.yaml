@@ -30,6 +30,9 @@ on:
     paths:
       - 'go.mod'
 
+permissions:
+  contents: read
+
 jobs:
   check_goMod:
     runs-on: ubuntu-latest

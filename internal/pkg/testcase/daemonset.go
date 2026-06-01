@@ -22,7 +22,7 @@ func TestDaemonset(applyWorkload, deleteWorkload bool) {
 		" --field-selector=status.phase=Running " +
 		" --kubeconfig=" + resources.KubeConfigFile
 	err := assert.ValidateOnHost(cmd, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	cmd = "kubectl get pods -n test-daemonset" +
 		` -o jsonpath='{range .items[*]}{.spec.nodeName}{"\n"}{end}'` +

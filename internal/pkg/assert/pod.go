@@ -107,7 +107,7 @@ func PodStatusRunning(namespace, label string) {
 		" --field-selector=status.phase=Running --kubeconfig=" + resources.KubeConfigFile
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
-		g.Expect(err).NotTo(HaveOccurred(), err)
+		g.Expect(err).NotTo(HaveOccurred())
 	}, "30s", "5s").Should(Succeed())
 }
 
@@ -121,5 +121,5 @@ func ValidateIntraNSPodConnectivity(namespace, clientPodName, serverPodIP, expec
 		execCommand,
 		expectedResult,
 	)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 }

@@ -2,6 +2,7 @@ package qainfra
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -42,7 +43,8 @@ func addQAInfraEnv(infraCfg *driver.InfraConfig) *driver.InfraConfig {
 // loadQAInfra creates a configuration for qainfra driver.
 func loadQAInfra(i *driver.InfraConfig) *driver.InfraConfig {
 	workspace := "dsf-" + time.Now().Format("20060102150405")
-	uniqueID := time.Now().Format("01021504")
+	// random suffix (36^5 ≈ 60M combinations).
+	uniqueID := randomSuffix(5)
 
 	envConfig := addEnvConfig(workspace)
 	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product)
@@ -62,6 +64,26 @@ func loadQAInfra(i *driver.InfraConfig) *driver.InfraConfig {
 	resources.LogLevel("debug", "Created QA infra configuration:\n%+v", infraConfig)
 
 	return infraConfig
+}
+
+// randomSuffix returns an n-character random suffix for tacking onto a resource name to avoid collisions in parallel.
+func randomSuffix(n int) string {
+	if n <= 0 {
+		return ""
+	}
+
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return strings.Repeat("0", n)
+	}
+
+	suffixAlphabet := "abcdefghijklmnopqrstuvwxyz0123456789"
+	out := make([]byte, n)
+	for i, v := range b {
+		out[i] = suffixAlphabet[int(v)%len(suffixAlphabet)]
+	}
+
+	return string(out)
 }
 
 // addEnvConfig determines directory paths based on container/host environment.

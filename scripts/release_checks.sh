@@ -48,6 +48,16 @@ fi
 SEED=$(date +%s)
 RANDOM_INT=$(awk -v seed="${SEED}" 'BEGIN { srand(seed); print int(rand() * 100) }')
 FAILURE_FILE="failure_results_${RANDOM_INT}"
+trap 'rm -f \
+  "${FAILURE_FILE}" \
+  "sys_agent_installers_${RANDOM_INT}" \
+  "upgrade_images_${RANDOM_INT}" \
+  "releases_${RANDOM_INT}" \
+  "rke2_pkg_${RANDOM_INT}" \
+  "sys_agent_${RANDOM_INT}" \
+  "upgrade_${RANDOM_INT}" \
+  "rke2_runtime_${RANDOM_INT}" \
+  "lts_output_${RANDOM_INT}"' EXIT
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then

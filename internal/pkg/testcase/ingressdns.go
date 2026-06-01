@@ -27,7 +27,7 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 	getIngressRunning := "kubectl get pods -n test-ingress -l k8s-app=nginx-app-ingress" +
 		" --field-selector=status.phase=Running  --kubeconfig="
 	err := assert.ValidateOnHost(getIngressRunning+resources.KubeConfigFile, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	ingressIps, err := resources.FetchIngressIP("test-ingress")
 	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
@@ -39,7 +39,7 @@ func TestIngress(applyWorkload, deleteWorkload bool) {
 			"test-ingress",
 		)
 	}
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	if deleteWorkload {
 		workloadErr = resources.ManageWorkload("delete", "ingress.yaml")
@@ -56,14 +56,14 @@ func TestDNSAccess(applyWorkload, deleteWorkload bool) {
 
 	getPodDnsUtils := "kubectl get pods -n dnsutils dnsutils  --kubeconfig="
 	err := assert.ValidateOnHost(getPodDnsUtils+resources.KubeConfigFile, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	execDNSUtils := "kubectl exec -n dnsutils -t dnsutils --kubeconfig="
 	err = assert.CheckComponentCmdHost(
 		execDNSUtils+resources.KubeConfigFile+" -- nslookup kubernetes.default",
 		nslookup,
 	)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	if deleteWorkload {
 		workloadErr = resources.ManageWorkload("delete", "dnsutils.yaml")
@@ -124,7 +124,7 @@ func validateIngressRoute(namespace, label, publicIP string) {
 	getIngressRoutePodsRunning := fmt.Sprintf("kubectl get pods -n %s -l %s"+
 		" --kubeconfig=%s", namespace, label, resources.KubeConfigFile)
 	err := assert.ValidateOnHost(getIngressRoutePodsRunning, statusRunning)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	// Query the IngressRoute Host.
 	filters := map[string]string{
@@ -154,14 +154,14 @@ func validateIngressRoute(namespace, label, publicIP string) {
 	}, "40s", "5s").Should(Succeed())
 
 	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIP+"/notls", positiveAsserts...)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIP+"/tls", positiveAsserts...)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = assert.CheckComponentCmdHost("curl -sk http://"+publicIP+"/tls", negativeAsserts)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = assert.CheckComponentCmdHost("curl -sk https://"+publicIP+"/notls", negativeAsserts)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 }

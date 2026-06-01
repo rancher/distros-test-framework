@@ -41,7 +41,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 
 	serverLeaderIP := cluster.ServerIPs[0]
 	token, err := resources.FetchToken(cluster.Config.Product, serverLeaderIP)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
 		version, channel, resourceName, newExternalServerIps, newPrivateServerIps)

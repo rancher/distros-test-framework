@@ -30,11 +30,11 @@ func TestBuildCluster(cluster *driver.Cluster) {
 
 	resources.LogLevel("info", "KUBECONFIG: ")
 	err := resources.PrintFileContents(resources.KubeConfigFile)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	resources.LogLevel("info", "BASE64 ENCODED KUBECONFIG:")
 	err = resources.PrintBase64Encoded(resources.KubeConfigFile)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	if cluster.Bastion.PublicIPv4Addr != "" {
 		resources.LogLevel("info", "Bastion Node IP: %v", cluster.Bastion.PublicIPv4Addr)

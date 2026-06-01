@@ -175,17 +175,40 @@ func configureTerraformFiles(config *driver.InfraConfig) error {
 	return nil
 }
 
-// updateVarsFile  updates the vars.tfvars file with unique resource names and replaces product variables.
+// updateVarsFile updates the vars.tfvars file with unique resource names and
+// replaces product variables.
+//
+// The assembled aws_hostname_prefix becomes part of AWS load-balancer and
+// target-group names, which are capped at 32 chars. The longest derived
+// suffix from the tofu module is "-tg-9345" (8 chars), so the prefix itself
+// must be ≤ 24 chars or `tofu apply` fails with:
+//
+//	Error: "name" cannot be longer than 32 characters
+//
+// We reject too-long inputs up front with a clear message instead of letting
+// Tofu fail half-way through provisioning.
+const awsHostnamePrefixMaxLen = 24
+
 func updateVarsFile(varsFilePath, uniqueID, product, resourceName string) error {
 	content, err := os.ReadFile(varsFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read vars file: %w", err)
 	}
 
+	prefix := fmt.Sprintf("dsf-%s-%s-%s", resourceName, product, uniqueID)
+	if len(prefix) > awsHostnamePrefixMaxLen {
+		return fmt.Errorf(
+			"aws_hostname_prefix %q is %d chars; AWS load-balancer / target-group "+
+				"names are capped at 32 and the tofu module appends up to 8 chars "+
+				"(e.g. -tg-9345), so the prefix must be ≤ %d. Shorten RESOURCE_NAME "+
+				"(currently %q, %d chars).",
+			prefix, len(prefix), awsHostnamePrefixMaxLen, resourceName, len(resourceName))
+	}
+
 	varsContent := string(content)
 	re := regexp.MustCompile(`aws_hostname_prefix\s*=\s*"[^"]*"`)
-	varsContent = re.ReplaceAllString(varsContent, fmt.Sprintf(`aws_hostname_prefix = "dsf-%s-%s-%s"`,
-		resourceName, product, uniqueID))
+	varsContent = re.ReplaceAllString(varsContent,
+		fmt.Sprintf(`aws_hostname_prefix = %q`, prefix))
 
 	if err := os.WriteFile(varsFilePath, []byte(varsContent), 0o644); err != nil {
 		return fmt.Errorf("failed to write vars file: %w", err)

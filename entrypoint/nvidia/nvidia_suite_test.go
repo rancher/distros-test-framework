@@ -6,10 +6,9 @@ import (
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
+	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
-	"github.com/rancher/distros-test-framework/internal/provisioning"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
-	"github.com/rancher/distros-test-framework/internal/provisioning/legacy"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -34,71 +33,13 @@ func TestMain(m *testing.M) {
 		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
-
-	setupClusterInfra()
-
+	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	os.Exit(m.Run())
 }
 
 func TestNvidiaSuite(t *testing.T) {
-	RegisterFailHandler(FailWithReport)
+	RegisterFailHandler(entrypoint.FailWithReport)
 	RunSpecs(t, "Nvidia Test Suite")
 }
 
-func setupClusterInfra() {
-	kubeconfig := os.Getenv("KUBE_CONFIG")
-	if kubeconfig != "" {
-		// gets a cluster from existing kubeconfig.
-		cluster = legacy.KubeConfigCluster(kubeconfig)
-		resources.LogLevel("info", "Using existing cluster from kubeconfig")
-
-		return
-	}
-
-	// initial data load needed for provisioning coming from config env vars.
-	infraConfig = &driver.InfraConfig{
-		Product:           cfg.Product,
-		Module:            cfg.Module,
-		ResourceName:      cfg.ResourceName,
-		ProvisionerModule: cfg.ProvisionerModule,
-		ProvisionerType:   cfg.ProvisionerType,
-		InstallVersion:    cfg.InstallVersion,
-		QAInfraProvider:   cfg.QAInfraProvider,
-		NodeOS:            cfg.NodeOS,
-		CNI:               cfg.CNI,
-		Cluster: &driver.Cluster{
-			Config: driver.Config{
-				Arch:        cfg.Arch,
-				ServerFlags: cfg.ServerFlags,
-				WorkerFlags: cfg.WorkerFlags,
-				Channel:     cfg.Channel,
-			},
-			SSH: driver.SSHConfig{
-				User:        cfg.SSHUser,
-				PrivKeyPath: cfg.SSHKeyPath,
-				KeyName:     cfg.SSHKeyName,
-			},
-		},
-	}
-
-	cluster, err = provisioning.ProvisionInfrastructure(infraConfig)
-	if err != nil {
-		resources.LogLevel("error", "error provisioning infrastructure: %w\n", err)
-		os.Exit(1)
-	}
-
-	resources.LogLevel("info", "Cluster provisioned successfully with %+v", cluster.Config)
-}
-
-var _ = AfterSuite(func() {
-	if customflag.ServiceFlag.Destroy {
-		status, err := provisioning.DestroyInfrastructure(
-			infraConfig.ProvisionerModule, infraConfig.Product, infraConfig.Module)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(status).To(Equal("cluster destroyed"))
-	}
-})
-
-func FailWithReport(message string, callerSkip ...int) {
-	Fail(message, callerSkip[0]+1)
-}
+var _ = AfterSuite(entrypoint.DestroyOnlyAfterSuite(&infraConfig))

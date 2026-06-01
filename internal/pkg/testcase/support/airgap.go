@@ -53,11 +53,11 @@ func InstallOnAirgapServers(cluster *driver.Cluster, airgapMethod string) {
 					`sudo ./install_product.sh "%v" "" "" "server" "%v" "%v"`,
 				cluster.Config.Product, serverIP, cluster.Config.ServerFlags)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 
 			cmd = fmt.Sprintf("sudo cat /var/lib/rancher/%v/server/token", cluster.Config.Product)
 			token, err = CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 			Expect(token).NotTo(BeEmpty())
 			resources.LogLevel("debug", "token: %v", token)
 		}
@@ -70,7 +70,7 @@ func InstallOnAirgapServers(cluster *driver.Cluster, airgapMethod string) {
 					`sudo ./install_product.sh "%v" "%v" "%v" "server" "%v" "%v"`,
 				cluster.Config.Product, cluster.ServerIPs[0], token, serverIP, cluster.Config.ServerFlags)
 			_, err := CmdForPrivateNode(cluster, cmd, serverIP)
-			Expect(err).To(BeNil(), err)
+			Expect(err).To(BeNil())
 		}
 	}
 
@@ -97,7 +97,7 @@ func InstallOnAirgapAgents(cluster *driver.Cluster, airgapMethod string) {
 				`sudo ./install_product.sh "%v" "%v" "%v" "agent" "%v" "%v"`,
 			cluster.Config.Product, cluster.ServerIPs[0], token, agentIP, cluster.Config.WorkerFlags)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
-		Expect(err).To(BeNil(), err)
+		Expect(err).To(BeNil())
 	}
 }
 

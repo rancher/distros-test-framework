@@ -48,8 +48,10 @@ func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
 	data.summaryData.WriteString(data.osReleaseData)
 	data.summaryData.WriteString("\n```\n")
 
-	// config.yaml from server node.
-	cmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
+	// config.yaml from server node. The file is 0600 root:root by default
+	// (RKE2/K3s both lock it down), so the SSH user can't read it without
+	// elevation. Use sudo so the report works regardless of the node OS.
+	cmd := fmt.Sprintf("sudo cat /etc/rancher/%s/config.yaml", c.Config.Product)
 	catConfigYaml, configYamlErr := resources.RunCommandOnNode(cmd, c.ServerIPs[0])
 	if configYamlErr != nil {
 		return fmt.Errorf("error retrieving config.yaml from server: %s, %w", c.ServerIPs[0], configYamlErr)
@@ -101,8 +103,9 @@ func nodeSummaryData(c *driver.Cluster, data *summaryReportData) error {
 
 //nolint:funlen // yep, but this makes more clear being one function.
 func airgapNodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data *summaryReportData) error {
-	// config.yaml from server via bastion node.
-	cfgCmd := fmt.Sprintf("cat /etc/rancher/%s/config.yaml", c.Config.Product)
+	// config.yaml from server via bastion node. File is 0600 root:root —
+	// sudo is required regardless of distro.
+	cfgCmd := fmt.Sprintf("sudo cat /etc/rancher/%s/config.yaml", c.Config.Product)
 	cfg, err := remoteExec(c.SSH.PrivKeyPath, c.SSH.User, c.ServerIPs[0], c.Bastion.PublicIPv4Addr, cfgCmd)
 	if err != nil {
 		return fmt.Errorf("retrieving config.yaml: %w", err)

@@ -43,3 +43,14 @@ output "fqdn" {
 output "kube_api_host" {
   value = module.cluster_nodes.kube_api_host
 }
+
+# Pass through the upstream module's cluster_nodes_json output so the
+# framework's static-inventory generator (see internal/provisioning/qainfra/
+# inventory.go) can read it via `tofu output -raw cluster_nodes_json`.
+output "cluster_nodes_json" {
+  value = module.cluster_nodes.cluster_nodes_json
+}
+
+output "instance_public_ips" {
+  value = module.cluster_nodes.instance_public_ips
+}

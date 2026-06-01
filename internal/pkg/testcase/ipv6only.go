@@ -11,7 +11,7 @@ import (
 func TestIPv6Only(cluster *driver.Cluster, awsClient *aws.Client) {
 	resources.LogLevel("info", "Setting up %s cluster on ipv6 only nodes...", cluster.Config.Product)
 	err := support.ConfigureIPv6OnlyNodes(cluster, awsClient)
-	Expect(err).NotTo(HaveOccurred(), err)
+	Expect(err).NotTo(HaveOccurred())
 
 	resources.LogLevel("info", "Installing %s on ipv6 only server nodes...", cluster.Config.Product)
 	support.InstallOnIPv6Servers(cluster)

@@ -39,7 +39,7 @@ func TestIngressDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 		err = assert.ValidateOnNode(cluster.Bastion.PublicIPv4Addr,
 			"curl -sL -H 'Host: test1.com' http://"+ingressIP+"/name.html",
 			td.Expected)
-		Expect(err).NotTo(HaveOccurred(), err)
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	if deleteWorkload {
