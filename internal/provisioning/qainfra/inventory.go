@@ -3,10 +3,12 @@ package qainfra
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -53,13 +55,14 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 
 	raw := bytes.TrimSpace(stdout.Bytes())
 	if len(raw) == 0 {
-		return nil, fmt.Errorf("cluster_nodes_json output is empty — did 'tofu apply' complete?")
+		return nil, errors.New("cluster_nodes_json output is empty — did 'tofu apply' complete?")
 	}
 
 	var data clusterNodesJSON
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal cluster_nodes_json: %w", err)
 	}
+
 	return &data, nil
 }
 
@@ -68,30 +71,37 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 // scripts/generate_inventory.py for the {rke2,k3s}/default schemas.
 //
 // Group rules (mutually exclusive, first match wins in this order):
+// master -> first node with role 'etcd' (k3s: first node with role 'cp');
+// servers -> nodes with role 'cp'; workers -> nodes with role 'worker'.
 //
-//	master  -> first node with role 'etcd' (k3s: first node with role 'cp')
-//	servers -> nodes with role 'cp'
-//	workers -> nodes with role 'worker'
-//
-// Per-host vars:  ansible_host, node_roles, rke2_node_role
-// All vars:       ansible_user, ansible_ssh_common_args, kube_api_host, fqdn
+// Per-host vars: ansible_host, node_roles, rke2_node_role.
+// All vars: ansible_user, ansible_ssh_common_args, kube_api_host, fqdn.
 func buildStaticInventory(data *clusterNodesJSON, product string) string {
+	assigned := assignNodeGroups(data, product)
+
+	var b strings.Builder
+	writeInventoryVars(&b, data)
+	writeInventoryHosts(&b, data, assigned)
+	writeInventoryChildren(&b, data, assigned)
+
+	return b.String()
+}
+
+// assignNodeGroups maps each node name to its inventory group (master/servers/
+// workers), applying the mutually-exclusive first-match-wins rules.
+func assignNodeGroups(data *clusterNodesJSON, product string) map[string]string {
 	masterRoles := []string{"etcd"}
 	if strings.EqualFold(product, "k3s") {
 		masterRoles = []string{"cp"}
 	}
 
 	assigned := make(map[string]string) // node name -> group
-	pickFirst := func(roles []string) string {
-		for _, n := range data.Nodes {
-			if hasAnyRole(n.Roles, roles) {
-				return n.Name
-			}
+	for _, n := range data.Nodes {
+		if hasAnyRole(n.Roles, masterRoles) {
+			assigned[n.Name] = "master"
+
+			break
 		}
-		return ""
-	}
-	if m := pickFirst(masterRoles); m != "" {
-		assigned[m] = "master"
 	}
 	for _, n := range data.Nodes {
 		if _, ok := assigned[n.Name]; ok {
@@ -105,86 +115,105 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 		}
 	}
 
-	roleFor := func(n clusterNode) string {
-		switch {
-		case assigned[n.Name] == "master":
-			return "master"
-		case hasAnyRole(n.Roles, []string{"cp", "etcd"}):
-			return "server"
-		default:
-			return "agent"
-		}
-	}
+	return assigned
+}
 
-	var b strings.Builder
-	fmt.Fprintln(&b, "all:")
-	fmt.Fprintln(&b, "  vars:")
-	fmt.Fprintln(&b, `    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"`)
+// nodeRole returns the rke2_node_role value for a node.
+func nodeRole(n clusterNode, assigned map[string]string) string {
+	switch {
+	case assigned[n.Name] == "master":
+		return "master"
+	case hasAnyRole(n.Roles, []string{"cp", "etcd"}):
+		return "server"
+	default:
+		return "agent"
+	}
+}
+
+// writeLine writes the given parts followed by a newline, avoiding an
+// intermediate concatenated string.
+func writeLine(b *strings.Builder, parts ...string) {
+	for _, p := range parts {
+		b.WriteString(p)
+	}
+	b.WriteString("\n")
+}
+
+// writeInventoryVars writes the all.vars block.
+func writeInventoryVars(b *strings.Builder, data *clusterNodesJSON) {
+	b.WriteString("all:\n")
+	b.WriteString("  vars:\n")
+	b.WriteString(`    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"` + "\n")
 	if data.Metadata.SSHUser != "" {
-		fmt.Fprintf(&b, "    ansible_user: %s\n", yamlQuote(data.Metadata.SSHUser))
+		writeLine(b, "    ansible_user: ", yamlQuote(data.Metadata.SSHUser))
 	}
 	if data.Metadata.KubeAPIHost != "" {
-		fmt.Fprintf(&b, "    kube_api_host: %s\n", yamlQuote(data.Metadata.KubeAPIHost))
+		writeLine(b, "    kube_api_host: ", yamlQuote(data.Metadata.KubeAPIHost))
 	}
 	if data.Metadata.FQDN != "" {
-		fmt.Fprintf(&b, "    fqdn: %s\n", yamlQuote(data.Metadata.FQDN))
+		writeLine(b, "    fqdn: ", yamlQuote(data.Metadata.FQDN))
 	}
 	if data.Metadata.SSHPrivateKey != "" {
-		fmt.Fprintf(&b, "    ansible_ssh_private_key_file: %s\n", yamlQuote(data.Metadata.SSHPrivateKey))
+		writeLine(b, "    ansible_ssh_private_key_file: ", yamlQuote(data.Metadata.SSHPrivateKey))
 	}
+}
 
-	fmt.Fprintln(&b, "  hosts:")
+// writeInventoryHosts writes the all.hosts block.
+func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
+	b.WriteString("  hosts:\n")
 	for _, n := range data.Nodes {
-		fmt.Fprintf(&b, "    %s:\n", n.Name)
-		fmt.Fprintf(&b, "      ansible_host: %s\n", yamlQuote(n.PublicIP))
-		fmt.Fprintf(&b, "      node_roles: %s\n", yamlInlineList(n.Roles))
-		fmt.Fprintf(&b, "      rke2_node_role: %s\n", yamlQuote(roleFor(n)))
+		writeLine(b, "    ", n.Name, ":")
+		writeLine(b, "      ansible_host: ", yamlQuote(n.PublicIP))
+		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
+		writeLine(b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
 	}
+}
 
+// writeInventoryChildren writes the all.children groups (master/servers/workers).
+func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
 	groups := []string{"master", "servers", "workers"}
 	groupMembers := make(map[string][]clusterNode)
 	for _, n := range data.Nodes {
-		g, ok := assigned[n.Name]
-		if !ok {
-			continue
-		}
-		groupMembers[g] = append(groupMembers[g], n)
-	}
-	var anyChildren bool
-	for _, g := range groups {
-		if len(groupMembers[g]) > 0 {
-			anyChildren = true
-			break
-		}
-	}
-	if anyChildren {
-		fmt.Fprintln(&b, "  children:")
-		for _, g := range groups {
-			members := groupMembers[g]
-			if len(members) == 0 {
-				continue
-			}
-			sort.SliceStable(members, func(i, j int) bool { return members[i].Name < members[j].Name })
-			fmt.Fprintf(&b, "    %s:\n", g)
-			fmt.Fprintln(&b, "      hosts:")
-			for _, n := range members {
-				fmt.Fprintf(&b, "        %s:\n", n.Name)
-				fmt.Fprintf(&b, "          ansible_host: %s\n", yamlQuote(n.PublicIP))
-			}
+		if g, ok := assigned[n.Name]; ok {
+			groupMembers[g] = append(groupMembers[g], n)
 		}
 	}
 
-	return b.String()
+	anyChildren := false
+	for _, g := range groups {
+		if len(groupMembers[g]) > 0 {
+			anyChildren = true
+
+			break
+		}
+	}
+	if !anyChildren {
+		return
+	}
+
+	b.WriteString("  children:\n")
+	for _, g := range groups {
+		members := groupMembers[g]
+		if len(members) == 0 {
+			continue
+		}
+		sort.SliceStable(members, func(i, j int) bool { return members[i].Name < members[j].Name })
+		writeLine(b, "    ", g, ":")
+		b.WriteString("      hosts:\n")
+		for _, n := range members {
+			writeLine(b, "        ", n.Name, ":")
+			writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
+		}
+	}
 }
 
 func hasAnyRole(have, want []string) bool {
 	for _, h := range have {
-		for _, w := range want {
-			if h == w {
-				return true
-			}
+		if slices.Contains(want, h) {
+			return true
 		}
 	}
+
 	return false
 }
 
@@ -205,6 +234,7 @@ func yamlInlineList(items []string) string {
 	for i, it := range items {
 		quoted[i] = yamlQuote(it)
 	}
+
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
@@ -228,5 +258,6 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 	if err := os.WriteFile(config.InfraProvisioner.Inventory.Path, []byte(yaml), 0o644); err != nil {
 		return fmt.Errorf("write inventory: %w", err)
 	}
+
 	return nil
 }

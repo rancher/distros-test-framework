@@ -73,6 +73,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 			"rke2_config template not found at %s — kubelet will not advertise "+
 				"node-external-ip and FetchNodeExternalIPs() will be empty (err: %v)",
 			templatePath, err)
+
 		return nil
 	}
 
@@ -90,6 +91,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 
 	resources.LogLevel("info",
 		"Patched rke2_config template to advertise node-external-ip from ansible_host")
+
 	return nil
 }
 
@@ -373,6 +375,7 @@ func parseServerFlagsToDict(s string) map[string]string {
 		}
 		out[key] = val
 	}
+
 	return out
 }
 
@@ -406,8 +409,7 @@ func addCNI(args []string, cni string) []string {
 	// the rke2_config role actually reads — see ansible/roles/rke2_config/
 	// defaults/main.yml). Without rke2_cni, the role's default "calico"
 	// always wins regardless of what the caller asked for.
-	args = append(args, "--extra-vars", "cni="+cniValue)
-	args = append(args, "--extra-vars", "rke2_cni="+cniValue)
+	args = append(args, "--extra-vars", "cni="+cniValue, "--extra-vars", "rke2_cni="+cniValue)
 
 	return args
 }

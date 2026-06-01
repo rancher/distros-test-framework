@@ -83,7 +83,7 @@ func CheckSelinuxTest(serverFlags string, selinuxFlagEnabled bool) {
 
 // CheckIngressCompat aborts the suite early when SERVER_FLAGS pins.
 // Allow: rke2 + >=1.36 + ingress-controller: nginx
-// Reject: rke2 + <1.36  + ingress-controller: traefik  - INCOMPATIBLE
+// Reject: rke2 + <1.36  + ingress-controller: traefik  - INCOMPATIBLE.
 func CheckIngressCompat(cfg *config.Env) {
 	if cfg.Product != "rke2" {
 		return
@@ -119,8 +119,10 @@ func extractIngressControllerPin(serverFlags string) string {
 		}
 		val := strings.TrimSpace(strings.TrimPrefix(line, "ingress-controller:"))
 		val = strings.Trim(val, `"'`)
+
 		return val
 	}
+
 	return ""
 }
 
@@ -132,14 +134,15 @@ func isRKE2AtLeast(installVersion string, major, minor int) bool {
 		return false
 	}
 	maj, errMaj := strconv.Atoi(m[1])
-	min, errMin := strconv.Atoi(m[2])
+	minVal, errMin := strconv.Atoi(m[2])
 	if errMaj != nil || errMin != nil {
 		return false
 	}
 	if maj != major {
 		return maj > major
 	}
-	return min >= minor
+
+	return minVal >= minor
 }
 
 func ReportAfterSuite(
@@ -164,7 +167,7 @@ func AfterSuite(
 	clusterPtr **driver.Cluster,
 	infraConfigPtr **driver.InfraConfig,
 	summaryPtr *string,
-	errPtr *error,
+	errPtr *error, //nolint:gocritic // out-param written by AfterSuite
 ) func() {
 	return func() {
 		flags := &customflag.ServiceFlag
