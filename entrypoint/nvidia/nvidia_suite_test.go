@@ -16,16 +16,19 @@ import (
 )
 
 var (
+	flags         *customflag.FlagConfig
 	cluster       *driver.Cluster
 	infraConfig   *driver.InfraConfig
 	cfg           *config.Env
+	reportSummary string
+	reportErr     error
 	err           error
-	nvidiaVersion string
 )
 
 func TestMain(m *testing.M) {
-	flag.Var(&customflag.ServiceFlag.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&nvidiaVersion, "nvidiaVersion", "570.133.20", "Nvidia version")
+	flags = &customflag.ServiceFlag
+	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
+	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "", "Nvidia version")
 	flag.Parse()
 
 	cfg, err = config.AddEnv()
@@ -42,4 +45,6 @@ func TestNvidiaSuite(t *testing.T) {
 	RunSpecs(t, "Nvidia Test Suite")
 }
 
-var _ = AfterSuite(entrypoint.DestroyOnlyAfterSuite(&infraConfig))
+var _ = ReportAfterSuite("Nvidia Test Suite", entrypoint.ReportAfterSuite(&cluster, &reportSummary))
+
+var _ = AfterSuite(entrypoint.AfterSuite(&cluster, &infraConfig, &reportSummary, &reportErr))

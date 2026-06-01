@@ -30,6 +30,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
+	It("Verifies node CPU usage does not exceed 80% before reboot", func() {
+		testcase.TestNodeCPUThreshold(80, true, false)
+	})
+
 	It("Validate Metrics Server", func() {
 		testcase.TestNodeMetricsServer(true, true)
 	})
@@ -72,6 +76,10 @@ var _ = Describe("Test:", func() {
 			testcase.TestIngressRoute(cluster, true, true, "traefik.io/v1alpha1")
 		})
 	}
+
+	It("Verifies node CPU usage does not exceed 80% before reboot", func() {
+		testcase.TestNodeCPUThreshold(80, true, false)
+	})
 
 	if customflag.ServiceFlag.SelinuxTest {
 		It("Validate selinux is enabled", func() {

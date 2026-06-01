@@ -37,6 +37,13 @@ func TestMain(m *testing.M) {
 		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
+	// This is required in .env file as param ENV_MODULE=ipv6only.
+	if cfg.Module == "" || cfg.Module != "ipv6only" {
+		resources.LogLevel("info", "ENV_MODULE is not set with value ipv6only. Setting the value...\n")
+		cfg.Module = "ipv6only"
+	}
+
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	awsClient, err = aws.AddClient(cluster)
 	if err != nil {

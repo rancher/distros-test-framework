@@ -30,7 +30,7 @@ var _ = Describe("Test:", func() {
 	})
 
 	It("Validate Nvidia GPU functionality", func() {
-		testcase.TestNvidiaGPUFunctionality(cluster, nvidiaVersion)
+		testcase.TestNvidiaGPUFunctionality(cluster, flags.Nvidia.Version)
 	})
 
 	It("Validate Nodes after nvidia test", func() {

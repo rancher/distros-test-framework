@@ -49,10 +49,12 @@ func TestMain(m *testing.M) {
 // validateAirgap pre-validation for airgap tests.
 func validateAirgap() {
 	serverFlags := os.Getenv("server_flags")
-	cniSlice := []string{"calico", "flannel"}
-	if cfg.Module == "" {
-		resources.LogLevel("error", "ENV_MODULE is not set, should be airgap\n")
-		os.Exit(1)
+	cniSlice := []string{"calico", "flannel", "multus,calico", "multus,flannel"}
+
+	// This is required in .env file as param ENV_MODULE=airgap.
+	if cfg.Module == "" || cfg.Module != "airgap" {
+		resources.LogLevel("info", "ENV_MODULE is not set with value airgap. Setting the value...\n")
+		cfg.Module = "airgap"
 	}
 
 	if os.Getenv("no_of_bastion_nodes") == "0" {
@@ -67,24 +69,20 @@ func validateAirgap() {
 
 	if cfg.Product == "k3s" {
 		if strings.Contains(serverFlags, "protect") {
-			resources.LogLevel("error", "airgap with hardened setup is not supported\n")
+			resources.LogLevel("error", "airgap with hardened k3s setup is not supported\n")
 			os.Exit(1)
-		}
-		if flags.AirgapFlag.ImageRegistryUrl != "" {
-			resources.LogLevel("info", "imageRegistryUrl is not supported for k3s, setting is empty\n")
-			flags.AirgapFlag.ImageRegistryUrl = ""
 		}
 	}
 
 	if cfg.Product == "rke2" {
 		if strings.Contains(serverFlags, "profile") {
-			resources.LogLevel("error", "airgap with hardened setup is not supported\n")
+			resources.LogLevel("error", "airgap with hardened rke2 setup is not supported\n")
 			os.Exit(1)
 		}
 		if os.Getenv("no_of_windows_worker_nodes") != "0" {
-			if !resources.SliceContainsString(cniSlice, serverFlags) ||
-				strings.Contains(serverFlags, "multus") {
-				resources.LogLevel("error", "only calico or flannel cni is supported for Windows agent\n")
+			if !resources.SliceContainsString(cniSlice, serverFlags) {
+				resources.LogLevel("error", "only calico or flannel cni or "+
+					"multus,calico or multus,flannel is supported for Windows agent\n")
 				resources.LogLevel("error", "found server_flags -> %v\n", serverFlags)
 				os.Exit(1)
 			}

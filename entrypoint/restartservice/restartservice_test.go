@@ -29,6 +29,10 @@ var _ = Describe("Test:", func() {
 			assert.PodAssertReady())
 	})
 
+	It("Verifies node CPU usage does not exceed 80% before service restarts", func() {
+		testcase.TestNodeCPUThreshold(80, true, false)
+	})
+
 	It("Verifies ClusterIP Service before service restarts", func() {
 		testcase.TestServiceClusterIP(true, false)
 	})
@@ -68,6 +72,10 @@ var _ = Describe("Test:", func() {
 			cluster,
 			assert.PodAssertRestart(),
 			assert.PodAssertReady())
+	})
+
+	It("Verifies node CPU usage does not exceed 80% after service restarts", func() {
+		testcase.TestNodeCPUThreshold(80, false, true)
 	})
 
 	It("Verifies ClusterIP Service after service restarts", func() {
