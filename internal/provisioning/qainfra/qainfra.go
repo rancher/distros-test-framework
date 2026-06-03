@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -50,19 +48,7 @@ func (*Provisioner) destroyInfrastructure(product, module string) (string, error
 		return "", errors.New("no workspace specified for qainfra destroy")
 	}
 
-	var rootDir, nodeSource string
-	if resources.IsRunningInContainer() {
-		resources.LogLevel("info", "Detected container environment for qainfra destroy")
-		nodeSource = "/tmp/qainfra-tofu-" + workspace
-	} else {
-		_, callerFilePath, _, _ := runtime.Caller(0)
-		rootDir = filepath.Join(filepath.Dir(callerFilePath), "..")
-		nodeSource = os.Getenv("TERRAFORM_NODE_SOURCE")
-		if nodeSource == "" {
-			nodeSource = filepath.Join(rootDir, "tmp", "qainfra-tofu-"+workspace)
-		}
-	}
-
+	nodeSource := tofuWorkdir(workspace)
 	if err := runCmdWithTimeout(nodeSource, 5*time.Minute,
 		"tofu", "destroy", "-auto-approve", "-var-file=vars.tfvars"); err != nil {
 		return "", fmt.Errorf("tofu destroy failed: %w", err)

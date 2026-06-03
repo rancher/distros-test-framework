@@ -85,17 +85,17 @@ func randomSuffix(n int) string {
 	return string(out)
 }
 
+func tofuWorkdir(workspace string) string {
+	return filepath.Join(string(filepath.Separator), "tmp", "qainfra-tofu-"+workspace)
+}
+
 // addEnvConfig determines directory paths based on container/host environment.
 func addEnvConfig(workspace string) environmentConfig {
-	// RootDir must resolve to the repo root. This file lives at
-	// internal/provisioning/qainfra/ (three levels deep), so use the canonical
-	// BasePath() helper instead of hand-counting "..".
 	defaultKeyDir := resources.BasePath()
+	nodeSource := tofuWorkdir(workspace)
 
-	nodeSource := filepath.Join(string(filepath.Separator), "tmp", "qainfra-tofu-"+workspace)
 	tempDir := filepath.Join(string(filepath.Separator), "tmp", "qainfra-ansible")
 	isContainer := resources.IsRunningInContainer()
-
 	if isContainer {
 		defaultKeyDir = defaultContainerKeyDir
 	}

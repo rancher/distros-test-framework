@@ -7,13 +7,18 @@ import (
 	"strings"
 )
 
-func FindPath(name, ip string) (string, error) {
-	if ip == "" {
-		return "", errors.New("ip should not be empty")
+// getCommonPaths returns a PATH string with the rke2/k3s install dirs plus
+// the node's $HOME/bin (needed on immutable OS images where binaries land
+// under ~/bin instead of /usr/local/bin).
+func getCommonPaths(ip string) (string, error) {
+	// get home directory on node
+	homedir, err := RunCommandOnNode(`echo "$HOME"`, ip)
+	if err != nil {
+		return "", ReturnLogError("failed to get home dir: %w", err)
 	}
-
-	if name == "" {
-		return "", errors.New("name should not be empty")
+	homedir = strings.TrimSpace(homedir)
+	if homedir == "" {
+		return "", ReturnLogError("failed to get home dir: HOME is empty")
 	}
 
 	// adding common paths to the environment variable PATH since in some os's not all paths are available.
@@ -26,11 +31,30 @@ func FindPath(name, ip string) (string, error) {
 		"/var/rancher/k3s/bin:" +
 		"/opt/k3s/bin:" +
 		"/usr/local/bin:" +
-		"/usr/bin:"
+		"/usr/bin:" +
+		homedir + "/bin:"
+
+	return commonPaths, nil
+}
+
+func FindPath(name, ip string) (string, error) {
+	if ip == "" {
+		return "", errors.New("ip should not be empty")
+	}
+
+	if name == "" {
+		return "", errors.New("name should not be empty")
+	}
+
+	// get needed common paths
+	commonPaths, err := getCommonPaths(ip)
+	if err != nil {
+		return "", fmt.Errorf("failed to get common paths: %w", err)
+	}
 
 	// adding the common paths to the PATH environment variable by sourcing it from a file.
 	envFile := "find_path_env.sh"
-	err := ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
+	err = ExportEnvProfileNode([]string{ip}, map[string]string{"PATH": commonPaths}, envFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to create environment file: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -70,6 +71,28 @@ func extractNodesFromTFState(config *driver.InfraConfig) ([]infraNode, error) {
 		}
 	}
 
+	// Tofu doesn't guarantee state-iteration order, but tests like
+	// cluster-reset assume ServerIPs[0] is the cluster-init / primary master
+	// node (the one with `cluster-init: true`, no `server:` URL). Sort so
+	// any node whose role-suffix is "master" comes first; rest go in
+	// alphabetical order for deterministic ServerIPs/AgentIPs ordering
+	// across runs.
+	//
+	// Match against the stripped suffix (not the full EC2 Name tag), so a
+	// RESOURCE_NAME containing "master" doesn't accidentally tag every node
+	// as a master candidate.
+	sort.SliceStable(nodes, func(i, j int) bool {
+		iSuf := stripNodeNamePrefix(nodes[i].name)
+		jSuf := stripNodeNamePrefix(nodes[j].name)
+		im := strings.Contains(iSuf, "master")
+		jm := strings.Contains(jSuf, "master")
+		if im != jm {
+			return im
+		}
+
+		return iSuf < jSuf
+	})
+
 	for _, node := range nodes {
 		resources.LogLevel("info", "Node: %s (%s) - Role: %s", node.name, &node, node.role)
 	}
@@ -77,23 +100,40 @@ func extractNodesFromTFState(config *driver.InfraConfig) ([]infraNode, error) {
 	return nodes, nil
 }
 
+// nodeNamePrefixRE strips the framework-generated prefix from an EC2 Name
+// tag, leaving just the role-suffix. Greedy on the middle so the LAST
+// `-(k3s|rke2)-` ends the prefix — RESOURCE_NAME can legitimately contain
+// "k3s"/"rke2" tokens (e.g. RESOURCE_NAME=foo-k3s-master), and only the
+// framework-appended trailing `-<product>-<id>-<role>` is fixed-shape.
+//
+//	tf-dsf-fmora4-rke2-aBc12-master                     -> aBc12-master
+//	tf-dsf-master-test-k3s-aBc12-worker-0               -> aBc12-worker-0
+//	tf-dsf-foo-k3s-master-rke2-aBc12-worker-0           -> aBc12-worker-0
+var nodeNamePrefixRE = regexp.MustCompile(`^tf-dsf-.*-(k3s|rke2)-`)
+
+// stripNodeNamePrefix returns the role-suffix portion of a Tofu-generated
+// node name. Centralizes the regex so role-classification (addRoleFromName)
+// and primary-master detection (sort comparator) can't drift apart.
+func stripNodeNamePrefix(name string) string {
+	return nodeNamePrefixRE.ReplaceAllString(name, "")
+}
+
 // addRoleFromName determines the role based on the node name since QAInfra does not provide roles directly,
 // we need to infer them based on given remote module naming conventions.
 func addRoleFromName(name string) string {
-	// remove prefix.
-	name = regexp.MustCompile(`^tf-dsf-.*?-(k3s|rke2)-`).ReplaceAllString(name, "")
+	suffix := stripNodeNamePrefix(name)
 
 	// for now on remote infra the first one is referred as master.
 	switch {
-	case strings.Contains(name, "master"):
+	case strings.Contains(suffix, "master"):
 		return "etcd,cp,worker"
-	case strings.Contains(name, "etcd-cp-worker"):
+	case strings.Contains(suffix, "etcd-cp-worker"):
 		return "etcd,cp,worker"
-	case strings.Contains(name, "etcd"):
+	case strings.Contains(suffix, "etcd"):
 		return "etcd"
-	case strings.Contains(name, "cp"):
+	case strings.Contains(suffix, "cp"):
 		return "cp"
-	case strings.Contains(name, "worker"):
+	case strings.Contains(suffix, "worker"):
 		return "worker"
 	default:
 		return "master"

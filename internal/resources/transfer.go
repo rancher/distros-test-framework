@@ -24,9 +24,10 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
 	}
 
-	// AccessKey is bind-mounted into the container, so `chmod 400` on it fails
-	// with "Permission denied" sometimes.
-	keyPath, err := prepareScpKey(c.Aws.AccessKeyID)
+	// The SSH key is bind-mounted into the container, so `chmod 400` on it
+	// fails with "Permission denied" sometimes. prepareScpKey copies it to a
+	// writable path first.
+	keyPath, err := prepareScpKey(c.SSH.PrivKeyPath)
 	if err != nil {
 		return ReturnLogError("failed to prepare scp key: %w", err)
 	}
@@ -70,8 +71,8 @@ var (
 	scpKeyErr  error
 )
 
-// prepareScpKey copies the AccessKey to a writable path in the container and
-// chmods the copy to 0400.
+// prepareScpKey copies the SSH private key to a writable path in the container
+// and chmods the copy to 0400.
 func prepareScpKey(src string) (string, error) {
 	scpKeyOnce.Do(func() {
 		dst := "/tmp/aws_key.pem"

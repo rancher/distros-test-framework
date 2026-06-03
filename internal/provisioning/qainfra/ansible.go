@@ -48,17 +48,8 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	return nil
 }
 
-// patchRKE2ConfigTemplate appends a node-external-ip directive to the cloned
-// rke2_config role's config.yaml.j2 so the kubelet on each node advertises
-// its AWS public IP. Upstream rancher/qa-infra-automation's template doesn't
-// emit node-external-ip at all, which leaves `kubectl get nodes -o wide`
-// reporting EXTERNAL-IP=<none>. Tests that call FetchNodeExternalIPs() then
-// receive empty strings and SSH-to-"" fails.
-//
-// We append to the template instead of editing in place so other servers/
-// agent-specific blocks are untouched; node-external-ip is a top-level key
-// in /etc/rancher/rke2/config.yaml and applies equally to both roles.
-//
+// patchRKE2ConfigTemplate appends a node-external-ip directive to the cloned.
+// rke2_config role's config.yaml.j2.
 // The substitution uses ansible_host, which our static inventory populates
 // from cluster_nodes_json[].public_ip per node.
 func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
@@ -163,10 +154,9 @@ func setAnsibleEnvVars(config *driver.InfraConfig) error {
 	return nil
 }
 
-// generateTemplateInventory builds a fully-resolved static Ansible inventory
-// from the Tofu cluster_nodes_json output (see inventory.go). No dynamic
-// plugin involvement at playbook runtime — every node, role and group is
-// hardcoded in the YAML we write.
+// generateTemplateInventory builds a static Ansible inventory.
+// from the Tofu cluster_nodes_json output,so no dynamic.
+// plugin involvement at playbook runtime —all gets hardcoded in the YAML we write.
 func generateTemplateInventory(config *driver.InfraConfig) error {
 	if err := setAnsibleEnvVars(config); err != nil {
 		return fmt.Errorf("failed to set environment variables: %w", err)
@@ -286,15 +276,7 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 		"--extra-vars", "kubernetes_version=" + installVersion,
 	}
 
-	// The framework intentionally does NOT default ingress-controller. RKE2's
-	// own per-version default is what we want (nginx <1.36, traefik >=1.36),
-	// and silently injecting a value that matches the default is just noise
-	// in config.yaml. Callers who need a different ingress can set
-	// "ingress-controller: <x>" in their SERVER_FLAGS env value — and the
-	// suite-level checkIngressCompat guard catches the only incompatible
-	// combo (rke2 + <1.36 + ingress-controller: traefik).
 	serverFlags := config.Cluster.Config.ServerFlags
-
 	args = addServerFlags(args, serverFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
 	args = addChannel(args, config.Cluster.Config.Channel)
@@ -308,17 +290,7 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 	return args, nil
 }
 
-// addRKE2AdditionalConfig parses server_flags (the multi-line YAML scalar
-// passed in via SERVER_FLAGS env) into a JSON object and forwards it to the
-// upstream rke2_config role under its `rke2_additional_config` variable.
-//
-// Why this is needed: upstream's rke2_config role doesn't read `server_flags`
-// at all when generating /etc/rancher/rke2/config.yaml. It only emits the
-// hardcoded `rke2_server_config` dict and the operator-supplied
-// `rke2_additional_config` dict (see ansible/roles/rke2_config/templates/
-// config.yaml.j2). Without this hop, every key in SERVER_FLAGS — selinux,
-// write-kubeconfig-mode, ingress-controller, profile, etc. — is silently
-// dropped on the floor, and the cluster comes up with role defaults.
+// addRKE2AdditionalConfig parses server_flags into a JSON object.
 func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
 	extras := parseServerFlagsToDict(resources.NormalizeString(serverFlags))
 	if len(extras) == 0 {

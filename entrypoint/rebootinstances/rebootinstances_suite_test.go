@@ -70,8 +70,8 @@ var _ = AfterSuite(func() {
 })
 
 func validateEIP() {
-	if os.Getenv("create_eip") == "" || os.Getenv("create_eip") != "true" {
-		resources.LogLevel("error", "create_eip not set")
+	if os.Getenv("CREATE_EIP") == "" || os.Getenv("CREATE_EIP") != "true" {
+		resources.LogLevel("error", "CREATE_EIP not set")
 		os.Exit(1)
 	}
 }

@@ -103,6 +103,7 @@ func addClusterFromKubeConfig(nodes []resources.Node) (*driver.Cluster, error) {
 		AgentIPs:   agentIPs,
 		NumAgents:  len(agentIPs),
 		NumServers: len(serverIPs),
+		FQDN:       os.Getenv("FQDN"),
 		SSH: driver.SSHConfig{
 			PrivKeyPath: os.Getenv("access_key"),
 			User:        os.Getenv("aws_user"),

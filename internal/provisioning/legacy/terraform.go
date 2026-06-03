@@ -135,7 +135,7 @@ func loadAws(t *testing.T, varDir string, c *driver.Cluster) {
 }
 
 func loadEC2(t *testing.T, varDir string, c *driver.Cluster) {
-	c.Aws.AccessKeyID = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
+	c.SSH.PrivKeyPath = terraform.GetVariableAsStringFromVarFile(t, varDir, "access_key")
 	c.SSH.User = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_user")
 	c.Aws.EC2.Ami = terraform.GetVariableAsStringFromVarFile(t, varDir, "aws_ami")
 	c.Aws.EC2.VolumeSize = terraform.GetVariableAsStringFromVarFile(t, varDir, "volume_size")
