@@ -61,23 +61,29 @@ func validateRancher() {
 		os.Exit(1)
 	}
 
-	if os.Getenv("create_lb") == "" || os.Getenv("create_lb") != "true" {
+	// no create_lb var to set there — the LB always exists on qa-infra for cps >=2.
+	if cfg.ProvisionerModule != "qainfra" && os.Getenv("create_lb") != "true" {
 		resources.LogLevel("error", "create_lb is not set in tfvars\n")
 		os.Exit(1)
 	}
 
-	if cfg.Product == "rke2" && strings.Contains(os.Getenv("server_flags"), "profile") {
-		if os.Getenv("optional_files") == "" {
-			resources.LogLevel("error", "optional_files is not set in tfvars\n")
+	if cfg.Product == "rke2" && strings.Contains(cfg.ServerFlags, "profile") {
+		// CIS rke2 needs the custom PSA file (OPTIONAL_FILES on qainfra, optional_files on legacy) or Rancher's pods are rejected.
+		optionalFiles := os.Getenv("OPTIONAL_FILES")
+		if optionalFiles == "" {
+			optionalFiles = os.Getenv("optional_files")
+		}
+		if optionalFiles == "" {
+			resources.LogLevel("error", "OPTIONAL_FILES is not set (needed to deliver the PSA config file)\n")
 			os.Exit(1)
 		}
-		if !strings.Contains(os.Getenv("server_flags"), "pod-security-admission-config-file") {
+		if !strings.Contains(cfg.ServerFlags, "pod-security-admission-config-file") {
 			resources.LogLevel("error", "pod-security-admission-config-file is not set in server_flags\n")
 			os.Exit(1)
 		}
 	}
 
-	// Install helm
+	// Install helm.
 	res, err := resources.InstallHelm()
 	if err != nil {
 		resources.LogLevel("debug", "helm install response:\n%v", res)

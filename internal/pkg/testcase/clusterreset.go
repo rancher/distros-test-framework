@@ -2,6 +2,7 @@ package testcase
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
@@ -31,6 +32,8 @@ func TestClusterReset(cluster *driver.Cluster) {
 
 	restartServer(cluster, ms)
 	resources.LogLevel("info", "%s-service restarted", cluster.Config.Product)
+
+	Expect(resources.WaitForKubeAPIReady(5 * time.Minute)).NotTo(HaveOccurred())
 }
 
 func clusterReset(cluster *driver.Cluster, resetCmd string) {

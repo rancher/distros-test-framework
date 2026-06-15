@@ -40,7 +40,8 @@ func BuildAirgapCluster(cluster *driver.Cluster) {
 }
 
 func InstallOnAirgapServers(cluster *driver.Cluster, airgapMethod string) {
-	if airgapMethod == SystemDefaultRegistry && !strings.Contains(cluster.Config.ServerFlags, "system-default-registry") {
+	if airgapMethod == SystemDefaultRegistry &&
+		!strings.Contains(strings.ToLower(cluster.Config.ServerFlags), "system-default-registry") {
 		cluster.Config.ServerFlags += "\nsystem-default-registry: " + cluster.Bastion.PublicDNS
 	}
 

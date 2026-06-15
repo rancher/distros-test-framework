@@ -16,10 +16,7 @@ import (
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-// clusterNodesJSON mirrors the cluster_nodes_json output that
-// rancher/qa-infra-automation's Tofu cluster_nodes module emits. The contract
-// is documented at docs/reference/inventory-format.md and validated by their
-// scripts/generate_inventory.py.
+// clusterNodesJSON mirrors the cluster_nodes_json output that rancher/qa-infra-automation's Tofu cluster_nodes module emits.
 type clusterNodesJSON struct {
 	Type     string `json:"type"`
 	Metadata struct {
@@ -39,9 +36,7 @@ type clusterNode struct {
 }
 
 // fetchClusterNodesJSON reads the Tofu cluster_nodes_json output from the
-// already-applied module and decodes it. Tofu stays the source of truth —
-// we just stop relying on the Ansible cloud.terraform plugin to do the
-// reading at playbook runtime.
+// already-applied module.
 func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 	cmd := exec.Command("tofu", "output", "-raw", "cluster_nodes_json")
 	cmd.Dir = tofuDir
@@ -66,16 +61,24 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 	return &data, nil
 }
 
-// buildStaticInventory turns a cluster_nodes_json payload into a static
-// Ansible inventory YAML, matching the shape produced by upstream's
-// scripts/generate_inventory.py for the {rke2,k3s}/default schemas.
-//
-// Group rules (mutually exclusive, first match wins in this order):
-// master -> first node with role 'etcd' (k3s: first node with role 'cp');
-// servers -> nodes with role 'cp'; workers -> nodes with role 'worker'.
-//
-// Per-host vars: ansible_host, node_roles, rke2_node_role.
-// All vars: ansible_user, ansible_ssh_common_args, kube_api_host, fqdn.
+// fetchDatastoreEndpoint reads the external_db module's rendered connection string ("" if absent, e.g. an etcd run).
+func fetchDatastoreEndpoint(tofuDir string) string {
+	cmd := exec.Command("tofu", "output", "-raw", "datastore_endpoint")
+	cmd.Dir = tofuDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		resources.LogLevel("debug", "datastore_endpoint output unavailable: %v (stderr: %s)",
+			err, strings.TrimSpace(stderr.String()))
+
+		return ""
+	}
+
+	return strings.TrimSpace(stdout.String())
+}
+
+// buildStaticInventory turns a cluster_nodes_json payload into a static Ansible inventory YAML.
 func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	assigned := assignNodeGroups(data, product)
 
@@ -87,19 +90,25 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	return b.String()
 }
 
-// assignNodeGroups maps each node name to its inventory group (master/servers/
-// workers), applying the mutually-exclusive first-match-wins rules.
-func assignNodeGroups(data *clusterNodesJSON, product string) map[string]string {
-	masterRoles := []string{"etcd"}
-	if strings.EqualFold(product, "k3s") {
-		masterRoles = []string{"cp"}
-	}
-
+// assignNodeGroups maps each node to its inventory group (master/servers/workers)
+// with mutually-exclusive first-match-wins rules: master = first etcd node (else
+// first cp for external-datastore topologies); servers = remaining etcd/cp;
+// workers = worker. Mirrors the upstream schema so every source of truth agrees.
+func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 	assigned := make(map[string]string) // node name -> group
-	for _, n := range data.Nodes {
-		if hasAnyRole(n.Roles, masterRoles) {
-			assigned[n.Name] = "master"
 
+	// master: first etcd node, else first cp (external-datastore has no etcd).
+	masterFound := false
+	for _, roleSet := range [][]string{{"etcd"}, {"cp"}} {
+		for _, n := range data.Nodes {
+			if hasAnyRole(n.Roles, roleSet) {
+				assigned[n.Name] = "master"
+				masterFound = true
+
+				break
+			}
+		}
+		if masterFound {
 			break
 		}
 	}
@@ -108,7 +117,13 @@ func assignNodeGroups(data *clusterNodesJSON, product string) map[string]string 
 			continue
 		}
 		switch {
-		case hasAnyRole(n.Roles, []string{"cp"}):
+		// Any remaining node with etcd or cp is a K3s/RKE2 server. Matches
+		// isServerRole in config.go and the legacy "node_role.sh" classification
+		// (etcd-only, etcd-cp, cp-only, cp-worker all install as `server`).
+		// Without etcd here, extra etcd-only nodes in a split-role topology
+		// would be provisioned by Tofu but skipped by Ansible — silently
+		// shrinking the cluster.
+		case hasAnyRole(n.Roles, []string{"etcd", "cp"}):
 			assigned[n.Name] = "servers"
 		case hasAnyRole(n.Roles, []string{"worker"}):
 			assigned[n.Name] = "workers"

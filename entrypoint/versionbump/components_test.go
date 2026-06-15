@@ -4,7 +4,9 @@ package versionbump
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	. "github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	. "github.com/rancher/distros-test-framework/internal/pkg/template"
@@ -21,7 +23,6 @@ const (
 	localPath               = kgn + " : | grep local-path -A1, "
 	traefik                 = kgn + " : | grep traefik  -A1, "
 	klipperLB               = kgn + " : | grep klipper -A5"
-	ingressController       = kgn + " : | grep 'nginx-ingress-controller' -A1"
 	corednsCharts           = getCharts + " | grep 'rke2-coredns', "
 	ingressControllerCharts = getCharts + " | grep 'rke2-ingress-nginx', "
 	metricsCharts           = getCharts + " | grep 'rke2-metrics-server', "
@@ -34,6 +35,19 @@ const (
 	vSphereCpi              = getCharts + " | grep 'vsphere-cpi', "
 	vSphereCsi              = getCharts + " | grep 'vsphere-csi' "
 )
+
+// replaceLastValue replaces the final comma-separated value in the expected-value
+// list with val, used to override the auto-detected ingress-controller expectation.
+func replaceLastValue(expectedValues, val string) string {
+	if strings.TrimSpace(expectedValues) == "" {
+		return expectedValues
+	}
+
+	parts := strings.Split(expectedValues, ",")
+	parts[len(parts)-1] = val
+
+	return strings.Join(parts, ",")
+}
 
 var _ = Describe("Components Version Upgrade:", func() {
 	It("Start Up with no issues", func() {
@@ -54,7 +68,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 			assert.PodAssertReady())
 	})
 
-	runc := fmt.Sprintf("(find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;) , ", cluster.Config.Product)
+	runc := fmt.Sprintf("(sudo find /var/lib/rancher/%s/data/ -type f -name runc -exec {} --version \\;) , ", cluster.Config.Product)
 	crictl := "sudo /var/lib/rancher/rke2/bin/crictl -v, "
 
 	// test decription and cmds generated based on product rke2
@@ -69,6 +83,13 @@ var _ = Describe("Components Version Upgrade:", func() {
 		"\n7-traefik Charts\n8-harvester Cloud Provider Charts\n9-harvester Csi Driver Charts" +
 		"\n10-vSphere Cpi Charts\n11-vSphere Csi Charts"
 
+	ingressToken := "nginx-ingress-controller"
+	if entrypoint.IsRKE2At(cluster.Config.Version, 1, 36) &&
+		entrypoint.ExtractIngressController(cluster.Config.ServerFlags) != "nginx" {
+		ingressToken = "traefik"
+	}
+	ingressController := kgn + " : | grep '" + ingressToken + "' -A1"
+
 	componentsCmd := coredns + metricsServer + etcd + containerd + runc + crictl + ingressController
 	chartsCmd := corednsCharts + ingressControllerCharts + metricsCharts + runtimeClasses +
 		snapshotController + snapshotValidation + traefikCharts + harvesterCloud + harvesterCsi +
@@ -77,7 +98,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 	// test decription and cmds updated based on product k3s
 	if cluster.Config.Product == "k3s" {
 		crictl = "sudo /usr/local/bin/crictl -v, "
-		cniPlugins = "/var/lib/rancher/k3s/data/current/bin/cni, "
+		cniPlugins = "sudo /var/lib/rancher/k3s/data/current/bin/cni, "
 		coredns = kgn + " : | grep 'mirrored-coredns' -A1, "
 		etcd = "sudo journalctl -u k3s | grep etcd-version, "
 		description = "Verifies bump versions for several components on k3s:\n1-coredns" +
@@ -86,14 +107,21 @@ var _ = Describe("Components Version Upgrade:", func() {
 		componentsCmd = coredns + metricsServer + etcd + cniPlugins + containerd + runc + crictl + traefik + localPath + klipperLB
 	}
 
+	expectedValue := TestMap.ExpectedValue
+	expectedValueUpgrade := TestMap.ExpectedValueUpgrade
+	if cluster.Config.Product == "rke2" {
+		expectedValue = replaceLastValue(expectedValue, ingressToken)
+		expectedValueUpgrade = replaceLastValue(expectedValueUpgrade, ingressToken)
+	}
+
 	It(description, func() {
 		Template(cluster, TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{
 						Cmd:                  componentsCmd,
-						ExpectedValue:        TestMap.ExpectedValue,
-						ExpectedValueUpgrade: TestMap.ExpectedValueUpgrade,
+						ExpectedValue:        expectedValue,
+						ExpectedValueUpgrade: expectedValueUpgrade,
 					},
 				},
 			},
@@ -104,7 +132,7 @@ var _ = Describe("Components Version Upgrade:", func() {
 
 	if cluster.Config.Product == "rke2" {
 		It(chartsDescription, func() {
-			Template(TestTemplate{
+			Template(cluster, TestTemplate{
 				TestCombination: &RunCmd{
 					Run: []TestMapConfig{
 						{

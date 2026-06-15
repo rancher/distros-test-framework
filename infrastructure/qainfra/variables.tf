@@ -88,3 +88,62 @@ variable "proxy_setup" {
   type        = bool
   default     = false
 }
+
+variable "create_eip" {
+  description = "Allocate Elastic IPs and associate them with each node so reboots keep stable public addresses. Required by the rebootinstances test."
+  type        = bool
+  default     = false
+}
+
+variable "datastore_type" {
+  description = "etcd (embedded, no DB) or external (provision RDS)."
+  type        = string
+  default     = "etcd"
+}
+
+variable "external_db" {
+  description = "RDS engine: postgres | mysql | mariadb | aurora-mysql."
+  type        = string
+  default     = ""
+}
+
+variable "external_db_version" {
+  description = "RDS engine version."
+  type        = string
+  default     = ""
+}
+
+variable "external_db_group_name" {
+  description = "DB parameter group name."
+  type        = string
+  default     = ""
+}
+
+variable "external_db_instance_class" {
+  description = "RDS instance class."
+  type        = string
+  default     = "db.t3.medium"
+}
+
+variable "external_db_username" {
+  type    = string
+  default = "adminuser"
+}
+
+variable "external_db_password" {
+  type      = string
+  default   = "admin1234"
+  sensitive = true
+}
+
+variable "external_db_engine_mode" {
+  description = "Aurora engine mode."
+  type        = string
+  default     = "provisioned"
+}
+
+variable "external_db_subnet_ids" {
+  description = "Subnet IDs (>=2 AZs) for the RDS subnet group. Empty uses the account default subnet group."
+  type        = list(string)
+  default     = []
+}

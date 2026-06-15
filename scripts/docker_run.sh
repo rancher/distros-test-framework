@@ -6,6 +6,15 @@ trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
 source ./config/.env
 
+# Refuse to launch if AWS credentials weren't exported.
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+    echo "ERROR: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY must be exported in the shell" >&2
+    echo "  Local: export AWS_ACCESS_KEY_ID=\$(aws configure get aws_access_key_id)" >&2
+    echo "         export AWS_SECRET_ACCESS_KEY=\$(aws configure get aws_secret_access_key)" >&2
+    echo "  CI:    inject before invoking this script (Jenkins withCredentials, GH secrets)" >&2
+    exit 1
+fi
+
 TAG_NAME=${TAG_NAME:=distros-test}
 KEY_CONTAINER_PATH="/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem"
 

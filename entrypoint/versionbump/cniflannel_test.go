@@ -39,7 +39,7 @@ var _ = Describe("Flannel Version bump:", func() {
 	It("Test flannel version bump", func() {
 		flannelCommand := "kubectl get node -o yaml : | grep 'hardened-flannel' -A1 "
 		if cluster.Config.Product == "k3s" {
-			flannelCommand = "/var/lib/rancher/k3s/data/current/bin/flannel"
+			flannelCommand = "sudo /var/lib/rancher/k3s/data/current/bin/flannel"
 		}
 
 		Template(cluster, TestTemplate{
@@ -58,7 +58,7 @@ var _ = Describe("Flannel Version bump:", func() {
 
 	if cluster.Config.Product == "rke2" {
 		It("Test flannel charts version", func() {
-			Template(TestTemplate{
+			Template(cluster, TestTemplate{
 				TestCombination: &RunCmd{
 					Run: []TestMapConfig{
 						{

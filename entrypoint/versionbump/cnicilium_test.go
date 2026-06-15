@@ -54,7 +54,7 @@ var _ = Describe("Cilium Version bump:", func() {
 	})
 
 	It("Test cilium charts version", func() {
-		Template(TestTemplate{
+		Template(cluster, TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{

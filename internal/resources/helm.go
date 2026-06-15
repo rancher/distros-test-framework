@@ -8,17 +8,12 @@ import (
 	"slices"
 )
 
-// InstallHelm installs helm on the container. Installs into ~/bin so the
-// helper works on immutable OS images where /usr/local is read-only
-// (Elemental3 / UnifiedCore). Selects the right tarball based on the "arch"
-// env var (falls back to runtime.GOARCH).
+// InstallHelm installs helm on the container. Uses /usr/local/bin when the
+// process runs as root and that path is writable; otherwise falls back to
+// ~/bin. That fallback keeps the helper working on immutable OS images where
+// /usr/local is read-only (Elemental3 / UnifiedCore). Selects the right
+// tarball based on the "arch" env var (falls back to runtime.GOARCH).
 func InstallHelm() (res string, err error) {
-	// get home directory
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return "", ReturnLogError("failed to get home dir: %w", err)
-	}
-
 	// get targeted architecture
 	arch := os.Getenv("arch")
 	if arch == "" {
@@ -35,7 +30,10 @@ func InstallHelm() (res string, err error) {
 	}
 
 	// install Helm from local tarball
-	localbin := fmt.Sprintf("%v/bin", homedir)
+	localbin, err := getBinPath()
+	if err != nil {
+		return "", fmt.Errorf("unable to get binary path for helm install: %w", err)
+	}
 	cmd := fmt.Sprintf("mkdir -p %v && "+
 		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
 		"cp /tmp/linux-%v*/helm %v/helm && "+
@@ -66,4 +64,39 @@ func CheckHelmRepo(name, url, version string) (string, error) {
 	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
 
 	return RunCommandHost(addRepo, update, searchRepo)
+}
+
+// getBinPath picks the binary install directory. Prefers /usr/local/bin when
+// the process runs as root and the path is writable; falls back to ~/bin
+// otherwise (non-root, Windows, or read-only /usr/local on immutable OS
+// images like Elemental3 / UnifiedCore).
+func getBinPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", ReturnLogError("unable to get user home dir: %w", err)
+	}
+	binPath := filepath.Join(homeDir, "bin")
+
+	// os.Getuid() returns 0 for root on Linux/macOS, -1 on Windows.
+	if os.Getuid() == 0 {
+		rootPath := "/usr/local/bin"
+		_ = os.MkdirAll(rootPath, 0o755)
+
+		// Write test — detects read-only filesystems (Elemental3 / UnifiedCore).
+		f, wErr := os.CreateTemp(rootPath, ".write_test_*")
+		if wErr == nil {
+			name := f.Name()
+			if cErr := f.Close(); cErr != nil {
+				return "", ReturnLogError("unable to close write-test file: %w", cErr)
+			}
+			_ = os.Remove(name)
+			binPath = rootPath
+		}
+	}
+
+	if err := os.MkdirAll(binPath, 0o755); err != nil {
+		return "", ReturnLogError("unable to mkdir %q: %w", binPath, err)
+	}
+
+	return binPath, nil
 }

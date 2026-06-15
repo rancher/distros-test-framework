@@ -33,6 +33,9 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
+	if v := os.Getenv("UPGRADE_CHANNEL"); v != "" {
+		_ = flags.Channel.Set(v)
+	}
 	flag.Parse()
 
 	cfg, err = config.AddEnv()

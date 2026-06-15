@@ -77,7 +77,20 @@ func validateEIP() {
 }
 
 // cleanEIPs release elastic ips from instances used on test.
+//
+// Only runs for the legacy provisioner: when ProvisionerModule == "qainfra",
+// EIPs are Terraform-owned (infrastructure/qainfra/main.tf::aws_eip.node)
+// and `tofu destroy` releases them as part of the normal teardown.
+// Manually releasing them here would orphan Tofu state AND, when
+// -destroy=false preserves the cluster, would strip the stable IPs the
+// preserved cluster is supposed to keep.
 func cleanEIPs() {
+	if cfg != nil && cfg.ProvisionerModule == "qainfra" {
+		resources.LogLevel("info",
+			"Skipping manual EIP release: qainfra owns the EIPs via Tofu state")
+		return
+	}
+
 	release := os.Getenv("RELEASE_EIP")
 	if release != "" && release == "false" {
 		resources.LogLevel("info", "EIPs not released, being used to run test with kubeconfig")

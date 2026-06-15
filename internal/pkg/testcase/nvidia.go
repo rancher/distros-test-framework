@@ -17,25 +17,60 @@ import (
 
 var nodeOs string
 
+// isDebianFamily reports whether the OS is Ubuntu/Debian-based.
+func isDebianFamily(os string) bool {
+	return os == "ubuntu" || strings.HasPrefix(os, "debian")
+}
+
+// isRHELFamily reports whether the OS is a RHEL derivative.
+func isRHELFamily(os string) bool {
+	return strings.HasPrefix(os, "rhel") || strings.HasPrefix(os, "centos") ||
+		strings.HasPrefix(os, "rocky") || strings.HasPrefix(os, "oracle")
+}
+
+// isSUSEFamily reports whether the OS is a SUSE/openSUSE variant.
+func isSUSEFamily(os string) bool {
+	return strings.HasPrefix(os, "sles") || strings.HasPrefix(os, "suse") ||
+		strings.HasPrefix(os, "opensuse")
+}
+
+// runNvidiaDriverSetup installs the NVIDIA driver for the node's OS family.
+// Returns false when the OS is unsupported so the caller can stop.
+func runNvidiaDriverSetup(targetNodeIP, nodeOS, nvidiaVersion string) bool {
+	osLower := strings.ToLower(nodeOS)
+	switch {
+	case isDebianFamily(osLower):
+		resources.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation version: %s", nvidiaVersion)
+		initialSetupUbuntu(targetNodeIP, nvidiaVersion)
+	case isRHELFamily(osLower):
+		resources.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation version: %s", nvidiaVersion)
+		initialSetupRHEL(targetNodeIP, nvidiaVersion)
+	case isSUSEFamily(osLower):
+		resources.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation with latest available driver")
+		initialSetupSles(targetNodeIP)
+	default:
+		resources.LogLevel("error", "Unsupported OS: %s version: %s", nodeOS, nvidiaVersion)
+		return false
+	}
+
+	return true
+}
+
 func TestNvidiaGPUFunctionality(cluster *driver.Cluster, nvidiaVersion string) {
 	// for now we are only testing integration with the first server in the cluster.
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
 
+	// SLE Micro is read-only / transactional; NVIDIA driver/operator path isn't supported here.
+	// Bail before hardware detection so we don't install pciutils on a host we can't drive anyway.
+	if strings.EqualFold(nodeOs, "slemicro") {
+		resources.LogLevel("warn", "Skipping NVIDIA test on %q: SLE Micro is unsupported", nodeOs)
+		return
+	}
+
 	verifyGPUHardwarePresence(targetNodeIP, nodeOs)
 
-	switch nodeOs {
-	case "ubuntu":
-		resources.LogLevel("info", "Proceeding with Ubuntu setup for NVIDIA driver installation version: %s", nvidiaVersion)
-		initialSetupUbuntu(targetNodeIP, nvidiaVersion)
-	case "rhel", "rhel8", "rhel9":
-		resources.LogLevel("info", "Proceeding with RHEL setup for NVIDIA driver installation version: %s", nvidiaVersion)
-		initialSetupRHEL(targetNodeIP, nvidiaVersion)
-	case "sles15":
-		resources.LogLevel("info", "Proceeding with SLES setup for NVIDIA driver installation with latest available driver")
-		initialSetupSles(targetNodeIP)
-	default:
-		resources.LogLevel("error", "Unsupported OS: %s version: %s", nodeOs, nvidiaVersion)
+	if !runNvidiaDriverSetup(targetNodeIP, nodeOs, nvidiaVersion) {
 		return
 	}
 
@@ -98,16 +133,18 @@ func ensureLspciInstalled(ip, nodeOs string) {
 
 	resources.LogLevel("info", "lspci not found, installing pciutils package for OS: %s", nodeOs)
 	var installCmd string
-	switch nodeOs {
-	case "ubuntu":
+	osLower := strings.ToLower(nodeOs)
+	switch {
+	case isDebianFamily(osLower):
 		installCmd = "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install -y pciutils"
-	case "rhel", "rhel8", "rhel9":
+	case isRHELFamily(osLower):
 		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils"
-	case "sles15":
-		installCmd = "sudo zypper install -y pciutils"
+	case isSUSEFamily(osLower):
+		installCmd = "sudo zypper --non-interactive install pciutils"
 	default:
-		resources.LogLevel("warn", "Unknown OS %s, attempting yum/dnf install", nodeOs)
-		installCmd = "sudo yum install -y pciutils || sudo dnf install -y pciutils || sudo apt install -y pciutils"
+		resources.LogLevel("warn", "Unknown OS %q, attempting all known package managers", nodeOs)
+		installCmd = "sudo zypper --non-interactive install pciutils || " +
+			"sudo yum install -y pciutils || sudo dnf install -y pciutils || sudo apt install -y pciutils"
 	}
 
 	_, installErr := resources.RunCommandOnNode(installCmd, ip)

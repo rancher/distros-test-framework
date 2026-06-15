@@ -17,9 +17,12 @@ import (
 func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	resources.LogLevel("info", "Pulling Ansible playbooks for %s installation...", config.Product)
 
+	// Shared repo/ref with the OpenTofu module sources (qaInfra* consts in
+	// opentofu.go) so pre-merge testing pulls playbooks and modules from the
+	// same fork/branch.
 	if err := runCmdWithTimeout(config.InfraProvisioner.RootDir, 2*time.Minute,
 		"git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
-		"main", "https://github.com/rancher/qa-infra-automation.git", config.InfraProvisioner.TempDir); err != nil {
+		qaInfraRef, qaInfraCloneURL, config.InfraProvisioner.TempDir); err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
@@ -48,17 +51,13 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	return nil
 }
 
-// patchRKE2ConfigTemplate appends a node-external-ip directive to the cloned.
-// rke2_config role's config.yaml.j2.
-// The substitution uses ansible_host, which our static inventory populates
-// from cluster_nodes_json[].public_ip per node.
+// patchRKE2ConfigTemplate appends a node-external-ip directive to the rke2_config role's config.yaml.j2.
 func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	templatePath := filepath.Join(
 		config.InfraProvisioner.TempDir,
 		"ansible", "roles", "rke2_config", "templates", "config.yaml.j2",
 	)
 	if _, err := os.Stat(templatePath); err != nil {
-		// Sparse checkout may exclude this path on a future upstream
 		// reorganization; warn loudly but don't hard-fail provisioning.
 		resources.LogLevel("warn",
 			"rke2_config template not found at %s — kubelet will not advertise "+
@@ -285,14 +284,36 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
 		args = addRKE2AdditionalConfig(args, serverFlags)
+		args = addOptionalFiles(args)
 	}
 
 	return args, nil
 }
 
+// addOptionalFiles forwards OPTIONAL_FILES ("dest,url" pairs) to the rke2 playbook to drop before rke2 starts.
+func addOptionalFiles(args []string) []string {
+	optionalFiles := strings.TrimSpace(os.Getenv("OPTIONAL_FILES"))
+	if optionalFiles == "" {
+		optionalFiles = strings.TrimSpace(os.Getenv("optional_files"))
+	}
+	if optionalFiles == "" {
+		return args
+	}
+
+	// JSON-wrap so Ansible keeps the whole value as one string. The bare
+	// "optional_files=a b" CLI form splits on spaces and drops all but the first pair.
+	jsonBytes, err := json.Marshal(map[string]string{"optional_files": optionalFiles})
+	if err != nil {
+		resources.LogLevel("warn", "failed to marshal optional_files (%v); files will NOT be delivered", err)
+		return args
+	}
+
+	return append(args, "--extra-vars", string(jsonBytes))
+}
+
 // addRKE2AdditionalConfig parses server_flags into a JSON object.
 func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
-	extras := parseServerFlagsToDict(resources.NormalizeString(serverFlags))
+	extras := formatServerFlagsToDict(resources.NormalizeString(serverFlags))
 	if len(extras) == 0 {
 		return args
 	}
@@ -320,15 +341,10 @@ func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
 	return append(args, "--extra-vars", string(jsonBytes))
 }
 
-// parseServerFlagsToDict turns the multi-line YAML scalar that lives behind
-// SERVER_FLAGS into a flat string→string map. Each non-empty, non-comment
-// line is parsed as "key: value"; surrounding whitespace and optional quotes
-// on the value are trimmed. Lines without a colon are skipped.
-//
-// Values stay as strings; the upstream config.yaml.j2 template emits them
-// unquoted, and RKE2's YAML parser coerces "true"/"644"/"nginx" to the
-// proper Go type at config-read time.
-func parseServerFlagsToDict(s string) map[string]string {
+// formatServerFlagsToDict turns the multi-line SERVER_FLAGS YAML scalar into a
+// flat string→string map. Each non-empty, non-comment line is parsed as
+// "key: value" (value trimmed/unquoted); lines without a colon are skipped.
+func formatServerFlagsToDict(s string) map[string]string {
 	out := map[string]string{}
 	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimSpace(line)
@@ -379,8 +395,7 @@ func addCNI(args []string, cni string) []string {
 	// The upstream rke2-playbook asserts `cni is defined && cni | length > 0`,
 	// so we set both `cni` (for the assertion) and `rke2_cni` (the var that
 	// the rke2_config role actually reads — see ansible/roles/rke2_config/
-	// defaults/main.yml). Without rke2_cni, the role's default "calico"
-	// always wins regardless of what the caller asked for.
+	// defaults/main.yml).
 	args = append(args, "--extra-vars", "cni="+cniValue, "--extra-vars", "rke2_cni="+cniValue)
 
 	return args

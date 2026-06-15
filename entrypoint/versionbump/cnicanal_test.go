@@ -56,7 +56,7 @@ var _ = Describe("Canal Version bump:", func() {
 	})
 
 	It("Test canal charts version", func() {
-		Template(TestTemplate{
+		Template(cluster, TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{

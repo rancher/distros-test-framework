@@ -48,6 +48,7 @@ plugins:
                      cattle-monitoring-system,
                      cattle-neuvector-system,
                      cattle-prometheus,
+                     cattle-scc-system,
                      cattle-sriov-system,
                      cattle-system,
                      cattle-ui-plugin-system,

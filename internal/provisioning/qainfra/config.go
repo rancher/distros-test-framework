@@ -85,6 +85,21 @@ func randomSuffix(n int) string {
 	return string(out)
 }
 
+// firstTFListItem extracts the first element of a tfvars list value
+// (e.g. `["sg-xxx","sg-yyy"]` → `sg-xxx`). Returns the input unchanged if it
+// isn't list-shaped.
+func firstTFListItem(s string) string {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "[") {
+		return s
+	}
+	s = strings.TrimPrefix(s, "[")
+	s = strings.TrimSuffix(s, "]")
+	first, _, _ := strings.Cut(s, ",")
+
+	return strings.Trim(strings.TrimSpace(first), `"`)
+}
+
 func tofuWorkdir(workspace string) string {
 	return filepath.Join(string(filepath.Separator), "tmp", "qainfra-tofu-"+workspace)
 }
@@ -142,10 +157,29 @@ func setupSSHConfiguration(i *driver.InfraConfig, envConfig environmentConfig) (
 		PrivKeyPath: sshPrivKeyPath,
 		User:        sshUser,
 		PubKeyPath:  tmpSSHPubPath,
+		KeyName:     i.Cluster.SSH.KeyName,
 	}, nil
 }
 
-// buildInfraConfig constructs the final InfraConfig with all components.
+// clusterConfigFrom carries the cluster config forward into the qainfra.
+func clusterConfigFrom(i *driver.InfraConfig) driver.Config {
+	return driver.Config{
+		Arch:        i.Cluster.Config.Arch,
+		ServerFlags: i.Cluster.Config.ServerFlags,
+		WorkerFlags: i.Cluster.Config.WorkerFlags,
+		Product:     strings.ToLower(i.Product),
+		Version:     i.InstallVersion,
+		Channel:     i.Cluster.Config.Channel,
+
+		DataStore:           i.Cluster.Config.DataStore,
+		ExternalDb:          i.Cluster.Config.ExternalDb,
+		ExternalDbEndpoint:  i.Cluster.Config.ExternalDbEndpoint,
+		ExternalDbVersion:   i.Cluster.Config.ExternalDbVersion,
+		ExternalDbGroupName: i.Cluster.Config.ExternalDbGroupName,
+		ExternalDbNodeType:  i.Cluster.Config.ExternalDbNodeType,
+	}
+}
+
 func buildInfraConfig(
 	i *driver.InfraConfig,
 	workspace, uniqueID string,
@@ -165,15 +199,8 @@ func buildInfraConfig(
 		NodeOS:            i.NodeOS,
 		CNI:               i.CNI,
 		Cluster: &driver.Cluster{
-			SSH: sshConfig,
-			Config: driver.Config{
-				Arch:        i.Cluster.Config.Arch,
-				ServerFlags: i.Cluster.Config.ServerFlags,
-				WorkerFlags: i.Cluster.Config.WorkerFlags,
-				Product:     strings.ToLower(i.Product),
-				Version:     i.InstallVersion,
-				Channel:     i.Cluster.Config.Channel,
-			},
+			SSH:    sshConfig,
+			Config: clusterConfigFrom(i),
 		},
 		InfraProvisioner: &driver.InfraProvisionerConfig{
 			Workspace:      workspace,
@@ -256,9 +283,11 @@ func loadVarsFromFile(clusterConfig *driver.Cluster, airgapSetup, proxySetup boo
 				clusterConfig.Aws.Subnets = value
 			case "availability_zone":
 				clusterConfig.Aws.AvailabilityZone = value
-			case "sg_id":
-				clusterConfig.Aws.SgId = value
-			case "vpc_id":
+			case "sg_id", "aws_security_group":
+				// qainfra writes `aws_security_group = ["sg-xxx"]` (a list).
+				// CreateInstances takes a single SG, so use the first element.
+				clusterConfig.Aws.SgId = firstTFListItem(value)
+			case "vpc_id", "aws_vpc":
 				clusterConfig.Aws.VPCID = value
 			case "public_ssh_key":
 				// this value came from runtime not from the vars.tfvars file.
@@ -309,9 +338,11 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 		config.Cluster.Config.DataStore = "etcd"
 	}
 
-	nodes, err := extractNodesFromTFState(config)
+	applyExternalDatastore(config)
+
+	nodes, err := extractNodesFromTofuOutput(config)
 	if err != nil {
-		return fmt.Errorf("failed to extract nodes from state: %w", err)
+		return fmt.Errorf("failed to extract nodes from tofu output: %w", err)
 	}
 
 	var serverIPs, agentIPs []string
@@ -329,11 +360,57 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 	config.Cluster.NumAgents = len(agentIPs)
 	config.Cluster.Status = "cluster created"
 
+	applySplitRolesIfEnabled(config, nodes)
+
 	resources.LogLevel("info", "Built cluster config: %d servers, %d agents", len(serverIPs), len(agentIPs))
 	resources.LogLevel("debug", "Server IPs: %v", serverIPs)
 	resources.LogLevel("debug", "Agent IPs: %v", agentIPs)
 
 	return nil
+}
+
+// applyExternalDatastore injects `datastore-endpoint` into server flags for external datastore (kine); no-op otherwise.
+func applyExternalDatastore(config *driver.InfraConfig) {
+	cfg := &config.Cluster.Config
+	if !strings.EqualFold(cfg.DataStore, "external") {
+		return
+	}
+
+	// no initial env endpoint → read the one the external_db Tofu module just rendered.(our normal usage)
+	if cfg.ExternalDbEndpoint == "" {
+		if ep := fetchDatastoreEndpoint(config.InfraProvisioner.TFNodeSource); ep != "" {
+			cfg.ExternalDbEndpoint = ep
+			resources.LogLevel("info", "Resolved datastore-endpoint from external_db Tofu module")
+		}
+	}
+
+	if cfg.ExternalDbEndpoint == "" {
+		resources.LogLevel("warn",
+			"DataStore is external but no endpoint is available — set EXTERNAL_DB_ENDPOINT, or "+
+				"provide EXTERNAL_DB/DB_* so the external_db Tofu module provisions one. "+
+				"Falling back to embedded etcd.")
+
+		return
+	}
+
+	if strings.Contains(strings.ToLower(cfg.ServerFlags), "datastore-endpoint") {
+		resources.LogLevel("debug", "datastore-endpoint already present in server flags; leaving as-is")
+
+		return
+	}
+
+	endpointFlag := "datastore-endpoint: " + cfg.ExternalDbEndpoint
+	if strings.TrimSpace(cfg.ServerFlags) == "" {
+		cfg.ServerFlags = endpointFlag
+	} else {
+		cfg.ServerFlags = cfg.ServerFlags + `\n` + endpointFlag
+	}
+
+	dbKind := cfg.ExternalDb
+	if dbKind == "" {
+		dbKind = "external"
+	}
+	resources.LogLevel("info", "Using external datastore (%s); injected datastore-endpoint into server flags", dbKind)
 }
 
 func isServerRole(role string) bool {

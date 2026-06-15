@@ -221,7 +221,7 @@ func verifyStatusStdOut(action, stdout string) {
 //
 // post the actions -> prepare|rotate|reencrypt|rotate-keys and restart services have been completed.
 func verifyStatusProvider(serverFlags, stdout string) {
-	if strings.Contains(serverFlags, "secrets-encryption-provider: secretbox") {
+	if strings.Contains(strings.ToLower(serverFlags), "secrets-encryption-provider: secretbox") {
 		Expect(stdout).To(ContainSubstring("XSalsa20-POLY1305"))
 	} else {
 		Expect(stdout).To(ContainSubstring("AES-CBC"))
@@ -242,7 +242,7 @@ func logEncryptionFileContents(nodes []resources.Node, serverFlags, action, prod
 		}
 		resources.LogLevel("debug", "cat %s:\n %s", configFile, configStdOut)
 		currentTime := time.Now()
-		if strings.Contains(serverFlags, "secrets-encryption-provider: secretbox") {
+		if strings.Contains(strings.ToLower(serverFlags), "secrets-encryption-provider: secretbox") {
 			Expect(configStdOut).To(ContainSubstring("secretboxkey-" + currentTime.Format("2006-01-02")))
 		} else {
 			Expect(configStdOut).To(ContainSubstring("aescbckey-" + currentTime.Format("2006-01-02")))

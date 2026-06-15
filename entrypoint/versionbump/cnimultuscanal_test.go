@@ -57,7 +57,7 @@ var _ = Describe("Multus + canal Version bump:", func() {
 	})
 
 	It("Test multus charts version", func() {
-		Template(TestTemplate{
+		Template(cluster, TestTemplate{
 			TestCombination: &RunCmd{
 				Run: []TestMapConfig{
 					{

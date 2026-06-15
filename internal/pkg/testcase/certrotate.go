@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
@@ -34,6 +35,8 @@ func TestCertRotate(cluster *driver.Cluster) {
 		}
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("error restarting %s service on %s", cluster.Config.Product, agentIP))
 	}
+
+	Expect(resources.WaitForKubeAPIReady(5 * time.Minute)).NotTo(HaveOccurred())
 
 	verifyTLSDirContent(cluster.Config.Product, cluster.ServerIPs)
 }

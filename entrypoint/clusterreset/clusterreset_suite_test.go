@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
-	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,9 +31,9 @@ func TestMain(m *testing.M) {
 
 	cfg, err = config.AddEnv()
 	if err != nil {
-		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	os.Exit(m.Run())
 }

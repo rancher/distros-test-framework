@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
@@ -159,13 +160,49 @@ func InstallSonobuoy(action, version string) error {
 		return ReturnLogError("failed to change script permissions: %w", err)
 	}
 
-	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
+	// Run the script directly so its #!/bin/bash shebang applies — it uses
+	// bash-only syntax (here-strings, [[ ]]) that /bin/sh can't parse.
+	cmd := exec.Command(scriptsDir, action, version)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ReturnLogError("failed to execute %s action sonobuoy: %w\nOutput: %s", action, err, output)
 	}
 
 	return err
+}
+
+// WaitForKubeAPIReady waits until `kubectl get nodes` succeeds *continuously*
+// for stableFor (default 30s). Any failure resets the streak.
+func WaitForKubeAPIReady(timeout time.Duration) error {
+	const (
+		pollInterval = 5 * time.Second
+		stableFor    = 30 * time.Second
+	)
+
+	deadline := time.Now().Add(timeout)
+	cmd := "kubectl get nodes --kubeconfig=" + KubeConfigFile
+
+	var streakStart time.Time
+	for time.Now().Before(deadline) {
+		_, err := RunCommandHost(cmd)
+		if err == nil {
+			if streakStart.IsZero() {
+				streakStart = time.Now()
+			}
+			if time.Since(streakStart) >= stableFor {
+				LogLevel("info", "kube-API stable for %s", stableFor)
+				return nil
+			}
+		} else {
+			if !streakStart.IsZero() {
+				LogLevel("debug", "kube-API flapped after %s of stability — resetting", time.Since(streakStart))
+			}
+			streakStart = time.Time{}
+		}
+		time.Sleep(pollInterval)
+	}
+
+	return fmt.Errorf("kube-API not stable within %v", timeout)
 }
 
 // PrintClusterState prints the output of kubectl get nodes,pods -A -o wide.
@@ -295,8 +332,11 @@ func InstallProduct(cluster *driver.Cluster, publicIP, version string) error {
 	return nil
 }
 
-func setConfigFile(cluster *driver.Cluster, publicIP string) error {
-	serverFlags := os.Getenv("server_flags")
+// writeRestoreConfigFile builds the local /tmp/config.yaml with node-external-ip,
+// the server flags, and secrets-encryption when the cluster is CIS-hardened.
+// Returns the path of the written temp file.
+func writeRestoreConfigFile(publicIP string) (string, error) {
+	serverFlags := os.Getenv("SERVER_FLAGS")
 	if serverFlags == "" {
 		serverFlags = "write-kubeconfig-mode: 644"
 	}
@@ -305,38 +345,73 @@ func setConfigFile(cluster *driver.Cluster, publicIP string) error {
 	tempFilePath := "/tmp/config.yaml"
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
-		return ReturnLogError("failed to create temp file: %w", err)
+		return "", ReturnLogError("failed to create temp file: %w", err)
 	}
 	defer tempFile.Close()
 
-	_, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", publicIP)
-	if writeErr != nil {
-		return ReturnLogError("failed to write to temp file: %w", writeErr)
+	if _, writeErr := fmt.Fprintf(tempFile, "node-external-ip: %s\n", publicIP); writeErr != nil {
+		return "", ReturnLogError("failed to write to temp file: %w", writeErr)
 	}
 
-	flagValues := strings.Split(serverFlags, "\n")
-	for _, entry := range flagValues {
+	for _, entry := range strings.Split(serverFlags, "\n") {
 		entry = strings.TrimSpace(entry)
-		if entry != "" {
-			_, err := fmt.Fprintf(tempFile, "%s\n", entry)
-			if err != nil {
-				return ReturnLogError("failed to write to temp file: %w", err)
-			}
+		if entry == "" {
+			continue
+		}
+		if _, err := fmt.Fprintf(tempFile, "%s\n", entry); err != nil {
+			return "", ReturnLogError("failed to write to temp file: %w", err)
 		}
 	}
 
-	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
-	user := os.Getenv("aws_user")
-	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chown %s %s ", remoteDir, user, remoteDir)
-
-	_, mkdirCmdErr := RunCommandOnNode(cmd, publicIP)
-	if mkdirCmdErr != nil {
-		return ReturnLogError("failed to create remote directory: %w", mkdirCmdErr)
+	// The qainfra ansible template enables CIS hardening (including
+	// secrets-encryption) whenever server flags contain
+	// protect-kernel-defaults. A snapshot taken from such a cluster holds
+	// encrypted secrets, so a server restoring it must also enable
+	// secrets-encryption or the apiserver never goes healthy
+	// ("identity transformer tried to read encrypted data").
+	hardened := strings.Contains(serverFlags, "protect-kernel-defaults")
+	if hardened && !strings.Contains(serverFlags, "secrets-encryption") {
+		if _, err := fmt.Fprintf(tempFile, "secrets-encryption: true\n"); err != nil {
+			return "", ReturnLogError("failed to write to temp file: %w", err)
+		}
 	}
 
-	scpErr := RunScp(cluster, publicIP, []string{tempFile.Name()}, []string{remoteDir + "config.yaml"})
-	if scpErr != nil {
-		return ReturnLogError("failed to copy file: %w", scpErr)
+	return tempFile.Name(), nil
+}
+
+func setConfigFile(cluster *driver.Cluster, publicIP string) error {
+	localConfig, err := writeRestoreConfigFile(publicIP)
+	if err != nil {
+		return err
+	}
+
+	remoteDir := fmt.Sprintf("/etc/rancher/%s/", cluster.Config.Product)
+	remoteConfig := remoteDir + "config.yaml"
+
+	// /etc/rancher is mode 0700 root-owned by K3s/RKE2 convention. Rather than
+	// chmod'ing the parent (which would weaken the intentional protection),
+	// SCP to /tmp (always writable by SSH_USER) and sudo-mv into place.
+	stagingPath := "/tmp/config.yaml.staging"
+
+	if _, err := RunCommandOnNode("sudo mkdir -p "+remoteDir, publicIP); err != nil {
+		return ReturnLogError("failed to create remote directory: %w", err)
+	}
+
+	if err := RunScp(cluster, publicIP, []string{localConfig}, []string{stagingPath}); err != nil {
+		return ReturnLogError("failed to scp config to staging: %w", err)
+	}
+
+	// `restorecon -F` resets the SELinux label to match policy (etc_t) since
+	// the file inherits user_tmp_t from /tmp when scp'd. K3s reads as root so
+	// it'd work either way, but the correct label avoids future policy
+	// surprises. `|| true` because non-SELinux hosts (Ubuntu) lack the tool.
+	moveCmd := fmt.Sprintf(
+		"sudo mv %s %s && sudo chown root:root %s && sudo chmod 644 %s && "+
+			"(command -v restorecon >/dev/null && sudo restorecon -F %s || true)",
+		stagingPath, remoteConfig, remoteConfig, remoteConfig, remoteConfig,
+	)
+	if _, err := RunCommandOnNode(moveCmd, publicIP); err != nil {
+		return ReturnLogError("failed to install config file: %w", err)
 	}
 
 	return nil

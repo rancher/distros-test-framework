@@ -47,6 +47,13 @@ type Env struct {
 	ServerFlags       string
 	WorkerFlags       string
 	Arch              string
+
+	DataStore           string
+	ExternalDb          string
+	ExternalDbEndpoint  string
+	ExternalDbVersion   string
+	ExternalDbGroupName string
+	ExternalDbNodeType  string
 }
 
 // AddEnv sets environment variables from the .env file,tf vars and returns the environment configuration.
@@ -62,21 +69,11 @@ func AddEnv() (*Env, error) {
 	return envConfig, nil
 }
 
-func loadEnv() (*Env, error) {
-	_, callerFilePath, _, _ := runtime.Caller(0)
-	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
-
-	// set the environment variables from the .env file.
-	dotEnvPath := dir + "/config/.env"
-	if err := setEnv(dotEnvPath); err != nil {
-		log.Errorf("failed to set environment variables: %v\n", err)
-		return nil, err
-	}
-
-	// set the environment variables from the .env file related to infrastructure/framework configuration.
-	// TODO: this should be refactored remove install version from here and update accordingly.
-	// also needs to add all other variables needed for configuration.
-	env := &Env{
+// envFromOSVars reads the framework configuration from process environment.
+// TODO: this should be refactored to remove install version from here and add
+// all other variables needed for configuration.
+func envFromOSVars() *Env {
+	return &Env{
 		TFVars:            os.Getenv("ENV_TFVARS"),
 		Product:           os.Getenv("ENV_PRODUCT"),
 		InstallVersion:    os.Getenv("INSTALL_VERSION"),
@@ -89,12 +86,34 @@ func loadEnv() (*Env, error) {
 		SSHKeyName:        os.Getenv("SSH_KEY_NAME"),
 		ResourceName:      os.Getenv("RESOURCE_NAME"),
 		NodeOS:            os.Getenv("NODE_OS"),
-		Channel:           os.Getenv("CHANNEL"),
+		Channel:           firstNonEmpty(os.Getenv("INSTALL_CHANNEL"), os.Getenv("CHANNEL")),
 		CNI:               os.Getenv("CNI"),
 		ServerFlags:       os.Getenv("SERVER_FLAGS"),
 		WorkerFlags:       os.Getenv("WORKER_FLAGS"),
 		Arch:              os.Getenv("ARCH"),
+
+		// Legacy .env uses lowercase names; accept UPPER_CASE too for qainfra.
+		DataStore:           firstNonEmpty(os.Getenv("DATASTORE_TYPE"), os.Getenv("datastore_type")),
+		ExternalDb:          firstNonEmpty(os.Getenv("EXTERNAL_DB"), os.Getenv("external_db")),
+		ExternalDbEndpoint:  firstNonEmpty(os.Getenv("EXTERNAL_DB_ENDPOINT"), os.Getenv("rendered_template")),
+		ExternalDbVersion:   firstNonEmpty(os.Getenv("EXTERNAL_DB_VERSION"), os.Getenv("external_db_version")),
+		ExternalDbGroupName: firstNonEmpty(os.Getenv("DB_GROUP_NAME"), os.Getenv("db_group_name")),
+		ExternalDbNodeType:  firstNonEmpty(os.Getenv("EXTERNAL_DB_NODE_TYPE"), os.Getenv("instance_class")),
 	}
+}
+
+func loadEnv() (*Env, error) {
+	_, callerFilePath, _, _ := runtime.Caller(0)
+	dir := filepath.Join(filepath.Dir(callerFilePath), "..")
+
+	// set the environment variables from the .env file.
+	dotEnvPath := dir + "/config/.env"
+	if err := setEnv(dotEnvPath); err != nil {
+		log.Errorf("failed to set environment variables: %v\n", err)
+		return nil, err
+	}
+
+	env := envFromOSVars()
 
 	validateInitVars(env)
 
@@ -198,11 +217,15 @@ func normalizeInitVars(env *Env) {
 	env.QAInfraProvider = strings.ToLower(strings.TrimSpace(env.QAInfraProvider))
 	env.SSHUser = strings.TrimSpace(env.SSHUser)
 	env.SSHKeyPath = strings.TrimSpace(env.SSHKeyPath)
+
+	env.DataStore = strings.ToLower(strings.TrimSpace(env.DataStore))
+	env.ExternalDb = strings.ToLower(strings.TrimSpace(env.ExternalDb))
+	// Trim only — do NOT lowercase. Flag payloads can carry case-sensitive.
 	if env.ServerFlags != "" {
-		env.ServerFlags = strings.ToLower(strings.TrimSpace(env.ServerFlags))
+		env.ServerFlags = strings.TrimSpace(env.ServerFlags)
 	}
 	if env.WorkerFlags != "" {
-		env.WorkerFlags = strings.ToLower(strings.TrimSpace(env.WorkerFlags))
+		env.WorkerFlags = strings.TrimSpace(env.WorkerFlags)
 	}
 }
 
@@ -236,4 +259,14 @@ func setEnv(fullPath string) error {
 	}
 
 	return scanner.Err()
+}
+
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+
+	return ""
 }

@@ -1,6 +1,8 @@
 package testcase
 
 import (
+	"time"
+
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
@@ -30,4 +32,6 @@ func TestRestartService(cluster *driver.Cluster) {
 			Expect(err).NotTo(HaveOccurred(), "error restarting %s agent service on %s", cluster.Config.Product, ip)
 		}
 	}
+
+	Expect(resources.WaitForKubeAPIReady(5 * time.Minute)).NotTo(HaveOccurred())
 }

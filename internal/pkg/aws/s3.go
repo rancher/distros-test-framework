@@ -10,6 +10,12 @@ import (
 )
 
 func (c Client) GetObjects(bucket string) ([]*s3.Object, error) {
+	region := ""
+	if c.s3 != nil && c.s3.Config.Region != nil {
+		region = *c.s3.Config.Region
+	}
+	resources.LogLevel("debug", "GetObjects bucket=%q (len=%d) region=%q", bucket, len(bucket), region)
+
 	input := &s3.ListObjectsInput{
 		Bucket: aws.String(bucket),
 	}

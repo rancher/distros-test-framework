@@ -78,6 +78,102 @@ CHANNEL=stable                                              # Channel to use: st
 ARCH=amd64                                                  # Architecture to use: amd64, arm64, etc.
 ```
 
+### Environment Variables per test
+
+The vars above apply to every run. Each suite (selected by `TEST_DIR`, sometimes refined
+by `TEST_TAG`) needs a few extra vars. Uppercase names are canonical for qainfra; most also
+accept the legacy lowercase alias.
+
+```bash
+# Common to every suite
+ENV_PRODUCT=rke2                                            # rke2 or k3s
+INSTALL_VERSION=v1.35.0+rke2r1                              # baseline version to install
+INSTALL_CHANNEL=testing                                    # testing | latest | stable
+INSTALL_MODE=INSTALL_RKE2_VERSION                          # INSTALL_RKE2_VERSION | INSTALL_RKE2_COMMIT (k3s: INSTALL_K3S_*)
+SERVER_FLAGS="write-kubeconfig-mode: 644\nselinux: true"   # \n-separated rke2/k3s config keys
+WORKER_FLAGS="selinux: true"
+DESTROY=false                                              # true tears the cluster down after the test
+TEST_DIR=<suite>                                           # see per-suite below
+```
+
+```bash
+# Cluster topology
+NO_OF_SERVER_NODES=1                                        # simple mode (all-roles servers + workers)
+NO_OF_WORKER_NODES=1
+# split roles (set SPLIT_ROLES=true, then counts by role combo)
+SPLIT_ROLES=false
+ETCD_ONLY_NODES=0
+ETCD_CP_NODES=0
+ETCD_WORKER_NODES=0
+CP_ONLY_NODES=0
+CP_WORKER_NODES=0
+```
+
+```bash
+# upgradecluster  (TEST_DIR=upgradecluster)
+TEST_TAG=upgradesuc                                        # upgradesuc | upgrademanual | upgradereplacement
+SUC_UPGRADE_VERSION=v1.36.1+rke2r1                         # upgradesuc
+INSTALL_VERSION_OR_COMMIT=v1.36.1+rke2r1                   # upgrademanual / upgradereplacement
+CHANNEL=stable
+```
+
+```bash
+# versionbump  (TEST_DIR=versionbump)
+TEST_TAG=components                                        # components | flannel | cilium | calico | canal | multus | versionbump
+EXPECTED_VALUE=cilium,cni                                  # comma-sep; count per tag (k3s components=10, rke2 components=7, single-CNI=1-2)
+VALUE_UPGRADED=...                                         # same count, post-upgrade (omit to skip the upgrade check)
+EXPECTED_CHARTS_VALUE=cilium                               # required non-empty; only asserted for rke2 charts
+INSTALL_VERSION_OR_COMMIT=v1.36.1+rke2r1                   # upgrade target
+CMD="..."                                                  # only for TEST_TAG=versionbump; must be empty for the other tags
+```
+
+```bash
+# deployrancher  (TEST_DIR=deployrancher)
+CHARTS_REPO_URL=https://releases.rancher.com/server-charts/latest
+CHARTS_REPO_NAME=rancher-latest                            # must match the channel in the URL
+CHARTS_VERSION=v2.14.0                                     # rancher chart version (helm normalizes the leading v)
+CERT_MANAGER_VERSION=v1.19.4                               # must match ^v\d+\.\d+\.\d+$
+CHARTS_ARGS=bootstrapPassword=admin                        # comma-separated helm --set args, unquoted
+```
+
+```bash
+# clusterrestore  (TEST_DIR=clusterrestore)
+S3_BUCKET=distrosqa
+S3_FOLDER=snapshots
+CHANNEL=stable
+```
+
+```bash
+# conformance  (TEST_DIR=conformance)
+SONOBUOY_VERSION=0.57.3                                     # optional
+
+# nvidia  (TEST_DIR=nvidia) — needs a GPU-capable AMI/instance
+NVIDIA_VERSION=580.95.05
+```
+
+```bash
+# External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used
+DATASTORE_TYPE=external
+EXTERNAL_DB=postgres                                       # postgres | mysql | mariadb | aurora-mysql
+EXTERNAL_DB_VERSION=18.3
+DB_GROUP_NAME=default.postgres18
+EXTERNAL_DB_NODE_TYPE=db.t3.medium
+DB_USERNAME=adminuser
+DB_PASSWORD=admin1234
+```
+
+```bash
+# CIS hardening — qainfra applies the rke2 CIS sysctls + etcd user automatically for any
+# node whose server_flags/worker_flags contain "profile: cis":
+SERVER_FLAGS="profile: cis\nselinux: true"
+WORKER_FLAGS="profile: cis\nselinux: true"
+
+# Rancher on a CIS cluster ALSO needs the custom PSA file delivered and referenced, or
+# Rancher's cattle-system pods are rejected by the strict default pod-security:
+SERVER_FLAGS="profile: cis\nselinux: true\npod-security-admission-config-file: /etc/rancher/rke2/custom-psa.yaml"
+OPTIONAL_FILES=/etc/rancher/rke2/custom-psa.yaml,https://gist.githubusercontent.com/rancher-max/e1c728805b1e5aae8b547b075261bb56/raw/pod_security_config.yaml
+```
+
 ### Infrastructure Configuration
 
 #### Configuration Files

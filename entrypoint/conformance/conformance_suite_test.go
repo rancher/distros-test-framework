@@ -57,8 +57,8 @@ var _ = AfterSuite(entrypoint.AfterSuite(
 
 func verifyClusterNodes() {
 	resources.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
-	s, serverErr := strconv.Atoi(os.Getenv("no_of_server_nodes"))
-	w, workerErr := strconv.Atoi(os.Getenv("no_of_worker_nodes"))
+	s, serverErr := strconv.Atoi(os.Getenv("NO_OF_SERVER_NODES"))
+	w, workerErr := strconv.Atoi(os.Getenv("NO_OF_WORKER_NODES"))
 
 	if serverErr != nil || workerErr != nil {
 		resources.LogLevel("error", "Failed to convert node counts to integers: %v, %v", serverErr, workerErr)

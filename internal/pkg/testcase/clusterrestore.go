@@ -107,12 +107,12 @@ func stopInstances(cluster *driver.Cluster, ec2 *aws.Client) {
 }
 
 func newInstance(awsClient *aws.Client) (newServerName, newExternalIP string) {
-	resourceName := os.Getenv("resource_name")
+	resourceName := os.Getenv("RESOURCE_NAME")
 	var serverName []string
 	serverName = append(serverName, resourceName+"-server-fresh")
 
 	externalServerIP, _, _, createErr := awsClient.CreateInstances(serverName...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
+	Expect(createErr).NotTo(HaveOccurred())
 
 	return serverName[0], externalServerIP[0]
 }

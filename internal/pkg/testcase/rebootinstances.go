@@ -2,9 +2,11 @@ package testcase
 
 import (
 	"sync"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,6 +29,8 @@ func TestRebootInstances(cluster *driver.Cluster) {
 		Expect(getErr).NotTo(HaveOccurred())
 		rebootInstance(awsDependencies, agentInstanceID)
 	}
+
+	Expect(resources.WaitForKubeAPIReady(5 * time.Minute)).NotTo(HaveOccurred())
 }
 
 // rebootInstance reboots an instance by stopping and starting it.
