@@ -268,7 +268,7 @@ func InstallSonobuoy(action, version string) error {
 		return ReturnLogError("failed to change script permissions: %w", err)
 	}
 
-	cmd := exec.Command("/bin/sh", scriptsDir, action, version)
+	cmd := exec.Command(scriptsDir, action, version)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ReturnLogError("failed to execute %s action sonobuoy: %w\nOutput: %s", action, err, output)
