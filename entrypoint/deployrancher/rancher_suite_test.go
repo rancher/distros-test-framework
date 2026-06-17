@@ -86,22 +86,13 @@ func validateRancher() {
 		}
 	}
 
-	arch, archErr := shared.RunCommandHost("uname -m")
-	if archErr != nil {
-		shared.LogLevel("debug", "unable to detect runner architecture: %v", archErr)
-	}
-	shared.LogLevel(
-		"debug",
-		"helm preflight context: uname -m=%s PATH=%s",
-		strings.TrimSpace(arch),
-		os.Getenv("PATH"),
-	)
+	shared.LogLevel("debug", "helm preflight PATH=%s", os.Getenv("PATH"))
 
-	// Validate helm is available in the runner image.
-	res, err := shared.VerifyHelmAvailable()
+	// Ensure helm is available, installing it from vendored tarball if needed.
+	res, err := shared.InstallHelm()
 	if err != nil {
-		shared.LogLevel("debug", "helm availability response:\n%v", res)
-		shared.LogLevel("error", "Error while validating helm availability %v\n", err)
+		shared.LogLevel("debug", "helm install response:\n%v", res)
+		shared.LogLevel("error", "Error while installing helm %v\n", err)
 		os.Exit(1)
 	}
 	shared.LogLevel("debug", "helm version: %v", res)

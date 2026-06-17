@@ -128,11 +128,7 @@ node {
                         --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
-                  ${imageName} sh -c "echo '[preflight] uname -m='\$(uname -m) && \
-                   echo '[preflight] PATH='\$PATH && \
-                   command -v helm && \
-                   helm version --short && \
-                   chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
+                  ${imageName} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
                          cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
               }

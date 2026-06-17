@@ -216,10 +216,55 @@ func prepareScpKey(src string) (string, error) {
 	return scpKeyPath, scpKeyErr
 }
 
-// VerifyHelmAvailable validates helm exists in PATH and is executable.
-func VerifyHelmAvailable() (res string, err error) {
-	cmd := "command -v helm >/dev/null 2>&1 && helm version --short"
-	return RunCommandHost(cmd)
+// InstallHelm validates helm exists in PATH and installs it from vendored
+// tarball into ~/bin when missing.
+func InstallHelm() (res string, err error) {
+	if res, err = RunCommandHost("command -v helm >/dev/null 2>&1 && helm version --short"); err == nil {
+		return res, nil
+	}
+
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", ReturnLogError("failed to get home dir: %w", err)
+	}
+
+	arch := os.Getenv("arch")
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+
+	switch arch {
+	case "x86_64":
+		arch = "amd64"
+	case "amd64", "arm64":
+		// supported as-is
+	default:
+		return "", ReturnLogError("unsupported architecture for Helm installation: %q", arch)
+	}
+
+	localbin := fmt.Sprintf("%v/bin", homedir)
+	cmd := fmt.Sprintf("mkdir -p %v && "+
+		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
+		"cp /tmp/linux-%v*/helm %v/helm && "+
+		"chmod +x %v/helm && "+
+		"%v/helm version --short", localbin, BasePath(), arch, arch, localbin, localbin, localbin)
+
+	res, err = RunCommandHost(cmd)
+	if err != nil {
+		return res, err
+	}
+
+	pathEnv := os.Getenv("PATH")
+	homeBin := fmt.Sprintf("%v/bin", homedir)
+	if !strings.Contains(pathEnv, homeBin) {
+		if pathEnv == "" {
+			_ = os.Setenv("PATH", homeBin)
+		} else {
+			_ = os.Setenv("PATH", homeBin+":"+pathEnv)
+		}
+	}
+
+	return res, nil
 }
 
 // CheckHelmRepo checks a helm chart is available on the repo.
