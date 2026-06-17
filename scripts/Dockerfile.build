@@ -5,6 +5,7 @@ ARG TF_VERSION=1.5.7
 ENV TERRAFORM_VERSION=$TF_VERSION
 
 ARG KUBECTL_VERSION=v1.35.3
+ARG HELM_VERSION=v3.18.3
 
 RUN apk update && \
     apk upgrade --update-cache --available && \
@@ -33,11 +34,26 @@ RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
     chmod +x /usr/local/bin/terraform && \
     rm -f terraform.zip tf_checksums.txt
 
+# Install pinned helm with hardcoded checksum validation
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    case "${ARCH}" in \
+        amd64) HELM_SHA256="6ec85f306dd8fe9eb05c61ba4593182b2afcfefb52f21add3fe043ebbdc48e39" ;; \
+        arm64) HELM_SHA256="3382ebdc6d6e027371551a63fc6e0a3073a1aec1061e346692932da61cfd8d24" ;; \
+    esac && \
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz" -o helm.tar.gz && \
+    echo "${HELM_SHA256}  helm.tar.gz" | sha256sum -c - && \
+    tar -xzf helm.tar.gz && \
+    install -m 0755 linux-${ARCH}/helm /usr/local/bin/helm && \
+    rm -rf helm.tar.gz linux-${ARCH}
+
 RUN mkdir -p /root/.ssh && \
     mkdir -p /root/.aws
 
 # Just to make sure its installed alright
 RUN aws --version
+
+# Just to make sure helm was installed alright
+RUN helm version --short
 
 # Install golangci-lint with checksum validation
 RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \

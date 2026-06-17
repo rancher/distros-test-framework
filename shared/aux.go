@@ -216,37 +216,9 @@ func prepareScpKey(src string) (string, error) {
 	return scpKeyPath, scpKeyErr
 }
 
-// InstallHelm installs helm on the container.
-func InstallHelm() (res string, err error) {
-	// get home directory
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return "", ReturnLogError("failed to get home dir: %w", err)
-	}
-
-	// get targeted architecture
-	arch := os.Getenv("arch")
-	if arch == "" {
-		arch = runtime.GOARCH
-	}
-
-	switch arch {
-	case "x86_64":
-		arch = "amd64"
-	case "amd64", "arm64":
-		// Supported as-is
-	default:
-		return "", ReturnLogError("unsupported architecture for Helm installation: %q", arch)
-	}
-
-	// install Helm from local tarball
-	localbin := fmt.Sprintf("%v/bin", homedir)
-	cmd := fmt.Sprintf("mkdir -p %v && "+
-		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
-		"cp /tmp/linux-%v*/helm %v/helm && "+
-		"chmod +x %v/helm && "+
-		"%v/helm version", localbin, BasePath(), arch, arch, localbin, localbin, localbin)
-
+// VerifyHelmAvailable validates helm exists in PATH and is executable.
+func VerifyHelmAvailable() (res string, err error) {
+	cmd := "command -v helm >/dev/null 2>&1 && helm version --short"
 	return RunCommandHost(cmd)
 }
 
