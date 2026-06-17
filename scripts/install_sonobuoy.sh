@@ -19,26 +19,16 @@ get_binpath(){
 
   # /usr/local/bin is only accessible if we are root
   if (( $(id -u) == 0 )); then
-    # Default location for root user
+    # Default location for root user; fall back to ~/bin if it sits on a
+    # read-only filesystem (e.g. btrfs/LVM setups). A direct write test
+    # covers that without depending on findmnt, which minimal container
+    # images do not ship.
     binpath=/usr/local/bin
-
-    # Check if /usr/local/bin is on a read-only filesystem, use ~/bin if so
-    realdir=$(findmnt -n -o SOURCE --target "${binpath}")
-
-    # This line is mainly here to support LVM-based configuration
-    realdir=$(sed 's/.*\[\/@\(.*\)\]/\1/' <<<${realdir})
-    if [[ -z "${realdir}" ]]; then
-      echo "ERROR: cannot find local /bin directory!"
-      exit 1
-    fi
-
-    # Use "homed" bin location if /usr is read-only
-    mountperm=$(findmnt -n -o OPTIONS ${realdir} | cut -d, -f1)
-    if [[ -z "${mountperm}" ]]; then
-      echo "ERROR: cannot get permissions of ${realdir} directory!"
-      exit 1
-    elif [[ "${mountperm}" == "ro" ]]; then
+    mkdir -p "${binpath}" 2>/dev/null
+    if ! touch "${binpath}/.write_test" 2>/dev/null; then
       binpath=~/bin
+    else
+      rm -f "${binpath}/.write_test"
     fi
   fi
 
@@ -96,9 +86,9 @@ installation(){
     fi
     tar -xvf sonobuoy.tar.gz
     wait
-    binpath=$(get_binpath)
-    mv sonobuoy ${binpath}/sonobuoy
-    chmod +x ${binpath}/sonobuoy
+    binpath=$(get_binpath) || { echo "${binpath}"; exit 1; }
+    mv sonobuoy "${binpath}/sonobuoy" || { echo "ERROR: failed to move sonobuoy to ${binpath}"; exit 1; }
+    chmod +x "${binpath}/sonobuoy"
     rm -f sonobuoy_checksums.txt
 }
 
