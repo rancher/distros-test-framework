@@ -86,9 +86,7 @@ func validateRancher() {
 		}
 	}
 
-	shared.LogLevel("debug", "helm preflight PATH=%s", os.Getenv("PATH"))
-
-	// Ensure helm is available, installing it from vendored tarball if needed.
+	// Install helm
 	res, err := shared.InstallHelm()
 	if err != nil {
 		shared.LogLevel("debug", "helm install response:\n%v", res)
