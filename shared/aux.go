@@ -256,7 +256,7 @@ func InstallHelm() (res string, err error) {
 
 	pathEnv := os.Getenv("PATH")
 	homeBin := fmt.Sprintf("%v/bin", homedir)
-	if !strings.Contains(pathEnv, homeBin) {
+	if !slices.Contains(filepath.SplitList(pathEnv), homeBin) {
 		if pathEnv == "" {
 			_ = os.Setenv("PATH", homeBin)
 		} else {
