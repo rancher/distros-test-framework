@@ -49,6 +49,7 @@ plugins:
                      cattle-neuvector-system,
                      cattle-prometheus,
                      cattle-sriov-system,
+                     cattle-scc-system,
                      cattle-system,
                      cattle-ui-plugin-system,
                      cattle-windows-gmsa-system,
