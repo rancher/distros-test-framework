@@ -51,23 +51,15 @@ node {
               echo """
               Usage Guide for TEST_DIRECTORY_LIST:
               - For registries: Use 'privateregistry' or 'systemdefaultregistry'
-              - For tarballs: Use 'tarball', 'tarball_prime_staging', or 'tarball_prime_release'
-              - For arm: Replace 'tarball' with 'tarball_arm'
-              - For Windows: Replace 'tarball' with 'tarball_windows' to any key (this will force RKE2)
+              - For tarballs: Use 'tarball', 'tarball_prime_staging' or 'tarball_prime_release'
+              - For arm: Use 'tarball_arm'
+              - For Windows: Use 'privateregistry_windows' or 'tarball_windows' (for rke2 only)
               """
               error "TEST_DIRECTORY_LIST is empty. Please provide at least one valid test key."
             }
 
             test_dir.each { test_name ->
-              def job_test_args = "${TEST_ARGS}"
-              if (test_name in ["privateregistry", "systemdefaultregistry"]) {
-                  job_test_args += " -tags=${test_name}"
-              } else if (test_name.contains("tarball")) {
-                  job_test_args += " -tags=tarball -tarballType tar.zst"
-              }
-
               def install_params = [
-                string(name: 'TEST_ARGS', value: job_test_args),
                 string(name: 'TEST_DIRECTORY', value: "airgap"),
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
                 string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
