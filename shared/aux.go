@@ -218,12 +218,6 @@ func prepareScpKey(src string) (string, error) {
 
 // InstallHelm installs helm on the container.
 func InstallHelm() (res string, err error) {
-	// get home directory
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return "", ReturnLogError("failed to get home dir: %w", err)
-	}
-
 	// get targeted architecture
 	arch := os.Getenv("arch")
 	if arch == "" {
@@ -240,7 +234,10 @@ func InstallHelm() (res string, err error) {
 	}
 
 	// install Helm from local tarball
-	localbin := fmt.Sprintf("%v/bin", homedir)
+	localbin, err := getBinPath()
+	if err != nil {
+		return "", fmt.Errorf("unable to get binary path for helm install: %w", err)
+	}
 	cmd := fmt.Sprintf("mkdir -p %v && "+
 		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
 		"cp /tmp/linux-%v*/helm %v/helm && "+
@@ -257,6 +254,53 @@ func CheckHelmRepo(name, url, version string) (string, error) {
 	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
 
 	return RunCommandHost(addRepo, update, searchRepo)
+}
+
+// getBinPath determines the appropriate binary installation directory.
+// It returns the path string, or an error if the home directory cannot be resolved
+// or the target directory cannot be prepared.
+func getBinPath() (string, error) {
+	// Look up the current user's home directory (equivalent to ~)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", ReturnLogError("unable to get user home dir: %w", err)
+	}
+
+	// Default location for non-root user
+	binPath := filepath.Join(homeDir, "bin")
+
+	// /usr/local/bin is only accessible if we are root (UID == 0)
+	// Note: os.Getuid() returns 0 for root on Linux/macOS, and -1 on Windows.
+	if os.Getuid() == 0 {
+		rootPath := "/usr/local/bin"
+
+		// Default location for root user; fall back to ~/bin if it sits on a
+		// read-only filesystem. A direct write test covers that.
+		// Ignore error matching the '2>/dev/null' behavior from Bash
+		_ = os.MkdirAll(rootPath, 0o755)
+
+		// Attempt a write test (similar to `touch`) using a unique temp file to avoid clobbering existing files.
+		file, err := os.CreateTemp(rootPath, ".write_test_*")
+		if err != nil {
+			// If creation fails (e.g., read-only filesystem), fall back to ~/bin
+			binPath = filepath.Join(homeDir, "bin")
+		} else {
+			testFile := file.Name()
+			if fcErr := file.Close(); fcErr != nil {
+				return "", ReturnLogError("unable to close file: %w", fcErr)
+			}
+			_ = os.Remove(testFile)
+			binPath = rootPath
+		}
+	}
+
+	// To be sure that the path is available
+	err = os.MkdirAll(binPath, 0o755)
+	if err != nil {
+		return "", ReturnLogError("unable to mkdir %q: %w", binPath, err)
+	}
+
+	return binPath, nil
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
