@@ -236,13 +236,13 @@ func InstallHelm() (res string, err error) {
 	// install Helm from local tarball
 	localbin, err := getBinPath()
 	if err != nil {
-		return "", ReturnLogError("unable to get binary path for helm install")
+		return "", fmt.Errorf("unable to get binary path for helm install: %w", err)
 	}
 	cmd := fmt.Sprintf("mkdir -p %v && "+
 		"tar -zxvf %v/bin/helm-v*-linux-%v*.tar.gz -C /tmp && "+
 		"cp /tmp/linux-%v*/helm %v/helm && "+
 		"chmod +x %v/helm && "+
-		"helm version", localbin, BasePath(), arch, arch, localbin, localbin)
+		"%v/helm version", localbin, BasePath(), arch, arch, localbin, localbin, localbin)
 
 	return RunCommandHost(cmd)
 }
@@ -257,12 +257,13 @@ func CheckHelmRepo(name, url, version string) (string, error) {
 }
 
 // getBinPath determines the appropriate binary installation directory.
-// It returns the path string and an error if the home directory cannot be resolved.
+// It returns the path string, or an error if the home directory cannot be resolved
+// or the target directory cannot be prepared.
 func getBinPath() (string, error) {
 	// Look up the current user's home directory (equivalent to ~)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", ReturnLogError("unable to get user home dir")
+		return "", ReturnLogError("unable to get user home dir: %w", err)
 	}
 
 	// Default location for non-root user
@@ -278,15 +279,16 @@ func getBinPath() (string, error) {
 		// Ignore error matching the '2>/dev/null' behavior from Bash
 		_ = os.MkdirAll(rootPath, 0o755)
 
-		testFile := filepath.Join(rootPath, ".write_test")
-
-		// Attempt a write test (identical to the touch test)
-		file, err := os.Create(testFile)
+		// Attempt a write test (similar to `touch`) using a unique temp file to avoid clobbering existing files.
+		file, err := os.CreateTemp(rootPath, ".write_test_*")
 		if err != nil {
 			// If creation fails (e.g., read-only filesystem), fall back to ~/bin
 			binPath = filepath.Join(homeDir, "bin")
 		} else {
-			file.Close()
+			testFile := file.Name()
+			if fcErr := file.Close(); fcErr != nil {
+				return "", ReturnLogError("unable to close file: %w", fcErr)
+			}
 			_ = os.Remove(testFile)
 			binPath = rootPath
 		}
@@ -295,7 +297,7 @@ func getBinPath() (string, error) {
 	// To be sure that the path is available
 	err = os.MkdirAll(binPath, 0o755)
 	if err != nil {
-		return "", err
+		return "", ReturnLogError("unable to mkdir %q: %w", binPath, err)
 	}
 
 	return binPath, nil
