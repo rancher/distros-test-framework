@@ -50,6 +50,7 @@ plugins:
                      cattle-prometheus,
                      cattle-sriov-system,
                      cattle-system,
+                     cattle-scc-system,
                      cattle-ui-plugin-system,
                      cattle-windows-gmsa-system,
                      cattle-provisioning-capi-system,
