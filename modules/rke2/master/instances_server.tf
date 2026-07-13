@@ -84,7 +84,10 @@ resource "aws_instance" "master" {
   }
   root_block_device {
     volume_size = var.volume_size
-    volume_type = "standard"
+    volume_type = "gp3"
+    iops                  = 3000
+    throughput            = 125
+    delete_on_termination = true
   }
   subnet_id              = var.subnets
   availability_zone      = var.availability_zone
@@ -231,7 +234,10 @@ resource "aws_instance" "master2-ha" {
   }
   root_block_device {
     volume_size = var.volume_size
-    volume_type = "standard"
+    volume_type = "gp3"
+    iops                  = 3000
+    throughput            = 125
+    delete_on_termination = true
   }
   subnet_id              = var.subnets
   availability_zone      = var.availability_zone

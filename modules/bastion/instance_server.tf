@@ -13,7 +13,10 @@ resource "aws_instance" "bastion" {
   }
   root_block_device {
     volume_size          = var.volume_size
-    volume_type          = "standard"
+    volume_type          = "gp3"
+    iops                  = 3000
+    throughput            = 125
+    delete_on_termination = true
   }
   subnet_id              = var.bastion_subnets
   availability_zone      = var.availability_zone
