@@ -16,16 +16,18 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "Cluster IP manifest not deployed")
 	}
 	getClusterIP := "kubectl get pods -n test-clusterip -l k8s-app=nginx-app-clusterip " +
-		"--field-selector=status.phase=Running --kubeconfig="
-	err := assert.ValidateOnHost(getClusterIP+shared.KubeConfigFile, statusRunning)
+		"--field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+	err := assert.ValidateOnHost(getClusterIP, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	clusterip, port, _ := shared.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 
 	nodeExternalIP := shared.FetchNodeExternalIPs()
 	for _, ip := range nodeExternalIP {
-		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
-			":"+port+"/name.html", "test-clusterip")
+		err = assert.ValidateOnNode(
+			ip,
+			"curl -sL --insecure http://"+clusterip+":"+port+"/name.html",
+			"test-clusterip")
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 
@@ -47,11 +49,8 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getNodeport := "kubectl get pods -n test-nodeport -l k8s-app=nginx-app-nodeport " +
-		"--field-selector=status.phase=Running --kubeconfig="
-	err = assert.ValidateOnHost(
-		getNodeport+shared.KubeConfigFile,
-		statusRunning,
-	)
+		"--field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+	err = assert.ValidateOnHost(getNodeport, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	expectedPodName := "test-nodeport"
@@ -76,8 +75,8 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 	}
 
 	getLoadbalancerSVC := "kubectl get service -n test-loadbalancer nginx-loadbalancer-svc" +
-		" --output jsonpath={.spec.ports[0].port} --kubeconfig="
-	port, err := shared.RunCommandHost(getLoadbalancerSVC + shared.KubeConfigFile)
+		" --output jsonpath={.spec.ports[0].port} --kubeconfig=" + shared.KubeConfigFile
+	port, err := shared.RunCommandHost(getLoadbalancerSVC)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	getAppLoadBalancer := "kubectl get pods -n test-loadbalancer  " +
@@ -113,9 +112,9 @@ func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 		if strings.Contains(ip, ":") {
 			ip = shared.EncloseSqBraces(ip)
 		}
-		err = assert.CheckComponentCmdNode(
-			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+		err = assert.ValidateOnNode(
 			cluster.BastionConfig.PublicIPv4Addr,
+			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
@@ -131,8 +130,10 @@ func testServiceClusterIPs(td testData) {
 		if strings.Contains(clusterIP, ":") {
 			clusterIP = shared.EncloseSqBraces(clusterIP)
 		}
-		err := assert.ValidateOnNode(nodeExternalIPs[0],
-			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
+		err := assert.ValidateOnNode(
+			nodeExternalIPs[0],
+			"curl -sL --insecure http://"+clusterIP+":"+port,
+			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
 }

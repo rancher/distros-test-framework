@@ -22,13 +22,13 @@ func TestInternodeConnectivityMixedOS(cluster *shared.Cluster, applyWorkload, de
 	}
 
 	checkPodsRunning := "kubectl get pods -n default -l app=client" +
-		" --field-selector=status.phase=Running --kubeconfig="
-	err := assert.ValidateOnHost(checkPodsRunning+shared.KubeConfigFile, statusRunning)
+		" --field-selector=status.phase=Running --kubeconfig=" + shared.KubeConfigFile
+	err := assert.CheckComponentCmdHost(checkPodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	checkPodsRunning = "kubectl get pods -n default -l app=windows-app" +
-		" --field-selector=status.phase=Running  --kubeconfig="
-	err = assert.ValidateOnHost(checkPodsRunning+shared.KubeConfigFile, statusRunning)
+		" --field-selector=status.phase=Running  --kubeconfig=" + shared.KubeConfigFile
+	err = assert.CheckComponentCmdHost(checkPodsRunning, statusRunning)
 	Expect(err).NotTo(HaveOccurred(), err)
 
 	assert.ValidatePodIPByLabel(cluster, []string{"app=client", "app=windows-app"}, []string{"10.42", "10.42"})

@@ -29,7 +29,7 @@ resource "aws_instance" "bastion" {
 
   provisioner "file" {
     source = "../../config/.ssh/aws_key.pem"
-    destination = "/tmp/jenkins_rke_validation.pem"
+    destination = "/tmp/${var.key_name}.pem"
   }
 
   provisioner "local-exec" {

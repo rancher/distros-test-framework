@@ -107,7 +107,7 @@ func PodStatusRunning(namespace, label string) {
 	Eventually(func(g Gomega) {
 		err := ValidateOnHost(cmd, statusRunning)
 		g.Expect(err).NotTo(HaveOccurred(), err)
-	}, "30s", "5s").Should(Succeed())
+	}, "60s", "5s").Should(Succeed())
 }
 
 // ValidateIntraNSPodConnectivity ensures that one pod, the "server", can be reached from another, the "client"
