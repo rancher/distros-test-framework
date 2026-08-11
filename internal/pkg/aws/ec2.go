@@ -44,6 +44,9 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 			}
 			externalIp, privateIp, err := c.fetchIP(nodeID)
 			if err != nil {
+				// Preserve the ID so the successful RunInstances call can be rolled
+				// back even when a later status/IP lookup fails.
+				resChan <- response{nodeId: nodeID}
 				errChan <- resources.ReturnLogError("error fetching ip: %w\n", err)
 				return
 			}
@@ -59,20 +62,92 @@ func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids [
 		close(errChan)
 	}()
 
-	for e := range errChan {
-		if e != nil {
-			return nil, nil, nil, resources.ReturnLogError("error from errChan: %w\n", e)
-		}
-	}
-
 	var externalIps, privateIps, nodeIds []string
 	for i := range resChan {
 		nodeIds = append(nodeIds, i.nodeId)
-		externalIps = append(externalIps, i.externalIp)
-		privateIps = append(privateIps, i.privateIp)
+		if i.externalIp != "" {
+			externalIps = append(externalIps, i.externalIp)
+			privateIps = append(privateIps, i.privateIp)
+		}
+	}
+
+	// Track before the rollback: if its termination call fails, the end-of-suite
+	// cleanup can still retry these exact IDs (TerminateInstances is idempotent).
+	trackInstances(nodeIds...)
+
+	if rollbackErr := c.rollbackOnCreateErr(errChan, nodeIds); rollbackErr != nil {
+		return nil, nil, nil, rollbackErr
 	}
 
 	return externalIps, privateIps, nodeIds, nil
+}
+
+// rollbackOnCreateErr drains create errors and, when any occurred, terminates
+// every instance already launched so a partial create never leaks outside Tofu.
+func (c Client) rollbackOnCreateErr(errChan <-chan error, nodeIds []string) error {
+	var createErrs []error
+	for e := range errChan {
+		if e != nil {
+			createErrs = append(createErrs, e)
+		}
+	}
+	if len(createErrs) == 0 {
+		return nil
+	}
+
+	createErr := resources.ReturnLogError("one or more instances failed to create: %w\n",
+		errors.Join(createErrs...))
+	if cleanupErr := c.DeleteInstances(nodeIds...); cleanupErr != nil {
+		return errors.Join(createErr, cleanupErr)
+	}
+
+	return createErr
+}
+
+// Instances created via the AWS SDK live outside the Tofu state; track their
+// exact IDs so end-of-suite cleanup can terminate them without name matching.
+var (
+	trackedMu          sync.Mutex
+	trackedInstanceIDs []string
+)
+
+func trackInstances(ids ...string) {
+	trackedMu.Lock()
+	defer trackedMu.Unlock()
+	trackedInstanceIDs = append(trackedInstanceIDs, ids...)
+}
+
+// TrackedInstanceIDs returns the instance IDs created outside Tofu this run.
+func TrackedInstanceIDs() []string {
+	trackedMu.Lock()
+	defer trackedMu.Unlock()
+
+	return append([]string{}, trackedInstanceIDs...)
+}
+
+// DeleteInstances terminates instances by ID. It is used for resources created
+// directly through the AWS SDK, which are not tracked by the Tofu state.
+func (c Client) DeleteInstances(instanceIDs ...string) error {
+	var ids []string
+	for _, id := range instanceIDs {
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	_, err := c.ec2.TerminateInstances(&ec2.TerminateInstancesInput{
+		InstanceIds: aws.StringSlice(ids),
+	})
+	if err != nil {
+		return resources.ReturnLogError("error terminating instances %v: %w\n", ids, err)
+	}
+
+	resources.LogLevel("info", "Terminated instances created outside Tofu state: %v", ids)
+
+	return nil
 }
 
 func (c Client) DeleteInstance(ip string) error {

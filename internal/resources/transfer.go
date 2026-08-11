@@ -50,11 +50,15 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 			LogLevel("warn", "SCP output: %s\n", res)
 		}
 		if cmdErr != nil {
-			LogLevel("error", "Failed to run scp: %v\n", cmdErr)
-			return cmdErr
+			// Fresh RHEL nodes reset new openssh connections at the banner phase
+			// during early boot; ship over the working go-ssh channel instead.
+			LogLevel("warn", "scp failed (%v); falling back to ssh copy for %s", cmdErr, localPath)
+			if sshErr := copyFileViaSSH(localPath, remotePath, ip); sshErr != nil {
+				return errors.Join(cmdErr, sshErr)
+			}
 		}
 
-		chmod := "sudo chmod +wx " + remotePath
+		chmod := "sudo chmod +wx -- " + shellPath(remotePath)
 		_, cmdErr = RunCommandOnNode(chmod, ip)
 		if cmdErr != nil {
 			LogLevel("error", "Failed to run chmod: %v\n", cmdErr)
@@ -63,6 +67,37 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 	}
 
 	return nil
+}
+
+// copyFileViaSSH streams a local file to the node through the established SSH
+// connection, avoiding a second openssh client handshake entirely.
+func copyFileViaSSH(localPath, remotePath, ip string) error {
+	file, err := os.Open(localPath)
+	if err != nil {
+		return ReturnLogError("failed to open %s: %w\n", localPath, err)
+	}
+	defer file.Close()
+
+	cmd := "sudo tee -- " + shellPath(remotePath) + " >/dev/null"
+	if _, runErr := RunCommandOnNodeWithStdin(cmd, ip, file); runErr != nil {
+		return ReturnLogError("failed to write %s on %s: %w\n", remotePath, ip, runErr)
+	}
+
+	return nil
+}
+
+// shellPath quotes a remote path while keeping a leading ~/ expandable —
+// airgap jobs ship files to ~/ and quoting the tilde would break expansion.
+func shellPath(value string) string {
+	if strings.HasPrefix(value, "~/") {
+		return `"$HOME"/` + shellQuote(value[2:])
+	}
+
+	return shellQuote(value)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 
 var (

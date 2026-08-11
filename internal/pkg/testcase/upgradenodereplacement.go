@@ -33,7 +33,11 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	}
 
 	awsClient := getAwsClient(cluster)
-	resourceName := os.Getenv("resource_name")
+	// qainfra sets the uppercase form; legacy set the lowercase one via tfvars.
+	resourceName := os.Getenv("RESOURCE_NAME")
+	if resourceName == "" {
+		resourceName = os.Getenv("resource_name")
+	}
 
 	// create and prepare the servers
 	var newExternalServerIps, newPrivateServerIps []string
@@ -45,7 +49,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 
 	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
 		version, channel, resourceName, newExternalServerIps, newPrivateServerIps)
-	Expect(serverErr).NotTo(HaveOccurred(), serverErr)
+	Expect(serverErr).NotTo(HaveOccurred(), "replace server nodes: %v", serverErr)
 	resources.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
@@ -54,7 +58,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	}
 	// delete the last remaining server = leader.
 	delErr := deleteRemainServer(serverLeaderIP, awsClient)
-	Expect(delErr).NotTo(HaveOccurred(), delErr)
+	Expect(delErr).NotTo(HaveOccurred(), "delete old nodes: %v", delErr)
 	resources.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
 	clusterErr := validateClusterHealth()
@@ -82,20 +86,36 @@ func scpToNewNodes(cluster *driver.Cluster, nodeType string, newNodeIps []string
 		wg.Add(1)
 		go func(ip string) {
 			defer wg.Done()
+			// Fresh instances restart sshd while cloud-init finishes, so a scp can
+			// hit a brief connection-reset window right after WaitForSSHReady passes.
 			var err error
-			if cluster.Config.Product == "k3s" {
-				err = scpK3sFiles(cluster, nodeType, ip)
-			} else {
-				err = scpRke2Files(cluster, nodeType, ip)
+			for attempt := 1; attempt <= 3; attempt++ {
+				if cluster.Config.Product == "k3s" {
+					err = scpK3sFiles(cluster, nodeType, ip)
+				} else {
+					err = scpRke2Files(cluster, nodeType, ip)
+				}
+				if err == nil {
+					return
+				}
+				resources.LogLevel("warn", "scp attempt %d/3 to %s failed: %v", attempt, ip, err)
+				if attempt < 3 {
+					time.Sleep(20 * time.Second)
+				}
 			}
-			if err != nil {
-				chanErr <- resources.ReturnLogError("error scp files to new nodes: %w\n", err)
-				close(chanErr)
-			}
+			chanErr <- resources.ReturnLogError("error scp files to new node %s: %w\n", ip, err)
 		}(ip)
 	}
 	wg.Wait()
 	close(chanErr)
+
+	var scpErrs []error
+	for e := range chanErr {
+		scpErrs = append(scpErrs, e)
+	}
+	if len(scpErrs) > 0 {
+		return errors.Join(scpErrs...)
+	}
 
 	return nil
 }
@@ -758,9 +778,41 @@ func createAndPrepNodes(awsClient *aws.Client, cluster *driver.Cluster, nodeType
 	// create aws ec2 instances
 	names := getNodeNames(cluster, resourceName, nodeType)
 	newExternalIps, newPrivateIps, instanceIds, createErr := awsClient.CreateInstances(names...)
-	Expect(createErr).NotTo(HaveOccurred(), createErr)
+	Expect(createErr).NotTo(HaveOccurred(), "create instances: %v", createErr)
 	resources.LogLevel("debug", "Created %s nodes with public ips: %s and ids: %s\n",
 		nodeType, newExternalIps, instanceIds)
+	prepComplete := false
+	defer func() {
+		if prepComplete {
+			return
+		}
+		resources.LogLevel("warn", "Cleaning up unprepared %s instances outside Tofu state: %v",
+			nodeType, instanceIds)
+		if cleanupErr := awsClient.DeleteInstances(instanceIds...); cleanupErr != nil {
+			resources.LogLevel("error", "error cleaning up unprepared %s instances: %v",
+				nodeType, cleanupErr)
+		}
+	}()
+
+	// EC2 status checks don't mean sshd is up with the key authorized — scp'ing
+	// immediately fails with Permission denied while cloud-init still runs.
+	for _, ip := range newExternalIps {
+		sshErr := resources.WaitForSSHReadyWithTimeout(ip, 10*time.Minute)
+		Expect(sshErr).NotTo(HaveOccurred(), "ssh not ready on new node %s: %v", ip, sshErr)
+
+		// sshd can still restart while cloud-init applies config, resetting the
+		// scp connections that follow — require first boot to settle before scp.
+		settleCmd := "if ! command -v cloud-init >/dev/null 2>&1; then echo NO_CLOUD_INIT; " +
+			"elif sudo timeout 300 cloud-init status --wait >/dev/null 2>&1 || [ $? -eq 2 ]; then echo SETTLED; " +
+			"else echo SETTLE_FAIL; fi"
+		out, settleErr := resources.RunCommandOnNode(settleCmd, ip)
+		if strings.Contains(out, "NO_CLOUD_INIT") {
+			resources.LogLevel("debug", "cloud-init absent on %s; skipping settle wait", ip)
+		} else {
+			Expect(settleErr).NotTo(HaveOccurred(), "cloud-init settle check failed on %s: %v", ip, settleErr)
+			Expect(out).To(ContainSubstring("SETTLED"), "cloud-init did not settle on %s within 5m: %s", ip, out)
+		}
+	}
 
 	// If node os is slemicro prep/update it and reboot the node
 	prepSlemicroNodes(newExternalIps, cluster.NodeOS, awsClient)
@@ -772,8 +824,10 @@ func createAndPrepNodes(awsClient *aws.Client, cluster *driver.Cluster, nodeType
 	} else {
 		scpErr = scpToNewNodes(cluster, master, newExternalIps)
 	}
-	Expect(scpErr).NotTo(HaveOccurred(), scpErr)
+	Expect(scpErr).NotTo(HaveOccurred(), "scp files to new nodes: %v", scpErr)
 	resources.LogLevel("info", "Scp files to new %s nodes done\n", nodeType)
+
+	prepComplete = true
 
 	return newExternalIps, newPrivateIps
 }

@@ -3,7 +3,6 @@ package sonobuoyconformance
 import (
 	"flag"
 	"os"
-	"strconv"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
@@ -38,8 +37,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	verifyClusterNodes()
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
+
 	os.Exit(m.Run())
 }
 
@@ -55,18 +54,13 @@ var _ = ReportAfterSuite("Conformance Suite",
 var _ = AfterSuite(entrypoint.AfterSuite(
 	&cluster, &infraConfig, &reportSummary, &reportErr))
 
-func verifyClusterNodes() {
-	resources.LogLevel("info", "verying cluster configuration matches minimum requirements for conformance tests")
-	s, serverErr := strconv.Atoi(os.Getenv("NO_OF_SERVER_NODES"))
-	w, workerErr := strconv.Atoi(os.Getenv("NO_OF_WORKER_NODES"))
-
-	if serverErr != nil || workerErr != nil {
-		resources.LogLevel("error", "Failed to convert node counts to integers: %v, %v", serverErr, workerErr)
-		os.Exit(1)
-	}
-
-	if s < 1 && w < 1 {
-		resources.LogLevel("error", "%s", "cluster must at least consist of 1 server and 1 agent")
-		os.Exit(1)
-	}
-}
+// Inside the Ginkgo lifecycle so a failed check still runs AfterSuite and
+// destroys the provisioned cluster instead of leaking it via os.Exit.
+var _ = BeforeSuite(func() {
+	resources.LogLevel("info", "verifying cluster configuration matches minimum requirements for conformance tests")
+	// Topology comes from the provisioner (qainfra nodes[] block or legacy
+	// tfvars); the NO_OF_* env params are not set on qainfra jobs.
+	Expect(cluster.NumServers >= 1 || cluster.NumAgents >= 1).To(BeTrue(),
+		"cluster must have at least one node (servers=%d, agents=%d)",
+		cluster.NumServers, cluster.NumAgents)
+})

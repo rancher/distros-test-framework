@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -121,14 +122,20 @@ func RunCommandOnNodeWithRetry(cmd, ip string, cfg *RetryCfg) (string, error) {
 // WaitForSSHReady waits for SSH to be ready on the node.
 // Default max wait time: 3 mins. Retry 'SSH is ready' check every 10 seconds.
 func WaitForSSHReady(ip string) error {
+	return WaitForSSHReadyWithTimeout(ip, 3*time.Minute)
+}
+
+// WaitForSSHReadyWithTimeout is WaitForSSHReady with a caller-chosen window —
+// fresh instances (provisioning/replacement) can take >5 min to authorize keys.
+func WaitForSSHReadyWithTimeout(ip string, maxWait time.Duration) error {
 	ticker := time.NewTicker(10 * time.Second)
-	timeout := time.After(3 * time.Minute)
+	timeout := time.After(maxWait)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("timed out waiting 3 mins for SSH Ready on node ip %s", ip)
+			return fmt.Errorf("timed out waiting %s for SSH Ready on node ip %s", maxWait, ip)
 		case <-ticker.C:
 			cmdOutput, sshErr := RunCommandOnNode("ls -lrt", ip)
 			if sshErr != nil {
@@ -237,6 +244,33 @@ func resolveSSHConfig() (user, path string) {
 		LogLevel("warn", "Unknown PROVISIONER_MODULE: %s", infraProvisionerModule)
 		return "", ""
 	}
+}
+
+// RunCommandOnNodeWithStdin runs a command on the node streaming stdin over
+// the established connection — no shell-encoded payloads or size limits.
+func RunCommandOnNodeWithStdin(cmd, ip string, stdin io.Reader) (string, error) {
+	conn, err := getOrDialSSH(ip + ":22")
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
+	}
+
+	session, err := conn.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+	defer session.Close()
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	session.Stdin = stdin
+	session.Stdout = &stdoutBuf
+	session.Stderr = &stderrBuf
+
+	if runErr := session.Run(cmd); runErr != nil {
+		return "", fmt.Errorf("command %s failed on %s: %w, stderr: %s",
+			cmd, ip, runErr, stderrBuf.String())
+	}
+
+	return stdoutBuf.String(), nil
 }
 
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {

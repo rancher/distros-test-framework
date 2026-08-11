@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -35,7 +36,6 @@ func KubectlCommand(cluster *driver.Cluster, destination, action, source string,
 		cmdPrefix = action
 	}
 
-	resourceName := os.Getenv("resource_name")
 	var cmd string
 	switch destination {
 	case "host":
@@ -43,10 +43,12 @@ func KubectlCommand(cluster *driver.Cluster, destination, action, source string,
 
 		return kubectlCmdOnHost(cmd)
 	case "node":
-		serverIP, _, err := ExtractServerIP(resourceName)
-		if err != nil {
-			return "", ReturnLogError("failed to extract server IP: %w", err)
+		// The cluster config already carries real node IPs — parsing the kubeconfig
+		// would return the API endpoint (NLB/FQDN on qainfra), which is not SSH-able.
+		if len(cluster.ServerIPs) == 0 {
+			return "", ReturnLogError("cluster has no server IPs")
 		}
+		serverIP := cluster.ServerIPs[0]
 		kubeconfigFlagRemotePath := fmt.Sprintf("/etc/rancher/%s/%s.yaml", cluster.Config.Product, cluster.Config.Product)
 		kubeconfigFlagRemote := " --kubeconfig=" + kubeconfigFlagRemotePath
 		cmd = cmdPrefix + " " + source + " " + strings.Join(args, " ") + kubeconfigFlagRemote
@@ -70,16 +72,45 @@ func ExtractServerIP(resourceName string) (kubeConfigIP, kubeCfg string, err err
 	if err != nil {
 		return "", "", ReturnLogError("failed to read kubeconfig file: %w\n", err)
 	}
-	// get server ip value from `server:` key.
-	serverIP := strings.Split(string(kubeconfigContent), "server: ")[1]
-	// removing newline.
-	serverIP = strings.Split(serverIP, "\n")[0]
-	// removing the https://.
-	serverIP = strings.Join(strings.Split(serverIP, "https://")[1:], "")
-	// removing the port.
-	serverIP = strings.Split(serverIP, ":")[0]
+
+	serverIP, err := ServerHostFromKubeconfig(string(kubeconfigContent))
+	if err != nil {
+		return "", "", err
+	}
 
 	return serverIP, string(kubeconfigContent), nil
+}
+
+// ServerURLFromKubeconfig returns the raw URL of the kubeconfig `server:`
+// entry — on qainfra this points at the NLB endpoint, not a node IP.
+func ServerURLFromKubeconfig(content string) (string, error) {
+	parts := strings.Split(content, "server: ")
+	if len(parts) < 2 {
+		return "", ReturnLogError("no server entry found in kubeconfig\n")
+	}
+
+	rawURL := strings.TrimSpace(strings.Split(parts[1], "\n")[0])
+	if rawURL == "" {
+		return "", ReturnLogError("empty server entry in kubeconfig\n")
+	}
+
+	return rawURL, nil
+}
+
+// ServerHostFromKubeconfig returns the host (IP, IPv6 or DNS name) from the
+// kubeconfig `server:` URL.
+func ServerHostFromKubeconfig(content string) (string, error) {
+	rawURL, err := ServerURLFromKubeconfig(content)
+	if err != nil {
+		return "", err
+	}
+
+	parsed, parseErr := url.Parse(rawURL)
+	if parseErr != nil || parsed.Hostname() == "" {
+		return "", ReturnLogError("invalid server URL in kubeconfig: %s\n", rawURL)
+	}
+
+	return parsed.Hostname(), nil
 }
 
 func kubectlCmdOnHost(cmd string) (string, error) {
@@ -132,18 +163,22 @@ func FetchServiceNodePort(namespace, serviceName string) (string, error) {
 }
 
 // FetchNodeExternalIPs returns the external IP of the nodes.
-func FetchNodeExternalIPs() []string {
+func FetchNodeExternalIPs() ([]string, error) {
 	res, err := RunCommandHost("kubectl get nodes " +
 		"--output=jsonpath='{.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}' " +
 		"--kubeconfig=" + KubeConfigFile)
+	// On failure res holds kubectl's error text — splitting it would return
+	// message words as fake IPs, so surface the error instead.
 	if err != nil {
-		LogLevel("error", "%w", err)
+		return nil, ReturnLogError("failed to fetch node external IPs: %w\n", err)
 	}
 
 	nodeExternalIP := strings.Trim(res, " ")
-	nodeExternalIPs := strings.Split(nodeExternalIP, " ")
+	if nodeExternalIP == "" {
+		return nil, ReturnLogError("no node external IPs found\n")
+	}
 
-	return nodeExternalIPs
+	return strings.Split(nodeExternalIP, " "), nil
 }
 
 // InstallSonobuoy Executes scripts/install_sonobuoy.sh script.

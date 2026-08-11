@@ -89,9 +89,9 @@ func TestIngressRoute(cluster *driver.Cluster, applyWorkload, deleteWorkload boo
 	if applyWorkload {
 		// Update base IngressRoute manifest to use one of the Node External IPs.
 		originalFilePath := resources.BasePath() +
-			fmt.Sprintf("/workloads/%s/ingressroute.yaml", cluster.Config.Arch)
+			fmt.Sprintf("/workloads/%s/ingressroute.yaml", resources.WorkloadArchDir(cluster.Config.Arch))
 		newFilePath := resources.BasePath() +
-			fmt.Sprintf("/workloads/%s/%s", cluster.Config.Arch, workloadFile)
+			fmt.Sprintf("/workloads/%s/%s", resources.WorkloadArchDir(cluster.Config.Arch), workloadFile)
 		content, errRead := os.ReadFile(originalFilePath)
 		if errRead != nil {
 			Expect(errRead).NotTo(HaveOccurred(), "failed to read file for ingressroute resource")

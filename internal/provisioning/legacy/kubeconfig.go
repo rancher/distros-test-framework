@@ -3,6 +3,8 @@ package legacy
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -72,13 +74,40 @@ func updateKubeConfigLocal(newServerIP, resourceName, product string) (string, e
 		return "", resources.ReturnLogError("product not sent.\n")
 	}
 
-	oldServerIP, kubeconfigContent, err := resources.ExtractServerIP(resourceName)
-	if err != nil {
-		return "", resources.ReturnLogError("error extracting server ip: %v\n", err)
+	// Operate on the kubeconfig actually in use — on qainfra that is the
+	// ansible-generated file whose server entry is the NLB endpoint.
+	path := resources.KubeConfigFile
+	if path == "" {
+		path = fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
 	}
 
-	path := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
-	updatedKubeConfig := strings.ReplaceAll(kubeconfigContent, oldServerIP, newServerIP)
+	kubeconfigContent, readErr := os.ReadFile(path)
+	if readErr != nil {
+		return "", resources.ReturnLogError("failed to read kubeconfig file %s: %v\n", path, readErr)
+	}
+
+	oldServerURL, urlErr := resources.ServerURLFromKubeconfig(string(kubeconfigContent))
+	if urlErr != nil {
+		return "", resources.ReturnLogError("error extracting server url: %v\n", urlErr)
+	}
+
+	parsed, parseErr := url.Parse(oldServerURL)
+	if parseErr != nil {
+		return "", resources.ReturnLogError("invalid server url %s: %v\n", oldServerURL, parseErr)
+	}
+
+	// Swap only the host in the server field — a global ReplaceAll could
+	// corrupt unrelated occurrences, and IPv6 hosts need bracket handling.
+	if port := parsed.Port(); port != "" {
+		parsed.Host = net.JoinHostPort(newServerIP, port)
+	} else if strings.Contains(newServerIP, ":") {
+		parsed.Host = "[" + newServerIP + "]"
+	} else {
+		parsed.Host = newServerIP
+	}
+
+	updatedKubeConfig := strings.Replace(string(kubeconfigContent),
+		"server: "+oldServerURL, "server: "+parsed.String(), 1)
 
 	writeErr := os.WriteFile(path, []byte(updatedKubeConfig), 0o644)
 	if writeErr != nil {
@@ -135,7 +164,12 @@ func decodeKubeConfig(kubeConfig string) (string, error) {
 		return "", resources.ReturnLogError("failed to decode kubeconfig: %v\n", err)
 	}
 
-	localKubeConfigPath := fmt.Sprintf("/tmp/%s_kubeconfig", os.Getenv("resource_name"))
+	// qainfra sets the uppercase form; legacy set the lowercase one via tfvars.
+	resourceName := os.Getenv("RESOURCE_NAME")
+	if resourceName == "" {
+		resourceName = os.Getenv("resource_name")
+	}
+	localKubeConfigPath := fmt.Sprintf("/tmp/%s_kubeconfig", resourceName)
 	writeErr := os.WriteFile(localKubeConfigPath, dec, 0o644)
 	if writeErr != nil {
 		return "", resources.ReturnLogError("failed to write kubeconfig file: %v\n", writeErr)

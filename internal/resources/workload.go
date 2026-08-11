@@ -19,12 +19,7 @@ func ManageWorkload(action string, workloads ...string) error {
 		return ReturnLogError("invalid action: %s. Must be 'apply' or 'delete'", action)
 	}
 
-	arch := os.Getenv("ARCH")
-	if arch == "" {
-		arch = "amd64"
-	}
-
-	resourceDir := BasePath() + "/workloads/" + arch
+	resourceDir := BasePath() + "/workloads/" + WorkloadArchDir(os.Getenv("ARCH"))
 	files, readErr := os.ReadDir(resourceDir)
 	if readErr != nil {
 		return ReturnLogError("Unable to read resource manifest file for: %s\n with error:%w", resourceDir, readErr)
@@ -153,4 +148,17 @@ func ManageSonobuoy(action string) error {
 	LogLevel("info", "Sonobuoy %s completed successfully\nOutput: %s", action, output)
 
 	return nil
+}
+
+// WorkloadArchDir maps an arch label to the workloads/ dir name — the repo
+// ships "arm" (not "arm64"). Unknown values pass through so new arches fail loudly.
+func WorkloadArchDir(arch string) string {
+	switch arch {
+	case "arm64", "aarch64", "arm":
+		return "arm"
+	case "", "amd64", "x86_64":
+		return "amd64"
+	default:
+		return arch
+	}
 }

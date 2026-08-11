@@ -389,13 +389,11 @@ func addInstallMethod(args []string, installMethod string) []string {
 
 func addCNI(args []string, cni string) []string {
 	cniValue := resources.NormalizeString(cni)
+	// Empty means "product default": omit the vars so the config template
+	// writes no cni key — avoids duplicating a cni set via server flags.
 	if cniValue == "" {
-		cniValue = "canal"
+		return args
 	}
-	// The upstream rke2-playbook asserts `cni is defined && cni | length > 0`,
-	// so we set both `cni` (for the assertion) and `rke2_cni` (the var that
-	// the rke2_config role actually reads — see ansible/roles/rke2_config/
-	// defaults/main.yml).
 	args = append(args, "--extra-vars", "cni="+cniValue, "--extra-vars", "rke2_cni="+cniValue)
 
 	return args

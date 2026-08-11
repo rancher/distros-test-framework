@@ -32,16 +32,27 @@ node {
 
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
-      def paramsMap = params.findAll { it.value?.trim() }.collectEntries { [(it.key): it.value] }
-      withCredentials([
-        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-        string(credentialsId: 'AWS_SSH_PEM_KEY', variable: 'AWS_SSH_PEM_KEY'),
-        string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
-        string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD'),
-        string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
-      ]) {
-        withEnv(paramsMap.collect { k, v -> "$k=$v" }) {
+      def rawParamsMap = params.findAll { it.value?.trim() }
+        .collectEntries { [(it.key): it.value] }
+      def provisionerModule = rawParamsMap.PROVISIONER_MODULE ?: env.PROVISIONER_MODULE ?: 'legacy'
+      // Qainfra private key material comes exclusively from Jenkins Credentials.
+      // Legacy retains its selectable-key parameter until its additional keys have
+      // dedicated credential IDs and can be migrated without breaking old jobs.
+      def paramsMap = rawParamsMap.findAll {
+        provisionerModule != 'qainfra' || it.key != 'AWS_SSH_PEM_KEY'
+      }
+      def sshPemCredentialId = provisionerModule == 'qainfra' ?
+        'AWS_SSH_PEM_KEY_QAINFRA' : 'AWS_SSH_PEM_KEY'
+      withEnv(paramsMap.collect { k, v -> "$k=$v" }) {
+        // Bind credentials after parameters; qainfra always consumes this managed value.
+        withCredentials([
+          string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+          string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+          string(credentialsId: sshPemCredentialId, variable: 'JENKINS_SSH_PEM_KEY'),
+          string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
+          string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD'),
+          string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
+        ]) {
           stage('Checkout') {
             deleteDir()
             checkout([
@@ -65,9 +76,11 @@ node {
           dir('./') {
             try {
               stage('Configure and Build') {
-                if (env.AWS_SSH_PEM_KEY && env.AWS_SSH_KEY_NAME) {
+                def sshPemKey = provisionerModule == 'qainfra' ?
+                  env.JENKINS_SSH_PEM_KEY : (env.AWS_SSH_PEM_KEY ?: env.JENKINS_SSH_PEM_KEY)
+                if (sshPemKey && env.AWS_SSH_KEY_NAME) {
                   dir('./config/.ssh') {
-                    def decoded = new String(AWS_SSH_PEM_KEY.decodeBase64())
+                    def decoded = new String(sshPemKey.decodeBase64())
                     writeFile file: 'aws_key.pem', text: decoded
                     sh 'chmod 600 aws_key.pem'
                   }
@@ -80,7 +93,6 @@ node {
 
                   // qainfra provisioning contract. Default stays legacy during the canary
                   // phase — only jobs that set PROVISIONER_MODULE=qainfra opt in.
-                  def provisionerModule = env.PROVISIONER_MODULE ?: 'legacy'
                   data += "PROVISIONER_MODULE=${provisionerModule}\n" +
                           "QA_INFRA_PROVIDER=${env.QA_INFRA_PROVIDER ?: 'aws'}\n" +
                           "PROVISIONER_TYPE=${env.PROVISIONER_TYPE ?: 'opentofu'}\n" +
@@ -115,7 +127,7 @@ node {
                    'AWS_REGION', 'DATASTORE_TYPE', 'EXTERNAL_DB', 'EXTERNAL_DB_VERSION',
                    'DB_GROUP_NAME', 'EXTERNAL_DB_NODE_TYPE', 'EXTERNAL_DB_ENDPOINT',
                    'EXTERNAL_DB_SUBNET_IDS', 'DB_USERNAME', 'DB_PASSWORD', 'ENGINE_MODE',
-                   'CREATE_EIP'].each { name ->
+                   'CREATE_EIP', 'OPTIONAL_FILES', 'INSTALL_METHOD'].each { name ->
                     def value = env."${name}"
                     if (value?.trim()) {
                       data += "${name}=${value}\n"
@@ -193,11 +205,12 @@ node {
                 sh "docker rm -v ${testContainer} || true"
                 sh "docker rmi -f ${imageName} || true"
                 sh "rm -f ${qaseEnvFile} || true"
+                sh 'rm -f config/.ssh/aws_key.pem || true'
               } // stage
             } // finally
           } // dir
-        } // withEnv
-      } // withCredentials
+        } // withCredentials
+      } // withEnv
     } // withFolderProperties
   } // wrap
 } // node

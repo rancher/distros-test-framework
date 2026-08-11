@@ -49,8 +49,15 @@ func (*Provisioner) destroyInfrastructure(product, module string) (string, error
 	}
 
 	nodeSource := tofuWorkdir(workspace)
-	if err := runCmdWithTimeout(nodeSource, 5*time.Minute,
-		"tofu", "destroy", "-auto-approve", "-var-file=vars.tfvars"); err != nil {
+	// Destroy must receive the same nodes override apply used (split-role blobs
+	// carry placeholder topologies that fail the module's cp-count validation).
+	args, err := appendNodesVar([]string{"destroy", "-auto-approve", "-var-file=vars.tfvars"})
+	if err != nil {
+		return "", fmt.Errorf("build nodes topology for destroy: %w", err)
+	}
+	// RDS deletion alone can take 10-15 minutes; a short window here kills the
+	// destroy mid-flight and orphans the database (seen on extdb jobs).
+	if err := runCmdWithTimeout(nodeSource, 30*time.Minute, "tofu", args...); err != nil {
 		return "", fmt.Errorf("tofu destroy failed: %w", err)
 	}
 

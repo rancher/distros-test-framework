@@ -53,7 +53,6 @@ node {
               def actual_testdir_name = base_name
               def job_test_args = "${TEST_ARGS}"
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
-              def job_aws_ssh_pem_key = "${AWS_SSH_PEM_KEY}"
 
               if (base_name.contains("upgrade")) {
                 actual_testdir_name = "upgradecluster"
@@ -82,11 +81,16 @@ node {
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"), 
                 string(name: 'TEST_DIRECTORY', value: actual_testdir_name),
                 string(name: 'AWS_SSH_KEY_NAME', value: job_aws_ssh_key_name),
-                string(name: 'AWS_SSH_PEM_KEY', value: job_aws_ssh_pem_key),
                 string(name: 'REPORT_TO_QASE', value: "${REPORT_TO_QASE}"),
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
+
+              // Legacy jobs still support the old selectable-key interface. Qainfra
+              // children resolve their dedicated PEM directly from Jenkins Credentials.
+              if (!is_qainfra && env.AWS_SSH_PEM_KEY?.trim()) {
+                upgrade_params << string(name: 'AWS_SSH_PEM_KEY', value: env.AWS_SSH_PEM_KEY)
+              }
 
               def product_name = "${env.PRODUCT_NAME}"
               def suffix = (product_name == "rke2") ? "_rpm" : ""

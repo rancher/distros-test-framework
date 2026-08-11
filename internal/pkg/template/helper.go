@@ -41,7 +41,10 @@ func executeTestCombination(template TestTemplate) error {
 		return resources.ReturnLogError("failed to get current version: %w", err)
 	}
 
-	ips := resources.FetchNodeExternalIPs()
+	ips, ipsErr := resources.FetchNodeExternalIPs()
+	if ipsErr != nil {
+		return resources.ReturnLogError("failed to fetch node external IPs: %w", ipsErr)
+	}
 	processErr := processTestCombination(ips, currentVersion, &template)
 	if processErr != nil {
 		return resources.ReturnLogError("failed to process test combination: %w", processErr)

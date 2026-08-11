@@ -23,7 +23,8 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 
 	clusterip, port, _ := resources.FetchClusterIPs("test-clusterip", "nginx-clusterip-svc")
 
-	nodeExternalIP := resources.FetchNodeExternalIPs()
+	nodeExternalIP, ipsErr := resources.FetchNodeExternalIPs()
+	Expect(ipsErr).NotTo(HaveOccurred(), "failed to fetch node external IPs")
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(ip, "curl -sL --insecure http://"+clusterip+
 			":"+port+"/name.html", "test-clusterip")
@@ -43,7 +44,8 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 		Expect(workloadErr).NotTo(HaveOccurred(), "nodeport manifest not deployed")
 	}
 
-	nodeExternalIP := resources.FetchNodeExternalIPs()
+	nodeExternalIP, ipsErr := resources.FetchNodeExternalIPs()
+	Expect(ipsErr).NotTo(HaveOccurred(), "failed to fetch node external IPs")
 	nodeport, err := resources.FetchServiceNodePort("test-nodeport", "nginx-nodeport-svc")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -106,7 +108,8 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 }
 
 func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
-	nodeExternalIP := resources.FetchNodeExternalIPs()
+	nodeExternalIP, ipsErr := resources.FetchNodeExternalIPs()
+	Expect(ipsErr).NotTo(HaveOccurred(), "failed to fetch node external IPs")
 	nodeport, err := resources.FetchServiceNodePort(td.Namespace, td.SVC)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -126,7 +129,8 @@ func testServiceClusterIPs(td testData) {
 	clusterIPs, port, err := resources.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred())
-	nodeExternalIPs := resources.FetchNodeExternalIPs()
+	nodeExternalIPs, ipsErr := resources.FetchNodeExternalIPs()
+	Expect(ipsErr).NotTo(HaveOccurred(), "failed to fetch node external IPs")
 
 	for _, clusterIP := range clusterIPSlice {
 		if strings.Contains(clusterIP, ":") {

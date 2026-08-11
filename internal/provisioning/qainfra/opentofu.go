@@ -36,17 +36,9 @@ func executeOpenTofuOperations(config *driver.InfraConfig) error {
 		return fmt.Errorf("tofu workspace select failed: %w", runErr)
 	}
 
-	args := []string{"apply", "-auto-approve", "-var-file=" + config.InfraProvisioner.TFVarsPath}
-
-	// Optionally override the `nodes` topology from env vars (split_roles or
-	// no_of_server_nodes / no_of_worker_nodes).
-	nodesJSON, err := buildNodesTFVar()
+	args, err := appendNodesVar([]string{"apply", "-auto-approve", "-var-file=" + config.InfraProvisioner.TFVarsPath})
 	if err != nil {
 		return fmt.Errorf("build nodes topology from env: %w", err)
-	}
-	if nodesJSON != "" {
-		args = append(args, "-var=nodes="+nodesJSON)
-		resources.LogLevel("info", "Overriding nodes topology: %s", nodesJSON)
 	}
 
 	if runTimeoutErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 15*time.Minute,

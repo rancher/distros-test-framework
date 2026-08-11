@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rancher/distros-test-framework/internal/resources"
+
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
@@ -215,4 +217,19 @@ func applySplitRolesIfEnabled(config *driver.InfraConfig, nodes []infraNode) {
 	}
 
 	sp.NumServers = sp.EtcdOnly + sp.EtcdCP + sp.EtcdWorker + sp.ControlPlaneOnly + sp.ControlPlaneWorker
+}
+
+// appendNodesVar appends the env-derived `nodes` override to tofu args. Apply and
+// destroy MUST both use it so destroy never re-validates a placeholder tfvars topology.
+func appendNodesVar(args []string) ([]string, error) {
+	nodesJSON, err := buildNodesTFVar()
+	if err != nil {
+		return nil, err
+	}
+	if nodesJSON != "" {
+		args = append(args, "-var=nodes="+nodesJSON)
+		resources.LogLevel("info", "Overriding nodes topology: %s", nodesJSON)
+	}
+
+	return args, nil
 }

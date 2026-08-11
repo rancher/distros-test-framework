@@ -170,6 +170,8 @@ func clusterConfigFrom(i *driver.InfraConfig) driver.Config {
 		Product:     strings.ToLower(i.Product),
 		Version:     i.InstallVersion,
 		Channel:     i.Cluster.Config.Channel,
+		// rpm/tar install method reaches the ansible playbook via addInstallMethod.
+		InstallMethod: envOr("INSTALL_METHOD", "install_method"),
 
 		DataStore:           i.Cluster.Config.DataStore,
 		ExternalDb:          i.Cluster.Config.ExternalDb,
@@ -201,6 +203,9 @@ func buildInfraConfig(
 		Cluster: &driver.Cluster{
 			SSH:    sshConfig,
 			Config: clusterConfigFrom(i),
+			// Testcases read cluster.NodeOS directly (CIS/slemicro paths);
+			// legacy fills it from tfvars, qainfra must thread it from env.
+			NodeOS: i.NodeOS,
 		},
 		InfraProvisioner: &driver.InfraProvisionerConfig{
 			Workspace:      workspace,
@@ -274,7 +279,7 @@ func loadVarsFromFile(clusterConfig *driver.Cluster, airgapSetup, proxySetup boo
 
 		if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
-			value := strings.Trim(strings.TrimSpace(parts[1]), "\"")
+			value := tfvarsValue(parts[1])
 
 			switch key {
 			case "aws_region":
@@ -477,4 +482,20 @@ func runCmdWithTimeout(dir string, timeout time.Duration, name string, args ...s
 	}
 
 	return err
+}
+
+// tfvarsValue extracts a tfvars scalar, dropping inline comments — a naive
+// quote-trim kept trailing `" # RHEL 9.8"` and fed malformed AMI ids to EC2.
+func tfvarsValue(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if start := strings.Index(raw, `"`); start != -1 {
+		if end := strings.Index(raw[start+1:], `"`); end != -1 {
+			return raw[start+1 : start+1+end]
+		}
+	}
+	if hash := strings.Index(raw, "#"); hash != -1 {
+		raw = strings.TrimSpace(raw[:hash])
+	}
+
+	return raw
 }

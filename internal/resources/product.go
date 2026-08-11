@@ -26,7 +26,10 @@ func Product() (product, version string, err error) {
 
 // productVersion return the version for a specific distro product based on current installation through node external IP.
 func productVersion(product string) (string, error) {
-	ips := FetchNodeExternalIPs()
+	ips, ipsErr := FetchNodeExternalIPs()
+	if ipsErr != nil {
+		return "", ipsErr
+	}
 
 	path, findErr := FindPath(product, ips[0])
 	if findErr != nil {
@@ -99,7 +102,12 @@ func GetInstallCmd(cluster *driver.Cluster, installType, nodeType string) string
 		installFlag = fmt.Sprintf("INSTALL_%s_COMMIT=%s", strings.ToUpper(product), installType)
 	}
 
-	installMethodValue := os.Getenv("install_method")
+	// Provisioning populates the typed config on both provisioners; the
+	// lowercase env stays as a legacy-only fallback.
+	installMethodValue := cluster.Config.InstallMethod
+	if installMethodValue == "" {
+		installMethodValue = os.Getenv("install_method")
+	}
 	installMethod := ""
 	if installMethodValue != "" {
 		installMethod = fmt.Sprintf("INSTALL_%s_METHOD=%s", strings.ToUpper(product), installMethodValue)
