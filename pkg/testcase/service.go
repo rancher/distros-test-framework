@@ -26,7 +26,7 @@ func TestServiceClusterIP(applyWorkload, deleteWorkload bool) {
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnNode(
 			ip,
-			"curl -sL --insecure http://"+clusterip+":"+port+"/name.html",
+			"curl -sL http://"+clusterip+":"+port+"/name.html",
 			"test-clusterip")
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
@@ -56,7 +56,7 @@ func TestServiceNodePort(applyWorkload, deleteWorkload bool) {
 	expectedPodName := "test-nodeport"
 	for _, ip := range nodeExternalIP {
 		err = assert.ValidateOnHost(
-			"curl -sL --insecure http://"+""+ip+":"+nodeport+"/name.html",
+			"curl -sL http://"+""+ip+":"+nodeport+"/name.html",
 			expectedPodName)
 	}
 	Expect(err).NotTo(HaveOccurred(), err)
@@ -92,7 +92,7 @@ func TestServiceLoadBalancer(applyWorkload, deleteWorkload bool) {
 
 	for _, node := range validNodes {
 		err = assert.ValidateOnHost(
-			"curl -sL --insecure http://"+node.ExternalIP+":"+port+"/name.html",
+			"curl -sL http://"+node.ExternalIP+":"+port+"/name.html",
 			expectedPodName)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
@@ -114,7 +114,7 @@ func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 		}
 		err = assert.ValidateOnNode(
 			cluster.BastionConfig.PublicIPv4Addr,
-			"curl -sL --insecure http://"+ip+":"+nodeport+"/name.html",
+			"curl -sL http://"+ip+":"+nodeport+"/name.html",
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}
@@ -132,7 +132,7 @@ func testServiceClusterIPs(td testData) {
 		}
 		err := assert.ValidateOnNode(
 			nodeExternalIPs[0],
-			"curl -sL --insecure http://"+clusterIP+":"+port,
+			"curl -sL http://"+clusterIP+":"+port,
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
 	}

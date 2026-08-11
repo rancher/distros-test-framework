@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/customflag"
 	"github.com/rancher/distros-test-framework/pkg/qase"
+	"github.com/rancher/distros-test-framework/pkg/testcase/support"
 	"github.com/rancher/distros-test-framework/shared"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -75,6 +76,8 @@ var _ = AfterSuite(func() {
 	}
 
 	if customflag.ServiceFlag.Destroy {
+		shared.LogLevel("info", "Deleting nodes that are not created by terraform")
+		support.DeleteEC2Nodes(cluster)
 		status, err := shared.DestroyCluster(cfg)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status).To(Equal("cluster destroyed"))
