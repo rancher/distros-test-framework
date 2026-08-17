@@ -64,6 +64,7 @@ It needs some new environment variables from `config/.env`:
 # FRAMEWORK VARS
 PROVISIONER_MODULE=qainfra                                  # Provider: qainfra or legacy
 QA_INFRA_PROVIDER=aws                                       # qainfra module to use: aws, vsphere, harvester, etc. ( for now only aws is supported )
+QA_INFRA_REF=main                                           # qa-infra-automation git ref (tag/branch, NOT a bare SHA — feeds `git clone --branch`) for BOTH the tofu module sources and the ansible clone; use it to test an unmerged qa-infra branch end to end
 PROVISIONER_TYPE=opentofu                                   # Provisioner type: opentofu(tf), cluster api, etc.
 RESOURCE_NAME={your-local-resource-name}                    # Unique resource name prefix for AWS resources (e.g., "mytest123")
 

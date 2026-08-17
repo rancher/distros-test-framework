@@ -85,7 +85,9 @@ func setOrAppendTFVar(tfvarsPath, key, value string) error {
 		return fmt.Errorf("read %s: %w", tfvarsPath, err)
 	}
 
-	reg := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*=\s*".*"\s*$`)
+	// Trailing comment allowed: seeded tfvars annotate lines (`aws_ami = "..." # SLES 16`),
+	// and missing it here appended a duplicate key instead of replacing.
+	reg := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*=\s*".*"\s*(#.*)?$`)
 	line := []byte(fmt.Sprintf(`%s = %q`, key, value))
 
 	if reg.Match(fileData) {

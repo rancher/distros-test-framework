@@ -128,7 +128,11 @@ test-nvidia:
 	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
 
 #========================= TestCode Static Quality Check =========================#
-pre-commit: go-check
+pre-commit: go-check unit-tests
+
+# Unit tests only — entrypoint suites are build-tagged e2e and need real infra.
+unit-tests:
+	@go test -count=1 ./internal/...
 
 go-check:
 	@gofmt -s -w .
