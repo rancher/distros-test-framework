@@ -50,6 +50,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
 		version, channel, resourceName, newExternalServerIps, newPrivateServerIps)
 	Expect(serverErr).NotTo(HaveOccurred(), "replace server nodes: %v", serverErr)
+	cluster.ServerIPs = newExternalServerIps
 	resources.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
@@ -563,6 +564,7 @@ func nodeReplaceAgents(
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel,
 		newExternalAgentIps, newPrivateAgentIps)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
+	cluster.AgentIPs = newExternalAgentIps
 
 	resources.LogLevel("info", "Agent nodes replaced with ips: %s\n", newExternalAgentIps)
 }

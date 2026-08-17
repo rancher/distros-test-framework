@@ -3,13 +3,16 @@ package upgradecluster
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/entrypoint"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/k8s"
+	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/report"
 	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,6 +36,7 @@ func TestMain(m *testing.M) {
 	flag.Var(&flags.Channel, "channel", "channel to use on upgrade")
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
 	flag.Var(&flags.SUCUpgradeVersion, "sucUpgradeVersion", "Version for upgrading using SUC")
+	flag.Var(&flags.SelinuxTest, "selinux", "Run selinux test")
 	if v := os.Getenv("UPGRADE_CHANNEL"); v != "" {
 		_ = flags.Channel.Set(v)
 	}
@@ -43,6 +47,8 @@ func TestMain(m *testing.M) {
 		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+	entrypoint.CheckSelinuxTest(cfg.ServerFlags, bool(customflag.ServiceFlag.SelinuxTest))
+
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	k8sClient, err = k8s.AddClient()
 	if err != nil {
@@ -61,5 +67,20 @@ func TestClusterUpgradeSuite(t *testing.T) {
 var _ = ReportAfterSuite("Upgrade Cluster Test Suite",
 	entrypoint.ReportAfterSuite(&cluster, &reportSummary))
 
-var _ = AfterSuite(entrypoint.AfterSuite(
-	&cluster, &infraConfig, &reportSummary, &reportErr))
+var _ = AfterSuite(func() {
+	// Destroy must run even if the uninstall-policy assertions fail,
+	// otherwise a red teardown check leaks the whole infrastructure.
+	defer entrypoint.DestroyOnlyAfterSuite(&infraConfig)()
+
+	reportSummary, reportErr = report.SummaryReportData(cluster, flags)
+	if reportErr != nil {
+		resources.LogLevel("error", "error getting report summary data: %v\n", reportErr)
+	}
+
+	// Report runs first: it reads config.yaml from the nodes, which the
+	// uninstall below removes.
+	if bool(customflag.ServiceFlag.SelinuxTest) && strings.Contains(strings.ToLower(cfg.ServerFlags), "selinux: true") {
+		resources.LogLevel("info", "Validating removal of selinux policies post un-install")
+		testcase.TestUninstallPolicy(cluster, true)
+	}
+})

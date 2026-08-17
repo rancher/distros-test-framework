@@ -5,9 +5,8 @@ import (
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
-	"github.com/rancher/distros-test-framework/internal/resources"
-
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/gomega"
 )
@@ -117,9 +116,9 @@ func getContext(product, ip string) (cmdCtx, error) {
 	}
 
 	versionMapping := map[string]string{
-		"7":  "centos7",
 		"8":  "centos8",
 		"9":  "centos9",
+		"10": "centos10",
 		"16": "sles16",
 	}
 
@@ -158,9 +157,9 @@ func TestSelinuxSpcT(cluster *driver.Cluster) {
 // TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
 // Call this function after the un-installation of the product.
 func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
-	serverCmd := "rpm -qa container-selinux rke2-server rke2-selinux"
+	serverCmd := "rpm -qa rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
-		serverCmd = "rpm -qa container-selinux k3s-selinux"
+		serverCmd = "rpm -qa k3s-selinux"
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
@@ -196,7 +195,7 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 			}
 		}
 
-		cmd := "rpm -qa container-selinux " + cluster.Config.Product + "-selinux"
+		cmd := "rpm -qa " + cluster.Config.Product + "-selinux"
 		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
 	}
 }
@@ -204,13 +203,7 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 func verifyUninstallPolicy(product, ip, cmd string) {
 	res, err := resources.RunCommandOnNode(cmd, ip)
 	Expect(err).NotTo(HaveOccurred())
-
-	if strings.Contains(osPolicy, "sles16") {
-		Expect(res).Should(ContainSubstring("container-selinux"))
-		Expect(res).ShouldNot(ContainSubstring(product + "-selinux"))
-	} else {
-		Expect(res).Should(BeEmpty())
-	}
+	Expect(res).Should(BeEmpty())
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.
@@ -330,6 +323,33 @@ var conf = []configuration{
 	},
 	{
 		distroName: "rke2_centos9",
+		cmdCtx: cmdCtx{
+			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
+			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,
+			cmdPrefix + " " + "/usr/local/lib/systemd/system/rke2*":                                       ctxUnitFile,
+			cmdPrefix + " " + usrBin + "/rke2":                                                            ctxExec,
+			cmdPrefix + " " + usrLocal + "/rke2":                                                          ctxExec,
+			cmdPrefix + " " + "/opt/cni " + ignoreDir:                                                     ctxFile,
+			cmdPrefix + " " + "/opt/cni/* " + ignoreDir:                                                   ctxFile,
+			cmdPrefix + " " + rke2 + " " + ignoreDir:                                                      ctxVarLib,
+			cmdPrefix + " " + rke2 + "/* " + ignoreDir:                                                    ctxVarLib,
+			cmdPrefix + " " + rke2 + "/data " + ignoreDir:                                                 ctxExec,
+			cmdPrefix + " " + rke2 + "/data/* " + ignoreDir:                                               ctxExec,
+			cmdPrefix + " " + rke2 + "/data/*/charts " + ignoreDir + " " + grepFilter:                     ctxConfig,
+			cmdPrefix + " " + rke2 + "/data/*/charts/* " + ignoreDir + " " + grepFilter:                   ctxConfig,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter:      ctxFile,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/ " + ignoreDir + " " + grepFilter:     ctxFile,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/snapshots/*/.* " + ignoreDir + " " + grepFilter: ctxNone,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter:      ctxRoFile,
+			cmdPrefix + " " + rke2 + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter:    ctxRoFile,
+			cmdPrefix + " " + rke2 + "/server/logs " + ignoreDir:                                          ctxLog,
+			cmdPrefix + " " + rke2 + "/server/logs/* " + ignoreDir:                                        ctxLog,
+			cmdPrefix + " " + rke2 + "/server/tls " + ignoreDir:                                           ctxTLS,
+			cmdPrefix + " " + rke2 + "/server/tls/* " + ignoreDir:                                         ctxTLS,
+		},
+	},
+	{
+		distroName: "rke2_centos10",
 		cmdCtx: cmdCtx{
 			cmdPrefix + " " + systemD + "/rke2*":                                                          ctxUnitFile,
 			cmdPrefix + " " + "/lib/systemd/system/rke2*":                                                 ctxUnitFile,

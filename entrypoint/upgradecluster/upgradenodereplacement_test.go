@@ -8,8 +8,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
+	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase/support"
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
@@ -78,6 +80,26 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 	if cluster.Config.Product == "k3s" {
 		It("Verifies LoadBalancer Service after upgrade", func() {
 			testcase.TestServiceLoadBalancer(false, true)
+		})
+	}
+
+	if customflag.ServiceFlag.SelinuxTest {
+		resources.LogLevel("info", "Running selinux tests post upgrade")
+
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
 		})
 	}
 

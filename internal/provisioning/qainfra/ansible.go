@@ -244,7 +244,9 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 
 	resources.LogLevel("debug", "Executing Ansible playbook with args: %v", args)
 
-	if executeErr := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, 25*time.Minute,
+	// Worst-case transactional path (lock waits + retried transactional-update
+	// runs + reboots) legitimately exceeds 25m.
+	if executeErr := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, 35*time.Minute,
 		"ansible-playbook", args...); executeErr != nil {
 		return fmt.Errorf("ansible playbook failed: %w", executeErr)
 	}
@@ -342,10 +344,10 @@ func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
 }
 
 // formatServerFlagsToDict turns the multi-line SERVER_FLAGS YAML scalar into a
-// flat string→string map. Each non-empty, non-comment line is parsed as
-// "key: value" (value trimmed/unquoted); lines without a colon are skipped.
-func formatServerFlagsToDict(s string) map[string]string {
-	out := map[string]string{}
+// flat map. Each non-empty, non-comment line is parsed as "key: value"
+// (value trimmed/unquoted); lines without a colon are skipped.
+func formatServerFlagsToDict(s string) map[string]any {
+	out := map[string]any{}
 	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -357,14 +359,28 @@ func formatServerFlagsToDict(s string) map[string]string {
 		}
 		key := strings.TrimSpace(line[:i])
 		val := strings.TrimSpace(line[i+1:])
-		val = strings.Trim(val, `"'`)
 		if key == "" {
 			continue
 		}
-		out[key] = val
+		out[key] = flagScalarValue(val)
 	}
 
 	return out
+}
+
+// flagScalarValue types only bare true/false so to_nice_yaml renders quoted values always stay strings.
+func flagScalarValue(val string) any {
+	if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') && val[len(val)-1] == val[0] {
+		return val[1 : len(val)-1]
+	}
+	switch val {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+
+	return val
 }
 
 func addChannel(args []string, channel string) []string {

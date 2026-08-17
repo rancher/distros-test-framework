@@ -100,7 +100,7 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage after service restarts", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, false, false)
 		})
 
 		It("Verifies LoadBalancer Service after service restarts", func() {

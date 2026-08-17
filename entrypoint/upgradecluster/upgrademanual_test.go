@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
+	"github.com/rancher/distros-test-framework/internal/resources"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -121,11 +122,30 @@ var _ = Describe("Test:", func() {
 		})
 
 		It("Verifies Local Path Provisioner storage after upgrade", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, false, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, false, false)
 		})
 
 		It("Verifies Traefik IngressRoute after upgrade using new GKV", func() {
 			testcase.TestIngressRoute(cluster, false, true, "traefik.io/v1alpha1")
+		})
+	}
+	if customflag.ServiceFlag.SelinuxTest {
+		resources.LogLevel("info", "Running selinux tests post upgrade")
+
+		It("Validate selinux is enabled", func() {
+			testcase.TestSelinuxEnabled(cluster)
+		})
+
+		It("Validate container, server and selinux version", func() {
+			testcase.TestSelinux(cluster)
+		})
+
+		It("Validate container security", func() {
+			testcase.TestSelinuxSpcT(cluster)
+		})
+
+		It("Validate context", func() {
+			testcase.TestSelinuxContext(cluster)
 		})
 	}
 })

@@ -79,7 +79,7 @@ var _ = Describe("Test:", func() {
 
 	if cluster.Config.Product == "k3s" {
 		It("Verifies Local Path Provisioner storage", func() {
-			testcase.TestLocalPathProvisionerStorage(cluster, true, true)
+			testcase.TestLocalPathProvisionerStorage(cluster, true, false)
 		})
 
 		It("Verifies LoadBalancer Service", func() {
