@@ -1,6 +1,8 @@
 package customflag
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
@@ -381,4 +383,66 @@ func ValidateTemplateTcs() {
 			}
 		}
 	}
+}
+
+// ValidateRancherChartsFlags rejects charts flag values that are not
+// structurally valid — they end up in helm/kubectl invocations.
+func ValidateRancherChartsFlags() {
+	if err := validateChartsValues(
+		ServiceFlag.Charts.RepoName, ServiceFlag.Charts.RepoUrl, ServiceFlag.Charts.Args); err != nil {
+		log.Errorf("%v", err)
+		os.Exit(1)
+	}
+}
+
+var (
+	chartsNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	chartsHostRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]*$`)
+	// value side allows anything printable except comma (the token separator) —
+	// argv execution means no shell ever sees these characters.
+	chartsSetPairRe = regexp.MustCompile(`^[A-Za-z0-9._\[\]-]+=[^,\x00-\x1f]*$`)
+)
+
+func validateChartsValues(name, repoURL, args string) error {
+	if name != "" && !chartsNameRe.MatchString(name) {
+		return fmt.Errorf("invalid chartsRepoName %q: only alphanumerics, dot, dash and underscore are allowed", name)
+	}
+
+	if repoURL != "" {
+		u, err := url.Parse(repoURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil ||
+			!chartsHostRe.MatchString(u.Hostname()) {
+			return fmt.Errorf("invalid chartsRepoUrl %q: must be an absolute http(s) URL with a valid host", repoURL)
+		}
+	}
+
+	if args != "" {
+		for _, pair := range strings.Split(args, ",") {
+			if !chartsSetPairRe.MatchString(strings.TrimSpace(pair)) {
+				return fmt.Errorf("invalid chartsArgs token %q: expected key=value", pair)
+			}
+		}
+	}
+
+	return nil
+}
+
+// ValidateNvidiaVersionFormat rejects driver versions that are not plain
+// dotted numbers — the value is interpolated into a download URL and shell
+// command lines on the nodes.
+func ValidateNvidiaVersionFormat() {
+	if err := validateNvidiaVersion(ServiceFlag.Nvidia.Version); err != nil {
+		log.Errorf("%v", err)
+		os.Exit(1)
+	}
+}
+
+var nvidiaVersionRe = regexp.MustCompile(`^\d+\.\d+(\.\d+)?$`)
+
+func validateNvidiaVersion(v string) error {
+	if v != "" && !nvidiaVersionRe.MatchString(v) {
+		return fmt.Errorf("invalid nvidiaVersion %q: expected a dotted number like 580.159.03", v)
+	}
+
+	return nil
 }

@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	customflag.ValidateVersionFormat()
+	customflag.ValidateRancherChartsFlags()
 
 	cfg, err = config.AddEnv()
 	if err != nil {

@@ -104,8 +104,10 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 	}
 
 	AfterAll(func() {
+		// Deleting here would terminate the nodes before the AfterSuite report
+		// and uninstall-policy checks run against them; defer it to AfterSuite.
 		if flags.Destroy {
-			support.DeleteEC2Nodes(cluster)
+			replacementNodesCleanup = func() { support.DeleteEC2Nodes(cluster) }
 		}
 	})
 })

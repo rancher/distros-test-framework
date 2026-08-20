@@ -265,3 +265,22 @@ aws_ssh_user     = "ec2-user"
 		}
 	}
 }
+
+// The provisioner rewrites infrastructure/qainfra/main.tf by literal string
+// replacement, so the template must keep both anchors verbatim: the module
+// source placeholder and the external_db injection marker (losing the marker
+// silently breaks DATASTORE_TYPE=external — the RDS module is never injected
+// and the run only fails much later, at datastore_endpoint lookup).
+func TestInfraMainTfKeepsInjectionAnchors(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "infrastructure", "qainfra", "main.tf")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	for _, anchor := range []string{externalDBMarker, "placeholder-for-remote-module"} {
+		if !strings.Contains(string(content), anchor) {
+			t.Errorf("infrastructure/qainfra/main.tf lost required anchor %q", anchor)
+		}
+	}
+}

@@ -2,9 +2,12 @@ package resources
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // RunCommandOnNode executes a command on the node SSH.
@@ -46,8 +49,23 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 	return stdout, err
 }
 
-// RunCommandHost executes a command on the host.
+// RunCommandHost executes shell command lines on the host, without a
+// deadline — long operations (e.g. `sonobuoy run --wait`) own their runtime.
 func RunCommandHost(cmds ...string) (string, error) {
+	return RunCommandHostContext(context.Background(), cmds...)
+}
+
+// RunCommandHostWithTimeout executes shell command lines on the host,
+// canceling the whole process group when timeout elapses.
+func RunCommandHostWithTimeout(timeout time.Duration, cmds ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return RunCommandHostContext(ctx, cmds...)
+}
+
+// RunCommandHostContext executes shell command lines on the host under ctx.
+func RunCommandHostContext(ctx context.Context, cmds ...string) (string, error) {
 	if cmds == nil {
 		return "", ReturnLogError("should send at least one command")
 	}
@@ -58,18 +76,64 @@ func RunCommandHost(cmds ...string) (string, error) {
 			return "", ReturnLogError("cmd should not be empty")
 		}
 
-		c := exec.Command("bash", "-c", cmd)
+		c := exec.CommandContext(ctx, "bash", "-c", cmd)
 		c.Stdout = &output
 		c.Stderr = &errOut
+		hardenCancellation(c)
 
 		err := c.Run()
 		if err != nil {
-			LogLevel("error", "Command '%s' failed with error: %v\n %v", cmd, err, c.Stderr.(*bytes.Buffer).String())
-			return c.Stderr.(*bytes.Buffer).String(), err
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				err = fmt.Errorf("command canceled (%w): %w", ctxErr, err)
+			}
+			LogLevel("error", "Command '%s' failed with error: %v\n %v", cmd, err, errOut.String())
+
+			return errOut.String(), err
 		}
 	}
 
 	return output.String(), nil
+}
+
+// RunHostArgs executes a single binary with separated arguments — no shell is
+// involved, so argument values can never be interpreted as shell syntax.
+func RunHostArgs(name string, args ...string) (string, error) {
+	return RunHostArgsContext(context.Background(), name, args...)
+}
+
+// RunHostArgsContext is RunHostArgs under a caller-controlled context.
+func RunHostArgsContext(ctx context.Context, name string, args ...string) (string, error) {
+	if name == "" {
+		return "", ReturnLogError("binary name should not be empty")
+	}
+
+	var output, errOut bytes.Buffer
+	c := exec.CommandContext(ctx, name, args...)
+	c.Stdout = &output
+	c.Stderr = &errOut
+	hardenCancellation(c)
+
+	if err := c.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = fmt.Errorf("command canceled (%w): %w", ctxErr, err)
+		}
+		LogLevel("error", "Command %s %v failed with error: %v\n %v", name, args, err, errOut.String())
+
+		return errOut.String(), err
+	}
+
+	return output.String(), nil
+}
+
+// hardenCancellation makes cancellation reach the whole process group:
+// killing only bash would leave pipeline children alive holding the pipes,
+// and Run() would keep blocking after the deadline.
+func hardenCancellation(c *exec.Cmd) {
+	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	c.Cancel = func() error {
+		return syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
+	}
+	c.WaitDelay = 10 * time.Second
 }
 
 // JoinCommands joins the first command with some arg.

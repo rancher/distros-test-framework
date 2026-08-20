@@ -20,7 +20,7 @@ test-build-run:
 test-run-state:
 	@./scripts/docker_run.sh test-run-state
 
-## Use this to run code changes on the same cluster from the previous run. Useful for debugging new code.
+## Re-run tracked source changes in the previous container without exporting its state or secrets.
 test-run-updates:
 	@./scripts/docker_run.sh test-run-updates
 
@@ -141,7 +141,11 @@ go-check:
 	@go vet ./...
 	@golangci-lint run --tests ./...
 
-shell-check:
+security-regression-tests:
+	@sh scripts/security_regression_test.sh
+	@go test -count=1 ./internal/provisioning/qainfra -run '^(TestLoadQAInfraTFVarsDebugLogDoesNotExposeSecrets|TestQAInfraConfigObjectsNotPassedToLogger)$$'
+
+shell-check: security-regression-tests
 	@shellcheck infrastructure/legacy/airgap/setup/*.sh
 	@shellcheck infrastructure/legacy/ipv6only/scripts/*.sh
 	@shellcheck scripts/*.sh

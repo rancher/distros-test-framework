@@ -216,10 +216,10 @@ func logDebugData(cluster *driver.Cluster) {
 	resources.FindPodAndLog(cluster, "helper-pod-create-pvc", "kube-system")
 	resources.FindPodAndLog(cluster, "helper-pod-delete-pvc", "kube-system")
 
-	// Pod Log and describe pod output with namespace: local-path-storage
+	// Pod Log and describe pod output with namespace: local-path-storage.
 	resources.LogAllPodsForNamespace(cluster, namespace)
 
-	// Log the kubectl get pv,pvc,storageclass
+	// Log the kubectl get pv,pvc,storageclass.
 	output, getErr := resources.KubectlCommand(cluster, "node", "get", "pv,pvc,storageclass", "-A")
 	if getErr != nil {
 		resources.LogLevel("error", "error getting pv,pvc and storageclass info")

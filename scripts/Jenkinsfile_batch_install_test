@@ -2,7 +2,10 @@
 
 node {
   def branch = "main"
-  def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',')
+  def test_dir = "${env.TEST_DIRECTORY_LIST}".split(',', -1).collect { it.trim() }
+  if (test_dir.any { !it }) {
+    error('TEST_DIRECTORY_LIST contains an empty entry')
+  }
 
   if ("${env.BRANCH}" != "null" && "${env.BRANCH}" != "") {
     branch = "${env.BRANCH}"
@@ -46,10 +49,10 @@ node {
             def jobs = [:]
 
             test_dir.each { test_name ->
-              // "<test>_qainfra" entries target the "<job>_qainfra" clone jobs; the
-              // base name drives TEST_DIRECTORY and the job map lookup.
-              def is_qainfra = test_name.endsWith("_qainfra")
-              def base_name = is_qainfra ? test_name.substring(0, test_name.length() - 8) : test_name
+              if (!test_name.endsWith("_qainfra")) {
+                error("Batch entries must target qainfra jobs: ${test_name}")
+              }
+              def base_name = test_name.substring(0, test_name.length() - 8)
               def actual_testdir_name = base_name
               def job_aws_ssh_key_name = "${AWS_SSH_KEY_NAME}"
 
@@ -85,14 +88,7 @@ node {
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}"),
               ]
 
-              // Legacy jobs still support the old selectable-key interface. Qainfra
-              // children resolve their dedicated PEM directly from Jenkins Credentials.
-              if (!is_qainfra && env.AWS_SSH_PEM_KEY?.trim()) {
-                install_params << string(name: 'AWS_SSH_PEM_KEY', value: env.AWS_SSH_PEM_KEY)
-              }
-
-              // qainfra children: forward the qa-infra-automation ref when the batch sets one.
-              if (is_qainfra && "${env.QA_INFRA_REF}" != "null" && "${env.QA_INFRA_REF}" != "") {
+              if ("${env.QA_INFRA_REF}" != "null" && "${env.QA_INFRA_REF}" != "") {
                 install_params << string(name: 'QA_INFRA_REF', value: "${env.QA_INFRA_REF}")
               }
 
@@ -120,14 +116,13 @@ node {
               ]
 
               def jobName = testToJobMap[base_name]
-              if (is_qainfra && jobName) {
-                // clone jobs are named "<base job>_qainfra" and have no _rpm variants
-                jobName = jobName.replace("_rpm", "") + "_qainfra"
+              if (!jobName) {
+                error("Unknown qainfra batch test: ${test_name}")
               }
+              // QA Infra clone jobs have a qainfra suffix and no rpm suffix.
+              jobName = jobName.replace("_rpm", "") + "_qainfra"
 
-              if (jobName) {
-                jobs[test_name] = { build job: jobName, parameters: install_params }
-              }
+              jobs[test_name] = { build job: jobName, parameters: install_params }
             } // for each test_dir loop
 
             parallel jobs

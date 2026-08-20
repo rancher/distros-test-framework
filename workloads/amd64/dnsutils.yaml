@@ -16,12 +16,20 @@ metadata:
   name: dnsutils
   namespace: dnsutils
 spec:
+  automountServiceAccountToken: false
   containers:
     - name: dnsutils
-      image: gcr.io/kubernetes-e2e-test-images/dnsutils:1.3
-      command:
-        - sleep
-        - "3600"
+      image: registry.k8s.io/e2e-test-images/agnhost:2.39
       imagePullPolicy: IfNotPresent
+      # AppArmor Unconfined: Ubuntu 26.04's cri-containerd profile denies the
+      # signal BIND's nslookup sends its workers; everything else stays locked.
+      securityContext:
+        appArmorProfile:
+          type: Unconfined
+        seccompProfile:
+          type: RuntimeDefault
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
   restartPolicy: Always
 

@@ -16,18 +16,19 @@ func TestDeployCertManager(cluster *driver.Cluster, version string) {
 	err := addRepo("jetstack", "https://charts.jetstack.io")
 	Expect(err).To(BeNil())
 
-	applyCrdsCmd := fmt.Sprintf(
-		"kubectl apply --kubeconfig=%s --validate=false -f "+
-			"https://github.com/jetstack/cert-manager/releases/download/%s/cert-manager.crds.yaml",
-		resources.KubeConfigFile, version)
-	installCertMgrCmd := fmt.Sprintf("kubectl create namespace cert-manager --kubeconfig=%s && ",
-		resources.KubeConfigFile) + fmt.Sprintf(
-		"helm install cert-manager jetstack/cert-manager -n cert-manager --version %s --kubeconfig=%s",
-		version, resources.KubeConfigFile)
+	crdsRes, err := resources.RunHostArgs("kubectl", "apply",
+		"--kubeconfig="+resources.KubeConfigFile, "--validate=false",
+		"-f", "https://github.com/jetstack/cert-manager/releases/download/"+version+"/cert-manager.crds.yaml")
+	Expect(err).NotTo(HaveOccurred(), "failed to apply cert-manager CRDs: %v\nResult: %s\n", err, crdsRes)
 
-	res, err := resources.RunCommandHost(applyCrdsCmd, installCertMgrCmd)
+	nsRes, err := resources.RunHostArgs("kubectl", "create", "namespace", "cert-manager",
+		"--kubeconfig="+resources.KubeConfigFile)
+	Expect(err).NotTo(HaveOccurred(), "failed to create cert-manager namespace: %v\nResult: %s\n", err, nsRes)
+
+	res, err := resources.RunHostArgs("helm", "install", "cert-manager", "jetstack/cert-manager",
+		"-n", "cert-manager", "--version", version, "--kubeconfig="+resources.KubeConfigFile)
 	Expect(err).NotTo(HaveOccurred(),
-		"failed to deploy cert-manager via helm: %v\nCommand: %s\nResult: %s\n", err, installCertMgrCmd, res)
+		"failed to deploy cert-manager via helm: %v\nResult: %s\n", err, res)
 
 	filters := map[string]string{
 		"namespace": "cert-manager",
@@ -92,54 +93,54 @@ func installRancher(cluster *driver.Cluster, flags *customflag.FlagConfig) strin
 	err := addRepo(flags.Charts.RepoName, flags.Charts.RepoUrl)
 	Expect(err).To(BeNil())
 
-	installRancherCmd := fmt.Sprintf(
-		"kubectl create namespace cattle-system --kubeconfig=%s && "+
-			"helm install rancher %s/rancher ",
-		resources.KubeConfigFile,
-		flags.Charts.RepoName)
+	nsRes, err := resources.RunHostArgs("kubectl", "create", "namespace", "cattle-system",
+		"--kubeconfig="+resources.KubeConfigFile)
+	Expect(err).NotTo(HaveOccurred(), "failed to create cattle-system namespace: %v\nResult: %s\n", err, nsRes)
 
-	if flags.Charts.Args != "" {
-		installRancherCmd += chartsArgsBuilder(flags)
-	}
+	installArgs := []string{"install", "rancher", flags.Charts.RepoName + "/rancher"}
+	installArgs = append(installArgs, chartsArgsList(flags)...)
+	installArgs = append(installArgs,
+		"-n", "cattle-system",
+		"--version="+flags.Charts.Version,
+		"--set", "global.cattle.psp.enabled=false",
+		"--set", "hostname="+cluster.FQDN,
+		"--kubeconfig="+resources.KubeConfigFile)
 
-	installRancherCmd += fmt.Sprintf("-n cattle-system "+
-		"--version=%s "+
-		"--set global.cattle.psp.enabled=false "+
-		"--set hostname=%s "+
-		"--kubeconfig=%s",
-		flags.Charts.Version,
-		cluster.FQDN,
-		resources.KubeConfigFile)
-
-	resources.LogLevel("info", "Install command: %s", installRancherCmd)
-	res, err := resources.RunCommandHost(installRancherCmd)
-	Expect(err).NotTo(HaveOccurred(), "failed to deploy rancher via helm: %v\nCommand: %s\nResult: %s\n",
-		err, installRancherCmd, res)
+	resources.LogLevel("info", "Install command: helm %v", installArgs)
+	res, err := resources.RunHostArgs("helm", installArgs...)
+	Expect(err).NotTo(HaveOccurred(), "failed to deploy rancher via helm: %v\nCommand: helm %v\nResult: %s\n",
+		err, installArgs, res)
 
 	return res
 }
 
-func chartsArgsBuilder(flags *customflag.FlagConfig) (finalArgs string) {
-	helmArgs := flags.Charts.Args
-	if strings.Contains(helmArgs, ",") {
-		argsSlice := strings.Split(helmArgs, ",")
-		for _, arg := range argsSlice {
-			if !strings.Contains(finalArgs, arg) {
-				finalArgs += fmt.Sprintf("--set %s ", arg)
-			}
-		}
-	} else {
-		finalArgs = fmt.Sprintf("--set %s ", helmArgs)
+// chartsArgsList turns the comma-separated chartsArgs flag into deduplicated
+// `--set key=value` argument pairs.
+func chartsArgsList(flags *customflag.FlagConfig) []string {
+	if flags.Charts.Args == "" {
+		return nil
 	}
 
-	return finalArgs
+	var out []string
+	seen := make(map[string]bool)
+	for _, arg := range strings.Split(flags.Charts.Args, ",") {
+		arg = strings.TrimSpace(arg)
+		if arg == "" || seen[arg] {
+			continue
+		}
+		seen[arg] = true
+		out = append(out, "--set", arg)
+	}
+
+	return out
 }
 
 func addRepo(name, url string) (err error) {
 	resources.LogLevel("info", "Adding repo to helm - name: %v, url: %v", name, url)
-	cmd := fmt.Sprintf(
-		"helm repo add %s %s && helm repo update",
-		name, url)
+	if _, err = resources.RunHostArgs("helm", "repo", "add", "--", name, url); err != nil {
+		return err
+	}
+	cmd := "helm repo update"
 	res, err := resources.RunCommandHost(cmd)
 	if err != nil {
 		resources.LogLevel("error", "failed to add helm repo...\nCommand: %s\nResult: %s\n", cmd, res)

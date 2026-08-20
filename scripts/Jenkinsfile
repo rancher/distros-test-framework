@@ -34,23 +34,20 @@ node {
     withFolderProperties {
       def rawParamsMap = params.findAll { it.value?.trim() }
         .collectEntries { [(it.key): it.value] }
-      def provisionerModule = rawParamsMap.PROVISIONER_MODULE ?: env.PROVISIONER_MODULE ?: 'legacy'
-      // Qainfra private key material comes exclusively from Jenkins Credentials.
-      // Legacy retains its selectable-key parameter until its additional keys have
-      // dedicated credential IDs and can be migrated without breaking old jobs.
-      def paramsMap = rawParamsMap.findAll {
-        provisionerModule != 'qainfra' || it.key != 'AWS_SSH_PEM_KEY'
+      def provisionerModule = rawParamsMap.PROVISIONER_MODULE ?: env.PROVISIONER_MODULE ?: 'qainfra'
+      if (provisionerModule != 'qainfra') {
+        error("Jenkins supports only PROVISIONER_MODULE=qainfra, got: ${provisionerModule}")
       }
-      def sshPemCredentialId = provisionerModule == 'qainfra' ?
-        'AWS_SSH_PEM_KEY_QAINFRA' : 'AWS_SSH_PEM_KEY'
-      withEnv(paramsMap.collect { k, v -> "$k=$v" }) {
+      // Private key material comes exclusively from Jenkins Credentials.
+      def paramsMap = rawParamsMap.findAll { it.key != 'AWS_SSH_PEM_KEY' }
+      def runtimeEnv = paramsMap.collect { k, v -> "$k=$v" }
+      runtimeEnv << 'AWS_SSH_PEM_KEY='
+      withEnv(runtimeEnv) {
         // Bind credentials after parameters; qainfra always consumes this managed value.
         withCredentials([
           string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
           string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-          string(credentialsId: sshPemCredentialId, variable: 'JENKINS_SSH_PEM_KEY'),
-          string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD'),
-          string(credentialsId: 'RKE2_RHEL_PASSWORD', variable: 'RKE2_RHEL_PASSWORD'),
+          string(credentialsId: 'AWS_SSH_PEM_KEY_QAINFRA', variable: 'JENKINS_SSH_PEM_KEY'),
           string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
         ]) {
           stage('Checkout') {
@@ -62,37 +59,34 @@ node {
               userRemoteConfigs: repo
             ])
           }
-          stage('Create QASE Environment Variables') {
-            script {
-              def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
-                             'QASE_PROJECT_ID=' + env.QASE_PROJECT_ID + '\n' +
-                             'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
-                             'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
-                             'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
-                writeFile file: qaseEnvFile, text: qase
-                sh "chmod 600 ${qaseEnvFile}"
-            }
-          }
           dir('./') {
             try {
+              stage('Create QASE Environment Variables') {
+                script {
+                  def qase = 'REPORT_TO_QASE=' + env.REPORT_TO_QASE + '\n' +
+                               'QASE_PROJECT_ID=' + env.QASE_PROJECT_ID + '\n' +
+                               'QASE_RUN_ID=' + env.QASE_RUN_ID + '\n' +
+                               'QASE_TEST_CASE_ID=' + env.QASE_TEST_CASE_ID + '\n' +
+                               'QASE_AUTOMATION_TOKEN=' + env.QASE_AUTOMATION_TOKEN + '\n'
+                  writeFile file: qaseEnvFile, text: qase
+                  sh "chmod 600 ${qaseEnvFile}"
+                }
+              }
               stage('Configure and Build') {
-                def sshPemKey = provisionerModule == 'qainfra' ?
-                  env.JENKINS_SSH_PEM_KEY : (env.AWS_SSH_PEM_KEY ?: env.JENKINS_SSH_PEM_KEY)
-                if (sshPemKey && env.AWS_SSH_KEY_NAME) {
-                  dir('./config/.ssh') {
-                    def decoded = new String(sshPemKey.decodeBase64())
-                    writeFile file: 'aws_key.pem', text: decoded
-                    sh 'chmod 600 aws_key.pem'
-                  }
+                if (!env.AWS_SSH_KEY_NAME?.trim()) {
+                  error('AWS_SSH_KEY_NAME is required for qainfra Jenkins jobs')
+                }
+                dir('./config/.ssh') {
+                  def decoded = new String(env.JENKINS_SSH_PEM_KEY.decodeBase64())
+                  writeFile file: 'aws_key.pem', text: decoded
+                  sh 'chmod 600 aws_key.pem'
                 }
                 dir('./config') {
                   //update info in .env file
-                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\nENV_TFVARS=${env.PRODUCT_NAME}.tfvars\n" +
+                  def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\n" +
                   "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
                    "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
 
-                  // qainfra provisioning contract. Default stays legacy during the canary
-                  // phase — only jobs that set PROVISIONER_MODULE=qainfra opt in.
                   data += "PROVISIONER_MODULE=${provisionerModule}\n" +
                           "QA_INFRA_PROVIDER=${env.QA_INFRA_PROVIDER ?: 'aws'}\n" +
                           "PROVISIONER_TYPE=${env.PROVISIONER_TYPE ?: 'opentofu'}\n" +
@@ -103,12 +97,13 @@ node {
                     data += "SSH_KEY_NAME=${env.AWS_SSH_KEY_NAME}\n"
                   }
 
-                  // qainfra mode keeps the legacy UX: the TFVARS text area (in qainfra format)
-                  // replaces infrastructure/qainfra/vars.tfvars wholesale, guarded by a format marker.
-                  def isQainfraBlob = env.TFVARS && (env.TFVARS =~ /(?m)^\s*(aws_hostname_prefix|aws_region|nodes)\s*=/)
-                  if (provisionerModule == 'qainfra' && isQainfraBlob) {
-                    writeFile(file: '../infrastructure/qainfra/vars.tfvars', text: env.TFVARS)
+                  // The TFVARS text area replaces the qainfra vars file after a format check.
+                  def isQainfraBlob = env.TFVARS && (env.TFVARS =~ /(?m)^\s*(aws_region|nodes)\s*=/)
+                  if (!isQainfraBlob) {
+                    error('TFVARS must use qainfra format and include aws_region or nodes')
                   }
+                  writeFile(file: '../infrastructure/qainfra/vars.tfvars', text: env.TFVARS)
+                  sh 'chmod 600 ../infrastructure/qainfra/vars.tfvars'
                   // server/worker flags are env-consumed by the framework — lift them out of the
                   // blob when no explicit param was given.
                   def flagFrom = { key ->
@@ -144,44 +139,8 @@ node {
                     }
                   }
 
-                    //adding data to .env file
-                    writeFile(file: envFile, text: data)
-                    sh "chmod 600 ${envFile}"
-
-                  //update tfvars file
-                  def version_param_name = "${env.PRODUCT_NAME}_version"
-                  def channel_param_name = "${env.PRODUCT_NAME}_channel"
-                  def filename = "${env.PRODUCT_NAME}.tfvars"
-                  def configContents = env.TFVARS
-                  def tfvarsContent = configContents +
-                       "\n${version_param_name} = \"${INSTALL_VERSION}\"" +
-                       "\n${channel_param_name} = \"${INSTALL_CHANNEL}\"" +
-                       "\ninstall_mode = \"${INSTALL_MODE}\"" +
-                       '\npassword = \"' + RKE2_RHEL_PASSWORD + '\"' +
-                       '\nkey_name = \"' + AWS_SSH_KEY_NAME + '\"' +
-                       '\naccess_key = \"/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\"' +
-                       '\nresource_name = \"' + HOSTNAME_PREFIX + '\"' +
-                       "\nproduct = \"${env.PRODUCT_NAME}\""
-
-                  // Override AMI, AWS user and node_os when triggered from batch OS validation
-                  if (env.BATCH_OS_AWS_AMI && env.BATCH_OS_AWS_AMI != "null") {
-                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^aws_ami\s*=.*$\n?/, '')
-                    tfvarsContent += "\naws_ami = \"${env.BATCH_OS_AWS_AMI}\""
-                  }
-                  if (env.BATCH_OS_AWS_USER && env.BATCH_OS_AWS_USER != "null") {
-                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^aws_user\s*=.*$\n?/, '')
-                    tfvarsContent += "\naws_user = \"${env.BATCH_OS_AWS_USER}\""
-                  }
-                  if (env.BATCH_OS_NODE_OS && env.BATCH_OS_NODE_OS != "null") {
-                    tfvarsContent = tfvarsContent.replaceAll(/(?m)^node_os\s*=.*$\n?/, '')
-                    tfvarsContent += "\nnode_os = \"${env.BATCH_OS_NODE_OS}\""
-                  }
-
-                  writeFile file: filename, text: tfvarsContent
-                  sh "chmod 600 ${filename}"
-                  def testdata = readFile(file: filename)
-                  println('\n\nTFVARS TEST DATA (secrets redacted)')
-                  println(testdata.replaceAll(/(?i)(password|secret|token|pem)\s*=\s*"[^"]*"/, '$1 = "<REDACTED>"'))
+                  writeFile(file: envFile, text: data)
+                  sh "chmod 600 ${envFile}"
                 }
                 stage('Docker Build') {
                   sh './scripts/configure.sh'
@@ -189,14 +148,22 @@ node {
                 }
               }
               stage('Run TestCombination') {
+                    def containerRoot = '/go/src/github.com/rancher/distros-test-framework'
+                    // Dockerfile.jenkins has no entrypoint; Go reads these files directly.
+                    // Keep them at their final paths and mount them read-only.
+                    def runtimeMounts = [
+                      "--mount 'type=bind,source=${env.WORKSPACE}/config/.env,target=${containerRoot}/config/.env,readonly'",
+                      "--mount 'type=bind,source=${env.WORKSPACE}/config/.ssh/aws_key.pem,target=${containerRoot}/config/.ssh/aws_key.pem,readonly'",
+                      "--mount 'type=bind,source=${env.WORKSPACE}/infrastructure/qainfra/vars.tfvars,target=${containerRoot}/infrastructure/qainfra/vars.tfvars,readonly'"
+                    ]
                     sh """
                     docker run --name ${testContainer} -t \
                         --env-file ${envFile} \
                         --env-file ./config/.env \
                         --env-file ${qaseEnvFile} \
                         -e TEST_ARGS='${env.TEST_ARGS}' \
-                        ${imageName} sh -c "chmod 400 /go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem && \
-                         cd ./entrypoint &&  go test -timeout=${timeout} -v  ./${env.TEST_DIRECTORY}/...  ${env.TEST_ARGS.replace('\"', '\\\"')}"
+                        ${runtimeMounts.join(' ')} \
+                        ${imageName} sh -c "cd ./entrypoint && go test -timeout=${timeout} -v ./${env.TEST_DIRECTORY}/... ${env.TEST_ARGS.replace('\"', '\\\"')}"
                     """
               }
             } finally {
@@ -204,8 +171,7 @@ node {
                 sh "docker stop ${testContainer} || true"
                 sh "docker rm -v ${testContainer} || true"
                 sh "docker rmi -f ${imageName} || true"
-                sh "rm -f ${qaseEnvFile} || true"
-                sh 'rm -f config/.ssh/aws_key.pem || true'
+                sh 'sh ./scripts/cleanup_sensitive_files.sh'
               } // stage
             } // finally
           } // dir

@@ -254,8 +254,7 @@ func LogAllPodsForNamespace(cluster *driver.Cluster, namespace string) {
 	}
 }
 
-// FindPodAndLog
-// Search and log for a particular pod(s) given its unique name substring and namespace. Ex: coredns, kube-system.
+// FindPodAndLog search and log for a particular pod(s) given its unique name substring and namespace.
 // 1. Filter based on the name substring, and find the right pod(s).
 // 2. For the pods matching the name, logs: 'kubectl describe pod' and 'kubectl logs' output.
 // In the given example, it will filter all 'coredns' named pods in 'kube-system' namespace and log their outputs.

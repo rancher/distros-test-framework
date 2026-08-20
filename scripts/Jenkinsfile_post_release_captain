@@ -64,7 +64,7 @@ node {
     }
   }
 
-  // Build param list for child job, selecting the right UI PEM/Key per arch.
+  // Child jobs resolve PEM material from their managed Jenkins credential.
   def buildParams = { String arch, String product, String prefix, String version, String channel, String installMode ->
     def param = []
 
@@ -76,7 +76,6 @@ node {
     param << string(name: 'INSTALL_CHANNEL',  value: channel)
     param << string(name: 'TIMEOUT',          value: timeout)
     addStrParam(param, 'AWS_SSH_KEY_NAME',  env.AWS_SSH_KEY_NAME)
-    addStrParam(param, 'AWS_SSH_PEM_KEY',   env.AWS_SSH_PEM_KEY)
     addStrParam(param, 'REPO',   (env.REPO ?: ''))
     addStrParam(param, 'BRANCH', branch)
 
@@ -99,11 +98,12 @@ node {
     withFolderProperties {
       def paramsMap = []
       params.each { key, value ->
-        if (value != null) {
+        if (key != 'AWS_SSH_PEM_KEY' && value != null) {
           if (value instanceof String) { if (value.trim()) paramsMap << "${key}=${value}" }
           else { paramsMap << "${key}=${value}" }
         }
       }
+      paramsMap << 'AWS_SSH_PEM_KEY='
       withEnv(paramsMap) {
         stage('Checkout') {
           deleteDir()

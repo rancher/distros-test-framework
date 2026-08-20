@@ -1,0 +1,40 @@
+# Version control and local agent/editor state
+.git/
+.claude/
+.idea/
+.vscode/
+.vscode*
+.DS_Store
+
+# Local configuration and credentials
+.env
+**/.env
+.qase.env
+config/*.env.*
+**/*.tfvars
+**/.ssh/
+**/.aws/
+**/*.pem
+**/*.key
+**/id_rsa
+**/id_rsa.pub
+**/kubeconfig
+**/kubeconfig.yaml
+
+# OpenTofu/Terraform state and generated data
+**/.terraform/
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfstate.d/
+**/plans/
+
+# Temporary files, caches, logs, and test artifacts
+tmp/
+**/__pycache__/
+**/.pytest_cache/
+**/.cache/
+**/*.pyc
+**/*.pyo
+**/*.log
+entrypoint/conformance/*.tar.gz

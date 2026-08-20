@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -16,6 +17,12 @@ import (
 )
 
 var nodeOs string
+
+type nvidiaOperatorConfig struct {
+	workload              string
+	operatorManagedDriver bool
+	nriEnabled            bool
+}
 
 // isDebianFamily reports whether the OS is Ubuntu/Debian-based.
 func isDebianFamily(os string) bool {
@@ -60,6 +67,7 @@ func TestNvidiaGPUFunctionality(cluster *driver.Cluster, nvidiaVersion string) {
 	// for now we are only testing integration with the first server in the cluster.
 	targetNodeIP := cluster.ServerIPs[0]
 	nodeOs = cluster.NodeOS
+	operatorConfig := nvidiaOperatorWorkload(nodeOs)
 
 	// SLE Micro is read-only / transactional; NVIDIA driver/operator path isn't supported here.
 	// Bail before hardware detection so we don't install pciutils on a host we can't drive anyway.
@@ -70,14 +78,18 @@ func TestNvidiaGPUFunctionality(cluster *driver.Cluster, nvidiaVersion string) {
 
 	verifyGPUHardwarePresence(targetNodeIP, nodeOs)
 
-	if !runNvidiaDriverSetup(targetNodeIP, nodeOs, nvidiaVersion) {
-		return
+	if operatorConfig.operatorManagedDriver {
+		resources.LogLevel("info", "Using the SUSE precompiled driver managed by the GPU Operator")
+	} else {
+		if !runNvidiaDriverSetup(targetNodeIP, nodeOs, nvidiaVersion) {
+			return
+		}
+
+		validateNvidiaVersion(targetNodeIP)
+		validateNvidiaLibMl(targetNodeIP, false)
 	}
 
-	validateNvidiaVersion(targetNodeIP)
-	validateNvidiaLibMl(targetNodeIP)
-
-	workloadErr := resources.ManageWorkload("apply", "nvidia-operator.yaml")
+	workloadErr := resources.ManageWorkload("apply", operatorConfig.workload)
 	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia operator manifests not deployed")
 
 	resources.LogLevel("info", "Waiting needed as per documentation for operator to restart containerd and stabilize")
@@ -88,23 +100,44 @@ func TestNvidiaGPUFunctionality(cluster *driver.Cluster, nvidiaVersion string) {
 	Expect(err).NotTo(HaveOccurred(), "failed to get node name: %v", err)
 	Expect(nodeName).NotTo(BeEmpty(), "Node name is empty")
 
-	validateNvidiaOperatorDeploy(nodeName)
+	validateNvidiaOperatorDeploy(nodeName, operatorConfig.operatorManagedDriver)
+	if operatorConfig.operatorManagedDriver {
+		validateNvidiaVersion(targetNodeIP)
+		validateNvidiaLibMl(targetNodeIP, true)
+	}
 
 	validateNvidiaGPU(nodeName)
-
-	validateNvidiaRunBinPath(targetNodeIP)
-
-	validateContainerdConfig(targetNodeIP)
-
-	validateNvidiaToolKit(targetNodeIP)
-
-	err = validateNvidiaModule(targetNodeIP)
-	Expect(err).NotTo(HaveOccurred(), "NVIDIA module not found: %v", err)
+	validateNvidiaRuntime(targetNodeIP, operatorConfig)
 
 	workloadErr = resources.ManageWorkload("apply", "nvidia-benchmark.yaml")
 	Expect(workloadErr).NotTo(HaveOccurred(), "nvidia benchmark manifests not deployed")
 	validateNvidiaBenchmarkPodStatus()
 	validateBenchmark()
+}
+
+func validateNvidiaRuntime(ip string, config nvidiaOperatorConfig) {
+	validateNvidiaRunBinPath(ip)
+	if !config.nriEnabled {
+		validateContainerdConfig(ip)
+	}
+	validateNvidiaToolKit(ip)
+
+	err := validateNvidiaModule(ip)
+	Expect(err).NotTo(HaveOccurred(), "NVIDIA module not found: %v", err)
+}
+
+func nvidiaOperatorWorkload(nodeOS string) nvidiaOperatorConfig {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(nodeOS)), "sles") {
+		return nvidiaOperatorConfig{
+			workload:              "nvidia-operator-sles.yaml",
+			operatorManagedDriver: true,
+		}
+	}
+
+	return nvidiaOperatorConfig{
+		workload:   "nvidia-operator.yaml",
+		nriEnabled: true,
+	}
 }
 
 func verifyGPUHardwarePresence(ip, nodeOs string) {
@@ -260,6 +293,8 @@ func installNvidiaDriverSles(ip string) string {
 	driverVersion = strings.TrimSpace(driverVersion)
 	resources.LogLevel("info", "Extracted driver version for compute-utils matching: %s", driverVersion)
 
+	ensureSlesModuleForRunningKernel(ip)
+
 	resources.LogLevel("info", "Loading NVIDIA kernel module")
 	loadModule := "sudo modprobe nvidia && sudo modprobe nvidia-uvm"
 	modRes, modErr := resources.RunCommandOnNode(loadModule, ip)
@@ -278,6 +313,48 @@ func installNvidiaDriverSles(ip string) string {
 	resources.LogLevel("info", "NVIDIA kernel modules loaded:\n%s", strings.TrimSpace(modCheck))
 
 	return driverVersion
+}
+
+// ensureSlesModuleForRunningKernel reboots into the updated kernel when the
+// SLES repo ships a KMP built for a newer kernel than the AMI is running.
+func ensureSlesModuleForRunningKernel(ip string) {
+	if _, modinfoErr := resources.RunCommandOnNode("sudo modinfo nvidia > /dev/null 2>&1", ip); modinfoErr == nil {
+		return
+	}
+
+	runningKernel, _ := resources.RunCommandOnNode("uname -r", ip)
+	resources.LogLevel("info", "nvidia module not available for running kernel %s, "+
+		"rebooting into the updated kernel", strings.TrimSpace(runningKernel))
+
+	rebootNvidiaNodeAndWait(ip)
+
+	newKernel, _ := resources.RunCommandOnNode("uname -r", ip)
+	resources.LogLevel("info", "Reboot complete, running kernel is now: %s", strings.TrimSpace(newKernel))
+}
+
+func rebootNvidiaNodeAndWait(ip string) {
+	// The SSH connection can drop mid-command, so an error return is expected.
+	_, _ = resources.RunCommandOnNode("sudo systemctl reboot", ip)
+	time.Sleep(30 * time.Second)
+
+	sshErr := resources.WaitForSSHReadyWithTimeout(ip, 5*time.Minute)
+	Expect(sshErr).ToNot(HaveOccurred(), "node did not come back from reboot: %v", sshErr)
+
+	retryErr := retry.Do(
+		func() error {
+			out, err := resources.RunCommandOnNode(
+				"sudo systemctl is-active rke2-server 2>/dev/null || sudo systemctl is-active k3s 2>/dev/null", ip)
+			if err != nil || strings.TrimSpace(out) != "active" {
+				return fmt.Errorf("kubernetes service not active yet: %s", strings.TrimSpace(out))
+			}
+
+			return nil
+		},
+		retry.Attempts(30),
+		retry.Delay(10*time.Second),
+		retry.DelayType(retry.FixedDelay),
+	)
+	Expect(retryErr).ToNot(HaveOccurred(), "kubernetes service did not come back after reboot: %v", retryErr)
 }
 
 func installNvidiaComputeUtilsSles(ip, driverVersion string) {
@@ -341,12 +418,6 @@ func initialSetupRHEL(ip, nvidiaVersion string) {
 	Expect(nvidiaVersion).NotTo(BeEmpty(), "nvidiaVersion parameter is required for RHEL. "+
 		"Please set NVIDIA_VERSION environment variable or pass it as a flag to the test.")
 
-	// create a empty dummy repo file to GPU operator acknowledge.
-	repoFile := "sudo mkdir -p /etc/yum.repos.d && sudo touch /etc/yum.repos.d/redhat.repo && " +
-		"sudo chmod 644 /etc/yum.repos.d/redhat.repo"
-	_, repoErr := resources.RunCommandOnNode(repoFile, ip)
-	Expect(repoErr).ToNot(HaveOccurred(), "error creating repo file: %v", repoErr)
-
 	resources.LogLevel("info", "Downloading NVIDIA driver version %s from NVIDIA website", nvidiaVersion)
 	downloadDriver := "sudo curl -fSsl -O  https://us.download.nvidia.com/tesla/" +
 		nvidiaVersion + "/NVIDIA-Linux-x86_64-" + nvidiaVersion + ".run"
@@ -366,6 +437,8 @@ func initialSetupRHEL(ip, nvidiaVersion string) {
 	Expect(kernelErr).ToNot(HaveOccurred(), "error installing kernel packages: %v", kernelErr)
 	resources.LogLevel("info", "Installed kernel development packages")
 
+	disableNouveauIfLoaded(ip)
+
 	// update sim link so when driver is installed,
 	// it will use the correct kernel version and it will find the path.
 	kernelPath := "/usr/src/kernels/" + kernelVersion
@@ -380,9 +453,35 @@ func initialSetupRHEL(ip, nvidiaVersion string) {
 	Expect(installErr).ToNot(HaveOccurred(), "error installing NVIDIA driver: %v", installErr)
 	resources.LogLevel("info", "Installed NVIDIA driver")
 
+	// Dummy redhat.repo for the driver daemonset's hostPath mount; must run
+	// AFTER the last yum call — RHEL 10's subscription-manager deletes it.
+	repoFile := "sudo mkdir -p /etc/yum.repos.d && sudo touch /etc/yum.repos.d/redhat.repo && " +
+		"sudo chmod 644 /etc/yum.repos.d/redhat.repo"
+	_, repoErr := resources.RunCommandOnNode(repoFile, ip)
+	Expect(repoErr).ToNot(HaveOccurred(), "error creating repo file: %v", repoErr)
+
 	s := "sudo setenforce 0"
 	_, cmdErr := resources.RunCommandOnNode(s, ip)
 	Expect(cmdErr).ToNot(HaveOccurred(), "error setting SELinux to permissive mode: %v", cmdErr)
+}
+
+func disableNouveauIfLoaded(ip string) {
+	modules, err := resources.RunCommandOnNode("sudo lsmod", ip)
+	Expect(err).ToNot(HaveOccurred(), "failed to inspect loaded kernel modules: %v", err)
+	if !kernelModuleLoaded(modules, "nouveau") {
+		return
+	}
+
+	resources.LogLevel("info", "Disabling the Nouveau driver before installing NVIDIA")
+	blacklistCmd := "printf 'blacklist nouveau\\noptions nouveau modeset=0\\n' | " +
+		"sudo tee /etc/modprobe.d/blacklist-nouveau.conf >/dev/null && sudo dracut --force --regenerate-all"
+	_, blacklistErr := resources.RunCommandOnNode(blacklistCmd, ip)
+	Expect(blacklistErr).ToNot(HaveOccurred(), "failed to blacklist Nouveau and rebuild initramfs: %v", blacklistErr)
+
+	rebootNvidiaNodeAndWait(ip)
+	modules, err = resources.RunCommandOnNode("sudo lsmod", ip)
+	Expect(err).ToNot(HaveOccurred(), "failed to inspect modules after disabling Nouveau: %v", err)
+	Expect(kernelModuleLoaded(modules, "nouveau")).To(BeFalse(), "Nouveau is still loaded after reboot")
 }
 
 func validateNvidiaVersion(ip string) {
@@ -407,61 +506,134 @@ func validateNvidiaVersion(ip string) {
 	resources.LogLevel("info", "NVIDIA driver version:\n%s", res)
 }
 
-func validateNvidiaLibMl(ip string) {
+func validateNvidiaLibMl(ip string, operatorManagedDriver bool) {
 	// search for libnvidia-ml library (may have version suffix like .so.1 or .so.580.95.05)
-	findCmd := "sudo find /usr/ -name 'libnvidia-ml.so*' 2>/dev/null | head -5"
+	libraryRoot := nvidiaDriverLibraryRoot(operatorManagedDriver)
+	findCmd := "sudo find " + libraryRoot + " -name 'libnvidia-ml.so*' 2>/dev/null | head -5"
 
 	res, err := resources.RunCommandOnNode(findCmd, ip)
 	Expect(err).NotTo(HaveOccurred(), "failed to find libnvidia-ml.so: %v", err)
-	Expect(res).NotTo(BeEmpty(), "libnvidia-ml.so library not found in /usr/")
-	Expect(res).To(Or(
-		ContainSubstring("/usr/lib64/libnvidia-ml.so"),
-		ContainSubstring("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")),
-		"libnvidia-ml.so not found in expected library paths")
+	Expect(res).NotTo(BeEmpty(), "libnvidia-ml.so library not found in %s", libraryRoot)
+	if operatorManagedDriver {
+		Expect(res).To(ContainSubstring("/run/nvidia/driver/usr/lib64/libnvidia-ml.so"),
+			"libnvidia-ml.so not found in the managed SLES driver path")
+	} else {
+		Expect(res).To(Or(
+			ContainSubstring("/usr/lib64/libnvidia-ml.so"),
+			ContainSubstring("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so")),
+			"libnvidia-ml.so not found in expected host library paths")
+	}
 
 	resources.LogLevel("info", "libnvidia-ml.so library found:\n%s", res)
 }
 
-func validateNvidiaOperatorDeploy(nodeName string) {
-	cmd := fmt.Sprintf("kubectl get node %s  --kubeconfig=%s -o jsonpath=\"{.metadata.labels}\" ",
-		strings.TrimSpace(nodeName), resources.KubeConfigFile)
-
-	labelsToFind := []string{
-		"\"nvidia.com/gpu.deploy.driver\":" + "\"pre-installed\"",
-		"nvidia.com/cuda.driver.major",
-		"nvidia.com/gpu.machine",
-		"nvidia.com/gpu.count",
-		"nvidia.com/gpu.product",
-	}
-	resources.LogLevel("debug", "Searching for labels: %s", strings.Join(labelsToFind, ", "))
-
+func validateNvidiaOperatorDeploy(nodeName string, operatorManagedDriver bool) {
 	retryErr := retry.Do(
 		func() error {
-			res, err := resources.RunCommandHost(cmd)
-			resources.LogLevel("debug", "Node labels output: %s", res)
+			res, err := resources.RunHostArgs("kubectl", "get", "node", strings.TrimSpace(nodeName),
+				"--kubeconfig="+resources.KubeConfigFile, "-o", "json")
 			if err != nil {
 				return fmt.Errorf("failed to get node labels: %w", err)
 			}
 
-			if strings.TrimSpace(res) == "" {
-				return errors.New("node labels are empty")
+			if err := validateNvidiaNodeLabels(res, operatorManagedDriver); err != nil {
+				return err
 			}
 
-			for _, label := range labelsToFind {
-				if !strings.Contains(res, label) {
-					return fmt.Errorf("label %s not found in node labels", label)
-				}
+			if !operatorManagedDriver {
+				return nil
 			}
 
-			return nil
+			return validateManagedNvidiaDriverReady()
 		},
 		retry.Attempts(40),
 		retry.Delay(10*time.Second),
+		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
 			resources.LogLevel("warn", "Attempt %d failed, retrying to get node labels: %v", n+1, err)
 		}))
 
-	Expect(retryErr).NotTo(HaveOccurred(), "failed to get node labels after multiple attempts: %v", retryErr)
+	Expect(retryErr).NotTo(HaveOccurred(), "NVIDIA Operator did not converge after multiple attempts: %v", retryErr)
+}
+
+func nvidiaDriverLibraryRoot(operatorManagedDriver bool) string {
+	if operatorManagedDriver {
+		return "/run/nvidia/driver"
+	}
+
+	return "/usr"
+}
+
+func nvidiaDriverLabelValue(operatorManagedDriver bool) string {
+	if operatorManagedDriver {
+		return "true"
+	}
+
+	return "pre-installed"
+}
+
+func validateNvidiaNodeLabels(output string, operatorManagedDriver bool) error {
+	var node struct {
+		Metadata struct {
+			Labels map[string]string `json:"labels"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal([]byte(output), &node); err != nil {
+		return fmt.Errorf("failed to decode node labels: %w", err)
+	}
+
+	driverLabel := nvidiaDriverLabelValue(operatorManagedDriver)
+	if node.Metadata.Labels["nvidia.com/gpu.deploy.driver"] != driverLabel {
+		return fmt.Errorf("label nvidia.com/gpu.deploy.driver=%s not found", driverLabel)
+	}
+
+	for _, label := range []string{
+		"nvidia.com/cuda.driver.major",
+		"nvidia.com/gpu.machine",
+		"nvidia.com/gpu.count",
+		"nvidia.com/gpu.product",
+	} {
+		if _, found := node.Metadata.Labels[label]; !found {
+			return fmt.Errorf("label %s not found", label)
+		}
+	}
+
+	return nil
+}
+
+func validateManagedNvidiaDriverReady() error {
+	policyState, err := resources.RunHostArgs("kubectl", "get", "clusterpolicy", "cluster-policy",
+		"--kubeconfig="+resources.KubeConfigFile, "-o", "jsonpath={.status.state}")
+	if err != nil {
+		return fmt.Errorf("failed to get NVIDIA ClusterPolicy state: %w", err)
+	}
+
+	daemonSetStatus, err := resources.RunHostArgs("kubectl", "get", "daemonset", "-n", "gpu-operator",
+		"-l", "app=nvidia-driver-daemonset", "--kubeconfig="+resources.KubeConfigFile,
+		"-o", "jsonpath={.items[0].status.desiredNumberScheduled}:{.items[0].status.numberReady}")
+	if err != nil {
+		return fmt.Errorf("failed to get NVIDIA driver DaemonSet state: %w", err)
+	}
+
+	return managedNvidiaDriverReady(policyState, daemonSetStatus)
+}
+
+func managedNvidiaDriverReady(policyState, daemonSetStatus string) error {
+	if !strings.EqualFold(strings.TrimSpace(policyState), "ready") {
+		return fmt.Errorf("NVIDIA ClusterPolicy is not ready: %q", strings.TrimSpace(policyState))
+	}
+
+	parts := strings.Split(strings.TrimSpace(daemonSetStatus), ":")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid NVIDIA driver DaemonSet state %q", daemonSetStatus)
+	}
+	desired, desiredErr := strconv.Atoi(parts[0])
+	ready, readyErr := strconv.Atoi(parts[1])
+	if desiredErr != nil || readyErr != nil || desired == 0 || ready != desired {
+		return fmt.Errorf("NVIDIA driver DaemonSet is not ready: %q", daemonSetStatus)
+	}
+
+	return nil
 }
 
 func validateNvidiaGPU(nodeName string) {
@@ -514,40 +686,56 @@ func validateNvidiaRunBinPath(ip string) {
 }
 
 func validateNvidiaModule(ip string) error {
-	lsmodCmd := "sudo lsmod | grep nvidia"
-	modulesToCheck := []string{
-		"nvidia",
-		"nvidia_uvm",
-		"nvidia_drm",
-		"nvidia_modeset",
-	}
-
-	// TODO: restore CmdNodeRetryCfg
-	// cfg := resources.CmdNodeRetryCfg()
-	cfg := resources.RetryCfg{
-		Attempts:                20,
-		Delay:                   10 * time.Second,
-		RetryableErrorSubString: []string{"No such file or directory"},
-	}
-
-	out, err := resources.RunCommandOnNodeWithRetry(lsmodCmd, ip, &cfg)
-	Expect(err).NotTo(HaveOccurred(),
-		"failed to find nvidia module via lsmod after multiple attempts: %v", err)
-
-	for _, module := range modulesToCheck {
-		if !strings.Contains(out, module) {
-			resources.LogLevel("warn", "NVIDIA module %s not found in lsmod output:\n%s\nRetrying...", module, out)
-
-			output, retryErr := resources.RunCommandOnNode(module, ip)
-			if !strings.Contains(output, module) {
-				return fmt.Errorf("NVIDIA module %s not found in lsmod output:\n%s\n%v", module, output, retryErr)
+	var out string
+	retryErr := retry.Do(
+		func() error {
+			var err error
+			out, err = resources.RunCommandOnNode("sudo lsmod", ip)
+			if err != nil {
+				return fmt.Errorf("failed to list kernel modules: %w", err)
 			}
-		}
+
+			missing := missingKernelModules(out, []string{"nvidia", "nvidia_uvm"})
+			if len(missing) != 0 {
+				return fmt.Errorf("required NVIDIA modules not loaded: %s", strings.Join(missing, ", "))
+			}
+
+			return nil
+		},
+		retry.Attempts(20),
+		retry.Delay(10*time.Second),
+		retry.DelayType(retry.FixedDelay),
+	)
+	if retryErr != nil {
+		return fmt.Errorf("NVIDIA compute modules not ready: %w\nlsmod output:\n%s", retryErr, out)
 	}
 
 	resources.LogLevel("info", "NVIDIA modules found:\n%s", out)
 
 	return nil
+}
+
+func missingKernelModules(output string, required []string) []string {
+	loaded := make(map[string]struct{})
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 0 {
+			loaded[fields[0]] = struct{}{}
+		}
+	}
+
+	missing := make([]string, 0, len(required))
+	for _, module := range required {
+		if _, found := loaded[module]; !found {
+			missing = append(missing, module)
+		}
+	}
+
+	return missing
+}
+
+func kernelModuleLoaded(output, module string) bool {
+	return len(missingKernelModules(output, []string{module})) == 0
 }
 
 func validateNvidiaBenchmarkPodStatus() {
@@ -564,23 +752,30 @@ func validateNvidiaBenchmarkPodStatus() {
 				return fmt.Errorf("failed to get benchmark pod status: %w", err)
 			}
 
-			podStatus = strings.TrimSpace(podStatus)
-			if podStatus != "Succeeded" && podStatus != "Running" && podStatus != "Completed" {
-				return errors.New("benchmark pod status is not Succeeded/Running/Completed")
-			}
-
-			return nil
+			return benchmarkPodPhaseError(podStatus)
 		},
 		retry.Attempts(20),
 		retry.Delay(5*time.Second),
+		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
 			resources.LogLevel("warn", "Attempt %d failed, retrying to get benchmark pod status: %v", n+1, err)
 		}),
 	)
-	Expect(retryErr).NotTo(HaveOccurred(), "failed to get benchmark pod status "+
-		"after multiple attempts: %v", retryErr)
+	Expect(retryErr).NotTo(HaveOccurred(), "failed waiting for benchmark pod to succeed: %v", retryErr)
 
 	resources.LogLevel("info", "Benchmark pod status: %s", podStatus)
+}
+
+func benchmarkPodPhaseError(podStatus string) error {
+	podStatus = strings.TrimSpace(podStatus)
+	switch podStatus {
+	case "Succeeded":
+		return nil
+	case "Failed":
+		return retry.Unrecoverable(errors.New("benchmark pod failed"))
+	default:
+		return fmt.Errorf("benchmark pod phase is %q, waiting for Succeeded", podStatus)
+	}
 }
 
 func validateBenchmark() {

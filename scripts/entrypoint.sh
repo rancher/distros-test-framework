@@ -1,11 +1,38 @@
 #!/bin/sh
 
-ENV_PATH="/go/src/github.com/rancher/distros-test-framework/config/.env"
+umask 077
+
+copy_runtime_file() {
+    runtime_source=$1
+    runtime_target=$2
+    if [ ! -f "$runtime_source" ]; then
+        echo "ERROR: runtime input is missing or not a regular file: $runtime_source" >&2
+        exit 1
+    fi
+    runtime_tmp=$(mktemp "${runtime_target}.tmp.XXXXXX") || exit 1
+    if ! cp "$runtime_source" "$runtime_tmp" || ! chmod 600 "$runtime_tmp" || \
+        ! mv -f "$runtime_tmp" "$runtime_target"; then
+        rm -f "$runtime_tmp"
+        echo "ERROR: failed to stage runtime input: $runtime_source" >&2
+        exit 1
+    fi
+}
+
+CONTAINER_ROOT="${DTF_CONTAINER_ROOT:-/go/src/github.com/rancher/distros-test-framework}"
+ENV_PATH="${CONTAINER_ROOT}/config/.env"
+if [ -n "${DTF_CONFIG_ENV_SOURCE:-}" ]; then
+    copy_runtime_file "$DTF_CONFIG_ENV_SOURCE" "$ENV_PATH"
+fi
+
 if [ "$PROVISIONER_MODULE" = "legacy" ] || [ -z "$PROVISIONER_MODULE" ]; then 
 [ -n "$ENV_PRODUCT" ] && sed -i "s/ENV_PRODUCT=.*/ENV_PRODUCT=$ENV_PRODUCT/" "$ENV_PATH"
 [ -n "$ENV_TFVARS" ] && sed -i "s/ENV_TFVARS=.*/ENV_TFVARS=$ENV_TFVARS/" "$ENV_PATH"
 
-CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PRODUCT}.tfvars"
+CONFIG_PATH="${CONTAINER_ROOT}/config/${ENV_PRODUCT}.tfvars"
+if [ -n "${DTF_LEGACY_TFVARS_SOURCE:-}" ]; then
+    copy_runtime_file "$DTF_LEGACY_TFVARS_SOURCE" "$CONFIG_PATH"
+fi
+
 [ -n "$INSTALL_VERSION" ] && sed -i "s/k3s_version\s*=\s*.*/k3s_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
 [ -n "$INSTALL_VERSION" ] && sed -i "s/rke2_version\s*=\s*.*/rke2_version = \"$INSTALL_VERSION\"/" "$CONFIG_PATH"
 [ -n "$SSH_KEY_NAME" ] && sed -i "s/key_name\s*=\s*.*/key_name = \"$SSH_KEY_NAME\"/" "$CONFIG_PATH"
@@ -26,7 +53,11 @@ CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/config/${ENV_PROD
 else
 
 echo "PROVISIONER_MODULE is using qainfra" 
-CONFIG_PATH="/go/src/github.com/rancher/distros-test-framework/infrastructure/qainfra/vars.tfvars"
+CONFIG_PATH="${CONTAINER_ROOT}/infrastructure/qainfra/vars.tfvars"
+if [ -n "${DTF_QA_INFRA_TFVARS_SOURCE:-}" ]; then
+    copy_runtime_file "$DTF_QA_INFRA_TFVARS_SOURCE" "$CONFIG_PATH"
+fi
+
 [ -n "$SSH_USER" ] && sed -i "s/aws_ssh_user\s*=\s*.*/aws_ssh_user = \"$SSH_USER\"/" "$CONFIG_PATH"
 [ -n "$AWS_AMI" ] && sed -i "s/aws_ami\s*=\s*.*/aws_ami = \"$AWS_AMI\"/" "$CONFIG_PATH"
 
@@ -66,7 +97,6 @@ cat /tmp/nodes_config.txt >> "$CONFIG_PATH"
 rm /tmp/nodes_config.txt
 
 echo "Cluster configuration updated successfully"
-cat "$CONFIG_PATH"
 fi
 
 exec bash ./scripts/test_runner.sh "$@"

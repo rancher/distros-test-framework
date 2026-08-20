@@ -3,6 +3,7 @@ package assert
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/resources"
 
@@ -19,10 +20,14 @@ func CheckComponentCmdHost(cmd string, asserts ...string) error {
 		return fmt.Errorf("cmd: %s should not be sent empty", cmd)
 	}
 	Eventually(func() error {
-		res, err := resources.RunCommandHost(cmd)
+		// short per-attempt timeout so one hung command cannot eat the whole
+		// 420s budget and starve the retries.
+		res, err := resources.RunCommandHostWithTimeout(60*time.Second, cmd)
+		if err != nil {
+			return fmt.Errorf("cmd %q failed: %w", cmd, err)
+		}
 		cleanRes := resources.CleanString(res)
 
-		Expect(err).ToNot(HaveOccurred())
 		for _, assert := range asserts {
 			if assert == "" {
 				return fmt.Errorf("assert: %s should not be sent empty", assert)

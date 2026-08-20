@@ -28,6 +28,10 @@ var (
 	reportSummary string
 	reportErr     error
 	err           error
+
+	// Set by the replacement spec so its EC2 nodes outlive the AfterSuite
+	// report and uninstall-policy checks; nil for every other upgrade flow.
+	replacementNodesCleanup func()
 )
 
 func TestMain(m *testing.M) {
@@ -71,6 +75,14 @@ var _ = AfterSuite(func() {
 	// Destroy must run even if the uninstall-policy assertions fail,
 	// otherwise a red teardown check leaks the whole infrastructure.
 	defer entrypoint.DestroyOnlyAfterSuite(&infraConfig)()
+
+	// LIFO: replacement nodes are removed after the checks below but before
+	// the tofu destroy, and even when an assertion in this body fails.
+	defer func() {
+		if replacementNodesCleanup != nil {
+			replacementNodesCleanup()
+		}
+	}()
 
 	reportSummary, reportErr = report.SummaryReportData(cluster, flags)
 	if reportErr != nil {

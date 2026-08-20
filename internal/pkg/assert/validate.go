@@ -103,8 +103,10 @@ func runAssertion(
 // Need to send kubeconfig file.
 func ValidateOnHost(args ...string) error {
 	exec := func(cmd string) (string, error) {
-		return resources.RunCommandHost(cmd)
+		// per-attempt bound below the loop's 120s budget so retries survive.
+		return resources.RunCommandHostWithTimeout(30*time.Second, cmd)
 	}
+
 	return validate(exec, args...)
 }
 

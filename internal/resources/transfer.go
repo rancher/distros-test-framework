@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -34,24 +35,14 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
-		scp := fmt.Sprintf(
-			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
-				"scp -i %[2]s -o StrictHostKeyChecking=no %[3]s %[4]s@%[1]s:%[5]s",
-			ip,
-			keyPath,
-			localPath,
-			c.SSH.User,
-			remotePath,
-		)
+		args := scpArgs(keyPath, localPath, c.SSH.User, ip, remotePath)
 
-		LogLevel("debug", "Running scp command: %s\n", scp)
-		res, cmdErr := RunCommandHost(scp)
-		if res != "" {
-			LogLevel("warn", "SCP output: %s\n", res)
+		LogLevel("debug", "Running scp %v\n", args)
+		out, cmdErr := exec.Command("scp", args...).CombinedOutput()
+		if len(out) > 0 {
+			LogLevel("warn", "SCP output: %s\n", string(out))
 		}
 		if cmdErr != nil {
-			// Fresh RHEL nodes reset new openssh connections at the banner phase
-			// during early boot; ship over the working go-ssh channel instead.
 			LogLevel("warn", "scp failed (%v); falling back to ssh copy for %s", cmdErr, localPath)
 			if sshErr := copyFileViaSSH(localPath, remotePath, ip); sshErr != nil {
 				return errors.Join(cmdErr, sshErr)
@@ -67,6 +58,22 @@ func RunScp(c *driver.Cluster, ip string, localPaths, remotePaths []string) erro
 	}
 
 	return nil
+}
+
+// scpArgs builds the scp argv. Arguments stay separated (no shell), so paths
+// with spaces or metacharacters cannot break out of the command.
+func scpArgs(keyPath, localPath, user, ip, remotePath string) []string {
+	return []string{
+		"-i", keyPath,
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "BatchMode=yes",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "ConnectTimeout=10",
+		"-o", "LogLevel=ERROR",
+		"--",
+		localPath,
+		user + "@" + ip + ":" + remotePath,
+	}
 }
 
 // copyFileViaSSH streams a local file to the node through the established SSH

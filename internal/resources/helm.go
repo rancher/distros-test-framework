@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 )
 
 // InstallHelm installs helm on the container. Uses /usr/local/bin when the
@@ -59,11 +60,29 @@ func InstallHelm() (res string, err error) {
 
 // CheckHelmRepo checks a helm chart is available on the repo.
 func CheckHelmRepo(name, url, version string) (string, error) {
-	addRepo := fmt.Sprintf("helm repo add %s %s", name, url)
-	update := "helm repo update"
-	searchRepo := fmt.Sprintf("helm search repo %s --devel -l | grep %s", name, version)
+	if _, err := RunHostArgs("helm", "repo", "add", "--", name, url); err != nil {
+		return "", err
+	}
+	if _, err := RunHostArgs("helm", "repo", "update"); err != nil {
+		return "", err
+	}
 
-	return RunCommandHost(addRepo, update, searchRepo)
+	out, err := RunHostArgs("helm", "search", "repo", "--devel", "-l", "--", name)
+	if err != nil {
+		return out, err
+	}
+
+	var hits []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, version) {
+			hits = append(hits, line)
+		}
+	}
+	if len(hits) == 0 {
+		return "", fmt.Errorf("version %s not found in helm repo %s", version, name)
+	}
+
+	return strings.Join(hits, "\n"), nil
 }
 
 // getBinPath picks the binary install directory. Prefers /usr/local/bin when

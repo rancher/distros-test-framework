@@ -10,9 +10,11 @@ spec:
   targetNamespace: gpu-operator
   createNamespace: true
   valuesContent: |-
-    cdi:
-      nriPluginEnabled: true
     toolkit:
       env:
       - name: CONTAINERD_SOCKET
         value: /run/k3s/containerd/containerd.sock
+    driver:
+      repository: registry.suse.com/third-party/nvidia
+      usePrecompiled: true
+      version: 595

@@ -28,8 +28,12 @@ var (
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
 	flag.Var(&flags.Destroy, "destroy", "Destroy cluster after test")
-	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "", "Nvidia version")
+	// latest supported datacenter driver; SUSE nodes always install the
+	// latest KMP from the distro repos instead.
+	flag.StringVar(&flags.Nvidia.Version, "nvidiaVersion", "580.159.03", "Nvidia version")
 	flag.Parse()
+
+	customflag.ValidateNvidiaVersionFormat()
 
 	cfg, err = config.AddEnv()
 	if err != nil {

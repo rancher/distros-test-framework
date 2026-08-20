@@ -3,6 +3,7 @@ package testcase
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/assert"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -164,17 +165,7 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 
 	for _, serverIP := range cluster.ServerIPs {
 		if uninstall {
-			resources.LogLevel("info", "Uninstalling %s on server: %s", cluster.Config.Product, serverIP)
-			err := resources.ManageProductCleanup(cluster.Config.Product, "server", serverIP, "uninstall")
-			if err != nil {
-				if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "failed to find") {
-					resources.LogLevel("info", "Product %s already uninstalled on server: %s", cluster.Config.Product, serverIP)
-					continue
-				} else {
-					resources.LogLevel("error", "Failed to uninstall %s on server: %s, error: %v", cluster.Config.Product, serverIP, err)
-					Expect(err).NotTo(HaveOccurred(), "Failed to uninstall %s on server: %s", cluster.Config.Product, serverIP)
-				}
-			}
+			uninstallForPolicyCheck(cluster.Config.Product, "server", serverIP)
 		}
 
 		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
@@ -182,17 +173,7 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 
 	for _, agentIP := range cluster.AgentIPs {
 		if uninstall {
-			resources.LogLevel("info", "Uninstalling %s on agent: %s", cluster.Config.Product, agentIP)
-			err := resources.ManageProductCleanup(cluster.Config.Product, "agent", agentIP, "uninstall")
-			if err != nil {
-				if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "failed to find") {
-					resources.LogLevel("info", "Product %s already uninstalled on agent: %s", cluster.Config.Product, agentIP)
-					continue
-				} else {
-					resources.LogLevel("error", "Failed to uninstall %s on agent: %s, error: %v", cluster.Config.Product, agentIP, err)
-					Expect(err).NotTo(HaveOccurred(), "Failed to uninstall %s on agent: %s", cluster.Config.Product, agentIP)
-				}
-			}
+			uninstallForPolicyCheck(cluster.Config.Product, "agent", agentIP)
 		}
 
 		cmd := "rpm -qa " + cluster.Config.Product + "-selinux"
@@ -200,10 +181,73 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 	}
 }
 
+// uninstallForPolicyCheck tolerates inconclusive uninstall outcomes; pass/fail
+// is always decided by the rpm verification that follows.
+func uninstallForPolicyCheck(product, nodeType, ip string) {
+	resources.LogLevel("info", "Uninstalling %s on %s: %s", product, nodeType, ip)
+	err := resources.ManageProductCleanup(product, nodeType, ip, "uninstall")
+	switch {
+	case err == nil:
+	case isUninstallScriptMissing(err):
+		resources.LogLevel("info", "%s uninstall script absent on %s (already uninstalled?): %v", product, ip, err)
+	case isSessionKilledByUninstall(err):
+		resources.LogLevel("warn", "uninstall killed its own SSH session on %s; verifying outcome via rpm check", ip)
+	default:
+		resources.LogLevel("warn", "uninstall on %s returned an error; verifying outcome via rpm check: %v", ip, err)
+	}
+}
+
+// isUninstallScriptMissing matches only FindPath's genuine-absence sentinel;
+// connection or lookup failures also say "failed to find" but must not match.
+func isUninstallScriptMissing(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "path for ") &&
+		strings.Contains(err.Error(), " not found")
+}
+
+// isSessionKilledByUninstall matches the ssh ExitMissingError raised when the
+// uninstall killall tears down its own session; the rpm check is the real proof.
+func isSessionKilledByUninstall(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "exited without exit status")
+}
+
+const uninstallVerifyAttempts = 6
+
+// waitUninstallPolicyRemoved polls until the rpm query succeeds AND returns
+// empty; run/sleep are injectable so the retry ladder is unit-testable.
+func waitUninstallPolicyRemoved(
+	run func(cmd, ip string) (string, error),
+	sleep func(time.Duration),
+	product, ip, cmd string,
+) error {
+	var res string
+	var err error
+	for attempt := 1; attempt <= uninstallVerifyAttempts; attempt++ {
+		res, err = run(cmd, ip)
+		if err == nil && strings.TrimSpace(res) == "" {
+			return nil
+		}
+		if err != nil {
+			resources.LogLevel("warn", "uninstall verify attempt %d/%d for %s on %s failed: %v",
+				attempt, uninstallVerifyAttempts, product, ip, err)
+		} else {
+			resources.LogLevel("warn", "uninstall verify attempt %d/%d for %s on %s: still installed: %s",
+				attempt, uninstallVerifyAttempts, product, ip, strings.TrimSpace(res))
+		}
+		if attempt < uninstallVerifyAttempts {
+			sleep(10 * time.Second)
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("uninstall verification on %s failed: %w", ip, err)
+	}
+
+	return fmt.Errorf("%s packages still installed on %s after uninstall: %s", product, ip, strings.TrimSpace(res))
+}
+
 func verifyUninstallPolicy(product, ip, cmd string) {
-	res, err := resources.RunCommandOnNode(cmd, ip)
+	err := waitUninstallPolicyRemoved(resources.RunCommandOnNode, time.Sleep, product, ip, cmd)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(res).Should(BeEmpty())
 }
 
 // https://github.com/k3s-io/k3s/blob/master/install.sh.

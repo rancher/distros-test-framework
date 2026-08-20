@@ -2,7 +2,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.0"
+      version = "~> 6.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -50,11 +50,8 @@ module "cluster_nodes" {
   proxy_setup         = var.proxy_setup
   nodes               = var.nodes
 }
-
 # external_db module (Path B) is injected here by opentofu.go only when DATASTORE_TYPE=external and no endpoint was supplied.
-# __EXTERNAL_DB_MODULE__ 
-
-# Elastic IP support (gated on var.create_eip): the rebootinstances test needs stable public IPs, so we allocate one EIP per node and re-emit the relevant outputs with the EIP-backed addresses.
+# __EXTERNAL_DB_MODULE__
 
 locals {
   # Replicate upstream cluster_nodes' name-generation so we know each instance's Name tag at plan time.
@@ -67,10 +64,8 @@ locals {
     ]
   ])
 
-  # First etcd node becomes the primary master; fall back to the first cp node
-  # for external-datastore (kine) topologies with no etcd. Matches upstream's
-  # cluster_nodes `first_master_index` so the IP we expose as kube_api_host is
-  # the same node upstream picks. try() avoids index() errors when a role is absent.
+  # First etcd node becomes the primary master; fall back to the first cp node for external-datastore (kine) topologies with no etcd. Matches upstream's
+  # cluster_nodes `first_master_index` so the IP we expose as kube_api_host is the same node upstream picks.
   first_etcd_index   = try(index([for n in local.temp_node_names : contains(n.role, "etcd")], true), -1)
   first_cp_index     = try(index([for n in local.temp_node_names : contains(n.role, "cp")], true), -1)
   first_master_index = local.first_etcd_index >= 0 ? local.first_etcd_index : local.first_cp_index
@@ -99,7 +94,7 @@ data "aws_instance" "node" {
 
 resource "aws_eip" "node" {
   for_each = var.create_eip ? local.node_name_set : toset([])
-  vpc      = true
+  domain   = "vpc"
 
   tags = {
     Name = "tf-${var.aws_hostname_prefix}-${each.value}-eip"

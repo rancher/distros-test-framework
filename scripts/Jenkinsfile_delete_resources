@@ -84,8 +84,10 @@ node {
                   sh "echo 'This will be only a DRY RUN. No resources will be deleted during this job run.'"
                 }
                 sh """
-                docker run --name ${testContainer} -t ${imageName} sh -c \\
-                "cp ./.aws/* /root/.aws && ls -lrt /root/.aws && cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST} ${ARG_TEXT}"
+                docker run --name ${testContainer} -t \\
+                --mount 'type=bind,source=${env.WORKSPACE}/.aws,target=/root/.aws,readonly' \\
+                ${imageName} sh -c \\
+                "cd ./scripts && ./delete_resources.sh -r ${RESOURCE_PREFIX_LIST} ${ARG_TEXT}"
                  """
               } // stage Delete resources
             } finally {

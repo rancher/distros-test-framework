@@ -4,11 +4,13 @@ High level overview of the integration of the `qainfra-automation` repository in
 
 ## Overview
 
-The distros test framework now supports two infrastructure modules providers:
+The supported CI provisioning path uses `qainfra-automation` with OpenTofu and
+Ansible. It provides unified K3s and RKE2 configuration and supports additional
+infrastructure provider and provisioner implementations.
 
-- **Legacy**: Original Terraform modules (now in `infrastructure/legacy/` which will be deprecated)
-- **QA-Infra**: New standardized approach using `qainfra-automation` with OpenTofu and Ansible (in `infrastructure/qainfra/`) giving a unified configuration for both K3s and RKE2,
-allowing easy switching and adding new providers/provisioners implementations.
+Promotion is coordinated with Jenkins Job Builder: promote the QA Infra job
+definitions validated on JJB staging before or together with this framework
+branch. Existing JJB main jobs must not consume this Jenkinsfile beforehand.
 
 ## Architecture
 
@@ -62,7 +64,7 @@ It needs some new environment variables from `config/.env`:
 
 ```bash
 # FRAMEWORK VARS
-PROVISIONER_MODULE=qainfra                                  # Provider: qainfra or legacy
+PROVISIONER_MODULE=qainfra                                  # Jenkins provisioning path
 QA_INFRA_PROVIDER=aws                                       # qainfra module to use: aws, vsphere, harvester, etc. ( for now only aws is supported )
 QA_INFRA_REF=main                                           # qa-infra-automation git ref (tag/branch, NOT a bare SHA — feeds `git clone --branch`) for BOTH the tofu module sources and the ansible clone; use it to test an unmerged qa-infra branch end to end
 PROVISIONER_TYPE=opentofu                                   # Provisioner type: opentofu(tf), cluster api, etc.
@@ -82,8 +84,8 @@ ARCH=amd64                                                  # Architecture to us
 ### Environment Variables per test
 
 The vars above apply to every run. Each suite (selected by `TEST_DIR`, sometimes refined
-by `TEST_TAG`) needs a few extra vars. Uppercase names are canonical for qainfra; most also
-accept the legacy lowercase alias.
+by `TEST_TAG`) needs a few extra vars. Uppercase names are canonical; some lowercase
+compatibility aliases are still accepted.
 
 ```bash
 # Common to every suite
@@ -221,7 +223,7 @@ nodes = [
 
 ### 1. Infrastructure Provisioning (OpenTofu)
 
-When `PROVISIONER_MODULE=qainfra`, the framework:
+The QA Infra provisioning flow:
 
 - After having env vars or files done ( .env, vars.tfvars )
 - After your reach the entrypoint ( test_suites ) in any form ( docker,local,Jenkins... )

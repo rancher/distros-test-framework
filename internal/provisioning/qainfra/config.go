@@ -60,7 +60,7 @@ func loadQAInfra(i *driver.InfraConfig) *driver.InfraConfig {
 
 	infraConfig := buildInfraConfig(i, workspace, uniqueID, envConfig, ansiblePath, sshConfig)
 
-	resources.LogLevel("debug", "Created QA infra configuration:\n%+v", infraConfig)
+	resources.LogLevel("debug", "Created QA infra configuration")
 
 	return infraConfig
 }
@@ -256,7 +256,7 @@ func loadQAInfraTFVars(clusterConfig *driver.Cluster, airgapSetup, proxySetup bo
 	clusterConfig.Aws.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 	clusterConfig.Aws.SecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
 
-	resources.LogLevel("debug", "Cluster configuration loaded from vars.tfvars\n%+v", clusterConfig)
+	resources.LogLevel("debug", "Cluster configuration loaded from vars.tfvars")
 
 	return nil
 }

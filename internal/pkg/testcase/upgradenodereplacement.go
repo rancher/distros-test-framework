@@ -1,12 +1,16 @@
 package testcase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/aws"
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
@@ -58,9 +62,20 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token, resourceName)
 	}
 	// delete the last remaining server = leader.
+	// Resolve the leader's node name pre-delete so the wait can demand its drainage
+	// even while the Node object briefly lingers in the API after deletion.
+	removedNode, nodeNameErr := nodeNameByIP(serverLeaderIP)
+	Expect(nodeNameErr).NotTo(HaveOccurred(),
+		"resolve node name for leader %s before deletion: %v", serverLeaderIP, nodeNameErr)
+
 	delErr := deleteRemainServer(serverLeaderIP, awsClient)
 	Expect(delErr).NotTo(HaveOccurred(), "delete old nodes: %v", delErr)
 	resources.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
+
+	// Orphaned pods on removed nodes stay Running (and as service endpoints)
+	// until GC; post-upgrade asserts would flake on those dead backends.
+	convErr := waitWorkloadConvergence(removedNode, 5*time.Minute)
+	Expect(convErr).NotTo(HaveOccurred(), "workload convergence after node removal: %v", convErr)
 
 	clusterErr := validateClusterHealth()
 	if clusterErr != nil {
@@ -239,7 +254,7 @@ func nodeReplaceServers(
 
 	resources.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n",
 		newFirstServerIP)
-	kubeConfigUpdated, kbCfgErr := legacy.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
+	_, kbCfgErr := legacy.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
 	if kbCfgErr != nil {
 		return resources.ReturnLogError("error updating kubeconfig: %w with ip: %s", kbCfgErr, newFirstServerIP)
 	}
@@ -259,7 +274,7 @@ func nodeReplaceServers(
 		return err
 	}
 
-	resources.LogLevel("info", "Updated kubeconfig base64 string:\n%s\n", kubeConfigUpdated)
+	resources.LogLevel("info", "Updated kubeconfig for replacement cluster")
 
 	return nil
 }
@@ -680,7 +695,7 @@ func executeJoinCmd(cmd, ip string, delayTime bool) error {
 		return resources.ReturnLogError("server IP not sent\n")
 	}
 
-	resources.LogLevel("debug", "Executing: %s on ip: %s", cmd, ip)
+	resources.LogLevel("debug", "Executing node join command on ip: %s", ip)
 	res, err := resources.RunCommandOnNode(cmd, ip)
 	if err != nil {
 		return resources.ReturnLogError("error running cmd on node: %w\n", err)
@@ -700,6 +715,134 @@ func executeJoinCmd(cmd, ip string, delayTime bool) error {
 	}
 
 	return nil
+}
+
+// nodeNameByIP resolves the k8s node name whose addresses include the given IP,
+// retrying so a transient API error cannot silently disable the drainage wait.
+func nodeNameByIP(ip string) (string, error) {
+	k8sC, err := k8s.AddClient()
+	if err != nil {
+		return "", fmt.Errorf("error adding k8s client: %w", err)
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if attempt > 1 {
+			time.Sleep(5 * time.Second)
+		}
+		name, resolveErr := findNodeNameByIP(k8sC.Clientset, ip)
+		if resolveErr == nil {
+			return name, nil
+		}
+		lastErr = resolveErr
+		resources.LogLevel("warn", "resolve node name attempt %d/3 for %s failed: %v", attempt, ip, resolveErr)
+	}
+
+	return "", lastErr
+}
+
+func findNodeNameByIP(cs kubernetes.Interface, ip string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	nodeList, err := cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("list nodes: %w", err)
+	}
+	for i := range nodeList.Items {
+		for _, addr := range nodeList.Items[i].Status.Addresses {
+			if addr.Address == ip {
+				return nodeList.Items[i].Name, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no node found with address %s", ip)
+}
+
+// waitWorkloadConvergence blocks until removedNode is fully drained (absent from
+// the API, pods and endpoints) and no workload references a nonexistent node.
+func waitWorkloadConvergence(removedNode string, timeout time.Duration) error {
+	if removedNode == "" {
+		return errors.New("removed node name is required for the convergence wait")
+	}
+
+	k8sC, err := k8s.AddClient()
+	if err != nil {
+		return fmt.Errorf("error adding k8s client: %w", err)
+	}
+
+	deadline := time.Now().Add(timeout)
+	var lastDetail string
+	for {
+		converged, detail, checkErr := workloadsOnLiveNodes(k8sC.Clientset, removedNode)
+		switch {
+		case checkErr != nil:
+			lastDetail = fmt.Sprintf("check error: %v", checkErr)
+			resources.LogLevel("warn", "convergence check failed, retrying: %v", checkErr)
+		case converged:
+			resources.LogLevel("info", "Workloads converged: no pod or endpoint references a removed node")
+			return nil
+		default:
+			lastDetail = detail
+			resources.LogLevel("debug", "Waiting workload convergence: %s", detail)
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("workloads did not converge within %s, last state: %s", timeout, lastDetail)
+		}
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func workloadsOnLiveNodes(cs kubernetes.Interface, removedNode string) (converged bool, detail string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	nodeList, err := cs.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, "", fmt.Errorf("list nodes: %w", err)
+	}
+	liveNodes := make(map[string]bool, len(nodeList.Items))
+	for i := range nodeList.Items {
+		liveNodes[nodeList.Items[i].Name] = true
+	}
+	// The deleted Node object can linger in the API; never count it as live.
+	if removedNode != "" {
+		if liveNodes[removedNode] {
+			return false, fmt.Sprintf("removed node %s still present in the API", removedNode), nil
+		}
+		delete(liveNodes, removedNode)
+	}
+
+	podList, err := cs.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, "", fmt.Errorf("list pods: %w", err)
+	}
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if pod.Spec.NodeName != "" && !liveNodes[pod.Spec.NodeName] {
+			return false, fmt.Sprintf("pod %s/%s still on removed node %s",
+				pod.Namespace, pod.Name, pod.Spec.NodeName), nil
+		}
+	}
+
+	sliceList, err := cs.DiscoveryV1().EndpointSlices("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, "", fmt.Errorf("list endpointslices: %w", err)
+	}
+	for i := range sliceList.Items {
+		slice := &sliceList.Items[i]
+		for j := range slice.Endpoints {
+			nodeName := slice.Endpoints[j].NodeName
+			if nodeName != nil && *nodeName != "" && !liveNodes[*nodeName] {
+				return false, fmt.Sprintf("endpointslice %s/%s targets removed node %s",
+					slice.Namespace, slice.Name, *nodeName), nil
+			}
+		}
+	}
+
+	return true, "", nil
 }
 
 func validateClusterHealth() error {
