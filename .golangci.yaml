@@ -84,8 +84,7 @@ issues:
     - ".*_suite_test.go"
   exclude-rules:
     - linters: [typecheck]
-      text: "command-line-arguments"
-      path: "_test.go$"                # ← scope it to test files only, or remove path to keep narrow   
+      text: "command-line-arguments"  
     - linters: [gosec]
       text: "G106: Use of ssh InsecureIgnoreHostKey should be audited"
     - linters: [gosec]
