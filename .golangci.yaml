@@ -15,6 +15,7 @@ linters:
     - perfsprint
     - usestdlibvars
     - whitespace
+    - typecheck
 
 linters-settings:
   funlen:
@@ -84,6 +85,7 @@ issues:
   exclude-rules:
     - linters: [typecheck]
       text: "command-line-arguments"
+      path: "_test.go$"                # ← scope it to test files only, or remove path to keep narrow   
     - linters: [gosec]
       text: "G106: Use of ssh InsecureIgnoreHostKey should be audited"
     - linters: [gosec]
