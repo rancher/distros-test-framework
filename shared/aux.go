@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/distros-test-framework/pkg/logger"
@@ -163,13 +164,29 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 			remotePath,
 		)
 
-		LogLevel("debug", "Running scp command: %s\n", scp)
-		res, cmdErr := RunCommandHost(scp)
+		var res string
+		cmdErr := retry.Do(
+			func() error {
+				var err error
+				LogLevel("debug", "Running scp command: %s\n", scp)
+				res, err = RunCommandHost(scp)
+				if err != nil {
+					return fmt.Errorf("scp command failed: %w, output: %s", err, res)
+				}
+				return nil
+			},
+			retry.Attempts(5),
+			retry.Delay(10*time.Second),
+			retry.OnRetry(func(n uint, err error) {
+				LogLevel("warn", "Attempt %d/5 failed for scp on %s: %v", n+1, ip, err)
+			}),
+		)
+
 		if res != "" {
-			LogLevel("warn", "SCP output: %s\n", res)
+			LogLevel("debug", "SCP output: %s\n", res)
 		}
 		if cmdErr != nil {
-			LogLevel("error", "Failed to run scp: %v\n", cmdErr)
+			LogLevel("error", "Failed to run scp after retries: %v\n", cmdErr)
 			return cmdErr
 		}
 
