@@ -84,7 +84,7 @@ issues:
     - ".*_suite_test.go"
   exclude-rules:
     - linters: [typecheck]
-      text: "command-line-arguments"  
+      text: "command-line-arguments"
     - linters: [gosec]
       text: "G106: Use of ssh InsecureIgnoreHostKey should be audited"
     - linters: [gosec]
