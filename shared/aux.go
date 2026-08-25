@@ -154,8 +154,8 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	for i, localPath := range localPaths {
 		remotePath := remotePaths[i]
 		scp := fmt.Sprintf(
-			"ssh-keyscan %[1]s >> /root/.ssh/known_hosts && "+
-				"scp -i %[2]s -o StrictHostKeyChecking=no %[3]s %[4]s@%[1]s:%[5]s",
+			"ssh-keyscan -t rsa,ecdsa,ed25519 %[1]s >> /root/.ssh/known_hosts && "+
+				"scp -O -i %[2]s -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa %[3]s %[4]s@%[1]s:%[5]s",
 			ip,
 			keyPath,
 			localPath,
