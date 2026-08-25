@@ -24,8 +24,8 @@ const (
 func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	flags *customflag.FlagConfig,
 ) {
-	version := flags.InstallMode.String()
-	channel := flags.Channel.String()
+	version := strings.TrimSpace(flags.InstallMode.String())
+	channel := strings.TrimSpace(flags.Channel.String())
 	if version == "" {
 		Expect(version).NotTo(BeEmpty(), "version/commit is empty")
 	}
