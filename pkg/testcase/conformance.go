@@ -70,6 +70,40 @@ func TestConformance(version string) {
 	cleanupTests()
 }
 
+func TestStorageConformance(version string) {
+	err := shared.InstallSonobuoy("install", version)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Install helm
+	res, err := shared.InstallHelm()
+	if err != nil {
+		shared.LogLevel("debug", "helm install response:\n%v", res)
+		shared.LogLevel("error", "Error while installing helm %v\n", err)
+		os.Exit(1)
+	}
+	shared.LogLevel("debug", "helm version: %v", res)
+
+	err = shared.InstallLonghorn()
+	Expect(err).NotTo(HaveOccurred())
+
+	launchSonobuoyStorageTests()
+
+	statusErr := checkStatus()
+	Expect(statusErr).NotTo(HaveOccurred())
+
+	testResultTar, err := retrieveResultsTar()
+	Expect(err).NotTo(HaveOccurred())
+	shared.LogLevel("info", "%s", "testResultTar: "+testResultTar)
+
+	results := getResults(testResultTar)
+	shared.LogLevel("info", "sonobuoy results: %s", results)
+
+	resultsErr := validateResults(results)
+	Expect(resultsErr).NotTo(HaveOccurred())
+
+	cleanupTests()
+}
+
 func launchSonobuoyTests() {
 	shared.LogLevel("info", "checking namespace existence")
 
@@ -83,6 +117,24 @@ func launchSonobuoyTests() {
 	if strings.Contains(res, "Error from server (NotFound): namespaces \"sonobuoy\" not found") {
 		cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
 			" --mode=certified-conformance --kubernetes-version=" + shared.ExtractKubeImageVersion()
+		_, err := shared.RunCommandHost(cmd)
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func launchSonobuoyStorageTests() {
+	shared.LogLevel("info", "checking namespace existence before launching storage conformance")
+
+	cmds := "kubectl get namespace sonobuoy --kubeconfig=" + shared.KubeConfigFile
+	res, _ := shared.RunCommandHost(cmds)
+	if strings.Contains(res, "Active") {
+		shared.LogLevel("info", "%s", "sonobuoy namespace is active, waiting for it to complete")
+		return
+	}
+
+	if strings.Contains(res, "Error from server (NotFound): namespaces \"sonobuoy\" not found") {
+		cmd := "sonobuoy run --kubeconfig=" + shared.KubeConfigFile +
+			" --e2e-focus=\"\\[sig-storage\\]\" --kubernetes-version=" + shared.ExtractKubeImageVersion()
 		_, err := shared.RunCommandHost(cmd)
 		Expect(err).NotTo(HaveOccurred())
 	}
