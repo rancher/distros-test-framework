@@ -168,7 +168,8 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 func executeScpAndChmod(ip, keyPath, localPath, remotePath, awsUser string) error {
 	scp := fmt.Sprintf(
 		"ssh-keyscan -t rsa,ecdsa,ed25519 %[1]s >> /root/.ssh/known_hosts && "+
-			"scp -O -i %[2]s -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa %[3]s %[4]s@%[1]s:%[5]s",
+			"scp -O -i %[2]s -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa "+
+			"-o HostKeyAlgorithms=+ssh-rsa %[3]s %[4]s@%[1]s:%[5]s",
 		ip,
 		keyPath,
 		localPath,
