@@ -157,52 +157,60 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 	}
 
 	for i, localPath := range localPaths {
-		remotePath := remotePaths[i]
-		scp := fmt.Sprintf(
-			"ssh-keyscan -t rsa,ecdsa,ed25519 %[1]s >> /root/.ssh/known_hosts && "+
-				"scp -O -i %[2]s -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa %[3]s %[4]s@%[1]s:%[5]s",
-			ip,
-			keyPath,
-			localPath,
-			c.Aws.AwsUser,
-			remotePath,
-		)
-
-		var res string
-		cmdErr := retry.Do(
-			func() error {
-				LogLevel("debug", "Running scp command: %s\n", scp)
-				c := exec.Command("bash", "-c", scp)
-				var output, errOut bytes.Buffer
-				c.Stdout = &output
-				c.Stderr = &errOut
-				if err := c.Run(); err != nil {
-					return fmt.Errorf("scp command failed: %w, stderr: %s", err, errOut.String())
-				}
-				res = output.String()
-				return nil
-			},
-			retry.Attempts(5),
-			retry.Delay(10*time.Second),
-			retry.OnRetry(func(n uint, err error) {
-				LogLevel("warn", "Attempt %d/5 failed for scp on %s: %v", n+1, ip, err)
-			}),
-		)
-
-		if res != "" {
-			LogLevel("debug", "SCP output: %s\n", res)
+		if err := executeScpAndChmod(ip, keyPath, localPath, remotePaths[i], c.Aws.AwsUser); err != nil {
+			return err
 		}
-		if cmdErr != nil {
-			LogLevel("error", "Failed to run scp after retries: %v\n", cmdErr)
-			return cmdErr
-		}
+	}
 
-		chmod := "sudo chmod +wx " + remotePath
-		_, cmdErr = RunCommandOnNode(chmod, ip)
-		if cmdErr != nil {
-			LogLevel("error", "Failed to run chmod: %v\n", cmdErr)
-			return cmdErr
-		}
+	return nil
+}
+
+func executeScpAndChmod(ip, keyPath, localPath, remotePath, awsUser string) error {
+	scp := fmt.Sprintf(
+		"ssh-keyscan -t rsa,ecdsa,ed25519 %[1]s >> /root/.ssh/known_hosts && "+
+			"scp -O -i %[2]s -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa %[3]s %[4]s@%[1]s:%[5]s",
+		ip,
+		keyPath,
+		localPath,
+		awsUser,
+		remotePath,
+	)
+
+	var res string
+	cmdErr := retry.Do(
+		func() error {
+			LogLevel("debug", "Running scp command: %s\n", scp)
+			c := exec.Command("bash", "-c", scp)
+			var output, errOut bytes.Buffer
+			c.Stdout = &output
+			c.Stderr = &errOut
+			if err := c.Run(); err != nil {
+				return fmt.Errorf("scp command failed: %w, stderr: %s", err, errOut.String())
+			}
+			res = output.String()
+
+			return nil
+		},
+		retry.Attempts(5),
+		retry.Delay(10*time.Second),
+		retry.OnRetry(func(n uint, err error) {
+			LogLevel("warn", "Attempt %d/5 failed for scp on %s: %v", n+1, ip, err)
+		}),
+	)
+
+	if res != "" {
+		LogLevel("debug", "SCP output: %s\n", res)
+	}
+	if cmdErr != nil {
+		LogLevel("error", "Failed to run scp after retries: %v\n", cmdErr)
+		return cmdErr
+	}
+
+	chmod := "sudo chmod +wx " + remotePath
+	_, cmdErr = RunCommandOnNode(chmod, ip)
+	if cmdErr != nil {
+		LogLevel("error", "Failed to run chmod: %v\n", cmdErr)
+		return cmdErr
 	}
 
 	return nil
