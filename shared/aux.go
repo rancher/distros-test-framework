@@ -145,6 +145,10 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 		return ReturnLogError("the number of local paths and remote paths must be the same\n")
 	}
 
+	if err := WaitForSSHReady(ip); err != nil {
+		return ReturnLogError("ssh not ready on node %s: %w", ip, err)
+	}
+
 	// AccessKey is bind-mounted into the container, so `chmod 400` on it fails
 	// with "Permission denied" sometimes.
 	keyPath, err := prepareScpKey(c.Aws.AccessKey)
@@ -167,12 +171,15 @@ func RunScp(c *Cluster, ip string, localPaths, remotePaths []string) error {
 		var res string
 		cmdErr := retry.Do(
 			func() error {
-				var err error
 				LogLevel("debug", "Running scp command: %s\n", scp)
-				res, err = RunCommandHost(scp)
-				if err != nil {
-					return fmt.Errorf("scp command failed: %w, output: %s", err, res)
+				c := exec.Command("bash", "-c", scp)
+				var output, errOut bytes.Buffer
+				c.Stdout = &output
+				c.Stderr = &errOut
+				if err := c.Run(); err != nil {
+					return fmt.Errorf("scp command failed: %w, stderr: %s", err, errOut.String())
 				}
+				res = output.String()
 				return nil
 			},
 			retry.Attempts(5),
@@ -706,7 +713,7 @@ func WaitForSSHReady(ip string) error {
 		case <-ticker.C:
 			cmdOutput, sshErr := RunCommandOnNode("ls -lrt", ip)
 			if sshErr != nil {
-				LogLevel("warn", "SSH Error: %s", sshErr)
+				LogLevel("debug", "Waiting for SSH on %s: %v", ip, sshErr)
 				continue
 			}
 			if cmdOutput != "" {

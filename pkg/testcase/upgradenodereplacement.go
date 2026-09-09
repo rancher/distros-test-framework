@@ -761,6 +761,11 @@ func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType
 	shared.LogLevel("debug", "Created %s nodes with public ips: %s and ids: %s\n",
 		nodeType, newExternalIps, instanceIds)
 
+	// Wait for ssh to be ready on all new nodes before proceeding
+	for _, ip := range newExternalIps {
+		Expect(shared.WaitForSSHReady(ip)).NotTo(HaveOccurred(), "failed waiting for ssh on node %s", ip)
+	}
+
 	// If node os is slemicro prep/update it and reboot the node
 	prepSlemicroNodes(newExternalIps, cluster.NodeOS, awsClient)
 
