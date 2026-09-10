@@ -3,6 +3,7 @@ package testcase
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/rancher/distros-test-framework/pkg/aws"
 	"github.com/rancher/distros-test-framework/pkg/k8s"
@@ -21,6 +22,7 @@ const (
 
 // TestUpgradeClusterManual upgrades the cluster "manually".
 func TestUpgradeClusterManual(cluster *shared.Cluster, k8sClient *k8s.Client, version string) error {
+	version = strings.TrimSpace(version)
 	shared.LogLevel("info", "Upgrading cluster manually to version: %s", version)
 
 	if version == "" {
