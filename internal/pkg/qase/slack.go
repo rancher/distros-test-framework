@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
@@ -83,7 +85,7 @@ func ReportToSlack(fileName, product, ciArch, baseDir string, runID int32) error
 
 // postSlackResults handles the Slack posting logic including thread management and failure details.
 func postSlackResults(sc *slackClient, pd *processedTestdata, product, ciArch, baseDir string, runID int32) error {
-	failedDirs := getFailedTestDirs(pd, baseDir)
+	failedDirs := getFailedTestDirs(pd, baseDir, product)
 
 	var parentThreadTS string
 	isRerunEnv := os.Getenv("IS_RERUN")
@@ -113,30 +115,52 @@ func postSlackResults(sc *slackClient, pd *processedTestdata, product, ciArch, b
 	// detailed failure information if there are failures.
 	resources.LogLevel("info", "Failure details check: failedTests=%d, threadTS=%q, parentThreadTS=%q",
 		pd.failedTests, threadTS, parentThreadTS)
+	var detailsErr error
 	if pd.failedTests > 0 && (threadTS != "" || sc.dryRun) {
 		effectiveThreadTS := threadTS
 		if parentThreadTS != "" {
 			effectiveThreadTS = parentThreadTS
 		}
 
+		// A failed details post is not a successful report. Attempt a plain-text
+		// fallback, then surface the original error to the caller.
 		if err := sc.PostFailureDetails(pd, effectiveThreadTS); err != nil {
-			resources.LogLevel("warn", "Failed to post failure details: %v", err)
+			resources.LogLevel("error", "Failed to post failure details: %v", err)
+			if fbErr := sc.postFailureFallback(pd, effectiveThreadTS, err); fbErr != nil {
+				resources.LogLevel("error", "Failed to post failure fallback: %v", fbErr)
+			}
+			detailsErr = fmt.Errorf("failure details not posted to Slack thread %s: %w", effectiveThreadTS, err)
 		}
 	}
 
 	if baseDir != "" && (threadTS != "" || sc.dryRun) {
-		if parentThreadTS == "" && !sc.dryRun {
-			if err := saveRerunState(baseDir, sc.channelID, threadTS, product, failedDirs); err != nil {
-				resources.LogLevel("warn", "Failed to save rerun state: %v", err)
-			}
-		} else if !sc.dryRun {
-			if err := updateFailedTests(baseDir, failedDirs); err != nil {
-				resources.LogLevel("warn", "Failed to update failed tests: %v", err)
-			}
-		}
+		persistRerunState(sc, pd, baseDir, product, threadTS, parentThreadTS, failedDirs)
 	}
 
-	return nil
+	return detailsErr
+}
+
+// persistRerunState records (fresh run) or updates (rerun) the failed test dirs the
+// rerun-poller needs for "rerun: failed", warning loudly when nothing could be resolved.
+func persistRerunState(sc *slackClient, pd *processedTestdata, baseDir, product, threadTS, parentThreadTS string,
+	failedDirs []string,
+) {
+	if pd.failedTests > 0 && len(failedDirs) == 0 {
+		resources.LogLevel("warn", "%d test(s) failed but no failed test directories could be resolved; "+
+			"'rerun: failed' will have nothing to rerun (is report/.test-dirs.txt written by the runner?)",
+			pd.failedTests)
+	}
+	if sc.dryRun {
+		resources.LogLevel("info", "[DRY RUN] rerun state would record failed_tests=%v", failedDirs)
+		return
+	}
+	if parentThreadTS == "" {
+		if err := saveRerunState(baseDir, sc.channelID, threadTS, product, failedDirs); err != nil {
+			resources.LogLevel("warn", "Failed to save rerun state: %v", err)
+		}
+	} else if err := updateFailedTests(baseDir, failedDirs); err != nil {
+		resources.LogLevel("warn", "Failed to update failed tests: %v", err)
+	}
 }
 
 func newSlackClient() (*slackClient, error) {
@@ -232,6 +256,9 @@ func mapTestSuiteToDir(suiteName string, testDirs []string) string {
 		"mixedosvalidation":    "mixedos",
 		"mixedosflannel":       "mixedos",
 		"calicoebpf":           "calico_ebpf",
+		"customcarotation":     "rotateca", // Test_E2ECustomCARotation
+		"btrfssnapshot":        "btrfs",
+		"startupvalidation":    "startup",
 	}
 
 	// check special mappings first.
@@ -256,7 +283,22 @@ func mapTestSuiteToDir(suiteName string, testDirs []string) string {
 	return ""
 }
 
-func getFailedTestDirs(pd *processedTestdata, baseDir string) []string {
+// defaultTestDirs are used when the runner did not write report/.test-dirs.txt;
+// without them "rerun: failed" can be persisted with no tests.
+var defaultTestDirs = map[string][]string{
+	"k3s": {
+		"btrfs", "dualstack", "embeddedmirror", "externalip", "multus", "privateregistry",
+		"rootless", "rotateca", "s3", "secretsencryption", "secretsencryption_old",
+		"splitserver", "startup", "tailscale", "validatecluster", "wasm",
+	},
+	"rke2": {
+		"calico_ebpf", "cilium_wireguard", "ciliumnokp", "clusterloadbalancer", "cni",
+		"kine", "kubevip", "mixedos", "mixedosbgp", "multus", "secretsencryption",
+		"secretsencryption_old", "splitserver", "upgradecluster", "validatecluster",
+	},
+}
+
+func getFailedTestDirs(pd *processedTestdata, baseDir, product string) []string {
 	var testDirs []string
 	testDirsFile := filepath.Join(baseDir, "report", ".test-dirs.txt")
 	if data, err := os.ReadFile(testDirsFile); err == nil {
@@ -265,6 +307,14 @@ func getFailedTestDirs(pd *processedTestdata, baseDir string) []string {
 			if line != "" {
 				testDirs = append(testDirs, line)
 			}
+		}
+	}
+
+	if len(testDirs) == 0 {
+		if defaults, ok := defaultTestDirs[strings.ToLower(product)]; ok {
+			resources.LogLevel("warn", "%s not found or empty; using built-in %s test directory list",
+				testDirsFile, product)
+			testDirs = defaults
 		}
 	}
 
@@ -285,6 +335,7 @@ func getFailedTestDirs(pd *processedTestdata, baseDir string) []string {
 	for dir := range failedDirs {
 		result = append(result, dir)
 	}
+	sort.Strings(result)
 
 	return result
 }
@@ -432,9 +483,110 @@ func (s *slackClient) PostTestResults(
 	return s.sendMessage(msg)
 }
 
-// PostFailureDetails posts detailed failure information as a thread reply.
-//
-//nolint:funlen // yep complex Slack block message.sorry.
+// Slack limits chat.postMessage to 50 blocks and each section to 3000 characters.
+// Oversized failure details are rejected without posting anything to the thread.
+const (
+	slackMaxBlocksPerMessage = 50
+	slackMaxSectionText      = 3000
+)
+
+func truncateSlackText(text string, maxRunes int, suffix string) string {
+	if utf8.RuneCountInString(text) <= maxRunes {
+		return text
+	}
+
+	suffixRunes := []rune(suffix)
+	if len(suffixRunes) >= maxRunes {
+		return string(suffixRunes[:maxRunes])
+	}
+	runes := []rune(text)
+
+	return string(runes[:maxRunes-len(suffixRunes)]) + suffix
+}
+
+func failureCodeSection(label, content string) string {
+	prefix, closing := label+"\n```", "```"
+	contentLimit := slackMaxSectionText - utf8.RuneCountInString(prefix+closing)
+	content = truncateSlackText(content, contentLimit, "\n... (truncated)")
+
+	return prefix + content + closing
+}
+
+// failureBlocks renders one failure as its Slack blocks (2 to 4 blocks).
+func failureBlocks(idx int, failure *FailureDetails) []slackBlock {
+	blocks := []slackBlock{{Type: "divider"}}
+
+	testInfo := fmt.Sprintf(":x: *%d. %s*\n", idx, failure.TestSuite)
+	testInfo += fmt.Sprintf("*Subtest:* %s\n", failure.TestCase)
+	testInfo += fmt.Sprintf("*Duration:* %.2fs", failure.Duration)
+	if failure.TimeoutDuration != "" {
+		testInfo += fmt.Sprintf(" (timed out after %s)", failure.TimeoutDuration)
+	}
+	testInfo += "\n*Error Type:* " + failure.ErrorType
+	testInfo = truncateSlackText(testInfo, slackMaxSectionText, "\n... (truncated)")
+
+	blocks = append(blocks, slackBlock{
+		Type: "section",
+		Text: &slackBlockText{Type: "mrkdwn", Text: testInfo},
+	})
+
+	if failure.FailedCommand != "" {
+		cmd := failureCodeSection("*Failed Command:*", failure.FailedCommand)
+		blocks = append(blocks, slackBlock{
+			Type: "section",
+			Text: &slackBlockText{Type: "mrkdwn", Text: cmd},
+		})
+	}
+
+	if failure.ErrorMessage != "" {
+		errMsg := failureCodeSection("*Error Output:*", failure.ErrorMessage)
+		blocks = append(blocks, slackBlock{
+			Type: "section",
+			Text: &slackBlockText{Type: "mrkdwn", Text: errMsg},
+		})
+	}
+
+	return blocks
+}
+
+// chunkFailureBlocks splits the failure details into messages that each stay
+// under Slack's block limit. Every chunk starts with a header block.
+func chunkFailureBlocks(failures []*FailureDetails, maxBlocks int) [][]slackBlock {
+	header := func(part, total int) slackBlock {
+		text := "Failure Details"
+		if total > 1 {
+			text = fmt.Sprintf("Failure Details (%d/%d)", part, total)
+		}
+
+		return slackBlock{Type: "header", Text: &slackBlockText{Type: "plain_text", Text: text}}
+	}
+
+	// first pass: group failures so that header + blocks <= maxBlocks.
+	var groups [][]slackBlock
+	var current []slackBlock
+	for i, f := range failures {
+		fb := failureBlocks(i+1, f)
+		if len(current) > 0 && 1+len(current)+len(fb) > maxBlocks {
+			groups = append(groups, current)
+			current = nil
+		}
+		current = append(current, fb...)
+	}
+	if len(current) > 0 {
+		groups = append(groups, current)
+	}
+
+	// second pass: prepend the numbered header now that the total is known.
+	chunks := make([][]slackBlock, 0, len(groups))
+	for i, g := range groups {
+		chunks = append(chunks, append([]slackBlock{header(i+1, len(groups))}, g...))
+	}
+
+	return chunks
+}
+
+// PostFailureDetails posts detailed failure information as thread replies,
+// split into as many messages as Slack's block limit requires.
 func (s *slackClient) PostFailureDetails(pd *processedTestdata, threadTS string) error {
 	failures := pd.GetFailedTestDetails()
 	resources.LogLevel("info", "PostFailureDetails: found %d failure details", len(failures))
@@ -442,76 +594,46 @@ func (s *slackClient) PostFailureDetails(pd *processedTestdata, threadTS string)
 		return nil
 	}
 
-	resources.LogLevel("info", "Posting detailed failure information for %d failed tests", len(failures))
+	chunks := chunkFailureBlocks(failures, slackMaxBlocksPerMessage)
+	resources.LogLevel("info", "Posting detailed failure information for %d failed tests in %d message(s)",
+		len(failures), len(chunks))
 
-	var blocks []slackBlock
-
-	blocks = append(blocks, slackBlock{
-		Type: "header",
-		Text: &slackBlockText{
-			Type: "plain_text",
-			Text: "Failure Details",
-		},
-	})
-
-	for i, failure := range failures {
-		blocks = append(blocks, slackBlock{Type: "divider"})
-
-		testInfo := fmt.Sprintf(":x: *%d. %s*\n", i+1, failure.TestSuite)
-		testInfo += fmt.Sprintf("*Subtest:* %s\n", failure.TestCase)
-		testInfo += fmt.Sprintf("*Duration:* %.2fs", failure.Duration)
-
-		if failure.TimeoutDuration != "" {
-			testInfo += fmt.Sprintf(" (timed out after %s)", failure.TimeoutDuration)
+	for i, blocks := range chunks {
+		fallbackText := "Failure Details"
+		if len(chunks) > 1 {
+			fallbackText = fmt.Sprintf("Failure Details (%d/%d)", i+1, len(chunks))
 		}
-		testInfo += "\n"
-
-		testInfo += "*Error Type:* " + failure.ErrorType
-
-		blocks = append(blocks, slackBlock{
-			Type: "section",
-			Text: &slackBlockText{Type: "mrkdwn", Text: testInfo},
-		})
-
-		// failed command if available.
-		if failure.FailedCommand != "" {
-			// truncate if too big.
-			cmd := failure.FailedCommand
-			if len(cmd) > 2900 {
-				cmd = cmd[:2900] + "..."
-			}
-			blocks = append(blocks, slackBlock{
-				Type: "section",
-				Text: &slackBlockText{
-					Type: "mrkdwn",
-					Text: fmt.Sprintf("*Failed Command:*\n```%s```", cmd),
-				},
-			})
+		msg := slackMessage{
+			Channel:  s.channelID,
+			Text:     fallbackText,
+			Blocks:   blocks,
+			ThreadTS: threadTS,
 		}
-
-		if failure.ErrorMessage != "" {
-			errMsg := failure.ErrorMessage
-			if len(errMsg) > 2900 {
-				errMsg = errMsg[:2900] + "\n... (truncated)"
-			}
-			blocks = append(blocks, slackBlock{
-				Type: "section",
-				Text: &slackBlockText{
-					Type: "mrkdwn",
-					Text: fmt.Sprintf("*Error Output:*\n```%s```", errMsg),
-				},
-			})
+		if _, err := s.sendMessage(msg); err != nil {
+			return fmt.Errorf("failure details message %d/%d (%d blocks): %w", i+1, len(chunks), len(blocks), err)
 		}
 	}
 
-	msg := slackMessage{
-		Channel:  s.channelID,
-		Text:     "Failure Details",
-		Blocks:   blocks,
-		ThreadTS: threadTS,
+	return nil
+}
+
+// postFailureFallback attempts a compact plain-text diagnosis when Slack
+// rejects the block message.
+func (s *slackClient) postFailureFallback(pd *processedTestdata, threadTS string, cause error) error {
+	failures := pd.GetFailedTestDetails()
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(":warning: Detailed failure blocks could not be posted (%v). Summary:\n", cause))
+	for i, f := range failures {
+		line := strings.TrimSpace(strings.SplitN(f.ErrorMessage, "\n", 2)[0])
+		line = truncateSlackText(line, 160, "...")
+		sb.WriteString(fmt.Sprintf("%d. %s / %s — %s: %s\n", i+1, f.TestSuite, f.TestCase, f.ErrorType, line))
+		if sb.Len() > 3500 {
+			sb.WriteString(fmt.Sprintf("... (%d more)\n", len(failures)-i-1))
+			break
+		}
 	}
 
-	_, err := s.sendMessage(msg)
+	_, err := s.sendMessage(slackMessage{Channel: s.channelID, Text: sb.String(), ThreadTS: threadTS})
 
 	return err
 }
