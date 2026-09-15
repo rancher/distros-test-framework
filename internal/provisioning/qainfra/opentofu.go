@@ -257,6 +257,12 @@ func threadRuntimeEnvIntoTFVars(tfvarsPath string) error {
 		{"VOLUME_SIZE", "", "aws_volume_size"},
 		{"VOLUME_TYPE", "", "aws_volume_type"},
 		{"AWS_REGION", "", "aws_region"},
+		{"AWS_AMI_WINDOWS", "WINDOWS_AMI", "aws_ami_windows"},
+		{"INSTANCE_TYPE_WINDOWS", "WINDOWS_INSTANCE_TYPE", "instance_type_windows"},
+		{"AWS_VOLUME_SIZE_WINDOWS", "VOLUME_SIZE_WINDOWS", "aws_volume_size_windows"},
+		{"AWS_VOLUME_TYPE_WINDOWS", "VOLUME_TYPE_WINDOWS", "aws_volume_type_windows"},
+		{"AWS_WINDOWS_SSH_USER", "WINDOWS_SSH_USER", "aws_windows_ssh_user"},
+		{"WINDOWS_ENABLE_RDP", "", "windows_enable_rdp"},
 	}
 	for _, o := range overrides {
 		if value := envOr(o.envA, o.envB); value != "" {
