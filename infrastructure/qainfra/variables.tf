@@ -74,8 +74,10 @@ variable "instance_type" {
 variable "nodes" {
   description = "Configuration for cluster nodes"
   type = list(object({
-    count = number
-    role  = list(string)
+    count         = number
+    role          = list(string)
+    instance_type = optional(string)
+    os            = optional(string, "linux")
   }))
 }
 
@@ -179,4 +181,40 @@ variable "external_db_subnet_ids" {
   description = "Subnet IDs (>=2 AZs) for the RDS subnet group. Empty uses the account default subnet group."
   type        = list(string)
   default     = []
+}
+
+variable "aws_ami_windows" {
+  description = "Windows Server AMI ID"
+  type        = string
+  default     = null
+}
+
+variable "instance_type_windows" {
+  description = "Instance type for Windows agents"
+  type        = string
+  default     = null
+}
+
+variable "aws_volume_size_windows" {
+  description = "Root volume size for Windows agents"
+  type        = number
+  default     = null
+}
+
+variable "aws_volume_type_windows" {
+  description = "Root volume type for Windows agents"
+  type        = string
+  default     = null
+}
+
+variable "aws_windows_ssh_user" {
+  description = "SSH user for Windows agents"
+  type        = string
+  default     = "Administrator"
+}
+
+variable "windows_enable_rdp" {
+  description = "Open TCP 3389 for interactive debugging on Windows agents"
+  type        = bool
+  default     = false
 }

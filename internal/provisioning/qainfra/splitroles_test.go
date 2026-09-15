@@ -10,7 +10,8 @@ func setNodeEnvs(t *testing.T, envs map[string]string) {
 	// clear every topology env so leftovers from the host never leak into a case
 	for _, k := range []string{
 		"SPLIT_ROLES", "split_roles", "NO_OF_SERVER_NODES", "no_of_server_nodes",
-		"NO_OF_WORKER_NODES", "no_of_worker_nodes", "ETCD_ONLY_NODES", "etcd_only_nodes",
+		"NO_OF_WORKER_NODES", "no_of_worker_nodes", "NO_OF_WINDOWS_WORKER_NODES", "no_of_windows_worker_nodes",
+		"ETCD_ONLY_NODES", "etcd_only_nodes",
 		"ETCD_CP_NODES", "etcd_cp_nodes", "ETCD_WORKER_NODES", "etcd_worker_nodes",
 		"CP_ONLY_NODES", "cp_only_nodes", "CP_WORKER_NODES", "cp_worker_nodes",
 	} {
@@ -121,5 +122,43 @@ func TestTfvarsValueStripsInlineComments(t *testing.T) {
 		if got := tfvarsValue(in); got != want {
 			t.Errorf("tfvarsValue(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestBuildNodesTFVarMixedOSSimple(t *testing.T) {
+	setNodeEnvs(t, map[string]string{
+		"NO_OF_SERVER_NODES":         "1",
+		"NO_OF_WORKER_NODES":         "1",
+		"NO_OF_WINDOWS_WORKER_NODES": "1",
+	})
+
+	out, err := buildNodesTFVar()
+	if err != nil {
+		t.Fatalf("buildNodesTFVar: %v", err)
+	}
+	want := `[{"count":1,"role":["etcd","cp","worker"]},{"count":1,"role":["worker"]},` +
+		`{"count":1,"role":["worker"],"os":"windows"}]`
+	if out != want {
+		t.Fatalf("unexpected nodes JSON:\nwant: %s\ngot:  %s", want, out)
+	}
+}
+
+func TestBuildNodesTFVarMixedOSSplitRoles(t *testing.T) {
+	setNodeEnvs(t, map[string]string{
+		"SPLIT_ROLES":                "true",
+		"ETCD_ONLY_NODES":            "1",
+		"CP_ONLY_NODES":              "1",
+		"NO_OF_WORKER_NODES":         "1",
+		"NO_OF_WINDOWS_WORKER_NODES": "2",
+	})
+
+	out, err := buildNodesTFVar()
+	if err != nil {
+		t.Fatalf("buildNodesTFVar: %v", err)
+	}
+	want := `[{"count":1,"role":["etcd"]},{"count":1,"role":["cp"]},{"count":1,"role":["worker"]},` +
+		`{"count":2,"role":["worker"],"os":"windows"}]`
+	if out != want {
+		t.Fatalf("unexpected nodes JSON:\nwant: %s\ngot:  %s", want, out)
 	}
 }
