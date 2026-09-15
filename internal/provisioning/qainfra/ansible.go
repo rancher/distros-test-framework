@@ -444,13 +444,8 @@ kubernetes_version: '%s'
 kubeconfig_file: '%s'
 `, config.InstallVersion, config.InfraProvisioner.KubeconfigPath)
 
-	// add CNI only for RKE2.
-	if strings.Contains(strings.ToLower(config.Product), "rke2") {
-		cni := config.CNI
-		if cni == "" {
-			cni = "calico"
-		}
-		varsContent += fmt.Sprintf("cni: '%s'\n", cni)
+	if strings.Contains(strings.ToLower(config.Product), "rke2") && strings.TrimSpace(config.CNI) != "" {
+		varsContent += fmt.Sprintf("cni: '%s'\n", strings.TrimSpace(config.CNI))
 	}
 
 	if err := os.WriteFile(varsPath, []byte(varsContent), 0o644); err != nil {

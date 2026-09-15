@@ -35,24 +35,25 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.23'
+          go-version-file: go.mod
 
       - name: Get list of changed files
         id: get-changed-files
         run: |
-          files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '.*\.go$' || true)
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before }}"
+          files=$(git diff --name-only "$base_sha" "${{ github.sha }}" | grep -E '(^|/).*\.go$|^go\.(mod|sum)$|^\.golangci\.ya?ml$' || true)
           if [ -z "$files" ]; then
-            echo "No Go files changed in this PR"
-            echo "go_files_changed=false" >> $GITHUB_OUTPUT
+            echo "No lint inputs changed in this PR"
+            echo "lint_inputs_changed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Go Changed files: $files"
-            echo "go_files_changed=true" >> $GITHUB_OUTPUT
+            echo "Changed lint inputs: $files"
+            echo "lint_inputs_changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: golangci-lint
-        if: steps.get-changed-files.outputs.go_files_changed == 'true'
-        uses: golangci/golangci-lint-action@55c2c1448f86e01eaae002a5a3a9624417608d84 # v6
+        if: steps.get-changed-files.outputs.lint_inputs_changed == 'true'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v1.63.4
+          version: v2.13.2
           args: --timeout 10m
         continue-on-error: false

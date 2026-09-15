@@ -1,100 +1,156 @@
+version: "2"
+
 linters:
+  default: none
   enable:
-    - gofmt
-    - govet
-    - revive
-    - gosec
-    - misspell
     - dupl
-    - gosimple
-    - staticcheck
-    - nlreturn
+    - errcheck
     - funlen
     - gocritic
     - godot
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nlreturn
     - perfsprint
+    - revive
+    - staticcheck
+    - unused
     - usestdlibvars
     - whitespace
-
-linters-settings:
-  funlen:
-    lines: 55
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-      - experimental
-  misspell:
-    locale: "US"
-  gofmt:
-    simplify: true
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix("github.com/rancher/distros-test-framework")
-  nlreturn:
-    block-size: 4
-  revive:
-    confidence: 0.8
-    severity: error
-    ignore-generated-header: true
+  settings:
+    funlen:
+      lines: 55
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+    misspell:
+      locale: US
+    nlreturn:
+      block-size: 4
+    revive:
+      confidence: 0.8
+      severity: error
+      rules:
+        - name: line-length-limit
+          arguments:
+            - 125
+        - name: bare-return
+        - name: blank-imports
+        - name: confusing-results
+        - name: duplicated-imports
+        - name: early-return
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: errorf
+        - name: exported
+        - name: get-return
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: import-shadowing
+        - name: modifies-parameter
+        - name: modifies-value-receiver
+        - name: range
+        - name: range-val-in-closure
+        - name: receiver-naming
+        - name: string-of-int
+        - name: struct-tag
+        - name: superfluous-else
+        - name: time-naming
+        - name: var-declaration
+        - name: unconditional-recursion
+        - name: unexported-naming
+        - name: unhandled-error
+          arguments:
+            - fmt.Printf
+            - builder.WriteString
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: unused-receiver
+    staticcheck:
+      # v1 exposed staticcheck and gosimple separately; keep those families
+      # without enabling the new style and quick-fix families.
+      checks:
+        - SA*
+        - S*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: line-length-limit
-        arguments: [125]
-      - name: bare-return
-      - name: blank-imports
-      - name: confusing-results
-      - name: duplicated-imports
-      - name: early-return
-      - name: empty-block
-      - name: error-naming
-      - name: error-return
-      - name: errorf
-      - name: exported
-      - name: get-return
-      - name: if-return
-      - name: increment-decrement
-      - name: indent-error-flow
-      - name: import-shadowing
-      - name: modifies-parameter
-      - name: modifies-value-receiver
-      - name: range
-      - name: range-val-in-closure
-      - name: receiver-naming
-      - name: string-of-int
-      - name: struct-tag
-      - name: superfluous-else
-      - name: time-naming
-      - name: var-declaration
-      - name: unconditional-recursion
-      - name: unexported-naming
-      - name: unhandled-error
-        arguments: ["fmt.Printf", "builder.WriteString"]
-      - name: unnecessary-stmt
-      - name: unreachable-code
-      - name: unused-parameter
-      - name: unused-receiver
+      - linters:
+          - gosec
+        text: 'G106: Use of ssh InsecureIgnoreHostKey should be audited'
+      - linters:
+          - gosec
+        text: 'G306: Expect WriteFile permissions to be 0600 or less'
+      # RunCommandHost intentionally accepts shell programs; argv callers use
+      # RunHostArgs, so suppress the warning only at the shared shell sink.
+      - path: internal/resources/command\.go
+        linters:
+          - gosec
+        text: 'G702: Command injection via taint analysis'
+      # These helpers accept repository-controlled workspace paths by contract;
+      # keep G703 enabled everywhere else.
+      - path: (config/reader|internal/resources/(file|transfer))\.go
+        linters:
+          - gosec
+        text: 'G703: Path traversal via taint analysis'
+      - path: (internal/pkg/testcase/(ingressdns|upgradesuc)|internal/provisioning/(legacy/kubeconfig|qainfra/(ansible|opentofu)))\.go
+        linters:
+          - gosec
+        text: 'G703: Path traversal via taint analysis'
+      # Preserve the v1 baseline for existing low-volume loops and logger style.
+      - path: (internal/pkg/qase/(create|report)|internal/pkg/testcase/deployrancher)\.go
+        linters:
+          - perfsprint
+        text: 'concat-loop: string concatenation in a loop'
+      - linters:
+          - revive
+        text: Unhandled error in call to function fmt\.Println
+      - path: internal/resources/logger\.go
+        linters:
+          - revive
+        text: 'early-return: if c \{ \.\.\. \} else \{ \.\.\. return \}'
+      - linters:
+          - govet
+        text: '`fmt\.Println` arg list ends with redundant newline'
+      - linters:
+          - nlreturn
+        text: continue with no blank line before
+      - linters:
+          - revive
+        text: 'should not use dot imports '
+      - linters:
+          - revive
+        text: Unhandled error in call to function strings\.Builder\.WriteString
+    paths:
+      - pkg/testcase/selinux.go
+      - .*_suite_test.go
 
-issues:
-  exclude-files:
-    - "pkg/testcase/selinux.go"
-    - ".*_suite_test.go"
-  exclude-rules:
-    - linters: [typecheck]
-      text: "command-line-arguments"
-    - linters: [gosec]
-      text: "G106: Use of ssh InsecureIgnoreHostKey should be audited"
-    - linters: [gosec]
-      text: "G306: Expect WriteFile permissions to be 0600 or less"
-    - linters: [revive]
-      text: 'Unhandled error in call to function fmt\.Println'
-    - linters: [govet]
-      text: '`fmt\.Println` arg list ends with redundant newline'
-    - linters: [nlreturn]
-      text: 'continue with no blank line before'
-    - linters: [revive]
-      text: 'should not use dot imports '
-    - linters: [ revive ]
-      text: 'Unhandled error in call to function strings\.Builder\.WriteString'
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix("github.com/rancher/distros-test-framework")
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - pkg/testcase/selinux.go
+      - .*_suite_test.go
