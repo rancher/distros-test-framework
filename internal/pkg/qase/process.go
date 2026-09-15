@@ -632,6 +632,9 @@ func extractIDs(suiteName, product, arch string) (int64, error) {
 			"clustervalidation":    229,
 			"kinevalidation":       230,
 			"ciliumwireguard":      295,
+			"clusterloadbalancer":  369,
+			"nightlycni":           370,
+			"kubevip":              371,
 		}
 
 		for keyword, id := range rke2Tcs {
