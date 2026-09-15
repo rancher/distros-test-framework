@@ -414,23 +414,26 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 	}
 
 	airgap := config.InfraProvisioner.AirgapSetup
-	var serverIPs, agentIPs []string
+	var serverIPs, agentIPs, winAgentIPs []string
 	for _, node := range nodes {
-		addr := node.address(airgap)
-		if addr == "" {
+		switch {
+		case node.address(airgap) == "":
 			return fmt.Errorf("node %s has no usable address (airgap=%t)", node.name, airgap)
-		}
-		if isServerRole(node.role) {
-			serverIPs = append(serverIPs, addr)
-		} else {
-			agentIPs = append(agentIPs, addr)
+		case node.os == "windows":
+			winAgentIPs = append(winAgentIPs, node.publicIP)
+		case isServerRole(node.role):
+			serverIPs = append(serverIPs, node.publicIP)
+		default:
+			agentIPs = append(agentIPs, node.publicIP)
 		}
 	}
 
 	config.Cluster.ServerIPs = serverIPs
 	config.Cluster.AgentIPs = agentIPs
+	config.Cluster.WinAgentIPs = winAgentIPs
 	config.Cluster.NumServers = len(serverIPs)
 	config.Cluster.NumAgents = len(agentIPs)
+	config.Cluster.NumWinAgents = len(winAgentIPs)
 	config.Cluster.Status = "cluster created"
 
 	if err := applyBastion(config, data); err != nil {
@@ -439,9 +442,11 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 
 	applySplitRolesIfEnabled(config, nodes)
 
-	resources.LogLevel("info", "Built cluster config: %d servers, %d agents", len(serverIPs), len(agentIPs))
+	resources.LogLevel("info", "Built cluster config: %d servers, %d agents, %d windows agents",
+		len(serverIPs), len(agentIPs), len(winAgentIPs))
 	resources.LogLevel("debug", "Server IPs: %v", serverIPs)
 	resources.LogLevel("debug", "Agent IPs: %v", agentIPs)
+	resources.LogLevel("debug", "Windows Agent IPs: %v", winAgentIPs)
 
 	return nil
 }

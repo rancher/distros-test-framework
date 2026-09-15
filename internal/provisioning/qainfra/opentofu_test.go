@@ -36,6 +36,10 @@ func clearRuntimeEnvs(t *testing.T) {
 	for _, k := range []string{
 		"AWS_AMI", "SSH_USER", "INSTANCE_TYPE", "EC2_INSTANCE_CLASS",
 		"VOLUME_SIZE", "VOLUME_TYPE", "AWS_REGION",
+		"AWS_AMI_WINDOWS", "WINDOWS_AMI", "INSTANCE_TYPE_WINDOWS", "WINDOWS_INSTANCE_TYPE",
+		"AWS_VOLUME_SIZE_WINDOWS", "VOLUME_SIZE_WINDOWS", "AWS_VOLUME_TYPE_WINDOWS", "VOLUME_TYPE_WINDOWS",
+		"AWS_WINDOWS_SSH_USER", "WINDOWS_SSH_USER", "WINDOWS_ENABLE_RDP",
+		"QA_INFRA_REPO", "QA_INFRA_CLONE_URL", "QA_INFRA_REF",
 		"DATASTORE_TYPE", "datastore_type", "EXTERNAL_DB_ENDPOINT", "rendered_template",
 		"SERVER_FLAGS", "server_flags", "EXTERNAL_DB", "external_db",
 		"EXTERNAL_DB_VERSION", "external_db_version", "DB_GROUP_NAME", "db_group_name",
@@ -282,5 +286,59 @@ func TestInfraMainTfKeepsInjectionAnchors(t *testing.T) {
 		if !strings.Contains(string(content), anchor) {
 			t.Errorf("infrastructure/qainfra/main.tf lost required anchor %q", anchor)
 		}
+	}
+}
+
+func TestThreadRuntimeEnvWindowsOverrides(t *testing.T) {
+	clearRuntimeEnvs(t)
+	t.Setenv("AWS_AMI_WINDOWS", "ami-win-1234")
+	t.Setenv("INSTANCE_TYPE_WINDOWS", "m5.xlarge")
+	t.Setenv("AWS_VOLUME_SIZE_WINDOWS", "100")
+	t.Setenv("AWS_VOLUME_TYPE_WINDOWS", "gp3")
+	t.Setenv("AWS_WINDOWS_SSH_USER", "Administrator")
+	t.Setenv("WINDOWS_ENABLE_RDP", "true")
+
+	path := writeTFVars(t, "")
+	if err := threadRuntimeEnvIntoTFVars(path); err != nil {
+		t.Fatal(err)
+	}
+
+	got := readFile(t, path)
+	checks := []string{
+		`aws_ami_windows = "ami-win-1234"`,
+		`instance_type_windows = "m5.xlarge"`,
+		`aws_volume_size_windows = "100"`,
+		`aws_volume_type_windows = "gp3"`,
+		`aws_windows_ssh_user = "Administrator"`,
+		`windows_enable_rdp = "true"`,
+	}
+	for _, c := range checks {
+		if !strings.Contains(got, c) {
+			t.Errorf("expected %q in vars.tfvars:\n%s", c, got)
+		}
+	}
+}
+
+func TestQAInfraRepoAndCloneURL(t *testing.T) {
+	clearRuntimeEnvs(t)
+
+	if repo := qaInfraRepo(); repo != qaInfraRepoDef {
+		t.Errorf("expected default repo %q, got %q", qaInfraRepoDef, repo)
+	}
+	if cloneURL := qaInfraCloneURL(); cloneURL != qaInfraCloneURLDef {
+		t.Errorf("expected default clone URL %q, got %q", qaInfraCloneURLDef, cloneURL)
+	}
+
+	t.Setenv("QA_INFRA_REPO", "github.com/myfork/qa-infra-automation")
+	if repo := qaInfraRepo(); repo != "github.com/myfork/qa-infra-automation" {
+		t.Errorf("expected overridden repo, got %q", repo)
+	}
+	if cloneURL := qaInfraCloneURL(); cloneURL != "https://github.com/myfork/qa-infra-automation.git" {
+		t.Errorf("expected derived clone URL, got %q", cloneURL)
+	}
+
+	t.Setenv("QA_INFRA_CLONE_URL", "https://custom.git/repo.git")
+	if cloneURL := qaInfraCloneURL(); cloneURL != "https://custom.git/repo.git" {
+		t.Errorf("expected explicit clone URL override, got %q", cloneURL)
 	}
 }

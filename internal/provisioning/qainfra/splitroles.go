@@ -48,6 +48,7 @@ func envInt(name string, def int) (int, error) {
 type nodeEntry struct {
 	Count int      `json:"count"`
 	Role  []string `json:"role"`
+	OS    string   `json:"os,omitempty"`
 }
 
 // buildNodesTFVar translates legacy split-roles env vars into the qainfra
@@ -141,6 +142,14 @@ func buildSplitRoleEntries() ([]nodeEntry, error) {
 		entries = append(entries, nodeEntry{Count: workers, Role: []string{"worker"}})
 	}
 
+	winWorkers, err := envInt("no_of_windows_worker_nodes", 0)
+	if err != nil {
+		return nil, err
+	}
+	if winWorkers > 0 {
+		entries = append(entries, nodeEntry{Count: winWorkers, Role: []string{"worker"}, OS: "windows"})
+	}
+
 	return entries, nil
 }
 
@@ -156,8 +165,12 @@ func buildSimpleEntries() ([]nodeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	winWorkers, err := envInt("no_of_windows_worker_nodes", 0)
+	if err != nil {
+		return nil, err
+	}
 
-	if servers == 0 && workers == 0 {
+	if servers == 0 && workers == 0 && winWorkers == 0 {
 		return nil, nil
 	}
 
@@ -167,6 +180,9 @@ func buildSimpleEntries() ([]nodeEntry, error) {
 	}
 	if workers > 0 {
 		entries = append(entries, nodeEntry{Count: workers, Role: []string{"worker"}})
+	}
+	if winWorkers > 0 {
+		entries = append(entries, nodeEntry{Count: winWorkers, Role: []string{"worker"}, OS: "windows"})
 	}
 
 	return entries, nil

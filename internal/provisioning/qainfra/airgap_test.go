@@ -103,7 +103,7 @@ func TestBuildAirgapInventoryProxiesThroughBastion(t *testing.T) {
 		`bastion_host: "3.3.3.3"`, `bastion_public_dns: "ec2-3-3-3-3.compute.amazonaws.com"`,
 		`ssh_key_name: "jenkins-key"`, "    bastion-0:\n      ansible_host: \"3.3.3.3\"",
 		`ansible_host: "10.0.1.10"`, `ansible_host: "10.0.1.11"`,
-		`-W %h:%p ubuntu@3.3.3.3`, `rke2_node_role: "master"`, `rke2_node_role: "agent"`,
+		`-W %h:%p ubuntu@3.3.3.3`, `node_type: "master"`, `node_type: "agent"`,
 		"    bastion:\n      hosts:\n        bastion-0:",
 		"    master:\n      hosts:\n        master:",
 		"    workers:\n      hosts:\n        worker-0:",

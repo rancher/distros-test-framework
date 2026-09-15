@@ -362,7 +362,7 @@ func buildAirgapInventory(data *clusterNodesJSON, sshUser, keyPath, keyName stri
 		writeLine(&b, "      ansible_host: ", yamlQuote(n.PrivateIP))
 		writeLine(&b, "      ansible_ssh_common_args: ", yamlQuote(proxy))
 		writeLine(&b, "      node_roles: ", yamlInlineList(n.Roles))
-		writeLine(&b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
+		writeLine(&b, "      node_type: ", yamlQuote(nodeRole(n, assigned)))
 	}
 	b.WriteString("  children:\n    bastion:\n      hosts:\n        bastion-0:\n")
 	for _, g := range []string{"master", "servers", "workers"} {

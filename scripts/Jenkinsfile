@@ -147,10 +147,12 @@ node {
                   if (serverFlags) { data += "SERVER_FLAGS=${serverFlags}\n" }
                   if (workerFlags) { data += "WORKER_FLAGS=${workerFlags}\n" }
 
-                  ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES',
+                  ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES', 'NO_OF_WINDOWS_WORKER_NODES'
                    'SPLIT_ROLES', 'ETCD_ONLY_NODES', 'ETCD_CP_NODES', 'ETCD_WORKER_NODES',
                    'CP_ONLY_NODES', 'CP_WORKER_NODES', 'NODE_OS', 'AWS_AMI', 'ARCH', 'CNI',
                    'INSTANCE_TYPE', 'VOLUME_SIZE', 'VOLUME_TYPE',
+                   'AWS_AMI_WINDOWS', 'INSTANCE_TYPE_WINDOWS', 'AWS_VOLUME_SIZE_WINDOWS',
+                   'AWS_VOLUME_TYPE_WINDOWS', 'AWS_WINDOWS_SSH_USER', 'WINDOWS_ENABLE_RDP',
                    'AWS_REGION', 'DATASTORE_TYPE', 'EXTERNAL_DB', 'EXTERNAL_DB_VERSION',
                    'DB_GROUP_NAME', 'EXTERNAL_DB_NODE_TYPE', 'EXTERNAL_DB_ENDPOINT',
                    'EXTERNAL_DB_SUBNET_IDS', 'DB_USERNAME', 'DB_PASSWORD', 'ENGINE_MODE',
