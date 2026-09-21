@@ -158,6 +158,33 @@ func GetPodsFromNamespace(namespace string) ([]Pod, error) {
 	return ParsePods(res), nil
 }
 
+// PodsSettled reports whether every pod is Completed/Succeeded, or Running with all containers ready (N/N).
+// It returns the pods that are not, so callers can log what is still starting.
+func PodsSettled(pods []Pod) (settled bool, pending []string) {
+	for i := range pods {
+		p := &pods[i]
+		if podSettled(p) {
+			continue
+		}
+		pending = append(pending, fmt.Sprintf("%s/%s %s %s", p.NameSpace, p.Name, p.Status, p.Ready))
+	}
+
+	return len(pods) > 0 && len(pending) == 0, pending
+}
+
+func podSettled(p *Pod) bool {
+	switch p.Status {
+	case "Completed", "Succeeded":
+		return true
+	case "Running":
+		parts := strings.Split(p.Ready, "/")
+
+		return len(parts) == 2 && parts[0] == parts[1] && parts[0] != "0"
+	default:
+		return false
+	}
+}
+
 func checkPodStatus() bool {
 	pods, errGetPods := GetPods(false)
 	if errGetPods != nil || len(pods) == 0 {
@@ -165,28 +192,15 @@ func checkPodStatus() bool {
 		return false
 	}
 
-	podReady := 0
-	podNotReady := 0
-	for i := range pods {
-		if pods[i].Status == "Running" || pods[i].Status == "Completed" {
-			podReady++
-		} else {
-			podNotReady++
-			LogLevel("debug", "Pod Not Ready. Pod details: Name: %s Status: %s", pods[i].Name, pods[i].Status)
-		}
+	settled, pending := PodsSettled(pods)
+	for _, pod := range pending {
+		LogLevel("debug", "Pod Not Ready. Pod details: %s", pod)
 	}
 
-	if podReady+podNotReady != len(pods) {
-		LogLevel("debug", "Length of pods %d != Ready pods: %d + Not Ready Pods: %d", len(pods), podReady, podNotReady)
-	}
-	if podNotReady == 0 {
-		return true
-	}
-
-	return true
+	return settled
 }
 
-// WaitForPodsRunning Waits for pods to reach running state.
+// WaitForPodsRunning waits for pods to settle, polling every defaultTime (fixed, no backoff) for attempts tries.
 func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 	return retry.Do(
 		func() error {
@@ -197,6 +211,7 @@ func WaitForPodsRunning(defaultTime time.Duration, attempts uint) error {
 		},
 		retry.Attempts(attempts),
 		retry.Delay(defaultTime),
+		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, _ error) {
 			LogLevel("debug", "Attempt %d: Pods not ready, retrying...", n+1)
 		}),

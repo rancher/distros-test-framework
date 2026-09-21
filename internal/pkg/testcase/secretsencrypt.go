@@ -88,12 +88,12 @@ func secretsEncryptOps(action, product, serverFlags, primaryNodeIp, cpIP string,
 
 	switch product {
 	case "k3s":
-		waitPodsErr := resources.WaitForPodsRunning(10, 3)
+		waitPodsErr := resources.WaitForPodsRunning(10*time.Second, 4)
 		if waitPodsErr != nil {
 			resources.LogLevel("warn", "pods not up after 30 seconds")
 		}
 	case "rke2":
-		waitPodsErr := resources.WaitForPodsRunning(10, 6)
+		waitPodsErr := resources.WaitForPodsRunning(10*time.Second, 7)
 		if waitPodsErr != nil {
 			resources.LogLevel("warn", "pods not up after 60 seconds")
 		}
@@ -131,7 +131,7 @@ func restartServerAndWait(ip, product string) (err error) {
 	// Little lag needed between node restarts to avoid issues.
 	resources.LogLevel("debug", "Sleep for 30 seconds before service restarts between servers")
 	time.Sleep(30 * time.Second)
-	waitEtcdErr := resources.WaitForPodsRunning(10, 3)
+	waitEtcdErr := resources.WaitForPodsRunning(10*time.Second, 4)
 	if waitEtcdErr != nil {
 		resources.LogLevel("warn", "pods not up after 30 seconds.")
 	}

@@ -322,6 +322,11 @@ func copyRegistry(cluster *driver.Cluster, ip string) (err error) {
 
 // CmdForPrivateNode command to run on private node via bastion.
 func CmdForPrivateNode(cluster *driver.Cluster, cmd, ip string) (res string, err error) {
+	if cluster.Airgap.Enabled {
+		// qainfra keeps no private key on the bastion: tunnel from the controller.
+		return resources.RunCommandOnPrivateNode(cmd, ip, cluster.Bastion.PublicIPv4Addr,
+			cluster.SSH.User, cluster.SSH.PrivKeyPath)
+	}
 	awsUser := cluster.SSH.User
 	if HasWindowsAgent(cluster) {
 		if slices.Contains(cluster.WinAgentIPs, ip) {

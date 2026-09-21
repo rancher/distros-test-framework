@@ -10,6 +10,15 @@ import (
 )
 
 func TestPrivateRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) {
+	if cluster.Airgap.Enabled {
+		resources.LogLevel("info", "Validating airgap private registry install done by qainfra (%s)...",
+			cluster.Airgap.RegistryHost)
+		Expect(support.ValidateAirgapIsolation(cluster)).To(Succeed())
+		Expect(support.ValidateAirgapPrivateRegistry(cluster)).To(Succeed())
+
+		return
+	}
+
 	resources.LogLevel("info", "Set bastion for private registry...")
 	err := support.SetupAirgapRegistry(cluster, flags, support.PrivateRegistry)
 	Expect(err).To(BeNil())

@@ -101,6 +101,10 @@ var _ = Describe("Upgrade Node Replacement Test:", Ordered, func() {
 		It("Validate context", func() {
 			testcase.TestSelinuxContext(cluster)
 		})
+
+		It("Validate selinux enforcement, policy modules and process domains", func() {
+			testcase.TestSelinuxEnforcement(cluster)
+		})
 	}
 
 	AfterAll(func() {

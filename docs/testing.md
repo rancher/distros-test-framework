@@ -231,11 +231,18 @@ REGISTRY_PASSWORD=testpass432
 - `TEST_DIR` **should** be `airgap`
 - `TEST_TAGS` **should** include `-tags=systemdefaultregistry` and **as optional**, include `-registryUsername testuser -registryPassword testpass432 -imageRegistryUrl registry_url`
 
+#### With the qainfra provisioner (`PROVISIONER_MODULE=qainfra`)
+
+- The legacy `*.tfvars` keys above (`enable_public_ip`, `no_of_bastion_nodes`, `bastion_subnets`) are **not** used. Set `MODULE=airgap` and a qainfra-format `vars.tfvars`; the framework adds `airgap_setup=true` and `bastion={enabled=true}` for the `cluster_nodes` module and installs the product offline through `ansible/airgap/airgap-playbook.yml` in qa-infra-automation (`QA_INFRA_REF`, resolved once to a commit).
+- Registry credentials: by default user `testuser` with a random per-run password for the throwaway bastion registry. To override, set `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` in the environment (optional Jenkins credential `AIRGAP_REGISTRY_CREDENTIALS`); `-registryUsername` / `-registryPassword` in `TEST_ARGS` are rejected on qainfra.
+- ARM is supported on qainfra (`ARCH=arm64`, `BASTION_INSTANCE_TYPE=t4g.large`); Windows agents, RPM installs and `profile: cis` / `protect-kernel-defaults` are not yet.
+- Local run: `make test-tarball` / `make test-private-registry` / `make test-system-default-registry` with the `.env` above plus `PROVISIONER_MODULE=qainfra`.
+
 ### Not supported/implemented currently for airgap:
 - RPM installs for rke2
 - ExternalDB setup
 - Split roles
-- ARM Architecture
+- ARM Architecture (legacy provisioner only; supported on qainfra)
 
 ### Using Tarball
 
@@ -264,11 +271,18 @@ Note: `TARBALL_TYPE` can be either `tar.zst` (Recommended for speed) or `tar.gz`
 - `TEST_DIR` **should** be `airgap`
 - `TEST_TAGS` **should** include `-tags=tarball`
 
+#### With the qainfra provisioner (`PROVISIONER_MODULE=qainfra`)
+
+- The legacy `*.tfvars` keys above (`enable_public_ip`, `no_of_bastion_nodes`, `bastion_subnets`) are **not** used. Set `MODULE=airgap` and a qainfra-format `vars.tfvars`; the framework adds `airgap_setup=true` and `bastion={enabled=true}` for the `cluster_nodes` module and installs the product offline through `ansible/airgap/airgap-playbook.yml` in qa-infra-automation (`QA_INFRA_REF`, resolved once to a commit).
+- Registry credentials: by default user `testuser` with a random per-run password for the throwaway bastion registry. To override, set `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` in the environment (optional Jenkins credential `AIRGAP_REGISTRY_CREDENTIALS`); `-registryUsername` / `-registryPassword` in `TEST_ARGS` are rejected on qainfra.
+- ARM is supported on qainfra (`ARCH=arm64`, `BASTION_INSTANCE_TYPE=t4g.large`); Windows agents, RPM installs and `profile: cis` / `protect-kernel-defaults` are not yet.
+- Local run: `make test-tarball` / `make test-private-registry` / `make test-system-default-registry` with the `.env` above plus `PROVISIONER_MODULE=qainfra`.
+
 ### Not supported/implemented currently for airgap:
 - RPM installs for rke2
 - ExternalDB setup
 - Split roles
-- ARM Architecture
+- ARM Architecture (legacy provisioner only; supported on qainfra)
 
 ## Validating Cluster Reset Restore Path
 

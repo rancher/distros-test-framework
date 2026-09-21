@@ -17,23 +17,15 @@ import (
 func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	resources.LogLevel("info", "Pulling Ansible playbooks for %s installation...", config.Product)
 
-	// Shared repo/ref with the OpenTofu module sources (qaInfra* consts in
-	// opentofu.go) so pre-merge testing pulls playbooks and modules from the
-	// same fork/branch.
-	if err := runCmdWithTimeout(config.InfraProvisioner.RootDir, 2*time.Minute,
-		"git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
-		qaInfraRef(), qaInfraCloneURL, config.InfraProvisioner.TempDir); err != nil {
-		return fmt.Errorf("git clone failed: %w", err)
+	if err := fetchQAInfraCheckout(config); err != nil {
+		return err
 	}
 
-	ansibleDir := "ansible/" + config.Product
-	if err := runCmdWithTimeout(config.InfraProvisioner.TempDir, 2*time.Minute,
-		"git", "sparse-checkout", "set", ansibleDir, "ansible/roles"); err != nil {
-		return fmt.Errorf("sparse checkout failed: %w", err)
-	}
-
-	if err := patchRKE2ConfigTemplate(config); err != nil {
-		return fmt.Errorf("failed to patch rke2_config template: %w", err)
+	// Private nodes have no public IP to advertise; the airgap playbook owns its config.
+	if !config.InfraProvisioner.AirgapSetup {
+		if err := patchRKE2ConfigTemplate(config); err != nil {
+			return fmt.Errorf("failed to patch rke2_config template: %w", err)
+		}
 	}
 
 	if err := installAnsibleCollection(config.InfraProvisioner.TempDir); err != nil {
@@ -47,6 +39,38 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 	if err := generateTemplateInventory(config); err != nil {
 		return fmt.Errorf("template inventory generation failed: %w", err)
 	}
+
+	return nil
+}
+
+// fetchQAInfraCheckout materializes the ansible tree at the SAME commit the tofu used.
+func fetchQAInfraCheckout(config *driver.InfraConfig) error {
+	return checkoutQAInfra(config.InfraProvisioner.TempDir, sourceFromConfig(config), config.Product)
+}
+
+// checkoutQAInfra does the git work for fetchQAInfraCheckout; dir must already exist.
+func checkoutQAInfra(dir string, src qaInfraSource, product string) error {
+	sparseDirs := []string{"ansible/" + product, "ansible/roles", "ansible/tasks", airgapAnsiblePath}
+
+	steps := [][]string{
+		{"init", "-q"},
+		{"remote", "add", "origin", src.CloneURL},
+		{"fetch", "--depth", "1", "--filter=blob:none", "origin", src.SHA},
+		append([]string{"sparse-checkout", "set"}, sparseDirs...),
+		{"checkout", "-q", "--detach", "FETCH_HEAD"},
+	}
+	for _, step := range steps {
+		err := runCmdWithTimeout(dir, 3*time.Minute, "git", step...)
+		if err != nil && step[0] == "remote" {
+			// A retry of the same run id already has the remote; keep it pointed at the pinned repo.
+			err = runCmdWithTimeout(dir, time.Minute, "git", "remote", "set-url", "origin", src.CloneURL)
+		}
+		if err != nil {
+			return fmt.Errorf("git %s failed for %s@%s: %w", step[0], src.CloneURL, src.SHA, err)
+		}
+	}
+
+	resources.LogLevel("info", "qa-infra ansible tree checked out at %s (%s)", src.SHA, strings.Join(sparseDirs, ", "))
 
 	return nil
 }
@@ -227,11 +251,15 @@ func ensureSSHAnsibleConfig(config *driver.InfraConfig) error {
 }
 
 func executeAnsiblePlaybook(config *driver.InfraConfig) error {
-	playbookPath, playbookNameErr := getPlaybookPath(config.Product)
+	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup)
 	if playbookNameErr != nil {
 		return fmt.Errorf("failed to get playbook name: %w", playbookNameErr)
 	}
 	resources.LogLevel("info", "Installing %s with Ansible using playbook: %s", config.Product, playbookPath)
+	if config.InfraProvisioner.AirgapSetup {
+		// buildAnsibleArgs writes the registry credentials file; it must not outlive this call.
+		defer removeAnsibleSecrets(config.InfraProvisioner.RunDir)
+	}
 
 	args, argsErr := buildAnsibleArgs(config, playbookPath)
 	if argsErr != nil {
@@ -243,10 +271,18 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 	}
 
 	resources.LogLevel("debug", "Executing Ansible playbook with args: %v", args)
+	if config.InfraProvisioner.AirgapSetup {
+		// Failed hosts drop out of later plays, so the key revocation runs as its own invocation.
+		defer runAirgapKeyCleanup(config)
+	}
 
 	// Worst-case transactional path (lock waits + retried transactional-update
 	// runs + reboots) legitimately exceeds 25m.
-	if executeErr := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, 35*time.Minute,
+	playbookTimeout := 35 * time.Minute
+	if config.InfraProvisioner.AirgapSetup {
+		playbookTimeout = 60 * time.Minute // artifact download + image publish + offline install
+	}
+	if executeErr := runCmdWithTimeout(config.InfraProvisioner.Ansible.Dir, playbookTimeout,
 		"ansible-playbook", args...); executeErr != nil {
 		return fmt.Errorf("ansible playbook failed: %w", executeErr)
 	}
@@ -256,7 +292,10 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 	return nil
 }
 
-func getPlaybookPath(product string) (string, error) {
+func getPlaybookPath(product string, airgap bool) (string, error) {
+	if airgap {
+		return airgapPlaybook, nil
+	}
 	switch strings.ToLower(product) {
 	case "k3s":
 		return "k3s-playbook.yml", nil
@@ -269,6 +308,9 @@ func getPlaybookPath(product string) (string, error) {
 }
 
 func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string, error) {
+	if config.InfraProvisioner.AirgapSetup {
+		return airgapAnsibleArgs(config, playbookPath)
+	}
 	installVersion := config.InstallVersion
 
 	args := []string{
@@ -455,4 +497,22 @@ kubeconfig_file: '%s'
 	resources.LogLevel("debug", "Created vars.yaml at %s with content:\n%s", varsPath, varsContent)
 
 	return nil
+}
+
+// removeAnsibleSecrets deletes the --extra-vars @file written for the playbook.
+func removeAnsibleSecrets(runDir string) {
+	path := filepath.Join(runDir, airgapSecretsName)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		resources.LogLevel("warn", "could not remove %s: %v", path, err)
+	}
+}
+
+// runAirgapKeyCleanup revokes the bastion's ephemeral node key on every host,
+// best effort, whatever the main playbook did.
+func runAirgapKeyCleanup(config *driver.InfraConfig) {
+	ip := config.InfraProvisioner
+	if err := runCmdWithTimeout(ip.Ansible.Dir, 10*time.Minute, "ansible-playbook",
+		"-i", ip.Inventory.Path, airgapKeyCleanupPlaybook); err != nil {
+		resources.LogLevel("warn", "ephemeral key cleanup did not complete: %v", err)
+	}
 }

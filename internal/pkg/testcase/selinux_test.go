@@ -123,3 +123,115 @@ func TestWaitUninstallPermanentSSHError(t *testing.T) {
 		t.Fatalf("expected no sleep after the last attempt, got %d sleeps", sleeps)
 	}
 }
+
+// recordingRunner scripts the rpm probe and the rpm -qa reply separately and records
+// every step, so a test can assert which of them actually ran.
+type recordingRunner struct {
+	hasRPM   bool
+	probeErr error
+	rpmOut   string
+	rpmErr   error
+	cmds     []string
+}
+
+func (r *recordingRunner) probe(_ string) (bool, error) {
+	r.cmds = append(r.cmds, "probe")
+
+	return r.hasRPM, r.probeErr
+}
+
+func (r *recordingRunner) run(cmd, _ string) (string, error) {
+	r.cmds = append(r.cmds, cmd)
+
+	return r.rpmOut, r.rpmErr
+}
+
+func (r *recordingRunner) rpmQueries() int {
+	n := 0
+	for _, c := range r.cmds {
+		if strings.HasPrefix(c, "rpm -qa") {
+			n++
+		}
+	}
+
+	return n
+}
+
+func TestCheckUninstallPolicyFlow(t *testing.T) {
+	const rpmCmd = "rpm -qa k3s-selinux"
+	noSleep := func(time.Duration) {}
+
+	t.Run("rpm absent: probe only, rpm -qa never runs, no error", func(t *testing.T) {
+		r := &recordingRunner{hasRPM: false, rpmErr: errors.New("rpm -qa must not run")}
+		if err := checkUninstallPolicy(r.probe, r.run, noSleep, "k3s", "1.2.3.4", rpmCmd); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(r.cmds) != 1 || r.cmds[0] != "probe" {
+			t.Fatalf("expected exactly the probe, got %q", r.cmds)
+		}
+		if r.rpmQueries() != 0 {
+			t.Fatalf("rpm -qa must not run on a node without rpm, got %q", r.cmds)
+		}
+	})
+
+	t.Run("rpm present: probe then verification, package gone", func(t *testing.T) {
+		r := &recordingRunner{hasRPM: true, rpmOut: ""}
+		if err := checkUninstallPolicy(r.probe, r.run, noSleep, "k3s", "1.2.3.4", rpmCmd); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.rpmQueries() != 1 || r.cmds[len(r.cmds)-1] != rpmCmd {
+			t.Fatalf("expected the probe followed by %q, got %q", rpmCmd, r.cmds)
+		}
+	})
+
+	t.Run("rpm present: package still installed fails", func(t *testing.T) {
+		r := &recordingRunner{hasRPM: true, rpmOut: "k3s-selinux-1.6-1.sle.noarch\n"}
+		err := checkUninstallPolicy(r.probe, r.run, noSleep, "k3s", "1.2.3.4", rpmCmd)
+		if err == nil || !strings.Contains(err.Error(), "still installed") {
+			t.Fatalf("expected still-installed error, got %v", err)
+		}
+		if r.rpmQueries() != uninstallVerifyAttempts {
+			t.Fatalf("expected %d rpm -qa attempts, got %d", uninstallVerifyAttempts, r.rpmQueries())
+		}
+	})
+
+	t.Run("probe SSH error: fails, verification not attempted", func(t *testing.T) {
+		r := &recordingRunner{probeErr: errors.New("dial tcp 1.2.3.4:22: connection refused")}
+		err := checkUninstallPolicy(r.probe, r.run, noSleep, "k3s", "1.2.3.4", rpmCmd)
+		if err == nil || !strings.Contains(err.Error(), "connection refused") {
+			t.Fatalf("expected the probe error, got %v", err)
+		}
+		if r.rpmQueries() != 0 {
+			t.Fatalf("verification must not run after a probe error, got %q", r.cmds)
+		}
+	})
+}
+
+func TestK3sSles16ServerLogsOptional(t *testing.T) {
+	// server/logs only exists with audit logging configured; the default hardened jobs do not set it.
+	selectSelinuxPolicy("k3s", "sles16")
+	if osPolicyRequired[rootLs(k3s+"/server/logs "+ignoreDir)] {
+		t.Fatal("server/logs must not be a required path")
+	}
+	if !osPolicyRequired[rootLs(k3s+"/server/tls "+ignoreDir)] {
+		t.Fatal("server/tls must stay required")
+	}
+}
+
+func TestK3sSles16PolicyExists(t *testing.T) {
+	// getContext maps SLES 16 to "sles16"; a missing k3s entry made TestSelinuxContext pass vacuously.
+	if selectSelinuxPolicy("k3s", "sles16") == nil {
+		t.Fatal("k3s_sles16 context table is missing")
+	}
+	for cmd := range selectSelinuxPolicy("k3s", "sles16") {
+		if !osPolicyRequired[cmd] && !sles16Optional[cmd] {
+			t.Fatalf("every sles16 command must be required unless listed optional, %q is not", cmd)
+		}
+		if !strings.HasPrefix(cmd, "sudo sh -c 'ls -laZ ") {
+			t.Fatalf("%q must run in a root shell so globs under root-only dirs expand", cmd)
+		}
+		if strings.Contains(cmd, "s?bin") {
+			t.Fatalf("glob %q never matches /usr/local/bin/k3s", cmd)
+		}
+	}
+}
