@@ -55,12 +55,12 @@ module "cluster_nodes" {
   aws_volume_type_windows = var.aws_volume_type_windows
   aws_windows_ssh_user    = var.aws_windows_ssh_user
   windows_enable_rdp      = var.windows_enable_rdp
+  # Added only for opted-in runs, so older qa-infra refs reject the request explicitly.
+  # __NESTED_VIRTUALIZATION_MODULE_ARGS__
+  # Airgap-only arguments (bastion, run_id, qa_infra_sha, arch) are injected here by
+  # opentofu.go so connected runs stay compatible with qa-infra refs that predate them.
+  # __AIRGAP_MODULE_ARGS__
 }
-# Added only for opted-in runs, so older qa-infra refs reject the request explicitly.
-# __NESTED_VIRTUALIZATION_MODULE_ARGS__
-# Airgap-only arguments (bastion, run_id, qa_infra_sha, arch) are injected here by
-# opentofu.go so connected runs stay compatible with qa-infra refs that predate them.
-# __AIRGAP_MODULE_ARGS__
 
 # external_db module (Path B) is injected here by opentofu.go only when DATASTORE_TYPE=external and no endpoint was supplied.
 # __EXTERNAL_DB_MODULE__
@@ -177,10 +177,10 @@ output "instance_public_ips" {
 }
 
 output "windows_instance_public_ips" {
-  value = module.cluster_nodes.windows_instance_public_ips
+  value = try(module.cluster_nodes.windows_instance_public_ips, null)
 }
 
 output "windows_administrator_passwords" {
   sensitive = true
-  value     = module.cluster_nodes.windows_administrator_passwords
+  value     = try(module.cluster_nodes.windows_administrator_passwords, null)
 }
