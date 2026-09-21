@@ -147,7 +147,7 @@ node {
                   if (serverFlags) { data += "SERVER_FLAGS=${serverFlags}\n" }
                   if (workerFlags) { data += "WORKER_FLAGS=${workerFlags}\n" }
 
-                  ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES', 'NO_OF_WINDOWS_WORKER_NODES'
+                  ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES', 'NO_OF_WINDOWS_WORKER_NODES',
                    'SPLIT_ROLES', 'ETCD_ONLY_NODES', 'ETCD_CP_NODES', 'ETCD_WORKER_NODES',
                    'CP_ONLY_NODES', 'CP_WORKER_NODES', 'NODE_OS', 'AWS_AMI', 'ARCH', 'CNI',
                    'INSTANCE_TYPE', 'VOLUME_SIZE', 'VOLUME_TYPE',

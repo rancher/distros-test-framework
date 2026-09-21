@@ -27,25 +27,6 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 			return fmt.Errorf("failed to patch rke2_config template: %w", err)
 		}
 	}
-	
-	// Shared repo/ref with the OpenTofu module sources (qaInfra* consts in
-	// opentofu.go) so pre-merge testing pulls playbooks and modules from the
-	// same fork/branch.
-	if err := runCmdWithTimeout(config.InfraProvisioner.RootDir, 2*time.Minute,
-		"git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", "--branch",
-		qaInfraRef(), qaInfraCloneURL(), config.InfraProvisioner.TempDir); err != nil {
-		return fmt.Errorf("git clone failed: %w", err)
-	}
-
-	ansibleDir := "ansible/" + config.Product
-	if err := runCmdWithTimeout(config.InfraProvisioner.TempDir, 2*time.Minute,
-		"git", "sparse-checkout", "set", ansibleDir, "ansible/roles", "requirements.yml"); err != nil {
-		return fmt.Errorf("sparse checkout failed: %w", err)
-	}
-
-	if err := patchRKE2ConfigTemplate(config); err != nil {
-		return fmt.Errorf("failed to patch rke2_config template: %w", err)
-	}
 
 	if err := installAnsibleCollection(config.InfraProvisioner.TempDir); err != nil {
 		return fmt.Errorf("failed to install ansible collection: %w", err)
@@ -69,7 +50,7 @@ func fetchQAInfraCheckout(config *driver.InfraConfig) error {
 
 // checkoutQAInfra does the git work for fetchQAInfraCheckout; dir must already exist.
 func checkoutQAInfra(dir string, src qaInfraSource, product string) error {
-	sparseDirs := []string{"ansible/" + product, "ansible/roles", "ansible/tasks", airgapAnsiblePath}
+	sparseDirs := []string{"ansible/" + product, "ansible/roles", "ansible/tasks", airgapAnsiblePath, "requirements.yml"}
 
 	steps := [][]string{
 		{"init", "-q"},

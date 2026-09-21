@@ -41,8 +41,8 @@ type clusterNode struct {
 	PublicIP   string   `json:"public_ip"`
 	PrivateIP  string   `json:"private_ip"`
 	InstanceID string   `json:"instance_id,omitempty"`
-	OS        string   `json:"os,omitempty"`
-	SSHUser   string   `json:"ssh_user,omitempty"`
+	OS         string   `json:"os,omitempty"`
+	SSHUser    string   `json:"ssh_user,omitempty"`
 	AZ         string   `json:"az,omitempty"`
 }
 
@@ -123,6 +123,10 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	return b.String()
 }
 
+func isWindowsNode(n *clusterNode) bool {
+	return strings.EqualFold(n.OS, "windows") || strings.Contains(strings.ToLower(n.Name), "windows")
+}
+
 // assignNodeGroups maps each node to its inventory group (master/servers/workers/windows_workers)
 // with mutually-exclusive first-match-wins rules.
 func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
@@ -132,7 +136,7 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 	masterFound := false
 	for _, roleSet := range [][]string{{"etcd"}, {"cp"}} {
 		for _, n := range data.Nodes {
-			if n.OS == "windows" {
+			if isWindowsNode(&n) {
 				continue
 			}
 			if hasAnyRole(n.Roles, roleSet) {
@@ -150,7 +154,7 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 		if _, ok := assigned[n.Name]; ok {
 			continue
 		}
-		if n.OS == "windows" {
+		if isWindowsNode(&n) {
 			if hasAnyRole(n.Roles, []string{"worker"}) {
 				assigned[n.Name] = "windows_workers"
 			}
@@ -217,8 +221,8 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 		writeLine(b, "    ", n.Name, ":")
 		writeLine(b, "      ansible_host: ", yamlQuote(n.PublicIP))
 		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
-		writeLine(b, "      node_type: ", yamlQuote(nodeRole(&n, assigned)))
-		if n.OS == "windows" {
+		writeLine(b, "      node_type: ", yamlQuote(nodeRole(n, assigned)))
+		if isWindowsNode(n) {
 			sshUser := n.SSHUser
 			if sshUser == "" {
 				sshUser = "Administrator"

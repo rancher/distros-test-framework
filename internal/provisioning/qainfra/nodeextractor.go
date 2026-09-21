@@ -14,7 +14,7 @@ type infraNode struct {
 	publicIP  string
 	privateIP string
 	role      string
-	os       string
+	os        string
 }
 
 // address returns the IP the framework must use to reach the node.
@@ -49,17 +49,11 @@ func extractNodesFromTofuOutput(config *driver.InfraConfig) ([]infraNode, *clust
 			}
 		}
 		node := infraNode{
-<<<<<<< HEAD
 			name:      n.Name,
 			publicIP:  n.PublicIP,
 			privateIP: n.PrivateIP,
 			role:      strings.Join(n.Roles, ","),
-=======
-			name:     n.Name,
-			publicIP: n.PublicIP,
-			role:     strings.Join(n.Roles, ","),
-			os:       nodeOS,
->>>>>>> c841b4b (initial commit for Windows test migration on qainfra)
+			os:        nodeOS,
 		}
 		nodes = append(nodes, node)
 		resources.LogLevel("debug", "Extracted node from cluster_nodes_json: &{Name:%s PublicIP:%s Role:%s OS:%s}",

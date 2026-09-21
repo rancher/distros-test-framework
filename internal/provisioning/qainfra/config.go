@@ -416,15 +416,16 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 	airgap := config.InfraProvisioner.AirgapSetup
 	var serverIPs, agentIPs, winAgentIPs []string
 	for _, node := range nodes {
+		addr := node.address(airgap)
 		switch {
-		case node.address(airgap) == "":
+		case addr == "":
 			return fmt.Errorf("node %s has no usable address (airgap=%t)", node.name, airgap)
 		case node.os == "windows":
-			winAgentIPs = append(winAgentIPs, node.publicIP)
+			winAgentIPs = append(winAgentIPs, addr)
 		case isServerRole(node.role):
-			serverIPs = append(serverIPs, node.publicIP)
+			serverIPs = append(serverIPs, addr)
 		default:
-			agentIPs = append(agentIPs, node.publicIP)
+			agentIPs = append(agentIPs, addr)
 		}
 	}
 
