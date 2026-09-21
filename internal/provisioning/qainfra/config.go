@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
@@ -27,42 +28,68 @@ var (
 	defaultContainerKeyDir = "/go/src/github.com/rancher/distros-test-framework"
 )
 
-func addQAInfraEnv(infraCfg *driver.InfraConfig) *driver.InfraConfig {
+func addQAInfraEnv(infraCfg *driver.InfraConfig) (*driver.InfraConfig, error) {
+	var loadErr error
 	qaOnce.Do(func() {
-		qaCfg = loadQAInfra(infraCfg)
-		if qaCfg == nil {
-			resources.LogLevel("error", "error loading qainfra cluster config")
-			os.Exit(1)
-		}
+		qaCfg, loadErr = loadQAInfra(infraCfg)
 	})
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	if qaCfg == nil {
+		return nil, errors.New("qainfra configuration was not initialized")
+	}
 
-	return qaCfg
+	return qaCfg, nil
 }
 
-// loadQAInfra creates a configuration for qainfra driver.
-func loadQAInfra(i *driver.InfraConfig) *driver.InfraConfig {
-	workspace := "dsf-" + time.Now().Format("20060102150405")
-	// random suffix (36^5 ≈ 60M combinations).
-	uniqueID := randomSuffix(5)
+// loadQAInfra creates a configuration for qainfra driver. It fixes the run
+// identity and the qa-infra commit before any cloud resource exists.
+func loadQAInfra(i *driver.InfraConfig) (*driver.InfraConfig, error) {
+	runID, err := resolveRunID(i.ResourceName)
+	if err != nil {
+		return nil, err
+	}
 
-	envConfig := addEnvConfig(workspace)
-	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product)
+	src, err := resolveQAInfraSource(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	stateRoot := runStateRoot()
+	envConfig := addEnvConfig(runDir(stateRoot, runID))
+
+	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product, isAirgap(i))
 	if ansiblePathErr != nil {
-		resources.LogLevel("error", "error getting ansible path: %v", ansiblePathErr)
-		return nil
+		return nil, fmt.Errorf("error getting ansible path: %w", ansiblePathErr)
 	}
 
 	sshConfig, err := setupSSHConfiguration(i, envConfig)
 	if err != nil {
-		resources.LogLevel("error", "error setting up SSH configuration: %v", err)
-		return nil
+		return nil, fmt.Errorf("error setting up SSH configuration: %w", err)
 	}
 
-	infraConfig := buildInfraConfig(i, workspace, uniqueID, envConfig, ansiblePath, sshConfig)
+	infraConfig := buildInfraConfig(i, runID, src, envConfig, ansiblePath, sshConfig)
 
-	resources.LogLevel("debug", "Created QA infra configuration")
+	// Later stages in this process (AfterSuite destroy) locate the run by these.
+	if err := exportRunEnv(runID, stateRoot); err != nil {
+		return nil, err
+	}
 
-	return infraConfig
+	resources.LogLevel("info", "qainfra run id %s; state root %s", runID, stateRoot)
+
+	return infraConfig, nil
+}
+
+func exportRunEnv(runID, stateRoot string) error {
+	if err := os.Setenv(runIDEnv, runID); err != nil {
+		return fmt.Errorf("export %s: %w", runIDEnv, err)
+	}
+	if err := os.Setenv(stateDirEnv, stateRoot); err != nil {
+		return fmt.Errorf("export %s: %w", stateDirEnv, err)
+	}
+
+	return nil
 }
 
 // randomSuffix returns an n-character random suffix for tacking onto a resource name to avoid collisions in parallel.
@@ -100,16 +127,10 @@ func firstTFListItem(s string) string {
 	return strings.Trim(strings.TrimSpace(first), `"`)
 }
 
-func tofuWorkdir(workspace string) string {
-	return filepath.Join(string(filepath.Separator), "tmp", "qainfra-tofu-"+workspace)
-}
-
 // addEnvConfig determines directory paths based on container/host environment.
-func addEnvConfig(workspace string) environmentConfig {
+// Tofu and Ansible working dirs live under the run dir so state outlives the container.
+func addEnvConfig(runDirPath string) environmentConfig {
 	defaultKeyDir := resources.BasePath()
-	nodeSource := tofuWorkdir(workspace)
-
-	tempDir := filepath.Join(string(filepath.Separator), "tmp", "qainfra-ansible")
 	isContainer := resources.IsRunningInContainer()
 	if isContainer {
 		defaultKeyDir = defaultContainerKeyDir
@@ -117,14 +138,16 @@ func addEnvConfig(workspace string) environmentConfig {
 
 	return environmentConfig{
 		defaultKeyDir: defaultKeyDir,
-		nodeSource:    nodeSource,
-		tempDir:       tempDir,
+		runDir:        runDirPath,
+		nodeSource:    filepath.Join(runDirPath, "tofu"),
+		tempDir:       filepath.Join(runDirPath, "ansible"),
 		isContainer:   isContainer,
 	}
 }
 
-// getAnsiblePath returns the ansible path for the given product.
-func getAnsiblePath(product string) (string, error) {
+// getAnsiblePath returns the ansible path for the given product (the shared
+// airgap playbook dir when airgap is requested).
+func getAnsiblePath(product string, airgap bool) (string, error) {
 	if product == "" {
 		return "", errors.New("product is required")
 	}
@@ -132,6 +155,9 @@ func getAnsiblePath(product string) (string, error) {
 	product = strings.ToLower(product)
 	if product != "k3s" && product != "rke2" {
 		return "", fmt.Errorf("unsupported product: %s", product)
+	}
+	if airgap {
+		return airgapAnsiblePath, nil
 	}
 
 	return fmt.Sprintf("ansible/%s/default", product), nil
@@ -172,6 +198,7 @@ func clusterConfigFrom(i *driver.InfraConfig) driver.Config {
 		Channel:     i.Cluster.Config.Channel,
 		// rpm/tar install method reaches the ansible playbook via addInstallMethod.
 		InstallMethod: envOr("INSTALL_METHOD", "install_method"),
+		InstallMode:   envOr("INSTALL_MODE", "install_mode"),
 
 		DataStore:           i.Cluster.Config.DataStore,
 		ExternalDb:          i.Cluster.Config.ExternalDb,
@@ -184,7 +211,8 @@ func clusterConfigFrom(i *driver.InfraConfig) driver.Config {
 
 func buildInfraConfig(
 	i *driver.InfraConfig,
-	workspace, uniqueID string,
+	runID string,
+	src qaInfraSource,
 	envConfig environmentConfig,
 	ansiblePath string,
 	sshConfig driver.SSHConfig,
@@ -208,9 +236,14 @@ func buildInfraConfig(
 			NodeOS: i.NodeOS,
 		},
 		InfraProvisioner: &driver.InfraProvisionerConfig{
-			Workspace:      workspace,
-			UniqueID:       uniqueID,
+			Workspace:      runID,
+			UniqueID:       uniqueIDFromRunID(runID),
 			IsContainer:    envConfig.isContainer,
+			RunID:          runID,
+			RunDir:         envConfig.runDir,
+			QAInfraRepo:    src.ModuleBase,
+			QAInfraRef:     src.Ref,
+			QAInfraSHA:     src.SHA,
 			RootDir:        envConfig.defaultKeyDir,
 			TFNodeSource:   envConfig.nodeSource,
 			TempDir:        envConfig.tempDir,
@@ -227,7 +260,7 @@ func buildInfraConfig(
 				MainTfPath: filepath.Join(envConfig.nodeSource, "main.tf"),
 			},
 			OpenTofuOutputs: driver.OpenTofuOutputs{},
-			AirgapSetup:     false,
+			AirgapSetup:     isAirgap(i),
 			ProxySetup:      false,
 		},
 	}
@@ -236,6 +269,7 @@ func buildInfraConfig(
 // environmentConfig holds environment-specific configuration.
 type environmentConfig struct {
 	defaultKeyDir string
+	runDir        string
 	nodeSource    string
 	tempDir       string
 	isContainer   bool
@@ -322,9 +356,12 @@ func loadVarsFromFile(clusterConfig *driver.Cluster, airgapSetup, proxySetup boo
 }
 
 func setupDirectories(config *driver.InfraConfig) error {
+	// 0755: the Jenkins agent (any uid) reads run.json/destroy.sh; secrets stay 0600.
+	if err := os.MkdirAll(config.InfraProvisioner.RunDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create run directory %s: %w", config.InfraProvisioner.RunDir, err)
+	}
 	directories := []string{
 		config.InfraProvisioner.TFNodeSource,
-		config.InfraProvisioner.TempDir,
 		config.InfraProvisioner.TempDir,
 	}
 
@@ -337,6 +374,32 @@ func setupDirectories(config *driver.InfraConfig) error {
 	return nil
 }
 
+// writeRunManifest records the run before any cloud resource exists so an
+// independent process can always find and destroy exactly this run.
+func writeRunManifest(config *driver.InfraConfig) error {
+	ip := config.InfraProvisioner
+	m := &runManifest{
+		RunID:         ip.RunID,
+		Workspace:     ip.Workspace,
+		Product:       config.Product,
+		Module:        config.Module,
+		ResourceName:  config.ResourceName,
+		QAInfraRepo:   ip.QAInfraRepo,
+		QAInfraRef:    ip.QAInfraRef,
+		QAInfraSHA:    ip.QAInfraSHA,
+		TofuDir:       ip.TFNodeSource,
+		AnsibleDir:    ip.TempDir,
+		DestroyPolicy: bool(customflag.ServiceFlag.Destroy),
+		Status:        runStatusCreated,
+	}
+	if err := writeManifest(ip.RunDir, m); err != nil {
+		return err
+	}
+	logRunHandoff(ip.RunDir, m)
+
+	return nil
+}
+
 // buildClusterConfig todo: adjust to add missing data for all tests run.
 func buildClusterConfig(config *driver.InfraConfig) error {
 	if config.Cluster.Config.DataStore == "" {
@@ -345,17 +408,22 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 
 	applyExternalDatastore(config)
 
-	nodes, err := extractNodesFromTofuOutput(config)
+	nodes, data, err := extractNodesFromTofuOutput(config)
 	if err != nil {
 		return fmt.Errorf("failed to extract nodes from tofu output: %w", err)
 	}
 
+	airgap := config.InfraProvisioner.AirgapSetup
 	var serverIPs, agentIPs []string
 	for _, node := range nodes {
+		addr := node.address(airgap)
+		if addr == "" {
+			return fmt.Errorf("node %s has no usable address (airgap=%t)", node.name, airgap)
+		}
 		if isServerRole(node.role) {
-			serverIPs = append(serverIPs, node.publicIP)
+			serverIPs = append(serverIPs, addr)
 		} else {
-			agentIPs = append(agentIPs, node.publicIP)
+			agentIPs = append(agentIPs, addr)
 		}
 	}
 
@@ -364,6 +432,10 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 	config.Cluster.NumServers = len(serverIPs)
 	config.Cluster.NumAgents = len(agentIPs)
 	config.Cluster.Status = "cluster created"
+
+	if err := applyBastion(config, data); err != nil {
+		return err
+	}
 
 	applySplitRolesIfEnabled(config, nodes)
 
@@ -416,6 +488,27 @@ func applyExternalDatastore(config *driver.InfraConfig) {
 		dbKind = "external"
 	}
 	resources.LogLevel("info", "Using external datastore (%s); injected datastore-endpoint into server flags", dbKind)
+}
+
+// applyBastion records the bastion from cluster_nodes_json; airgap requires one.
+func applyBastion(config *driver.InfraConfig, data *clusterNodesJSON) error {
+	if data.Bastion == nil {
+		if config.InfraProvisioner.AirgapSetup {
+			return errors.New("airgap run but cluster_nodes_json has no bastion: " +
+				"the qa-infra ref lacks bastion support (schema v2)")
+		}
+
+		return nil
+	}
+	config.Cluster.Bastion = driver.BastionConfig{
+		PublicIPv4Addr: data.Bastion.PublicIP,
+		PublicDNS:      data.Bastion.PublicDNS,
+		PrivateIP:      data.Bastion.PrivateIP,
+	}
+	config.Cluster.NumBastion = 1
+	resources.LogLevel("info", "Bastion: %s (%s)", data.Bastion.PublicIP, data.Bastion.PublicDNS)
+
+	return nil
 }
 
 func isServerRole(role string) bool {
@@ -473,6 +566,8 @@ func runCmdWithTimeout(dir string, timeout time.Duration, name string, args ...s
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
+	// tofu/ansible fork providers and ssh: on timeout the whole group must die, not just the parent.
+	killProcessGroupOnCancel(cmd)
 
 	resources.LogLevel("info", "Running with %v timeout: %s %v (in %s)", timeout, name, args, dir)
 	err := cmd.Run()

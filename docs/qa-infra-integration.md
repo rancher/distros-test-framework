@@ -155,6 +155,28 @@ NVIDIA_VERSION=580.95.05
 ```
 
 ```bash
+# airgap  (TEST_DIR=airgap, MODULE=airgap; Linux only on qainfra)
+TEST_TAG=tarball                                           # tarball | privateregistry | systemdefaultregistry
+TARBALL_TYPE=tar.zst                                       # tarball: tar.zst (fast) | tar.gz
+IMAGE_REGISTRY_URL=https://prime.ribs.rancher.io           # optional: Prime artifacts (<base>/<product>/<version>)
+REGISTRY_USERNAME=...                                      # privateregistry only, OPTIONAL override (default: testuser +
+REGISTRY_PASSWORD=...                                      #   random per-run password; Jenkins credential AIRGAP_REGISTRY_CREDENTIALS);
+                                                           #   never CLI flags or TFVARS
+BASTION_INSTANCE_TYPE=t3a.medium                           # optional; same arch as the nodes (t4g.large for arm64)
+ARCH=amd64                                                 # amd64 | arm64
+# qainfra provisions private nodes + one bastion with cluster_nodes (airgap_setup=true,
+# bastion={enabled=true}) and installs the product offline with ansible/airgap/airgap-playbook.yml
+# (official install.sh, INSTALL_*_SKIP_DOWNLOAD / INSTALL_RKE2_ARTIFACT_PATH). The suite only
+# validates; it does not install. profile: cis / protect-kernel-defaults are rejected for now.
+# Every run is identified by QA_INFRA_RUN_ID and keeps tofu state under
+# QA_INFRA_STATE_DIR/<run_id>/ with a destroy.sh replaying the apply args. Jenkins keeps that dir
+# OUTSIDE the workspace (<agent workspace root>/qainfra-state/<job>/<run_id>), runs destroy.sh in
+# `finally` and fails the build if it does not complete; with -destroy false the dir stays for
+# manual recovery (`sh destroy.sh` with FORCE=1). The registry credentials file is deleted right
+# after the playbook run.
+```
+
+```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used
 DATASTORE_TYPE=external
 EXTERNAL_DB=postgres                                       # postgres | mysql | mariadb | aurora-mysql
@@ -218,6 +240,12 @@ nodes = [
   }
 ]
 ```
+
+For `MODULE=airgap` the framework appends the airgap inputs itself (`airgap_setup`,
+`bastion_enabled`, `bastion_instance_type`, `run_id`, `qa_infra_sha`, `arch`) and passes them
+to the `cluster_nodes` module; do not put `enable_public_ip`/`no_of_bastion_nodes` (legacy
+names) in a qainfra tfvars. Nodes get no public IP; every command reaches them through the
+bastion (`ProxyCommand`), and the kubeconfig lives on the bastion at `/tmp/<product>_kubeconf.yaml`.
 
 ## How It Works
 

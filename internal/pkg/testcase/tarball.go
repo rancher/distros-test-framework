@@ -11,6 +11,15 @@ import (
 )
 
 func TestTarball(cluster *driver.Cluster, flags *customflag.FlagConfig) {
+	if cluster.Airgap.Enabled {
+		// qainfra installed the cluster offline already; validate instead of installing.
+		resources.LogLevel("info", "Validating airgap tarball install done by qainfra (%s)...", cluster.Airgap.ArtifactsDir)
+		Expect(support.ValidateAirgapIsolation(cluster)).To(Succeed())
+		Expect(support.ValidateAirgapTarball(cluster)).To(Succeed())
+
+		return
+	}
+
 	resources.LogLevel("info", "Downloading tarball artifacts...")
 	_, err := support.GetArtifacts(cluster, "linux", flags.AirgapFlag.ImageRegistryUrl, flags.AirgapFlag.TarballType)
 	Expect(err).To(BeNil())

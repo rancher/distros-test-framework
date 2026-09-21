@@ -9,6 +9,15 @@ node {
 
   def testContainer = "${job_name}${env.BUILD_NUMBER}_test"
   def imageName = "acceptance-tests-${job_name}${env.BUILD_NUMBER}"
+  def containerRoot = '/go/src/github.com/rancher/distros-test-framework'
+  // One identity per build: state, tofu workspace and cleanup are keyed by it, never by HOSTNAME_PREFIX.
+  def runNonce = UUID.randomUUID().toString().replace('-', '').take(6)
+  def runId = "${job_name}-${env.BUILD_NUMBER}-${runNonce}".toLowerCase().replaceAll(/[^a-z0-9-]+/, '-')
+  // Run state lives OUTSIDE the workspace (sibling of it on the agent): the next build's
+  // deleteDir() must never wipe state kept for recovery (-destroy false / failed destroy).
+  def stateDirHost = "${env.WORKSPACE}".replaceAll(/\/+$/, '').replaceAll(/\/[^\/]+$/, '') + "/qainfra-state/${job_name}"
+  def stateDirContainer = "${containerRoot}/qainfra-state"
+  def runtimeMountsForCleanup = null
   def envFile = ".env"
   def qaseEnvFile = ".qase.env"
   def branch = "main"
@@ -44,12 +53,26 @@ node {
       runtimeEnv << 'AWS_SSH_PEM_KEY='
       withEnv(runtimeEnv) {
         // Bind credentials after parameters; qainfra always consumes this managed value.
-        withCredentials([
+        def bindings = [
           string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
           string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
           string(credentialsId: 'AWS_SSH_PEM_KEY_QAINFRA', variable: 'JENKINS_SSH_PEM_KEY'),
           string(credentialsId: 'QASE_AUTOMATION_TOKEN', variable: 'QASE_AUTOMATION_TOKEN'),
-        ]) {
+        ]
+        // Airgap registry credentials never travel as build parameters or TEST_ARGS.
+        // The credential is optional: without it the run mints a random registry password,
+        // so probe before binding instead of failing the build.
+        if (env.TEST_DIRECTORY == 'airgap') {
+          def registryBinding = usernamePassword(credentialsId: 'AIRGAP_REGISTRY_CREDENTIALS',
+            usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')
+          try {
+            withCredentials([registryBinding]) { echo 'AIRGAP_REGISTRY_CREDENTIALS found; overriding the per-run generated registry password' }
+            bindings << registryBinding
+          } catch (org.jenkinsci.plugins.credentialsbinding.impl.CredentialNotFoundException ignored) {
+            echo 'AIRGAP_REGISTRY_CREDENTIALS not configured; the private registry gets a per-run generated password'
+          }
+        }
+        withCredentials(bindings) {
           stage('Checkout') {
             deleteDir()
             checkout([
@@ -82,9 +105,12 @@ node {
                   sh 'chmod 600 aws_key.pem'
                 }
                 dir('./config') {
+                  if (env.TEST_DIRECTORY == 'airgap') {
+                    module = 'airgap'
+                  }
                   //update info in .env file
                   def data = "ENV_PRODUCT=${env.PRODUCT_NAME}\n" +
-                  "KUBE_CONFIG=${env.KUBE_CONFIG}\nBASTION_IP=${env.BASTION_IP}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
+                  "KUBE_CONFIG=${env.KUBE_CONFIG ?: ''}\nBASTION_IP=${env.BASTION_IP ?: ''}\nLOG_LEVEL=${env.LOG_LEVEL}\nINSTALL_VERSION=${env.INSTALL_VERSION}\n" +
                    "ENV_MODULE=${module}\nINSTALL_CHANNEL=${env.INSTALL_CHANNEL}\n"
 
                   data += "PROVISIONER_MODULE=${provisionerModule}\n" +
@@ -95,6 +121,12 @@ node {
                           'SSH_LOCAL_KEY_PATH=/go/src/github.com/rancher/distros-test-framework/config/.ssh/aws_key.pem\n'
                   if (env.AWS_SSH_KEY_NAME) {
                     data += "SSH_KEY_NAME=${env.AWS_SSH_KEY_NAME}\n"
+                  }
+                  data += "QA_INFRA_RUN_ID=${runId}\n" +
+                          "QA_INFRA_STATE_DIR=${stateDirContainer}\n"
+                  if (env.REGISTRY_USERNAME?.trim() && env.REGISTRY_PASSWORD?.trim()) {
+                    data += "REGISTRY_USERNAME=${env.REGISTRY_USERNAME}\n" +
+                            "REGISTRY_PASSWORD=${env.REGISTRY_PASSWORD}\n"
                   }
 
                   // The TFVARS text area replaces the qainfra vars file after a format check.
@@ -115,14 +147,14 @@ node {
                   if (serverFlags) { data += "SERVER_FLAGS=${serverFlags}\n" }
                   if (workerFlags) { data += "WORKER_FLAGS=${workerFlags}\n" }
 
-                  ['QA_INFRA_REF', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES',
+                  ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES',
                    'SPLIT_ROLES', 'ETCD_ONLY_NODES', 'ETCD_CP_NODES', 'ETCD_WORKER_NODES',
                    'CP_ONLY_NODES', 'CP_WORKER_NODES', 'NODE_OS', 'AWS_AMI', 'ARCH', 'CNI',
                    'INSTANCE_TYPE', 'VOLUME_SIZE', 'VOLUME_TYPE',
                    'AWS_REGION', 'DATASTORE_TYPE', 'EXTERNAL_DB', 'EXTERNAL_DB_VERSION',
                    'DB_GROUP_NAME', 'EXTERNAL_DB_NODE_TYPE', 'EXTERNAL_DB_ENDPOINT',
                    'EXTERNAL_DB_SUBNET_IDS', 'DB_USERNAME', 'DB_PASSWORD', 'ENGINE_MODE',
-                   'CREATE_EIP', 'OPTIONAL_FILES', 'INSTALL_METHOD'].each { name ->
+                   'CREATE_EIP', 'OPTIONAL_FILES', 'INSTALL_METHOD', 'BASTION_INSTANCE_TYPE'].each { name ->
                     def value = env."${name}"
                     if (value?.trim()) {
                       data += "${name}=${value}\n"
@@ -148,14 +180,17 @@ node {
                 }
               }
               stage('Run TestCombination') {
-                    def containerRoot = '/go/src/github.com/rancher/distros-test-framework'
+                    sh "mkdir -p '${stateDirHost}' && chmod 700 '${stateDirHost}'"
                     // Dockerfile.jenkins has no entrypoint; Go reads these files directly.
                     // Keep them at their final paths and mount them read-only.
                     def runtimeMounts = [
                       "--mount 'type=bind,source=${env.WORKSPACE}/config/.env,target=${containerRoot}/config/.env,readonly'",
                       "--mount 'type=bind,source=${env.WORKSPACE}/config/.ssh/aws_key.pem,target=${containerRoot}/config/.ssh/aws_key.pem,readonly'",
-                      "--mount 'type=bind,source=${env.WORKSPACE}/infrastructure/qainfra/vars.tfvars,target=${containerRoot}/infrastructure/qainfra/vars.tfvars,readonly'"
+                      "--mount 'type=bind,source=${env.WORKSPACE}/infrastructure/qainfra/vars.tfvars,target=${containerRoot}/infrastructure/qainfra/vars.tfvars,readonly'",
+                      // tofu state + run manifest outlive the test container (cleanup below relies on it).
+                      "--mount 'type=bind,source=${stateDirHost},target=${stateDirContainer}'"
                     ]
+                    runtimeMountsForCleanup = runtimeMounts
                     sh """
                     docker run --name ${testContainer} -t \
                         --env-file ${envFile} \
@@ -170,6 +205,31 @@ node {
               stage('Cleanup') {
                 sh "docker stop ${testContainer} || true"
                 sh "docker rm -v ${testContainer} || true"
+                // Destroy exactly this run from its persisted manifest, even after a partial apply,
+                // timeout or abort. Honours -destroy false (script exits 0 and keeps resources).
+                // The state tree is written by root inside the container, so every check and the
+                // removal run in a fresh container too (the agent uid never needs to own it).
+                def runDir = "${stateDirContainer}/${runId}"
+                if (runtimeMountsForCleanup) {
+                  // rc 3 = destroy failed (resources may be leaked): the build must not stay green.
+                  def destroyRc = sh(returnStatus: true, script: """
+                  docker run --rm --name ${testContainer}_destroy \
+                      --env-file ${envFile} \
+                      --env-file ./config/.env \
+                      ${runtimeMountsForCleanup.join(' ')} \
+                      ${imageName} sh -c '
+                        if [ ! -f ${runDir}/destroy.sh ]; then echo "No qainfra run state for ${runId}; nothing to destroy"; exit 0; fi
+                        sh ${runDir}/destroy.sh || { echo "ERROR: qainfra destroy did not complete; state kept in ${stateDirHost}/${runId}"; exit 3; }
+                        if grep -Eq "status.: .destroyed" ${runDir}/run.json; then rm -rf ${runDir}; else echo "Keeping run state for recovery: ${stateDirHost}/${runId}"; fi
+                      '
+                  """)
+                  if (destroyRc != 0) {
+                    currentBuild.result = 'FAILURE'
+                    echo "qainfra cleanup failed (rc=${destroyRc}); AWS resources of run ${runId} may still exist. State: ${stateDirHost}/${runId}"
+                  }
+                } else {
+                  echo "Test container never started; no qainfra run state for ${runId}"
+                }
                 sh "docker rmi -f ${imageName} || true"
                 sh 'sh ./scripts/cleanup_sensitive_files.sh'
               } // stage

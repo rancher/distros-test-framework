@@ -76,6 +76,13 @@ func (t *templateConfigFlag) Set(value string) error {
 	return nil
 }
 
+// Legacy defaults of the throwaway airgap registry (flag defaults; qainfra replaces the
+// password with a per-run random value unless REGISTRY_USERNAME/REGISTRY_PASSWORD are set).
+const (
+	DefaultRegistryUsername = "testuser"
+	DefaultRegistryPassword = "testpass765" //nolint:gosec // throwaway test registry, not a credential
+)
+
 type airgapFlag struct {
 	ImageRegistryUrl string
 	RegistryUsername string
