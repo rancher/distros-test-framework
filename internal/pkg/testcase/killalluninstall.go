@@ -3,6 +3,7 @@ package testcase
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -397,6 +398,93 @@ func reInstallServerProduct(cluster *driver.Cluster, cfg *config.Env) {
 
 	enableErr := resources.EnableAndStartService(cluster, cluster.ServerIPs[0], "server")
 	Expect(enableErr).NotTo(HaveOccurred(), "failed to enable and start service: %v", enableErr)
+
+	waitForReinstalledServerSettled(cluster)
+}
+
+// settleStreakNeeded is how many consecutive healthy polls (10s apart) with an unchanged pod set are required,
+// so late addons such as metrics-server appearing after a first healthy snapshot still reset the wait.
+const settleStreakNeeded = 3
+
+// settleTracker counts consecutive healthy observations and resets whenever the pod set changes or a pod is unsettled.
+type settleTracker struct {
+	need   int
+	streak int
+	last   string
+}
+
+// observe records one poll and reports whether the cluster has been stable for the required streak.
+func (t *settleTracker) observe(settled bool, podKeys []string) bool {
+	keys := append([]string(nil), podKeys...)
+	sort.Strings(keys)
+	set := strings.Join(keys, ",")
+	if !settled || set != t.last {
+		t.streak = 0
+		t.last = set
+	}
+	if settled {
+		t.streak++
+	}
+
+	return t.streak >= t.need
+}
+
+// waitForReinstalledServerSettled blocks until the reinstalled server is Ready and every pod is Running N/N or
+// Completed for settleStreakNeeded consecutive polls, so the next uninstall does not race image unpacking.
+func waitForReinstalledServerSettled(cluster *driver.Cluster) {
+	tracker := &settleTracker{need: settleStreakNeeded}
+	Eventually(func(g Gomega) {
+		settled, keys, reason := pollReinstalledServer(cluster)
+		stable := tracker.observe(settled, keys)
+		g.Expect(stable).To(BeTrue(), "cluster not stable yet (streak %d/%d): %s", tracker.streak, tracker.need, reason)
+	}, "600s", "10s").Should(Succeed(), "reinstalled server did not settle")
+
+	resources.LogLevel("info", "reinstalled server is Ready with all pods settled for %d consecutive polls",
+		settleStreakNeeded)
+}
+
+// pollReinstalledServer never asserts: any kubectl error, missing or NotReady node, or unsettled pod is reported
+// as unhealthy so the caller's streak resets on every failed poll.
+func pollReinstalledServer(cluster *driver.Cluster) (settled bool, keys []string, reason string) {
+	out, err := nodeKubectl(cluster, "get nodes -o wide --no-headers")
+	if err != nil {
+		return false, nil, "kubectl get nodes failed: " + err.Error()
+	}
+	nodes := resources.ParseNodes(out)
+	if len(nodes) == 0 {
+		return false, nil, "no nodes reported after reinstall"
+	}
+	for _, n := range nodes {
+		if n.Status != "Ready" {
+			return false, nil, fmt.Sprintf("node %s is %s", n.Name, n.Status)
+		}
+	}
+
+	out, err = nodeKubectl(cluster, "get pods -A -o wide --no-headers")
+	if err != nil {
+		return false, nil, "kubectl get pods failed: " + err.Error()
+	}
+	pods := resources.ParsePods(out)
+	keys = make([]string, 0, len(pods))
+	for i := range pods {
+		keys = append(keys, pods[i].NameSpace+"/"+pods[i].Name)
+	}
+	settled, pending := resources.PodsSettled(pods)
+	if !settled {
+		return false, keys, fmt.Sprintf("pods still starting: %v", pending)
+	}
+
+	return true, keys, "healthy"
+}
+
+// nodeKubectl runs kubectl on the first server with the product kubeconfig; the host kubeconfig is stale
+// after a reinstall (new CA), so the check has to happen on the node.
+func nodeKubectl(cluster *driver.Cluster, args string) (string, error) {
+	product := cluster.Config.Product
+	cmd := fmt.Sprintf("sudo sh -c 'PATH=$PATH:/usr/local/bin:/opt/bin:/var/lib/rancher/%s/bin "+
+		"kubectl %s --kubeconfig /etc/rancher/%s/%s.yaml'", product, args, product, product)
+
+	return resources.RunCommandOnNode(cmd, cluster.ServerIPs[0])
 }
 
 func createFakeRemoteFs(cluster *driver.Cluster) {

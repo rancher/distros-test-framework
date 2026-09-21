@@ -11,6 +11,15 @@ import (
 )
 
 func TestSystemDefaultRegistry(cluster *driver.Cluster, flags *customflag.FlagConfig) {
+	if cluster.Airgap.Enabled {
+		resources.LogLevel("info", "Validating airgap system-default-registry install done by qainfra (%s)...",
+			cluster.Airgap.RegistryHost)
+		Expect(support.ValidateAirgapIsolation(cluster)).To(Succeed())
+		Expect(support.ValidateAirgapSystemDefaultRegistry(cluster)).To(Succeed())
+
+		return
+	}
+
 	resources.LogLevel("info", "Setting bastion as system default registry...")
 	err := support.SetupAirgapRegistry(cluster, flags, support.SystemDefaultRegistry)
 	Expect(err).To(BeNil())

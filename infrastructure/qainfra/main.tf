@@ -49,6 +49,9 @@ module "cluster_nodes" {
   airgap_setup        = var.airgap_setup
   proxy_setup         = var.proxy_setup
   nodes               = var.nodes
+  # Airgap-only arguments (bastion, run_id, qa_infra_sha, arch) are injected here by
+  # opentofu.go so connected runs stay compatible with qa-infra refs that predate them.
+  # __AIRGAP_MODULE_ARGS__
 }
 # external_db module (Path B) is injected here by opentofu.go only when DATASTORE_TYPE=external and no endpoint was supplied.
 # __EXTERNAL_DB_MODULE__
@@ -138,6 +141,8 @@ output "cluster_nodes_json" {
         for n in jsondecode(module.cluster_nodes.cluster_nodes_json).nodes :
         merge(n, { public_ip = aws_eip.node[n.name].public_ip })
       ]
+      # schema v2 field; null on qa-infra refs that predate it.
+      bastion = try(jsondecode(module.cluster_nodes.cluster_nodes_json).bastion, null)
     })
     : module.cluster_nodes.cluster_nodes_json
   )

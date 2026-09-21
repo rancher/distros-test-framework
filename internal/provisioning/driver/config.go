@@ -24,6 +24,15 @@ type InfraProvisionerConfig struct {
 	UniqueID    string
 	IsContainer bool
 
+	// RunID identifies this provisioning run; RunDir holds its state and manifest.
+	RunID  string
+	RunDir string
+
+	// QAInfra pins rancher/qa-infra-automation (or a fork) to one resolved commit.
+	QAInfraRepo string
+	QAInfraRef  string
+	QAInfraSHA  string
+
 	RootDir        string
 	TFNodeSource   string
 	TempDir        string

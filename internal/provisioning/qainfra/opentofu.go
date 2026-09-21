@@ -24,32 +24,51 @@ func executeOpenTofuOperations(config *driver.InfraConfig) error {
 		return fmt.Errorf("tofu init failed: %w", runTimeoutErr)
 	}
 
+	// -or-create keeps a retry of the same run id on its own existing workspace.
 	runErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 2*time.Minute,
-		"tofu", "workspace", "new", config.InfraProvisioner.Workspace)
-	if runErr != nil {
-		return fmt.Errorf("tofu workspace new failed: %w", runErr)
-	}
-
-	runErr = runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 2*time.Minute,
-		"tofu", "workspace", "select", config.InfraProvisioner.Workspace)
+		"tofu", "workspace", "select", "-or-create", config.InfraProvisioner.Workspace)
 	if runErr != nil {
 		return fmt.Errorf("tofu workspace select failed: %w", runErr)
 	}
 
-	args, err := appendNodesVar([]string{"apply", "-auto-approve", "-var-file=" + config.InfraProvisioner.TFVarsPath})
+	// Relative var-file: destroy replays these args from the manifest inside TofuDir.
+	varArgs, err := appendNodesVar([]string{"-var-file=" + filepath.Base(config.InfraProvisioner.TFVarsPath)})
 	if err != nil {
 		return fmt.Errorf("build nodes topology from env: %w", err)
 	}
 
+	if err := recordApplyIntent(config, varArgs); err != nil {
+		return err
+	}
+
+	args := append([]string{"apply", "-auto-approve"}, varArgs...)
 	if runTimeoutErr := runCmdWithTimeout(config.InfraProvisioner.TFNodeSource, 15*time.Minute,
 		"tofu", args...); runTimeoutErr != nil {
 		return fmt.Errorf("tofu apply failed: %w", runTimeoutErr)
 	}
 
-	resources.LogLevel("debug", "Completed OpenTofu operations: init, workspace new, workspace select, apply with args: %v",
-		args)
+	if err := updateManifestStatus(config.InfraProvisioner.RunDir, runStatusApplied, nil); err != nil {
+		return err
+	}
+
+	resources.LogLevel("debug", "Completed OpenTofu operations: init, workspace select, apply with args: %v", args)
 
 	return nil
+}
+
+// recordApplyIntent persists the exact apply arguments and the destroy script
+// BEFORE apply, so a crash mid-apply still leaves a working cleanup path.
+func recordApplyIntent(config *driver.InfraConfig, varArgs []string) error {
+	dir := config.InfraProvisioner.RunDir
+	if err := updateManifestStatus(dir, runStatusApplying, varArgs); err != nil {
+		return err
+	}
+	m, err := readManifest(dir)
+	if err != nil {
+		return err
+	}
+
+	return writeDestroyScript(dir, m)
 }
 
 func addTofuOutputsToConfig(config *driver.InfraConfig) error {
@@ -177,7 +196,7 @@ func copyTerraformFiles(config *driver.InfraConfig) error {
 
 // configureTerraformFiles updates the copied terraform files with environment-specific values.
 func configureTerraformFiles(config *driver.InfraConfig) error {
-	if err := updateMainTfModuleSource(config.QAInfraProvider, config.InfraProvisioner.Terraform.MainTfPath); err != nil {
+	if err := updateMainTfModuleSource(config); err != nil {
 		return fmt.Errorf("failed to update main.tf module source: %w", err)
 	}
 
@@ -208,6 +227,12 @@ func configureTerraformFiles(config *driver.InfraConfig) error {
 
 	if err := threadRuntimeEnvIntoTFVars(config.InfraProvisioner.Terraform.TFVarsPath); err != nil {
 		return err
+	}
+
+	if config.InfraProvisioner.AirgapSetup {
+		if err := writeAirgapTFVars(config); err != nil {
+			return err
+		}
 	}
 
 	if err := loadQAInfraTFVars(
@@ -320,9 +345,13 @@ func updateVarsFile(varsFilePath, uniqueID, product, resourceName string) error 
 	return setOrAppendTFVar(varsFilePath, "aws_hostname_prefix", prefix)
 }
 
-// updateMainTfModuleSource updates main.tf to use the correct infrastructure module based on QA_INFRA_PROVIDER env var.
-func updateMainTfModuleSource(qaInfraProvider, mainTfPath string) error {
-	resources.LogLevel("info", "Using infrastructure module: %s", qaInfraProvider)
+// updateMainTfModuleSource points main.tf at the resolved qa-infra commit for the
+// selected QA_INFRA_PROVIDER, so tofu and ansible share one revision.
+func updateMainTfModuleSource(config *driver.InfraConfig) error {
+	qaInfraProvider := config.QAInfraProvider
+	mainTfPath := config.InfraProvisioner.Terraform.MainTfPath
+	src := sourceFromConfig(config)
+	resources.LogLevel("info", "Using infrastructure module: %s @ %s", qaInfraProvider, src.SHA)
 
 	content, readErr := os.ReadFile(mainTfPath)
 	if readErr != nil {
@@ -330,14 +359,12 @@ func updateMainTfModuleSource(qaInfraProvider, mainTfPath string) error {
 	}
 
 	contentStr := string(content)
-
-	// Point cluster_nodes at the upstream module.
-	clusterNodesSrc := fmt.Sprintf(
-		"%s//tofu/%s/modules/cluster_nodes?ref=%s", qaInfraRepo, qaInfraProvider, qaInfraRef())
-	contentStr = strings.ReplaceAll(contentStr, "placeholder-for-remote-module", clusterNodesSrc)
+	contentStr = strings.ReplaceAll(contentStr, "placeholder-for-remote-module",
+		src.moduleSource(qaInfraProvider, "cluster_nodes"))
 
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
-	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(qaInfraProvider))
+	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
+	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
 
 	if writeErr := os.WriteFile(mainTfPath, []byte(contentStr), 0o644); writeErr != nil {
 		return fmt.Errorf("failed to write updated main.tf: %w", writeErr)
@@ -348,22 +375,19 @@ func updateMainTfModuleSource(qaInfraProvider, mainTfPath string) error {
 	return nil
 }
 
-const (
-	qaInfraRepo      = "github.com/rancher/qa-infra-automation"
-	qaInfraCloneURL  = "https://github.com/rancher/qa-infra-automation.git"
-	qaInfraRefDef    = "main"
-	externalDBMarker = "# __EXTERNAL_DB_MODULE__"
-)
+// sourceFromConfig rebuilds the pinned qa-infra source from the run configuration.
+func sourceFromConfig(config *driver.InfraConfig) qaInfraSource {
+	ip := config.InfraProvisioner
 
-// qaInfraRef returns the qa-infra-automation git ref for tofu modules and the ansible clone.
-// QA_INFRA_REF pins a tag/branch (not a bare SHA — it feeds `git clone --branch`).
-func qaInfraRef() string {
-	if ref := strings.TrimSpace(os.Getenv("QA_INFRA_REF")); ref != "" {
-		return ref
+	return qaInfraSource{
+		ModuleBase: ip.QAInfraRepo,
+		CloneURL:   "https://" + ip.QAInfraRepo + ".git",
+		Ref:        ip.QAInfraRef,
+		SHA:        ip.QAInfraSHA,
 	}
-
-	return qaInfraRefDef
 }
+
+const externalDBMarker = "# __EXTERNAL_DB_MODULE__"
 
 // usesExternalDBProvisioning reports whether to auto-provision the RDS (Path B): external + no endpoint via env or flags.
 func usesExternalDBProvisioning() bool {
@@ -382,13 +406,10 @@ func usesExternalDBProvisioning() bool {
 
 // externalDBModuleBlock returns the HCL for the external_db module + its output,
 // or "" when auto-provisioning isn't needed (so the marker is simply removed).
-func externalDBModuleBlock(qaInfraProvider string) string {
+func externalDBModuleBlock(src qaInfraSource, qaInfraProvider string) string {
 	if !usesExternalDBProvisioning() {
 		return ""
 	}
-
-	src := fmt.Sprintf(
-		"%s//tofu/%s/modules/external_db?ref=%s", qaInfraRepo, qaInfraProvider, qaInfraRef())
 
 	return fmt.Sprintf(`module "external_db" {
   source              = %q
@@ -409,5 +430,5 @@ func externalDBModuleBlock(qaInfraProvider string) string {
 output "datastore_endpoint" {
   value     = module.external_db.datastore_endpoint
   sensitive = true
-}`, src)
+}`, src.moduleSource(qaInfraProvider, "external_db"))
 }

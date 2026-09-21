@@ -17,9 +17,17 @@ node {
       [url: "${env.REPO}"]
     ]
   }
-  def timeout = "60m"
+  // Never name this "timeout": a local of that name shadows the timeout() step below.
+  def childTimeout = "60m"
   if ("${env.TIMEOUT}" != "null" && "${env.TIMEOUT}" != "") {
-    timeout = "${env.TIMEOUT}"
+    childTimeout = "${env.TIMEOUT}"
+  }
+  // "1h30m" / "90m" / "45s" -> minutes (rounded up); anything unparsable -> 60.
+  def timeoutMinutes = { String t ->
+    def m = (t =~ /^\s*(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?\s*$/)
+    if (!m.matches() || (m[0][1] == null && m[0][2] == null && m[0][3] == null)) { return 60 }
+    def total = (m[0][1] ? m[0][1].toInteger() * 60 : 0) + (m[0][2] ? m[0][2].toInteger() : 0) + (m[0][3] ? 1 : 0)
+    return total > 0 ? total : 60
   }
   wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm', 'defaultFg': 2, 'defaultBg': 1]) {
     withFolderProperties {
@@ -58,19 +66,33 @@ node {
               error "TEST_DIRECTORY_LIST is empty. Please provide at least one valid test key."
             }
 
-            test_dir.each { test_name ->
-              def job_test_args = "${TEST_ARGS}"
-              if (test_name in ["privateregistry", "systemdefaultregistry"]) {
-                  job_test_args += " -tags=${test_name}"
-              } else if (test_name.contains("tarball")) {
-                  job_test_args += " -tags=tarball -tarballType tar.zst"
+            // qainfra clones carry the _qainfra suffix; Windows scenarios are legacy-only there.
+            def provisionerModule = (env.PROVISIONER_MODULE ?: 'qainfra').trim()
+            def jobSuffix = provisionerModule == 'qainfra' ? '_qainfra' : ''
+            if (provisionerModule == 'qainfra') {
+              def windows = test_dir.findAll { it.contains('windows') }
+              if (windows) {
+                error("Windows airgap scenarios are not supported on qainfra yet: ${windows}")
               }
+            }
+            def knownKeys = ['privateregistry', 'systemdefaultregistry', 'tarball', 'tarball_arm',
+                             'tarball_prime_staging', 'tarball_arm_prime_staging',
+                             'tarball_prime_release', 'tarball_arm_prime_release',
+                             'privateregistry_windows', 'tarball_windows',
+                             'tarball_windows_prime_staging', 'tarball_windows_prime_release']
+            def unknown = test_dir.findAll { !(it in knownKeys) }
+            if (unknown) {
+              error("Unknown TEST_DIRECTORY_LIST keys: ${unknown}. Valid: ${knownKeys}")
+            }
 
+            test_dir.each { test_name ->
+              // Do NOT pass TEST_ARGS: each child keeps its own -tags/-tarballType/-destroy/
+              // -imageRegistryUrl defaults (prod main behaves the same). Secrets never travel here.
               def install_params = [
-                string(name: 'TEST_ARGS', value: job_test_args),
                 string(name: 'TEST_DIRECTORY', value: "airgap"),
                 string(name: 'AWS_SSH_KEY_NAME', value: "${AWS_SSH_KEY_NAME}"),
-                string(name: 'AWS_SSH_PEM_KEY', value: "${AWS_SSH_PEM_KEY}"),
+                string(name: 'PROVISIONER_MODULE', value: provisionerModule),
+                string(name: 'QA_INFRA_REF', value: "${env.QA_INFRA_REF ?: 'main'}"),
                 string(name: 'REPO', value: "${REPO}"),
                 string(name: 'BRANCH', value: "${branch}"),
                 string(name: 'PRODUCT_NAME', value: "${PRODUCT_NAME}"),
@@ -78,20 +100,28 @@ node {
                 string(name: 'INSTALL_MODE', value: "${INSTALL_MODE}"),
                 string(name: 'INSTALL_CHANNEL', value: "${INSTALL_CHANNEL}"),
                 string(name: 'HOSTNAME_PREFIX', value: "${HOSTNAME_PREFIX}"),
+                string(name: 'TIMEOUT', value: childTimeout),
                 string(name: 'REPORT_TO_QASE', value: "${REPORT_TO_QASE}"),
                 string(name: 'QASE_PROJECT_ID', value: "${QASE_PROJECT_ID}"),
                 string(name: 'QASE_RUN_ID', value: "${QASE_RUN_ID}")
               ]
 
+              if (env.QA_INFRA_REPO?.trim()) {
+                install_params << string(name: 'QA_INFRA_REPO', value: env.QA_INFRA_REPO.trim())
+              }
               def prefix = test_name.contains("windows") ? "rke2" : env.PRODUCT_NAME
               def base_name = test_name
                   .replace("privateregistry", "private_registry")
                   .replace("systemdefaultregistry", "system_default_registry")
-              def final_job_name = "${prefix}_${base_name}"
+              def final_job_name = "${prefix}_${base_name}${jobSuffix}"
               echo "ID: ${test_name} -> Jenkins Job: ${final_job_name}"
               jobs[test_name] = { build job: final_job_name, parameters: install_params }
             } // test_dir.each loop ends
-            parallel jobs
+            // Children get TIMEOUT for their go test only. The batch adds a fixed budget for
+            // queue + checkout + docker build (30 min) and for the child's own tofu destroy (60 min).
+            timeout(time: timeoutMinutes(childTimeout) + 90, unit: 'MINUTES') {
+              parallel jobs
+            }
           } // stage run parallel jobs
         } // dir
       } // withEnv

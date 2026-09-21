@@ -278,7 +278,7 @@ func TestInfraMainTfKeepsInjectionAnchors(t *testing.T) {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 
-	for _, anchor := range []string{externalDBMarker, "placeholder-for-remote-module"} {
+	for _, anchor := range []string{externalDBMarker, airgapModuleMarker, "placeholder-for-remote-module"} {
 		if !strings.Contains(string(content), anchor) {
 			t.Errorf("infrastructure/qainfra/main.tf lost required anchor %q", anchor)
 		}

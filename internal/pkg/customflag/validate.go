@@ -365,6 +365,7 @@ func ValidateTemplateTcs() {
 		"TestSelinuxSpcT":                  {},
 		"TestUninstallPolicy":              {},
 		"TestSelinuxContext":               {},
+		"TestSelinuxEnforcement":           {},
 		"TestIngressRoute":                 {},
 		"TestCertRotate":                   {},
 		"TestSecretsEncryption":            {},

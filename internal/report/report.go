@@ -1,6 +1,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -116,40 +117,28 @@ func airgapNodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data
 	// config.yaml from server via bastion node. File is 0600 root:root —
 	// sudo is required regardless of distro.
 	cfgCmd := fmt.Sprintf("sudo cat /etc/rancher/%s/config.yaml", c.Config.Product)
-	cfg, err := remoteExec(c.SSH.PrivKeyPath, c.SSH.User, c.ServerIPs[0], c.Bastion.PublicIPv4Addr, cfgCmd)
+	cfg, err := nodeExec(c, c.SSH.PrivKeyPath, c.ServerIPs[0], cfgCmd)
 	if err != nil {
 		return fmt.Errorf("retrieving config.yaml: %w", err)
 	}
 	data.configYaml = strings.TrimSpace(cfg)
 	// registries.yaml from bastion node id tag is privateregistry.
 	if c.TestConfig.Tag == "privateregistry" {
-		pvRg := getPrivateRegistries(c.Bastion.PublicIPv4Addr, data)
+		pvRg := getPrivateRegistries(c, data)
 		if pvRg != nil {
 			return fmt.Errorf("error retrieving private registries: %w", pvRg)
 		}
 	}
 
 	// /etc/os-release from server via bastion node.
-	osRelease, osReleaseErr := remoteExec(
-		c.SSH.KeyName,
-		c.SSH.User,
-		c.ServerIPs[0],
-		c.Bastion.PublicIPv4Addr,
-		"cat /etc/os-release",
-	)
+	osRelease, osReleaseErr := nodeExec(c, c.SSH.KeyName, c.ServerIPs[0], "cat /etc/os-release")
 	if osReleaseErr != nil {
 		return fmt.Errorf("retrieving os-release: %w", osReleaseErr)
 	}
 	data.osReleaseData = strings.TrimSpace(osRelease)
 
 	// Kernel version from server node via bastion node.
-	unameOutput, unameErr := remoteExec(
-		c.SSH.KeyName,
-		c.SSH.User,
-		c.ServerIPs[0],
-		c.Bastion.PublicIPv4Addr,
-		"uname -r",
-	)
+	unameOutput, unameErr := nodeExec(c, c.SSH.KeyName, c.ServerIPs[0], "uname -r")
 	if unameErr != nil {
 		unameOutput = "Kernel version not found " + fmt.Sprint("error: %w", unameErr)
 		data.summaryData.WriteString("\n" + "**Kernel Version**" + "\n" + unameOutput + "\n")
@@ -159,14 +148,18 @@ func airgapNodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data
 	}
 	unameOutput = strings.TrimSpace(unameOutput)
 
-	// airgap info from environment variables/flags.
+	// airgap info from environment variables/flags; the password never reaches the report.
 	data.airgapInfo = fmt.Sprintf(
 		"\nurl: %s\nhost: %s\nusername: %s\npassword: %s",
 		flags.AirgapFlag.ImageRegistryUrl,
 		c.Bastion.PublicDNS,
 		flags.AirgapFlag.RegistryUsername,
-		flags.AirgapFlag.RegistryPassword,
+		"<redacted>",
 	)
+	if c.Airgap.Enabled {
+		data.airgapInfo += fmt.Sprintf("\nmethod: %s\nregistry_mode: %s\nartifacts: %s (%s)",
+			c.Airgap.Method, c.Airgap.RegistryMode, c.Airgap.ArtifactsDir, c.Airgap.ArtifactOrigin)
+	}
 
 	data.summaryData.WriteString("\n" + "**Config YAML**" + "\n" + "\n")
 	data.summaryData.WriteString("```yaml\n")
@@ -191,11 +184,22 @@ func airgapNodeSummaryData(c *driver.Cluster, flags *customflag.FlagConfig, data
 	return nil
 }
 
-func getPrivateRegistries(bastionIP string, data *summaryReportData) error {
-	// registries.yaml on bastion node itself.
-	privateRegistries, regErr := resources.RunCommandOnNode("cat registries.yaml", bastionIP)
+func getPrivateRegistries(c *driver.Cluster, data *summaryReportData) error {
+	bastionIP := c.Bastion.PublicIPv4Addr
+	var privateRegistries string
+	var regErr error
+	if c.Airgap.Enabled {
+		// qainfra renders registries.yaml on the nodes; read it via the bastion with the password masked.
+		// remoteExec wraps the command in single quotes: no quotes or redirection chars inside.
+		cmd := fmt.Sprintf("sudo sed s/password:.*/password:REDACTED/ /etc/rancher/%s/registries.yaml",
+			c.Config.Product)
+		privateRegistries, regErr = nodeExec(c, c.SSH.KeyName, c.ServerIPs[0], cmd)
+	} else {
+		// legacy: registries.yaml on bastion node itself.
+		privateRegistries, regErr = resources.RunCommandOnNode("cat registries.yaml", bastionIP)
+	}
 	if regErr != nil {
-		return fmt.Errorf("error retrieving registries.yaml from bastion node: %s, %w",
+		return fmt.Errorf("error retrieving registries.yaml via bastion node: %s, %w",
 			bastionIP, regErr)
 	}
 
@@ -208,8 +212,21 @@ func getPrivateRegistries(bastionIP string, data *summaryReportData) error {
 	return nil
 }
 
+// nodeExec runs cmd on a private node: from the controller through the bastion on
+// qainfra airgap (no key on the bastion), from the bastion with /tmp/<key>.pem on legacy.
+func nodeExec(c *driver.Cluster, legacyKeyName, serverIP, cmd string) (string, error) {
+	if c.Airgap.Enabled {
+		return resources.RunCommandOnPrivateNode(cmd, serverIP, c.Bastion.PublicIPv4Addr, c.SSH.User, c.SSH.PrivKeyPath)
+	}
+
+	return remoteExec(legacyKeyName, c.SSH.User, serverIP, c.Bastion.PublicIPv4Addr, cmd)
+}
+
 // remoteExec little helper that executes a command on a remote server.
 func remoteExec(keyName, user, serverIP, bastionIP, cmd string) (string, error) {
+	if keyName == "" {
+		return "", errors.New("remoteExec: empty key name")
+	}
 	chmod := fmt.Sprintf("sudo chmod 400 /tmp/%s.pem", keyName)
 	ssh := fmt.Sprintf(
 		"ssh -i /tmp/%s.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes %s@%s",

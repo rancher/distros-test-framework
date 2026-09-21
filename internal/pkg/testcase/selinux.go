@@ -16,6 +16,8 @@ type cmdCtx map[string]string
 
 type configuration struct {
 	distroName string
+	// required lists the commands whose target must exist: empty output there is a failure, not a skip.
+	required map[string]bool
 	cmdCtx
 }
 
@@ -82,7 +84,10 @@ func getVersion(osRelease, ip string) (string, error) {
 	return version, nil
 }
 
-var osPolicy string
+var (
+	osPolicy         string
+	osPolicyRequired map[string]bool
+)
 
 func getContext(product, ip string) (cmdCtx, error) {
 	res, err := resources.RunCommandOnNode("cat /etc/os-release", ip)
@@ -137,6 +142,7 @@ func selectSelinuxPolicy(product, osType string) cmdCtx {
 		if config.distroName == key {
 			fmt.Printf("\nUsing '%s' policy for this %s cluster.\n", osType, product)
 			osPolicy = osType
+			osPolicyRequired = config.required
 			return config.cmdCtx
 		}
 	}
@@ -155,8 +161,9 @@ func TestSelinuxSpcT(cluster *driver.Cluster) {
 	}
 }
 
-// TestUninstallPolicy Validate that un-installation will remove the rke2-selinux or k3s-selinux policy.
-// Call this function after the un-installation of the product.
+// TestUninstallPolicy checks the rke2-selinux/k3s-selinux package is absent after uninstall (it does not
+// prove it was installed before). Nodes without rpm have no such package, so the check is N/A there;
+// transactional hosts are rebooted first so the check sees the snapshot the uninstall wrote.
 func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 	serverCmd := "rpm -qa rke2-server rke2-selinux"
 	if cluster.Config.Product == "k3s" {
@@ -164,21 +171,105 @@ func TestUninstallPolicy(cluster *driver.Cluster, uninstall bool) {
 	}
 
 	for _, serverIP := range cluster.ServerIPs {
-		if uninstall {
-			uninstallForPolicyCheck(cluster.Config.Product, "server", serverIP)
-		}
-
-		verifyUninstallPolicy(cluster.Config.Product, serverIP, serverCmd)
+		uninstallAndVerify(cluster.Config.Product, "server", serverIP, serverCmd, uninstall)
 	}
 
 	for _, agentIP := range cluster.AgentIPs {
-		if uninstall {
-			uninstallForPolicyCheck(cluster.Config.Product, "agent", agentIP)
-		}
-
 		cmd := "rpm -qa " + cluster.Config.Product + "-selinux"
-		verifyUninstallPolicy(cluster.Config.Product, agentIP, cmd)
+		uninstallAndVerify(cluster.Config.Product, "agent", agentIP, cmd, uninstall)
 	}
+}
+
+// uninstallAndVerify runs the uninstall when asked, activates the snapshot it wrote on transactional
+// hosts, and then verifies the packages are gone.
+func uninstallAndVerify(product, nodeType, ip, cmd string, uninstall bool) {
+	reboot := false
+	if uninstall {
+		var err error
+		reboot, err = uninstallNeedsReboot(transactionalHost, resources.RunCommandOnNode, ip, cmd)
+		Expect(err).NotTo(HaveOccurred())
+
+		uninstallForPolicyCheck(product, nodeType, ip)
+	}
+
+	if reboot {
+		resources.LogLevel("info", "transactional host %s: rebooting to activate the snapshot written by the uninstall", ip)
+		err := rebootAndVerifyBootID(resources.RunCommandOnNode, waitForSSHAfterReboot, time.Sleep, ip)
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	verifyUninstallPolicy(product, ip, cmd)
+}
+
+// uninstallNeedsReboot is true only when the host is transactional (SLE Micro, MicroOS) and the
+// packages are installed right now: `zypper remove` there lands in a new snapshot that `rpm -q`
+// only reflects after a boot. Tarball installs and plain rpm hosts are never rebooted.
+func uninstallNeedsReboot(
+	isTransactional func(ip string) (bool, error),
+	run func(cmd, ip string) (string, error),
+	ip, cmd string,
+) (bool, error) {
+	transactional, err := isTransactional(ip)
+	if err != nil {
+		return false, err
+	}
+	if !transactional {
+		return false, nil
+	}
+
+	installed, err := run(cmd, ip)
+	if err != nil {
+		return false, fmt.Errorf("pre-uninstall rpm query on %s failed: %w", ip, err)
+	}
+
+	return strings.TrimSpace(installed) != "", nil
+}
+
+// transactionalHost reports whether the node updates through transactional-update.
+func transactionalHost(ip string) (bool, error) {
+	out, err := resources.RunCommandOnNode("test -x /usr/sbin/transactional-update && echo yes || echo no", ip)
+	if err != nil {
+		return false, fmt.Errorf("transactional-update probe on %s failed: %w", ip, err)
+	}
+
+	return strings.TrimSpace(out) == "yes", nil
+}
+
+const bootIDCmd = "cat /proc/sys/kernel/random/boot_id"
+
+// rebootAndVerifyBootID reboots the node and proves it by requiring a new kernel boot_id once SSH
+// is back; the reboot command's own error is ignored because it kills the session it runs in.
+func rebootAndVerifyBootID(
+	run func(cmd, ip string) (string, error),
+	waitSSH func(ip string) error,
+	sleep func(time.Duration),
+	ip string,
+) error {
+	before, err := run(bootIDCmd, ip)
+	if err != nil {
+		return fmt.Errorf("boot_id before reboot on %s: %w", ip, err)
+	}
+
+	_, _ = run("sudo systemctl reboot", ip)
+	sleep(30 * time.Second)
+
+	if err := waitSSH(ip); err != nil {
+		return fmt.Errorf("reboot after uninstall on %s: %w", ip, err)
+	}
+
+	after, err := run(bootIDCmd, ip)
+	if err != nil {
+		return fmt.Errorf("boot_id after reboot on %s: %w", ip, err)
+	}
+	if strings.TrimSpace(after) == strings.TrimSpace(before) {
+		return fmt.Errorf("node %s did not reboot: boot_id %s unchanged", ip, strings.TrimSpace(before))
+	}
+
+	return nil
+}
+
+func waitForSSHAfterReboot(ip string) error {
+	return resources.WaitForSSHReadyWithTimeout(ip, 5*time.Minute)
 }
 
 // uninstallForPolicyCheck tolerates inconclusive uninstall outcomes; pass/fail
@@ -245,8 +336,44 @@ func waitUninstallPolicyRemoved(
 	return fmt.Errorf("%s packages still installed on %s after uninstall: %s", product, ip, strings.TrimSpace(res))
 }
 
+// checkUninstallPolicy runs the rpm verification only where rpm exists; a probe error fails
+// instead of skipping, and a node without rpm is logged as N/A. Injectable for unit tests.
+func checkUninstallPolicy(
+	hasRPM func(ip string) (bool, error),
+	run func(cmd, ip string) (string, error),
+	sleep func(time.Duration),
+	product, ip, cmd string,
+) error {
+	rpm, err := hasRPM(ip)
+	if err != nil {
+		return err
+	}
+	if !rpm {
+		resources.LogLevel("info", "rpm not available on %s: %s-selinux policy package check is N/A on this OS, skipping",
+			ip, product)
+
+		return nil
+	}
+
+	return waitUninstallPolicyRemoved(run, sleep, product, ip, cmd)
+}
+
+// rpmAvailable reuses FindPath: its "path for rpm not found" sentinel means absent,
+// any other error (SSH, lookup) is returned so the caller fails instead of skipping.
+func rpmAvailable(ip string) (bool, error) {
+	_, err := resources.FindPath("rpm", ip)
+	switch {
+	case err == nil:
+		return true, nil
+	case isUninstallScriptMissing(err):
+		return false, nil
+	default:
+		return false, fmt.Errorf("rpm availability probe on %s failed: %w", ip, err)
+	}
+}
+
 func verifyUninstallPolicy(product, ip, cmd string) {
-	err := waitUninstallPolicyRemoved(resources.RunCommandOnNode, time.Sleep, product, ip, cmd)
+	err := checkUninstallPolicy(rpmAvailable, resources.RunCommandOnNode, time.Sleep, product, ip, cmd)
 	Expect(err).NotTo(HaveOccurred())
 }
 
@@ -268,6 +395,9 @@ func TestSelinuxContext(cluster *driver.Cluster) {
 			for cmd, expectedContext := range context {
 				res, err = resources.RunCommandOnNode(cmd, ip)
 				fmt.Printf("\nCommand:\n%s \nContext expected:\n%s\nResult:\n%s\n", cmd, expectedContext, res)
+				if res == "" && osPolicyRequired[cmd] {
+					Expect(res).NotTo(BeEmpty(), "required path missing on %s: %q returned nothing (err=%v)", ip, cmd, err)
+				}
 				if res != "" {
 					Expect(res).Should(ContainSubstring(expectedContext),
 						"error on cmd %v \n Context %v \nnot found on ", cmd, expectedContext, res)
@@ -306,7 +436,59 @@ const (
 	ctxRoot     = "system_u:object_r:k3s_root_t:s0"
 	ctxNone     = "<<none>>"
 	ctxRke2TLS  = "system_u:object_r:rke2_tls_t:s0"
+
+	// type-only variants (no SELinux user) for tables where the creator of a path varies
+	typeUnitFile = "object_r:container_unit_file_t:s0"
+	typeExec     = "object_r:container_runtime_exec_t:s0"
+	typeVarLib   = "object_r:container_var_lib_t:s0"
+	typeFile     = "object_r:container_file_t:s0"
+	typeRoFile   = "object_r:container_ro_file_t:s0"
+	typeRunTmpfs = "object_r:container_var_run_t:s0"
+	typeLock     = "object_r:k3s_lock_t:s0"
+	typeData     = "object_r:k3s_data_t:s0"
+	typeRoot     = "object_r:k3s_root_t:s0"
 )
+
+// rootLs runs ls -laZ inside a root shell so wildcards below root-only directories are expanded.
+func rootLs(target string) string {
+	return "sudo sh -c 'ls -laZ " + target + "'"
+}
+
+var sles16Ctx = cmdCtx{
+	rootLs(systemD + "/k3s*"):                                                       typeUnitFile,
+	rootLs("/usr/local/bin/k3s"):                                                    typeExec,
+	rootLs(k3s + " " + ignoreDir):                                                   typeVarLib,
+	rootLs(k3s + "/data " + ignoreDir):                                              typeData,
+	rootLs(k3s + "/data/.lock"):                                                     typeLock,
+	rootLs(k3s + "/data/*/bin " + ignoreDir + " " + grepFilter):                     typeRoot,
+	rootLs(k3s + "/data/*/bin/* " + ignoreDir + " " + grepFilter):                   typeRoot,
+	rootLs(k3s + "/agent/containerd/*/snapshots " + ignoreDir + " " + grepFilter):   typeFile,
+	rootLs(k3s + "/agent/containerd/*/snapshots/* " + ignoreDir + " " + grepFilter): typeFile,
+	rootLs(k3s + "/agent/containerd/*/sandboxes " + ignoreDir + " " + grepFilter):   typeRoFile,
+	rootLs(k3s + "/agent/containerd/*/sandboxes/* " + ignoreDir + " " + grepFilter): typeRoFile,
+	rootLs(k3s + "/server/tls " + ignoreDir):                                        typeVarLib,
+	rootLs(k3s + "/server/logs " + ignoreDir):                                       typeVarLib,
+	rootLs("/var/run/k3s " + ignoreDir):                                             typeRunTmpfs,
+	rootLs("/var/run/k3s/* " + ignoreDir):                                           typeRunTmpfs,
+}
+
+// sles16Optional lists paths that only exist with extra configuration: server/logs appears when audit logging is
+// enabled (kube-apiserver audit-log-path), which the default hardened jobs do not set.
+var sles16Optional = map[string]bool{
+	rootLs(k3s + "/server/logs " + ignoreDir): true,
+}
+
+// sles16Required marks every other SLES 16 command as mandatory: an empty listing is a failure, never a skip.
+var sles16Required = func() map[string]bool {
+	m := make(map[string]bool, len(sles16Ctx))
+	for cmd := range sles16Ctx {
+		if !sles16Optional[cmd] {
+			m[cmd] = true
+		}
+	}
+
+	return m
+}()
 
 //nolint:dupl // this is expected.
 var conf = []configuration{
@@ -694,6 +876,13 @@ var conf = []configuration{
 			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm " + ignoreDir + " " + grepFilter:    ctxTmpfs,
 			cmdPrefix + " " + "/var/run/k3s/containerd/*/sandboxes/*/shm/* " + ignoreDir + " " + grepFilter:  ctxTmpfs,
 		},
+	},
+	{
+		// Captured live on SLES 16 with k3s-selinux 1.7-4. Only the type is asserted (the SELinux user depends on
+		// which process created the path) and every command runs in a root shell so globs under 0700 dirs expand.
+		distroName: "k3s_sles16",
+		required:   sles16Required,
+		cmdCtx:     sles16Ctx,
 	},
 	{
 		// TODO: We are not able to execute this because our framework does not support the reboot part for this OS.

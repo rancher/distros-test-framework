@@ -46,6 +46,10 @@ var _ = Describe("Test:", func() {
 		testcase.TestSelinuxContext(cluster)
 	})
 
+	It("Validate selinux enforcement, policy modules and process domains", func() {
+		testcase.TestSelinuxEnforcement(cluster)
+	})
+
 	if customflag.ServiceFlag.InstallMode.String() != "" {
 		It("Upgrade manual", func() {
 			_ = testcase.TestUpgradeClusterManual(cluster, k8sClient, customflag.ServiceFlag.InstallMode.String())
@@ -80,6 +84,10 @@ var _ = Describe("Test:", func() {
 
 		It("Validate context", func() {
 			testcase.TestSelinuxContext(cluster)
+		})
+
+		It("Validate selinux enforcement, policy modules and process domains", func() {
+			testcase.TestSelinuxEnforcement(cluster)
 		})
 	}
 })

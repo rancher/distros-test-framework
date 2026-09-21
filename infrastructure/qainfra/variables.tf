@@ -91,6 +91,37 @@ variable "proxy_setup" {
   default     = false
 }
 
+# Airgap-only inputs, forwarded to cluster_nodes only when airgap_setup is true.
+variable "bastion_enabled" {
+  description = "Create the bastion host that airgap nodes are reached through."
+  type        = bool
+  default     = false
+}
+
+variable "bastion_instance_type" {
+  description = "Bastion instance type; null inherits instance_type."
+  type        = string
+  default     = null
+}
+
+variable "run_id" {
+  description = "Identifier of this provisioning run, tagged as RunId on created instances."
+  type        = string
+  default     = ""
+}
+
+variable "qa_infra_sha" {
+  description = "Pinned rancher/qa-infra-automation commit, echoed into cluster_nodes_json."
+  type        = string
+  default     = ""
+}
+
+variable "arch" {
+  description = "Node CPU architecture (amd64|arm64), echoed into cluster_nodes_json."
+  type        = string
+  default     = ""
+}
+
 variable "create_eip" {
   description = "Allocate Elastic IPs and associate them with each node so reboots keep stable public addresses. Required by the rebootinstances test."
   type        = bool

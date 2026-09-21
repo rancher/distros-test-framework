@@ -116,10 +116,14 @@ test-reboot-instances:
 	@go test -timeout=45m -v -count=1 ./entrypoint/rebootinstances/...
 
 test-private-registry:
-	@go test -timeout=45m -v -tags=privateregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
+	@TEST_TAG=privateregistry go test -timeout=45m -v -tags=privateregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
 
 test-system-default-registry:
-	@go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
+	@TEST_TAG=systemdefaultregistry go test -timeout=45m -v -tags=systemdefaultregistry -count=1 ./entrypoint/airgap/... -destroy ${DESTROY}
+
+test-tarball:
+	@TEST_TAG=tarball go test -timeout=45m -v -tags=tarball -count=1 ./entrypoint/airgap/... -destroy ${DESTROY} \
+	$(if ${TARBALL_TYPE},-tarballType ${TARBALL_TYPE})
 
 test-killall-uninstall:
 	@go test -timeout=120m -v -count=1 ./entrypoint/killalluninstall/... -destroy "${DESTROY}"

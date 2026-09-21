@@ -10,9 +10,19 @@ import (
 )
 
 type infraNode struct {
-	name     string
-	publicIP string
-	role     string
+	name      string
+	publicIP  string
+	privateIP string
+	role      string
+}
+
+// address returns the IP the framework must use to reach the node.
+func (n infraNode) address(airgap bool) string {
+	if airgap {
+		return n.privateIP
+	}
+
+	return n.publicIP
 }
 
 // extractNodesFromTofuOutput reads the cluster_nodes_json Tofu output and
@@ -21,18 +31,19 @@ type infraNode struct {
 // # Single source of truth.
 //
 // Nodes are sorted master-first for now.
-func extractNodesFromTofuOutput(config *driver.InfraConfig) ([]infraNode, error) {
+func extractNodesFromTofuOutput(config *driver.InfraConfig) ([]infraNode, *clusterNodesJSON, error) {
 	data, err := fetchClusterNodesJSON(config.InfraProvisioner.TFNodeSource)
 	if err != nil {
-		return nil, fmt.Errorf("fetch cluster_nodes_json: %w", err)
+		return nil, nil, fmt.Errorf("fetch cluster_nodes_json: %w", err)
 	}
 
 	nodes := make([]infraNode, 0, len(data.Nodes))
 	for _, n := range data.Nodes {
 		node := infraNode{
-			name:     n.Name,
-			publicIP: n.PublicIP,
-			role:     strings.Join(n.Roles, ","),
+			name:      n.Name,
+			publicIP:  n.PublicIP,
+			privateIP: n.PrivateIP,
+			role:      strings.Join(n.Roles, ","),
 		}
 		nodes = append(nodes, node)
 		resources.LogLevel("debug", "Extracted node from cluster_nodes_json: &{Name:%s PublicIP:%s Role:%s}",
@@ -50,8 +61,9 @@ func extractNodesFromTofuOutput(config *driver.InfraConfig) ([]infraNode, error)
 	})
 
 	for _, node := range nodes {
-		resources.LogLevel("info", "Node: %s (%s) - Role: %s", node.name, &node, node.role)
+		resources.LogLevel("info", "Node: %s public=%s private=%s - Role: %s",
+			node.name, node.publicIP, node.privateIP, node.role)
 	}
 
-	return nodes, nil
+	return nodes, data, nil
 }

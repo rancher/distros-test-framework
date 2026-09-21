@@ -110,6 +110,10 @@ node {
               if ("${env.QA_INFRA_REF}" != "null" && "${env.QA_INFRA_REF}" != "") {
                 upgrade_params << string(name: 'QA_INFRA_REF', value: "${env.QA_INFRA_REF}")
               }
+              // rpm/tar for rke2; blank keeps the installer default (rpm on RHEL/SLES 16).
+              if ("${env.INSTALL_METHOD}" != "null" && "${env.INSTALL_METHOD}" != "") {
+                upgrade_params << string(name: 'INSTALL_METHOD', value: "${env.INSTALL_METHOD}")
+              }
 
               jobs[test_name] = { build job: jobName, parameters: upgrade_params }
             } // for each test_dir loop

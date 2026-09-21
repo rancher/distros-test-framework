@@ -13,9 +13,27 @@ type Cluster struct {
 	Config       Config
 	Aws          AwsConfig
 	Bastion      BastionConfig
+	Airgap       AirgapConfig
 	NodeOS       string
 	TestConfig   TestConfig
 	SSH          SSHConfig
+}
+
+type AirgapConfig struct {
+	Enabled          bool
+	Method           string // tarball | private_registry | system_default_registry
+	TarballType      string
+	ImageRegistryURL string
+
+	RegistryMode          string
+	RegistryHost          string
+	RegistryPort          int
+	RegistryCAPathNodes   string
+	ArtifactsDir          string
+	ArtifactOrigin        string
+	ReleaseURL            string
+	BastionKubeconfigPath string
+	KubectlPath           string
 }
 
 // AwsConfig holds AWS-specific configuration.
@@ -87,4 +105,5 @@ type TestConfig struct {
 type BastionConfig struct {
 	PublicIPv4Addr string
 	PublicDNS      string
+	PrivateIP      string
 }

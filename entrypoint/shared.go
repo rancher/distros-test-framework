@@ -59,7 +59,8 @@ func SetupClusterInfra(cfg *config.Env) (*driver.Cluster, *driver.InfraConfig) {
 
 	cluster, err := provisioning.ProvisionInfrastructure(infraConfig)
 	if err != nil {
-		resources.LogLevel("error", "error provisioning infrastructure: %w\n", err)
+		resources.LogLevel("error", "error provisioning infrastructure: %v\n", err)
+		destroyAfterProvisionFailure(infraConfig)
 		os.Exit(1)
 	}
 	resources.LogLevel("info", "Cluster provisioned successfully with %+v", cluster.Config)
@@ -209,4 +210,25 @@ func DestroyOnlyAfterSuite(infraConfigPtr **driver.InfraConfig) func() {
 		gomega.Expect(derr).ToNot(gomega.HaveOccurred())
 		gomega.Expect(status).To(gomega.Equal("cluster destroyed"))
 	}
+}
+
+// destroyAfterProvisionFailure honors -destroy on a failed provision: a partial
+// apply must not leak resources just because AfterSuite never runs.
+func destroyAfterProvisionFailure(infraConfig *driver.InfraConfig) {
+	if infraConfig.ProvisionerModule != "qainfra" {
+		return // legacy keeps its historical behavior (no automatic teardown on a failed provision)
+	}
+	if !customflag.ServiceFlag.Destroy {
+		resources.LogLevel("warn", "destroy=false: keeping any partially provisioned resources for inspection")
+
+		return
+	}
+	status, derr := provisioning.DestroyInfrastructure(
+		infraConfig.ProvisionerModule, infraConfig.Product, infraConfig.Module)
+	if derr != nil {
+		resources.LogLevel("error", "cleanup after failed provisioning did not complete: %v", derr)
+
+		return
+	}
+	resources.LogLevel("info", "cleanup after failed provisioning: %s", status)
 }

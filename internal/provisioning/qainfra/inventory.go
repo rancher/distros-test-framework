@@ -20,19 +20,47 @@ import (
 type clusterNodesJSON struct {
 	Type     string `json:"type"`
 	Metadata struct {
+		// SchemaVersion is 0 on qa-infra refs that predate the versioned contract (treated as 1).
+		SchemaVersion int    `json:"schema_version,omitempty"`
 		KubeAPIHost   string `json:"kube_api_host"`
 		FQDN          string `json:"fqdn"`
 		SSHUser       string `json:"ssh_user"`
 		SSHPrivateKey string `json:"ssh_private_key,omitempty"`
+		Airgap        bool   `json:"airgap,omitempty"`
+		Arch          string `json:"arch,omitempty"`
+		RunID         string `json:"run_id,omitempty"`
+		QAInfraSHA    string `json:"qa_infra_sha,omitempty"`
 	} `json:"metadata"`
-	Nodes []clusterNode `json:"nodes"`
+	Nodes   []clusterNode   `json:"nodes"`
+	Bastion *clusterBastion `json:"bastion,omitempty"`
 }
 
 type clusterNode struct {
-	Name      string   `json:"name"`
-	Roles     []string `json:"roles"`
-	PublicIP  string   `json:"public_ip"`
-	PrivateIP string   `json:"private_ip"`
+	Name       string   `json:"name"`
+	Roles      []string `json:"roles"`
+	PublicIP   string   `json:"public_ip"`
+	PrivateIP  string   `json:"private_ip"`
+	InstanceID string   `json:"instance_id,omitempty"`
+	AZ         string   `json:"az,omitempty"`
+}
+
+type clusterBastion struct {
+	PublicIP   string `json:"public_ip"`
+	PublicDNS  string `json:"public_dns"`
+	PrivateIP  string `json:"private_ip"`
+	InstanceID string `json:"instance_id,omitempty"`
+}
+
+// maxClusterNodesSchema is the newest cluster_nodes_json contract this code understands.
+const maxClusterNodesSchema = 2
+
+func (c *clusterNodesJSON) validateSchema() error {
+	if c.Metadata.SchemaVersion > maxClusterNodesSchema {
+		return fmt.Errorf("cluster_nodes_json schema_version %d is newer than supported (%d); update distros-test-framework",
+			c.Metadata.SchemaVersion, maxClusterNodesSchema)
+	}
+
+	return nil
 }
 
 // fetchClusterNodesJSON reads the Tofu cluster_nodes_json output from the
@@ -56,6 +84,9 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 	var data clusterNodesJSON
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal cluster_nodes_json: %w", err)
+	}
+	if err := data.validateSchema(); err != nil {
+		return nil, err
 	}
 
 	return &data, nil
@@ -134,7 +165,7 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 }
 
 // nodeRole returns the rke2_node_role value for a node.
-func nodeRole(n clusterNode, assigned map[string]string) string {
+func nodeRole(n *clusterNode, assigned map[string]string) string {
 	switch {
 	case assigned[n.Name] == "master":
 		return "master"
@@ -176,7 +207,8 @@ func writeInventoryVars(b *strings.Builder, data *clusterNodesJSON) {
 // writeInventoryHosts writes the all.hosts block.
 func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
 	b.WriteString("  hosts:\n")
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		writeLine(b, "    ", n.Name, ":")
 		writeLine(b, "      ansible_host: ", yamlQuote(n.PublicIP))
 		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
@@ -261,7 +293,16 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 		return fmt.Errorf("fetch cluster_nodes_json: %w", err)
 	}
 
-	yaml := buildStaticInventory(data, config.Product)
+	var yaml string
+	if config.InfraProvisioner.AirgapSetup {
+		ssh := config.Cluster.SSH
+		yaml, err = buildAirgapInventory(data, ssh.User, ssh.PrivKeyPath, ssh.KeyName)
+		if err != nil {
+			return err
+		}
+	} else {
+		yaml = buildStaticInventory(data, config.Product)
+	}
 
 	resources.LogLevel("info",
 		"Static inventory: %d node(s); kube_api_host=%s fqdn=%s",

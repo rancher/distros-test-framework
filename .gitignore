@@ -17,3 +17,6 @@ tmp/
 entrypoint/conformance/my-sonobuoy-plugins
 entrypoint/conformance/*.tar.gz
 infrastructure/qainfra/vars.tfvars
+
+# qainfra run state (tofu state, manifests, destroy scripts) persisted outside the container
+qainfra-state/
