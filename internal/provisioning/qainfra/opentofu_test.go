@@ -319,26 +319,23 @@ func TestThreadRuntimeEnvWindowsOverrides(t *testing.T) {
 	}
 }
 
-func TestQAInfraRepoAndCloneURL(t *testing.T) {
-	clearRuntimeEnvs(t)
-
-	if repo := qaInfraRepo(); repo != qaInfraRepoDef {
-		t.Errorf("expected default repo %q, got %q", qaInfraRepoDef, repo)
+func TestNormalizeQAInfraRepo(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"", defaultQAInfraRepo},
+		{"rancher/qa-infra-automation", "github.com/rancher/qa-infra-automation"},
+		{"github.com/myfork/qa-infra-automation", "github.com/myfork/qa-infra-automation"},
+		{"https://github.com/myfork/qa-infra-automation.git", "github.com/myfork/qa-infra-automation"},
 	}
-	if cloneURL := qaInfraCloneURL(); cloneURL != qaInfraCloneURLDef {
-		t.Errorf("expected default clone URL %q, got %q", qaInfraCloneURLDef, cloneURL)
-	}
-
-	t.Setenv("QA_INFRA_REPO", "github.com/myfork/qa-infra-automation")
-	if repo := qaInfraRepo(); repo != "github.com/myfork/qa-infra-automation" {
-		t.Errorf("expected overridden repo, got %q", repo)
-	}
-	if cloneURL := qaInfraCloneURL(); cloneURL != "https://github.com/myfork/qa-infra-automation.git" {
-		t.Errorf("expected derived clone URL, got %q", cloneURL)
-	}
-
-	t.Setenv("QA_INFRA_CLONE_URL", "https://custom.git/repo.git")
-	if cloneURL := qaInfraCloneURL(); cloneURL != "https://custom.git/repo.git" {
-		t.Errorf("expected explicit clone URL override, got %q", cloneURL)
+	for _, tc := range cases {
+		got, err := normalizeQAInfraRepo(tc.input)
+		if err != nil {
+			t.Errorf("normalizeQAInfraRepo(%q) error: %v", tc.input, err)
+		}
+		if got != tc.want {
+			t.Errorf("normalizeQAInfraRepo(%q) = %q, want %q", tc.input, got, tc.want)
+		}
 	}
 }
