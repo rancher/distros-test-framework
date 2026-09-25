@@ -42,7 +42,7 @@ var _ = Describe("Test Dual Stack Cluster:", func() {
 	})
 
 	It("Validate Single and Dual-Stack IPFamilies in Dual-Stack", func() {
-		testcase.TestIPFamiliesDualStack(true)
+		testcase.TestIPFamiliesDualStack(cluster, true)
 	})
 
 	// https://github.com/k3s-io/k3s/issues/10053

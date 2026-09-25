@@ -120,18 +120,19 @@ func testServiceNodePortDualStack(cluster *shared.Cluster, td testData) {
 	}
 }
 
-func testServiceClusterIPs(td testData) {
+func testServiceClusterIPs(cluster *shared.Cluster, td testData) {
 	clusterIPs, port, err := shared.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred(), err)
-	nodeExternalIPs := shared.FetchNodeExternalIPs()
+	Expect(cluster.ServerIPs).NotTo(BeEmpty(), "no server IPs to run the ClusterIP check from")
 
 	for _, clusterIP := range clusterIPSlice {
 		if strings.Contains(clusterIP, ":") {
 			clusterIP = shared.EncloseSqBraces(clusterIP)
 		}
+		// Run from a server's infra IP: the Node's first ExternalIP can be IPv6-only.
 		err := assert.ValidateOnNode(
-			nodeExternalIPs[0],
+			cluster.ServerIPs[0],
 			"curl -sL http://"+clusterIP+":"+port,
 			td.Expected)
 		Expect(err).NotTo(HaveOccurred(), err)
