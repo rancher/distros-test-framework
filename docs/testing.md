@@ -74,13 +74,12 @@ TEST_DIR=dualstack
 ```
 
 - Required vars for `*.tfvars` file
-- `kubelet-arg: \n - node-ip=0.0.0.0` is required to be added to both server and worker flags if the public and private IPv6 IPs are same
+- Do not set `kubelet-arg: node-ip=0.0.0.0`: it was a workaround for a Kubelet bug fixed in Kubernetes 1.27 and makes the Node gain its IPv6 address after registration
 
 ```
 enable_public_ip     = true
 enable_ipv6          = true
-server_flags         = "cluster-cidr: <ipv4-cluster-cidr>,<ipv6-cluster-cider>\nservice-cidr: <ipv4-service-cidr>,<ipv6-service-cidr>\nkubelet-arg: \n - node-ip=0.0.0.0\n"
-worker_flags         = "\nkubelet-arg: \n - node-ip=0.0.0.0\n"
+server_flags         = "cluster-cidr: <ipv4-cluster-cidr>,<ipv6-cluster-cidr>\nservice-cidr: <ipv4-service-cidr>,<ipv6-service-cidr>\n"
 no_of_bastion_nodes  = 1
 bastion_subnets      = "<dual-stack-subnet>"
 ```

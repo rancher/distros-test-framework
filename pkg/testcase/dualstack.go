@@ -87,7 +87,7 @@ func TestClusterIPsInCIDRRange(cluster *shared.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestIPFamiliesDualStack(deleteWorkload bool) {
+func TestIPFamiliesDualStack(cluster *shared.Cluster, deleteWorkload bool) {
 	err := shared.ManageWorkload("apply", "dualstack-multi.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -110,7 +110,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	for i, svc := range services {
 		td.SVC = "my-service-"
 		td.SVC += svc
-		testServiceClusterIPs(td)
+		testServiceClusterIPs(cluster, td)
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
 			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + shared.KubeConfigFile
