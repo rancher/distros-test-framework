@@ -6,6 +6,10 @@ on:
         description: 'Provide the list of RCs (comma separated)'
         required: true
         default: 'v1.29.0-rc1,v1.30.0-rc1,v1.31.0-rc1,v1.32.0-rc1'
+      request_id:
+        description: 'Release bot request id, added to the run descriptions (optional)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -28,6 +32,7 @@ jobs:
         shell: bash
         env:
           RCS: ${{ github.event.inputs.rcs }}
+          REQUEST_ID: ${{ github.event.inputs.request_id }}
           QASE_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
         run:  ./scripts/qase-patch-validation.sh
 

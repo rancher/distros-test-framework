@@ -26,13 +26,48 @@ set_vars() {
     IFS=',' read -r -a rcs_to_process <<<"${RCS}"
 
     All_RCS=${rcs_to_process[*]}
+
+    # Optional id from the release bot, appended to each run description so the bot can find
+    # the runs this dispatch created. Restricted charset: it is spliced into the JSON body.
+    if [[ -n "$REQUEST_ID" && ! "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+        echo "Error: invalid REQUEST_ID '$REQUEST_ID'."
+        exit 1
+    fi
 }
 
-# Function to create milestone with given name. It will return milestone ID.
+# Function to find the milestone with the exact given name. Sets MILESTONE_ID, empty if none exists.
+find_milestone() {
+    local search
+    search=$(jq -rn --arg t "$QASE_MILESTONE" '$t|@uri')
+
+    # A failed search must stop the script: treating it as "no milestone" would create a duplicate.
+    local http_code
+    RESPONSE=$(curl -sS --request GET -w '\n%{http_code}' \
+        --url "https://api.qase.io/v1/milestone/$QASE_PROJECT_CODE?search=$search&limit=100" \
+        --header "Token: $QASE_API_TOKEN" --header 'accept: application/json')
+    http_code="${RESPONSE##*$'\n'}"
+    RESPONSE="${RESPONSE%$'\n'*}"
+    if [[ "$http_code" != "200" ]] || ! echo "$RESPONSE" | jq -e '.status == true and (.result.entities | type == "array")' >/dev/null 2>&1; then
+        echo "Error: milestone search failed (HTTP $http_code): $RESPONSE"
+        exit 1
+    fi
+
+    # lowest id wins, so reruns in the same month keep using the first milestone.
+    MILESTONE_ID=$(echo "$RESPONSE" | jq --arg t "$QASE_MILESTONE" \
+        '[.result.entities[] | select(.title == $t) | .id] | min // empty')
+}
+
+# Function to reuse the milestone with given name, or create it. It will return milestone ID.
 create_milestone() {
     if [[ -z "$QASE_MILESTONE" ]]; then
         echo "Error: Missing required QASE_MILESTONE."
         exit 1
+    fi
+
+    find_milestone
+    if [[ -n "$MILESTONE_ID" ]]; then
+        echo "Reusing existing milestone ID: $MILESTONE_ID"
+        return
     fi
 
     RESPONSE=$(curl -s --request POST \
@@ -80,6 +115,9 @@ process() {
             product=$(echo "$product" | tr '[:lower:]' '[:upper:]')
             TITLE="$product ${CURRENT_MONTH} ${CURRENT_YEAR} Patch Validation for $VERSION+$IDENTIFIER"
             DESCRIPTION="Version: $RC"
+            if [[ -n "$REQUEST_ID" ]]; then
+                DESCRIPTION="$DESCRIPTION | Release bot request: $REQUEST_ID"
+            fi
 
             create_test_run
         done

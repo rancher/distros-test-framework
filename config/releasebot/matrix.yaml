@@ -1,0 +1,65 @@
+# Release bot job matrix: every job below runs once per RC of its product.
+# {{VERSION}} -> full tag (v1.37.1-rc1+rke2r1), {{PREFIX}} -> short HOSTNAME_PREFIX (<prefixBase><k|r><X.Y.Z digits>).
+# {{QASE_RUN_ID}} -> id of the patch-validation run the Qase workflow creates for that product/version.
+# Params not listed keep the job's own defaults (TFVARS, NODE_OS, hardened server_flags...).
+dtfRepo: rancher/distros-test-framework
+dtfRef: main
+prefixBase: rb
+
+controllers:
+  mower:
+    url: https://mower.jenkins.qa.rancher.space
+    maxConcurrent: 6
+
+defaultParams:
+  INSTALL_VERSION: "{{VERSION}}"
+  HOSTNAME_PREFIX: "{{PREFIX}}"
+  BRANCH: qa-infra-RC-1
+  REPORT_TO_QASE: "true"
+  QASE_RUN_ID: "{{QASE_RUN_ID}}"
+
+jobs:
+  # priority 1: smoke, 2: core validations, 3: upgrades/long-running.
+  # dependsOn: job names of the same product; they must succeed for the same RC first.
+  - name: rke2-validate-cluster
+    product: rke2
+    controller: mower
+    path: distros_qa/rke2-tests/rke2_validate_cluster_qainfra
+    priority: 1
+  - name: rke2-validate-cluster-rpm
+    product: rke2
+    controller: mower
+    dependsOn: [rke2-validate-cluster]
+    path: distros_qa/rke2-tests/rke2_validate_cluster_rpm_qainfra
+    priority: 2
+    params:
+      HOSTNAME_PREFIX: "{{PREFIX}}p"
+  - name: rke2-conformance
+    product: rke2
+    controller: mower
+    dependsOn: [rke2-validate-cluster]
+    path: distros_qa/rke2-tests/rke2_conformance_qainfra
+    priority: 2
+    params:
+      HOSTNAME_PREFIX: "{{PREFIX}}c"
+  - name: k3s-validate-cluster
+    product: k3s
+    controller: mower
+    path: distros_qa/k3s-tests/k3s_validate_cluster_qainfra
+    priority: 1
+  - name: k3s-validate-cluster-rpm
+    product: k3s
+    controller: mower
+    dependsOn: [k3s-validate-cluster]
+    path: distros_qa/k3s-tests/k3s_validate_cluster_rpm_qainfra
+    priority: 2
+    params:
+      HOSTNAME_PREFIX: "{{PREFIX}}p"
+  - name: k3s-conformance
+    product: k3s
+    controller: mower
+    dependsOn: [k3s-validate-cluster]
+    path: distros_qa/k3s-tests/k3s_conformance_qainfra
+    priority: 2
+    params:
+      HOSTNAME_PREFIX: "{{PREFIX}}c"

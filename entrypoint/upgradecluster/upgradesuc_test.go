@@ -13,6 +13,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
+// rpmStateBeforeSUC feeds the post-upgrade rpm drift check with the pre-upgrade snapshot.
+var rpmStateBeforeSUC map[string]*testcase.RPMBinaryState
+
 var _ = Describe("SUC Upgrade Tests:", func() {
 	It("Starts up with no issues", func() {
 		testcase.TestBuildCluster(cluster)
@@ -76,6 +79,7 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 	}
 
 	It("\nUpgrade via SUC", func() {
+		rpmStateBeforeSUC = testcase.CaptureRPMBinaryStates(cluster)
 		_ = testcase.TestUpgradeClusterSUC(cluster, k8sClient, flags.SUCUpgradeVersion.String())
 	})
 
@@ -86,6 +90,11 @@ var _ = Describe("SUC Upgrade Tests:", func() {
 			assert.NodeAssertVersionUpgraded(),
 			"1500s", // Allow extra time for nodes to be marked ready post-upgrade esp sles16
 		)
+	})
+
+	// rpm installs: SUC swaps the binary behind the package manager. Report only, never fails.
+	It("Reports rpm package state post-upgrade", func() {
+		testcase.TestSUCRPMDrift(cluster, rpmStateBeforeSUC)
 	})
 
 	It("Checks Pod status post-upgrade", func() {

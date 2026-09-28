@@ -146,6 +146,16 @@ Test tags rke2:
  -tags=upgradesuc
 ```
 
+SUC upgrades and rpm installs: the `rke2-upgrade` image replaces the product binary in
+place and never touches the package database, so after a SUC on an rpm-installed node
+`rpm -q rke2-common` still reports the old version while `rke2 --version` reports the new
+one. That drift is expected and the suite only reports it (`Reports rpm package state
+post-upgrade` logs the rpm owner, both versions and `rpm -V`, and warns if anything other
+than the binary changed). On transactional hosts (SL Micro, MicroOS) `/usr` is read-only,
+so SUC works only with tarball installs; rpm installs there upgrade through
+`transactional-update` (manual upgrade suite). rpm-and-binary agreement belongs to the
+manual upgrade suite, not to SUC.
+
 ### Run with `Makefile` locally
 
 On the first run each time with make and docker please delete your .terraform folder, terraform.tfstate and terraform.hcl.lock file
