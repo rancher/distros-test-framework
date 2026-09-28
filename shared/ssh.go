@@ -192,7 +192,7 @@ func configureSSH(host string) (*ssh.Client, error) {
 
 	conn, err := ssh.Dial("tcp", host, cfg)
 	if err != nil {
-		return nil, ReturnLogError("failed to dial: %w", err)
+		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 
 	return conn, nil

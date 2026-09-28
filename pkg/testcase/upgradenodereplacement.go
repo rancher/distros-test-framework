@@ -24,8 +24,8 @@ const (
 func TestUpgradeReplaceNode(cluster *shared.Cluster,
 	flags *customflag.FlagConfig,
 ) {
-	version := flags.InstallMode.String()
-	channel := flags.Channel.String()
+	version := strings.TrimSpace(flags.InstallMode.String())
+	channel := strings.TrimSpace(flags.Channel.String())
 	if version == "" {
 		Expect(version).NotTo(BeEmpty(), "version/commit is empty")
 	}
@@ -760,6 +760,11 @@ func createAndPrepNodes(awsClient *aws.Client, cluster *shared.Cluster, nodeType
 	Expect(createErr).NotTo(HaveOccurred(), createErr)
 	shared.LogLevel("debug", "Created %s nodes with public ips: %s and ids: %s\n",
 		nodeType, newExternalIps, instanceIds)
+
+	// Wait for ssh to be ready on all new nodes before proceeding
+	for _, ip := range newExternalIps {
+		Expect(shared.WaitForSSHReady(ip)).NotTo(HaveOccurred(), "failed waiting for ssh on node %s", ip)
+	}
 
 	// If node os is slemicro prep/update it and reboot the node
 	prepSlemicroNodes(newExternalIps, cluster.NodeOS, awsClient)
