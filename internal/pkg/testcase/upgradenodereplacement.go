@@ -550,8 +550,8 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
-	err := a.DeleteInstance(ip)
-	if err != nil {
+	// Kubelet must be gone before the Node object is removed, otherwise it re-registers (NotReady).
+	if err := a.TerminateInstanceAndWait(ip); err != nil {
 		return err
 	}
 
@@ -631,8 +631,8 @@ func replaceAgents(
 
 func deleteAgents(a *aws.Client, c *driver.Cluster) error {
 	for _, ip := range c.AgentIPs {
-		err := a.DeleteInstance(ip)
-		if err != nil {
+		// Kubelet must be gone before the Node object is removed, otherwise it re-registers (NotReady).
+		if err := a.TerminateInstanceAndWait(ip); err != nil {
 			return err
 		}
 		resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", ip)

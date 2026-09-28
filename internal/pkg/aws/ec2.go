@@ -515,3 +515,47 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 
 	return *reservation.Instances[0].InstanceId, nil
 }
+
+// TerminateInstanceAndWait terminates the instance with the given IP (if still present)
+// and blocks until EC2 reports it as terminated. Safe to call repeatedly.
+func (c Client) TerminateInstanceAndWait(ip string) error {
+	if ip == "" {
+		return resources.ReturnLogError("must send an ip")
+	}
+
+	res, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{{Name: aws.String("ip-address"), Values: aws.StringSlice([]string{ip})}},
+	})
+	if err != nil {
+		return resources.ReturnLogError("error describing instances: %w\n", err)
+	}
+
+	var ids []*string
+	for _, r := range res.Reservations {
+		for _, n := range r.Instances {
+			switch *n.State.Name {
+			case "terminated":
+				continue
+			case "running", "pending", "stopping", "stopped":
+				if _, tErr := c.ec2.TerminateInstances(&ec2.TerminateInstancesInput{
+					InstanceIds: []*string{n.InstanceId},
+				}); tErr != nil {
+					return resources.ReturnLogError("error terminating instance %s: %w\n", *n.InstanceId, tErr)
+				}
+			}
+			ids = append(ids, n.InstanceId) // includes "shutting-down"
+		}
+	}
+
+	if len(ids) == 0 {
+		resources.LogLevel("info", "no live instance for ip %s; already terminated", ip)
+		return nil
+	}
+
+	if wErr := c.ec2.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{InstanceIds: ids}); wErr != nil {
+		return resources.ReturnLogError("error waiting for termination of %s: %w\n", ip, wErr)
+	}
+	resources.LogLevel("info", "instance(s) for ip %s terminated", ip)
+
+	return nil
+}
