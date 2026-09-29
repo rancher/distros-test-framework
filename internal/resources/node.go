@@ -168,10 +168,11 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to get node name by ip: %w\n", err)
 	}
 
-	_, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
+	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
 	if delErr != nil {
 		return ReturnLogError("failed to delete node: %w\n", delErr)
 	}
+	LogLevel("info", "%s", res)
 
 	// delay not meant to wait if node is deleted.
 	// but rather to give time for the node to be removed from the cluster.

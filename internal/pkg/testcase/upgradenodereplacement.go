@@ -550,17 +550,17 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
+	// Kubelet must be gone before the Node object is removed, otherwise it re-registers (NotReady).
+	if err := a.TerminateInstanceAndWait(ip); err != nil {
+		return err
+	}
+
 	if delNodeErr := resources.DeleteNode(ip); delNodeErr != nil {
 		resources.LogLevel("error", "error deleting server: %w\n", delNodeErr)
 
 		return delNodeErr
 	}
 	resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
-
-	err := a.DeleteInstance(ip)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -613,24 +613,36 @@ func replaceAgents(
 
 			return joinErr
 		}
+
+		ip := externalIp
+		if ip == "" {
+			ip = privateIp
+		}
+		nodeErr := validateNodeJoin(ip)
+		if nodeErr != nil {
+			resources.LogLevel("error", "error validating node join: %w with ip: %s", nodeErr, ip)
+
+			return nodeErr
+		}
 	}
 
 	return nil
 }
 
 func deleteAgents(a *aws.Client, c *driver.Cluster) error {
-	for _, i := range c.AgentIPs {
-		if deleteNodeErr := resources.DeleteNode(i); deleteNodeErr != nil {
+	for _, ip := range c.AgentIPs {
+		// Kubelet must be gone before the Node object is removed, otherwise it re-registers (NotReady).
+		if err := a.TerminateInstanceAndWait(ip); err != nil {
+			return err
+		}
+		resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", ip)
+
+		if deleteNodeErr := resources.DeleteNode(ip); deleteNodeErr != nil {
 			resources.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
 
 			return deleteNodeErr
 		}
-
-		err := a.DeleteInstance(i)
-		if err != nil {
-			return err
-		}
-		resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", i)
+		resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
 	}
 
 	return nil
