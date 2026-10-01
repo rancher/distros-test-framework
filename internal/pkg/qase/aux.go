@@ -73,8 +73,9 @@ func normalizeSuiteName(name string) string {
 	return strings.ToLower(name)
 }
 
+// isValidTestState: panicked, timed out, aborted and interrupted specs are failures, not noise.
 func isValidTestState(state string) bool {
-	return state == "failed" || state == "passed" || state == "skipped"
+	return isFailureStatus(state) || state == "passed" || state == "skipped"
 }
 
 func isCompletionAction(action string) bool {

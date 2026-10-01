@@ -1,12 +1,10 @@
 package qase
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,52 +12,22 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/rancher/distros-test-framework/internal/pkg/slack"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-const (
-	slackAuthURL    = "https://slack.com/api/auth.test"
-	slackPostMsgURL = "https://slack.com/api/chat.postMessage"
-)
-
 type slackClient struct {
-	token     string
 	channelID string
-	client    *http.Client
+	api       *slack.Client
 	dryRun    bool
 }
 
-type slackAuthResponse struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
-	User  string `json:"user,omitempty"`
-	Team  string `json:"team,omitempty"`
-}
-
-type slackPostResponse struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
-	TS    string `json:"ts,omitempty"`
-}
-
-type slackMessage struct {
-	Channel  string       `json:"channel"`
-	Text     string       `json:"text,omitempty"`
-	Blocks   []slackBlock `json:"blocks,omitempty"`
-	ThreadTS string       `json:"thread_ts,omitempty"`
-}
-
-type slackBlock struct {
-	Type     string           `json:"type"`
-	Text     *slackBlockText  `json:"text,omitempty"`
-	Fields   []slackBlockText `json:"fields,omitempty"`
-	Elements []slackBlockText `json:"elements,omitempty"`
-}
-
-type slackBlockText struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
+// The reporter builds messages with the shared client's types.
+type (
+	slackMessage   = slack.Message
+	slackBlock     = slack.Block
+	slackBlockText = slack.BlockText
+)
 
 // ReportToSlack processes test data and posts results to Slack.
 func ReportToSlack(fileName, product, ciArch, baseDir string, runID int32) error {
@@ -179,14 +147,7 @@ func newSlackClient() (*slackClient, error) {
 		resources.LogLevel("info", "Slack DRY RUN mode enabled - will not post to Slack")
 	}
 
-	return &slackClient{
-		token:     token,
-		channelID: channelID,
-		client: &http.Client{
-			Timeout: 60 * time.Second,
-		},
-		dryRun: dryRun,
-	}, nil
+	return &slackClient{channelID: channelID, api: slack.New(token, ""), dryRun: dryRun}, nil
 }
 
 func (s *slackClient) validateConnection() error {
@@ -197,34 +158,9 @@ func (s *slackClient) validateConnection() error {
 
 	resources.LogLevel("info", "Validating Slack connection...")
 
-	req, err := http.NewRequest(http.MethodGet, slackAuthURL, http.NoBody)
+	authResp, err := s.api.AuthTest(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.token)
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("network error validating Slack: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var authResp slackAuthResponse
-	if err := json.Unmarshal(body, &authResp); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if !authResp.OK {
-		if authResp.Error == "invalid_auth" {
-			return errors.New("slack token validation failed: invalid_auth")
-		}
-		return fmt.Errorf("slack token validation failed: %s", authResp.Error)
+		return fmt.Errorf("slack token validation failed: %w", err)
 	}
 
 	resources.LogLevel("info", "Connected to Slack as: %s (Team: %s)", authResp.User, authResp.Team)
@@ -443,7 +379,7 @@ func (s *slackClient) PostTestResults(
 		failedTestsList.WriteString("*Failed Tests:*\n")
 		for _, suite := range pd.testSummary {
 			for _, tc := range suite.testCases {
-				if tc.status == failStatus {
+				if isFailureStatus(tc.status) {
 					failedTestsList.WriteString(fmt.Sprintf("• %s / %s\n", tc.testSuiteName, tc.testCaseName))
 				}
 			}
@@ -645,42 +581,14 @@ func (s *slackClient) sendMessage(msg slackMessage) (string, error) {
 		return "dry-run-thread-ts", nil
 	}
 
-	payload, err := json.Marshal(msg)
+	ts, err := s.api.PostMessage(context.Background(), &msg)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal message: %w", err)
+		return "", fmt.Errorf("failed to post to Slack: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, slackPostMsgURL, bytes.NewBuffer(payload))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
+	resources.LogLevel("info", "Message posted to Slack successfully (ts: %s)", ts)
 
-	req.Header.Set("Authorization", "Bearer "+s.token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("network error posting to Slack: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var postResp slackPostResponse
-	if err := json.Unmarshal(body, &postResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if !postResp.OK {
-		return "", fmt.Errorf("failed to post to Slack: %s", postResp.Error)
-	}
-
-	resources.LogLevel("info", "Message posted to Slack successfully (ts: %s)", postResp.TS)
-
-	return postResp.TS, nil
+	return ts, nil
 }
 
 func saveRerunState(baseDir, channelID, threadTS, product string, failedTests []string) error {

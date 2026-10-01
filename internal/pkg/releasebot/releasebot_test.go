@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,13 +25,12 @@ import (
 func TestParseRequest(t *testing.T) {
 	msg := "please test `v1.37.1-rc1+k3s1` v1.36.5-rc1%2Bk3s1 and " +
 		"<https://github.com/rancher/rke2/releases/tag/v1.37.1-rc2+rke2r1|v1.37.1-rc2+rke2r1>" +
-		" v1.37.1-rc1+k3s1 lts=v1.33.9-rc1+rke2r1,v1.32.12-rc1+rke2r1"
+		" v1.37.1-rc1+k3s1"
 
 	got := ParseRequest(msg)
 	want := Request{
-		K3s:     []string{"v1.36.5-rc1+k3s1", "v1.37.1-rc1+k3s1"},
-		RKE2:    []string{"v1.37.1-rc2+rke2r1"},
-		RKE2LTS: []string{"v1.32.12-rc1+rke2r1", "v1.33.9-rc1+rke2r1"},
+		K3s:  []string{"v1.36.5-rc1+k3s1", "v1.37.1-rc1+k3s1"},
+		RKE2: []string{"v1.37.1-rc2+rke2r1"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -42,10 +42,10 @@ func TestParseRequest(t *testing.T) {
 }
 
 func TestBaseVersion(t *testing.T) {
-	if got := BaseRC("v1.37.1-rc2+rke2r1"); got != "v1.37.1-rc2" {
+	if got := baseRC("v1.37.1-rc2+rke2r1"); got != "v1.37.1-rc2" {
 		t.Fatal(got)
 	}
-	if got := BaseVersion("v1.37.1-rc2+rke2r1"); got != "v1.37.1" {
+	if got := baseVersion("v1.37.1-rc2+rke2r1"); got != "v1.37.1" {
 		t.Fatal(got)
 	}
 }
@@ -60,19 +60,20 @@ defaultParams:
   INSTALL_VERSION: "{{VERSION}}"
   HOSTNAME_PREFIX: "{{PREFIX}}"
 jobs:
-  - {name: r-slow, product: rke2, controller: mower, path: a/rke2_slow, priority: 3}
-  - {name: r-smoke, product: rke2, controller: mower, path: a/rke2_smoke, priority: 1}
+  - {name: r-slow, product: rke2, controller: mower, path: a/rke2_slow, priority: 3, code: rs}
+  - {name: r-smoke, product: rke2, controller: mower, path: a/rke2_smoke, priority: 1, code: rm}
   - name: k-smoke
     product: k3s
     controller: mower
     path: a/k3s_smoke
     priority: 1
+    code: k
     params: {HOSTNAME_PREFIX: "{{PREFIX}}x"}
 `
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	m, err := LoadMatrix(path)
+	m, err := loadMatrix(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ jobs:
 func TestLoadMatrixRejectsUnknownController(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "m.yaml")
 	_ = os.WriteFile(path, []byte("jobs:\n  - {name: x, product: k3s, controller: nope, path: a}\n"), 0o600)
-	if _, err := LoadMatrix(path); err == nil {
+	if _, err := loadMatrix(path); err == nil {
 		t.Fatal("expected error for unknown controller")
 	}
 }
@@ -95,7 +96,7 @@ func TestBuildPlan(t *testing.T) {
 		RKE2: []string{"v1.37.1-rc2+rke2r1"},
 	}
 
-	p, err := BuildPlan(req, m, testNow, "rb-test")
+	p, err := buildPlan(context.Background(), req, m, testNow, "rb-test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,13 +126,13 @@ func TestBuildPlan(t *testing.T) {
 	}
 
 	k := p.Jobs[1]
-	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "rbk1371x" {
+	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "rbk137kx" {
 		t.Fatalf("params: %v", k.Params)
 	}
 }
 
 func TestBuildPlanEmpty(t *testing.T) {
-	if _, err := BuildPlan(Request{}, testMatrix(t), testNow, "rb-test"); err == nil {
+	if _, err := buildPlan(context.Background(), Request{}, testMatrix(t), testNow, "rb-test", nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -217,11 +218,11 @@ var testNow = time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC)
 
 func TestQaseRunTitleMatchesScript(t *testing.T) {
 	// scripts/qase-patch-validation.sh: "$PRODUCT $MONTH $YEAR Patch Validation for $VERSION+<rke2r1|k3s1>".
-	got := QaseRunTitle("rke2", "v1.37.1-rc2+rke2r2", testNow)
+	got := qaseRunTitle("rke2", "v1.37.1-rc2+rke2r2", testNow)
 	if got != "RKE2 September 2026 Patch Validation for v1.37.1+rke2r1" {
 		t.Fatal(got)
 	}
-	if got := QaseRunTitle("k3s", "v1.36.5-rc1", testNow); got != "K3S September 2026 Patch Validation for v1.36.5+k3s1" {
+	if got := qaseRunTitle("k3s", "v1.36.5-rc1", testNow); got != "K3S September 2026 Patch Validation for v1.36.5+k3s1" {
 		t.Fatal(got)
 	}
 }
@@ -246,7 +247,7 @@ func (f *fakeQase) SearchRuns(_ context.Context, title string) ([]QaseRun, error
 func TestQaseRunIDsFlowIntoJobs(t *testing.T) {
 	m := testMatrix(t)
 	m.Defaults["QASE_RUN_ID"] = "{{QASE_RUN_ID}}"
-	p, err := BuildPlan(Request{RKE2: []string{"v1.37.1-rc1+rke2r1"}}, m, testNow, "rb-1")
+	p, err := buildPlan(context.Background(), Request{RKE2: []string{"v1.37.1-rc1+rke2r1"}}, m, testNow, "rb-1", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +265,7 @@ func TestQaseRunIDsFlowIntoJobs(t *testing.T) {
 		kTitle: {{mine(1017, kTitle)}},
 	}}
 
-	ids, err := WaitQaseRuns(context.Background(), fq, p.QaseTitles, "rb-1", time.Millisecond, time.Second)
+	ids, err := waitQaseRuns(context.Background(), fq, p.QaseTitles, "rb-1", time.Millisecond, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +273,7 @@ func TestQaseRunIDsFlowIntoJobs(t *testing.T) {
 		t.Fatalf("ids = %v", ids)
 	}
 
-	if err = ApplyQaseRunIDs(p.Jobs, ids); err != nil {
+	if err = applyQaseRunIDs(p.Jobs, ids); err != nil {
 		t.Fatal(err)
 	}
 	for _, j := range p.Jobs {
@@ -293,14 +294,14 @@ func TestMatchQaseRunIgnoresOtherDispatches(t *testing.T) {
 		{ID: 902, Title: title, Description: "Version: v1.37.1-rc1 | Release bot request: rb-1"},
 		{ID: 950, Title: title + " (copy)", Description: "Version: v1.37.1-rc1 | Release bot request: rb-1"},
 	}
-	if id, ok := MatchQaseRun(runs, title, "rb-1"); !ok || id != 902 {
+	if id, ok := matchQaseRun(runs, title, "rb-1"); !ok || id != 902 {
 		t.Fatalf("got %d %v, want 902", id, ok)
 	}
-	if _, ok := MatchQaseRun(runs[:2], title, "rb-1"); ok {
+	if _, ok := matchQaseRun(runs[:2], title, "rb-1"); ok {
 		t.Fatal("must wait while only other dispatches' runs exist")
 	}
 	// Runs created by hand (-skip-workflows): newest with the exact title.
-	if id, _ := MatchQaseRun(runs, title, ""); id != 903 {
+	if id, _ := matchQaseRun(runs, title, ""); id != 903 {
 		t.Fatalf("got %d, want 903", id)
 	}
 }
@@ -310,25 +311,25 @@ func TestWaitQaseRunsTimesOut(t *testing.T) {
 	fq := &fakeQase{calls: map[string]int{}, runs: map[string][][]QaseRun{
 		title: {{{ID: 901, Title: title, Description: "Version: v1.37.1-rc1 | Release bot request: rb-other"}}},
 	}}
-	if _, err := WaitQaseRuns(context.Background(), fq, []string{title}, "rb-1",
+	if _, err := waitQaseRuns(context.Background(), fq, []string{title}, "rb-1",
 		time.Millisecond, 20*time.Millisecond); err == nil {
 		t.Fatal("expected timeout: only another dispatch's run exists")
 	}
 }
 
 func TestNewRequestIDMatchesScriptCharset(t *testing.T) {
-	id := NewRequestID(testNow)
+	id := newRequestID(testNow)
 	if !regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`).MatchString(id) || !strings.HasPrefix(id, "rb-20260928T120000-") {
 		t.Fatal(id)
 	}
-	if id == NewRequestID(testNow) {
+	if id == newRequestID(testNow) {
 		t.Fatal("ids must differ within the same second")
 	}
 }
 
 func TestApplyQaseRunIDsMissing(t *testing.T) {
 	jobs := []JenkinsJob{{Path: "a", QaseTitle: "x", Params: map[string]string{"QASE_RUN_ID": "{{QASE_RUN_ID}}"}}}
-	if err := ApplyQaseRunIDs(jobs, map[string]int64{}); err == nil {
+	if err := applyQaseRunIDs(jobs, map[string]int64{}); err == nil {
 		t.Fatal("expected error for unresolved run")
 	}
 }
@@ -425,7 +426,7 @@ func runScheduler(t *testing.T, b *scriptBuilder, limit int, paths ...string) (o
 	return out, logs
 }
 
-// Review P1: a transient queue error (HTTP 503) must not free the slot of a job Jenkins accepted.
+// A transient queue error (HTTP 503) must not free the slot of a job Jenkins accepted.
 func TestSchedulerQueueErrorKeepsSlot(t *testing.T) {
 	e503 := errors.New("GET queue: 503 Service Unavailable")
 	b := &scriptBuilder{
@@ -443,7 +444,7 @@ func TestSchedulerQueueErrorKeepsSlot(t *testing.T) {
 	}
 }
 
-// Review P2: persistent query errors (403/404) are reported, bounded, and never treated as "running";
+// Persistent query errors (403/404) are reported, bounded, and never treated as "running";
 // the unknown build keeps its slot, so with limit 1 the controller is marked unreachable.
 func TestSchedulerPersistentErrorsGiveUp(t *testing.T) {
 	e403 := errors.New("GET build: 403 Forbidden")
@@ -517,7 +518,7 @@ func outcomesByPath(out []Outcome) map[string]Outcome {
 	return m
 }
 
-// Review P1: Jenkins accepted the POST but the response was lost; the slot must stay taken.
+// Jenkins accepted the POST but the response was lost; the slot must stay taken.
 func TestSchedulerLostTriggerResponseKeepsSlot(t *testing.T) {
 	b := &scriptBuilder{lost: map[string]bool{"a": true}}
 	out, _ := runScheduler(t, b, 1, "a", "b")
@@ -533,7 +534,7 @@ func TestSchedulerLostTriggerResponseKeepsSlot(t *testing.T) {
 	}
 }
 
-// Review P2: with limit 2, A unknown and B finished leaves one free slot: C must still run.
+// With limit 2, A unknown and B finished leaves one free slot: C must still run.
 func TestSchedulerUnknownJobDoesNotBlockFreeCapacity(t *testing.T) {
 	b := &scriptBuilder{lost: map[string]bool{"a": true}, finished: map[string][]error{"b": {nil}}}
 	out, _ := runScheduler(t, b, 2, "a", "b", "c")
@@ -667,25 +668,28 @@ func TestDependsOnValidatedBeforeTriggering(t *testing.T) {
 }
 
 func TestLoadMatrixRejectsBadDependencies(t *testing.T) {
-	for name, jobs := range map[string]string{
-		"unknown": "  - {name: a, product: k3s, controller: m, path: p, dependsOn: [zzz]}\n",
-		"cross-product": "  - {name: a, product: k3s, controller: m, path: p}\n" +
-			"  - {name: b, product: rke2, controller: m, path: p, dependsOn: [a]}\n",
-		"cycle": "  - {name: a, product: k3s, controller: m, path: p, dependsOn: [b]}\n" +
-			"  - {name: b, product: k3s, controller: m, path: p, dependsOn: [a]}\n",
-		"duplicate": "  - {name: a, product: k3s, controller: m, path: p}\n" +
-			"  - {name: a, product: k3s, controller: m, path: q}\n",
+	// Each case must fail for its own reason, not for an unrelated field (codes are set).
+	for name, c := range map[string]struct{ jobs, want string }{
+		"unknown": {"  - {name: a, product: k3s, controller: m, path: p, code: a, dependsOn: [zzz]}\n", "zzz"},
+		"cross-product": {"  - {name: a, product: k3s, controller: m, path: p, code: a}\n" +
+			"  - {name: b, product: rke2, controller: m, path: p, code: b, dependsOn: [a]}\n", "dependencies"},
+		"cycle": {"  - {name: a, product: k3s, controller: m, path: p, code: a, dependsOn: [b]}\n" +
+			"  - {name: b, product: k3s, controller: m, path: p, code: b, dependsOn: [a]}\n", "cycle"},
+		"duplicate": {"  - {name: a, product: k3s, controller: m, path: p, code: a}\n" +
+			"  - {name: a, product: k3s, controller: m, path: q, code: b}\n", "unique"},
+		"later phase": {"  - {name: a, product: k3s, controller: m, path: p, code: a, phase: 1, dependsOn: [b]}\n" +
+			"  - {name: b, product: k3s, controller: m, path: q, code: b, phase: 2}\n", "later phase"},
 	} {
 		path := filepath.Join(t.TempDir(), "m.yaml")
-		body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" + jobs
+		body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" + c.jobs
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := LoadMatrix(path); err == nil {
-			t.Fatalf("%s: expected error", name)
+		if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: expected an error about %q, got %v", name, c.want, err)
 		}
 	}
-	if _, err := LoadMatrix("../../../config/releasebot/matrix.yaml"); err != nil {
+	if _, err := loadMatrix("../../../config/releasebot/matrix.yaml"); err != nil {
 		t.Fatalf("shipped matrix: %v", err)
 	}
 }
@@ -733,7 +737,25 @@ func TestJenkinsTriggerErrorClassification(t *testing.T) {
 	}
 }
 
-// Review P1: a redirect after the POST must not be read as "never sent", even when the redirect
+// A canceled context sends no POST, and the error is not "maybe sent".
+func TestJenkinsTriggerCanceledSendsNothing(t *testing.T) {
+	var posts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			posts.Add(1)
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := NewJenkins(srv.URL, "u", "t").Trigger(ctx, &JenkinsJob{Path: "f/j"})
+	if err == nil || errors.Is(err, ErrTriggerUnknown) || posts.Load() != 0 {
+		t.Fatalf("err %v, posts %d", err, posts.Load())
+	}
+}
+
+// A redirect after the POST must not be read as "never sent", even when the redirect
 // target refuses the connection.
 func TestJenkinsTriggerRedirectIsUnknown(t *testing.T) {
 	dead := httptest.NewServer(http.NotFoundHandler())
@@ -757,7 +779,7 @@ func TestJenkinsTriggerRedirectIsUnknown(t *testing.T) {
 	}
 }
 
-// Review P2: unknown matrix keys (a depends_on typo) are rejected instead of silently dropping deps.
+// Unknown matrix keys (a depends_on typo) are rejected instead of silently dropping deps.
 func TestLoadMatrixRejectsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "m.yaml")
 	body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" +
@@ -766,24 +788,24 @@ func TestLoadMatrixRejectsUnknownFields(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadMatrix(path); err == nil || !strings.Contains(err.Error(), "depends_on") {
+	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), "depends_on") {
 		t.Fatalf("expected unknown-field error naming depends_on, got %v", err)
 	}
 }
 
-// Review P3: cancellation and deadline stay identifiable through the Qase wait error.
+// Cancellation and deadline stay identifiable through the Qase wait error.
 func TestWaitQaseRunsKeepsContextError(t *testing.T) {
 	title := "RKE2 September 2026 Patch Validation for v1.37.1+rke2r1"
 	fq := &fakeQase{calls: map[string]int{}, runs: map[string][][]QaseRun{title: {{}}}}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := WaitQaseRuns(ctx, fq, []string{title}, "rb-1", time.Millisecond, time.Second)
+	_, err := waitQaseRuns(ctx, fq, []string{title}, "rb-1", time.Millisecond, time.Second)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled: %v", err)
 	}
 
-	_, err = WaitQaseRuns(context.Background(), fq, []string{title}, "rb-1", time.Millisecond, 5*time.Millisecond)
+	_, err = waitQaseRuns(context.Background(), fq, []string{title}, "rb-1", time.Millisecond, 5*time.Millisecond)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("deadline: %v", err)
 	}
@@ -806,7 +828,7 @@ func TestQaseAdapterAgainstFakeAPI(t *testing.T) {
 		map[string]qaseclient.APIKey{"TokenAuth": {Key: "tok"}})
 	q := newQaseFrom(&qase.Client{QaseAPI: qaseclient.NewAPIClient(cfg), Ctx: ctx})
 
-	ids, err := WaitQaseRuns(context.Background(), q, []string{title}, "rb-1", time.Millisecond, time.Second)
+	ids, err := waitQaseRuns(context.Background(), q, []string{title}, "rb-1", time.Millisecond, time.Second)
 	if err != nil || ids[title] != 902 {
 		t.Fatalf("ids=%v err=%v", ids, err)
 	}
@@ -814,7 +836,7 @@ func TestQaseAdapterAgainstFakeAPI(t *testing.T) {
 
 func TestNewQaseRequiresToken(t *testing.T) {
 	t.Setenv("QASE_AUTOMATION_TOKEN", "")
-	if _, err := NewQase(); err == nil {
+	if _, err := newQase(); err == nil {
 		t.Fatal("expected error without QASE_AUTOMATION_TOKEN")
 	}
 }
@@ -888,5 +910,65 @@ func TestGitHubDispatch(t *testing.T) {
 
 	if err := (&GitHub{BaseURL: srv.URL, HTTP: srv.Client()}).Dispatch(context.Background(), w); err == nil {
 		t.Fatal("dispatch without a token must fail")
+	}
+}
+
+// The scheduler marks builds it lost track of, and unreconciled reports them.
+func TestUnreconciledFromScheduler(t *testing.T) {
+	b := &scriptBuilder{lost: map[string]bool{"a": true}}
+	out, _ := runScheduler(t, b, 2, "a", "b")
+	err := unreconciled(out)
+	if !errors.Is(err, ErrUnreconciledBuilds) || !strings.Contains(err.Error(), "a v1") ||
+		strings.Contains(err.Error(), "b v1") {
+		t.Fatalf("unreconciled = %v", err)
+	}
+
+	e403 := errors.New("403")
+	b = &scriptBuilder{finished: map[string][]error{"a": {e403, e403, e403}}}
+	out, _ = runScheduler(t, b, 2, "a")
+	if err = unreconciled(out); !errors.Is(err, ErrUnreconciledBuilds) || !errors.Is(out[0].Err, ErrStateUnknown) {
+		t.Fatalf("state unknown not reported: %v / %v", err, out[0].Err)
+	}
+	if unreconciled([]Outcome{{Result: "SUCCESS"}, {Err: errors.New("400 rejected")}}) != nil {
+		t.Fatal("finished or rejected jobs are not unreconciled")
+	}
+}
+
+// Stopping the bot mid-run reports the in-flight builds as unknown, not as a plain error.
+func TestSchedulerCancelMarksInFlightUnknown(t *testing.T) {
+	b := &scriptBuilder{finished: map[string][]error{"a": {nil, nil, nil, nil, nil, nil, nil, nil, nil, nil}}}
+	s := &Scheduler{
+		Builders: map[string]Builder{"mower": b}, Limits: map[string]Limits{"mower": {MaxConcurrent: 1}},
+		Poll: time.Millisecond,
+	}
+	ctx, cancel := context.WithCancel(testContext(t))
+	defer cancel()
+	jobs := []JenkinsJob{
+		{Name: "a", Controller: "mower", Path: "a", Version: "v1"},
+		{Name: "b", Controller: "mower", Path: "b", Version: "v1"},
+	}
+	done := make(chan []Outcome, 1)
+	go func() { done <- s.Run(ctx, jobs) }()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		b.mu.Lock()
+		n := b.triggers
+		b.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("scheduler never triggered a job: %v", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+	cancel()
+	out := receive(t, done)
+	err := unreconciled(out)
+	if !errors.Is(err, ErrUnreconciledBuilds) || !strings.Contains(err.Error(), "a v1") ||
+		strings.Contains(err.Error(), "b v1") {
+		t.Fatalf("in-flight job not reported, or never-triggered job reported: %v", err)
 	}
 }

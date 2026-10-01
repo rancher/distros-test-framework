@@ -22,6 +22,10 @@ on:
         description: 'Page size for API queries'
         required: false
         default: '150'
+      commit_baselines:
+        description: 'Optional GA-to-RC baselines as JSON: {"<RC tag>":"<GA tag>"}; otherwise auto-select within each minor'
+        required: false
+        default: '{}'
 
 permissions:
   contents: read
@@ -64,9 +68,44 @@ jobs:
         run: ./release_checks.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
         shell: sh
 
+      - name: Compare GA to RC commits
+        id: commit_compare
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 20
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          K3S_VERSIONS: ${{ inputs.k3s_versions }}
+          RKE2_VERSIONS: ${{ inputs.rke2_versions }}
+          RKE2_LTS_VERSIONS: ${{ inputs.rke2_lts_versions }}
+          BASELINES: ${{ inputs.commit_baselines }}
+          REQUEST_ID: ${{ github.run_id }}
+        run: |
+          rc_versions=$(jq -rn --arg versions "$K3S_VERSIONS,$RKE2_VERSIONS,$RKE2_LTS_VERSIONS" '
+            $versions | split(",") | map(gsub("^\\s+|\\s+$"; "")) |
+            map(select(contains("-rc"))) | join(",")
+          ')
+          if [[ -z "$rc_versions" ]]; then
+            echo 'No RC tags supplied; GA-only artifact checks are unchanged.'
+            exit 0
+          fi
+          bash scripts/compare_release_commits.sh --versions "$rc_versions" \
+            --baselines "$BASELINES" --request-id "$REQUEST_ID" --output-dir tmp/release-commits
+
+      - name: Upload commit comparison report even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-commit-comparison
+          path: |
+            tmp/release-commits/report.json
+            tmp/release-commits/summary.md
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Check for previous failures
-        if: steps.k3s_verify.outcome == 'failure' || steps.rke2_verify.outcome == 'failure' || steps.rke2_lts_verify.outcome == 'failure'
+        if: ${{ !cancelled() && (steps.k3s_verify.outcome == 'failure' || steps.rke2_verify.outcome == 'failure' || steps.rke2_lts_verify.outcome == 'failure' || steps.commit_compare.outcome == 'failure') }}
         run: |
           echo "One or more steps failed, marking job as failed."
           exit 1
-

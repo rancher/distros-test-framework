@@ -176,26 +176,37 @@ verify_asset_count_rke2_packaging () {
 
     printf '\n==== VERIFY RKE2 PACKAGING ASSETS FOR RKE2 VERSION: %s ====\n' "${VERSION}"
 
-    JSON=$(
-      curl -sS -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/rancher/rke2-packaging/releases?per_page=100"
-    )
-
-    TAG=$(printf '%s' "$JSON" | jq -r --arg p "$VERSION" '
-      [ .[] | select((.tag_name | startswith($p)) and (.tag_name | test("\\.testing\\.[0-9]+$"))) ][0].tag_name
-    ')
+    # matching-refs returns every <version>.testing.N tag unpaged; the highest N wins (numeric sort).
+    # An HTTP error, network failure or unexpected JSON is a failed lookup; only [] means no tag.
+    REFS_URL="https://api.github.com/repos/rancher/rke2-packaging/git/matching-refs/tags/$(printf '%s' "${VERSION}" | sed 's/+/%2B/g').testing."
+    debug_log "curl -fsS --max-time 30 -H \"Accept: application/vnd.github+json\" \"${REFS_URL}\" | jq -e 'arrays | map(.ref)'"
+    if ! REFS=$(curl -fsS --max-time 30 -H "Accept: application/vnd.github+json" "${REFS_URL}") ||
+      ! REFS=$(printf '%s' "${REFS}" | jq -e 'arrays | map(.ref)'); then
+        echo "FAIL: ${VERSION}: GitHub API lookup failed for the packaging tags (${REFS_URL})." | tee -a "${FAILURE_FILE}"
+        return
+    fi
+    # Only <version>.testing.<number> exactly: never a longer version that shares the prefix.
+    TAG=$(printf '%s' "${REFS}" | jq -r '.[] | ltrimstr("refs/tags/")' \
+      | awk -v p="${VERSION}.testing." 'index($0, p) == 1 { n = substr($0, length(p) + 1); if (n ~ /^[0-9]+$/) print n " " $0 }' \
+      | sort -n | tail -1 | cut -d' ' -f2)
     debug_log "TAG: ${TAG}"
 
-    if [ -z "$TAG" ]; then
-        echo "FAIL: ${VERSION}: packaging release tag not found (looking for ${VERSION}.testing)." | tee -a "${FAILURE_FILE}"
+    if [ -z "${TAG}" ]; then
+        echo "FAIL: ${VERSION}: packaging release tag not found (looking for ${VERSION}.testing.N)." | tee -a "${FAILURE_FILE}"
         echo "Please ensure the version is correct and the release exists." | tee -a "${FAILURE_FILE}"
+        return
     fi
 
-    ASSET_COUNT=$(printf '%s' "$JSON" | jq --arg tag "$TAG" '
-      [.[] | select(.tag_name == $tag)][0].assets | length
-    ')
+    ENCODED_TAG=$(printf '%s' "${TAG}" | sed 's/+/%2B/g')
+    RELEASE_URL="https://api.github.com/repos/rancher/rke2-packaging/releases/tags/${ENCODED_TAG}"
+    debug_log "curl -fsS --max-time 30 -H \"Accept: application/vnd.github+json\" \"${RELEASE_URL}\" | jq -e '.assets | arrays | length'"
+    if ! RELEASE=$(curl -fsS --max-time 30 -H "Accept: application/vnd.github+json" "${RELEASE_URL}") ||
+      ! ASSET_COUNT=$(printf '%s' "${RELEASE}" | jq -e '.assets | arrays | length'); then
+        echo "FAIL: ${VERSION}: GitHub API lookup failed for release ${TAG} (${RELEASE_URL})." | tee -a "${FAILURE_FILE}"
+        return
+    fi
 
-    verify_count "${ASSET_COUNT}" "${EXPECTED_ASSETS_COUNT}" "RKE2 packaging assets"
+    verify_count "${ASSET_COUNT}" "${EXPECTED_ASSETS_COUNT}" "RKE2 packaging assets (${TAG})"
 }
 
 verify_rke2_packaging () {
@@ -218,8 +229,8 @@ verify_rke2_packaging () {
         CHANNEL_COUNT=$(grep -c "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
     else
-        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -v \"rc\" | wc -l"
-        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc" | wc -l)
+        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -vc \"rc\""
+        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -vc "rc")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc")
     fi
 
@@ -291,9 +302,20 @@ verify_lts () {
 }
 
 # Main script execution starts here
+# Sourced by release_checks_test.sh: define the functions only.
+if [ -n "${RELEASE_CHECKS_FUNCTIONS_ONLY:-}" ]; then
+    # shellcheck disable=SC2317 # exit is reached when the script is run instead of sourced
+    return 0 2>/dev/null || exit 0
+fi
+
 VERSIONS=$(echo "${INPUT}" | tr "," "\n")
 for VERSION in $VERSIONS
 do
+    # The version goes into URLs and patterns: only a release tag is accepted.
+    if ! printf '%s' "${VERSION}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?\+(rke2r|k3s)[0-9]+$'; then
+        echo "FAIL: ${VERSION}: not a release tag (vX.Y.Z[-rcN]+rke2rN or +k3sN)." | tee -a "${FAILURE_FILE}"
+        continue
+    fi
     printf "==========================================================================
         TESTING VERSION: %s 
 ==========================================================================\n" "${VERSION}"
@@ -327,7 +349,7 @@ do
     printf "===================== DONE ==========================\n"
 done
 
-if [ -f $FAILURE_FILE ]; then
+if [ -f "${FAILURE_FILE}" ]; then
     printf "==========================================================================
                         FAILURE SUMMARY 
 ==========================================================================\n"

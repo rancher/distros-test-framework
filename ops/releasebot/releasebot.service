@@ -1,0 +1,55 @@
+# Release bot (Slack Socket Mode), installed by ops/releasebot/setup.sh; see docs/releasebot.md.
+# Dry-run unless /etc/releasebot/releasebot.env sets RELEASEBOT_DRY_RUN=false; deploys keep that file.
+[Unit]
+Description=distros release bot (Slack Socket Mode)
+Documentation=https://github.com/rancher/distros-test-framework/blob/qa-infra-RC-1/docs/releasebot.md
+After=network-online.target
+Wants=network-online.target
+# Five failures in ten minutes (e.g. a revoked token) leave the unit failed instead of looping.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=releasebot
+Group=releasebot
+Environment=RELEASEBOT_DRY_RUN=true
+EnvironmentFile=/etc/releasebot/releasebot.env
+ExecStart=/usr/local/lib/releasebot/current/releasebot -listen -dry-run=${RELEASEBOT_DRY_RUN} \
+    -matrix /usr/local/lib/releasebot/current/matrix.yaml -state-file /var/lib/releasebot/state.json \
+    -triage-spool /var/lib/releasebot-triage
+Restart=on-failure
+RestartSec=30
+
+# The bot writes only its state directory; everything else is read-only or hidden.
+StateDirectory=releasebot
+StateDirectoryMode=0700
+# The triage spool, shared with the broker through this group (see releasebot-triage@.service).
+SupplementaryGroups=releasebot-triage
+ReadWritePaths=/var/lib/releasebot-triage
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

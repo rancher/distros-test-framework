@@ -194,8 +194,16 @@ $ make test-version-bump               # runs version bump test locally
 $ make test-run                        # runs create and upgrade cluster by passing the argname and argvalue
 $ make remove-tf-state                 # removes acceptance state dir and files
 $ make test-suite                      # runs all testcase locally in sequence not using the same state
-$ make pre-commit                      # runs go fmt,imports,vet and lint
+$ make pre-commit                      # formats (rewrites files in place), vets, lints and runs the unit tests
+$ make unit-tests                      # only the unit tests; changes nothing
 ```
+
+`make pre-commit` runs `gofmt`, `gofumpt` and `goimports` with `-w` on the whole tree, untracked
+files included: commit or stash unrelated work before running it, or format only your files
+(`gofumpt -l -w <files>`) and run `golangci-lint run` and `make unit-tests` for the checks.
+
+The existing release-checks workflow also collects [GA-to-RC commit comparisons](release-commit-comparison.md).
+The comparison script's offline regression tests are included in `make unit-tests`.
 
 ### Examples with docker
 

@@ -1,9 +1,11 @@
-# Release bot job matrix: every job below runs once per RC of its product.
-# {{VERSION}} -> full tag (v1.37.1-rc1+rke2r1), {{PREFIX}} -> short HOSTNAME_PREFIX (<prefixBase><k|r><X.Y.Z digits>).
-# {{QASE_RUN_ID}} -> id of the patch-validation run the Qase workflow creates for that product/version.
-# Params not listed keep the job's own defaults (TFVARS, NODE_OS, hardened server_flags...).
+# Release bot job matrix. Each job runs once per RC of its product, in phases: an RC starts phase N
+# once all of its phase N-1 jobs passed (docs/releasebot.md). {{VERSION}}, {{PREFIX}} (base + product
+# + major/minor + code, e.g. rbr137vc), {{UPGRADE_FROM}} and {{QASE_RUN_ID}} are filled per RC; other
+# params keep the job's defaults. optional jobs may be missing on the controller (skipped); any
+# other job that is missing or cannot take the bot's params refuses the plan.
 dtfRepo: rancher/distros-test-framework
-dtfRef: main
+# Until qa-infra-RC-1 merges into main; RELEASEBOT_DTF_REF in the env file overrides it.
+dtfRef: qa-infra-RC-1
 prefixBase: rb
 
 controllers:
@@ -14,52 +16,202 @@ controllers:
 defaultParams:
   INSTALL_VERSION: "{{VERSION}}"
   HOSTNAME_PREFIX: "{{PREFIX}}"
-  BRANCH: qa-infra-RC-1
+  BRANCH: "{{DTF_REF}}"
   REPORT_TO_QASE: "true"
   QASE_RUN_ID: "{{QASE_RUN_ID}}"
+# A job without these still runs (it just does not report to Qase); the plan warns.
+optionalParams: [REPORT_TO_QASE, QASE_RUN_ID]
 
 jobs:
-  # priority 1: smoke, 2: core validations, 3: upgrades/long-running.
-  # dependsOn: job names of the same product; they must succeed for the same RC first.
-  - name: rke2-validate-cluster
-    product: rke2
-    controller: mower
-    path: distros_qa/rke2-tests/rke2_validate_cluster_qainfra
-    priority: 1
-  - name: rke2-validate-cluster-rpm
-    product: rke2
-    controller: mower
-    dependsOn: [rke2-validate-cluster]
-    path: distros_qa/rke2-tests/rke2_validate_cluster_rpm_qainfra
-    priority: 2
-    params:
-      HOSTNAME_PREFIX: "{{PREFIX}}p"
-  - name: rke2-conformance
-    product: rke2
-    controller: mower
-    dependsOn: [rke2-validate-cluster]
-    path: distros_qa/rke2-tests/rke2_conformance_qainfra
-    priority: 2
-    params:
-      HOSTNAME_PREFIX: "{{PREFIX}}c"
-  - name: k3s-validate-cluster
-    product: k3s
-    controller: mower
-    path: distros_qa/k3s-tests/k3s_validate_cluster_qainfra
-    priority: 1
-  - name: k3s-validate-cluster-rpm
-    product: k3s
-    controller: mower
-    dependsOn: [k3s-validate-cluster]
-    path: distros_qa/k3s-tests/k3s_validate_cluster_rpm_qainfra
-    priority: 2
-    params:
-      HOSTNAME_PREFIX: "{{PREFIX}}p"
-  - name: k3s-conformance
-    product: k3s
-    controller: mower
-    dependsOn: [k3s-validate-cluster]
-    path: distros_qa/k3s-tests/k3s_conformance_qainfra
-    priority: 2
-    params:
-      HOSTNAME_PREFIX: "{{PREFIX}}c"
+  ## rke2
+  # Phase 1, smoke: validate-cluster and validate-cluster-rpm share the RCs (newest half tarball;
+  # rke2's tarball job needs INSTALL_METHOD tar, its installer would pick rpm on SLES 16).
+  - {name: rke2-validate-cluster, product: rke2, controller: mower, phase: 1, code: vc, split: install,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_qainfra,
+     params: {INSTALL_METHOD: tar}}
+  - {name: rke2-validate-cluster-rpm, product: rke2, controller: mower, phase: 1, code: vr, split: install,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_rpm_qainfra}
+  - {name: rke2-validate-cluster-arm, product: rke2, controller: mower, phase: 1, code: va,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_arm_qainfra}
+  # Phase 2, install.
+  - {name: rke2-conformance, product: rke2, controller: mower, phase: 2, code: cf,
+     path: distros_qa/rke2-tests/rke2_conformance_qainfra}
+  - {name: rke2-conformance-external-db, product: rke2, controller: mower, phase: 2, code: ce,
+     path: distros_qa/rke2-tests/rke2_conformance_external_db_qainfra}
+  - {name: rke2-external-datastore, product: rke2, controller: mower, phase: 2, code: ed,
+     path: distros_qa/rke2-tests/rke2_external_datastore_qainfra}
+  - {name: rke2-validate-cluster-arm-rpm, product: rke2, controller: mower, phase: 2, code: ar,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_arm_rpm_qainfra}
+  - {name: rke2-validate-cluster-slemicro, product: rke2, controller: mower, phase: 2, code: sm,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_slemicro_qainfra}
+  - {name: rke2-validate-cluster-slemicro-rpm, product: rke2, controller: mower, phase: 2, code: sr,
+     path: distros_qa/rke2-tests/rke2_validate_cluster_slemicro_rpm_qainfra}
+  - {name: rke2-restart-service, product: rke2, controller: mower, phase: 2, code: rs,
+     path: distros_qa/rke2-tests/rke2_restart_service_qainfra}
+  - {name: rke2-restart-service-splitroles, product: rke2, controller: mower, phase: 2, code: rp,
+     path: distros_qa/rke2-tests/rke2_restart_service_splitroles_qainfra}
+  - {name: rke2-reboot-instances, product: rke2, controller: mower, phase: 2, code: rb,
+     path: distros_qa/rke2-tests/rke2_reboot_instances_qainfra}
+  - {name: rke2-cluster-reset, product: rke2, controller: mower, phase: 2, code: cr,
+     path: distros_qa/rke2-tests/rke2_cluster_reset_qainfra}
+  - {name: rke2-cluster-restore, product: rke2, controller: mower, phase: 2, code: ct,
+     path: distros_qa/rke2-tests/rke2_cluster_restore_qainfra}
+  - {name: rke2-secrets-encryption, product: rke2, controller: mower, phase: 2, code: se,
+     path: distros_qa/rke2-tests/rke2_secrets_encryption_qainfra}
+  - {name: rke2-cert-rotate, product: rke2, controller: mower, phase: 2, code: ro,
+     path: distros_qa/rke2-tests/rke2_cert_rotate_qainfra}
+  - {name: rke2-kill-all-uninstall, product: rke2, controller: mower, phase: 2, code: ku,
+     path: distros_qa/rke2-tests/rke2_kill_all_uninstall_qainfra}
+  - {name: rke2-kill-all-uninstall-arm, product: rke2, controller: mower, phase: 2, code: ka,
+     path: distros_qa/rke2-tests/rke2_kill_all_uninstall_arm_qainfra}
+  - {name: rke2-dual-stack, product: rke2, controller: mower, optional: true, phase: 2, code: ds,
+     path: distros_qa/rke2-tests/rke2_dual_stack_qainfra}
+  - {name: rke2-ipv6-only, product: rke2, controller: mower, optional: true, phase: 2, code: i6,
+     path: distros_qa/rke2-tests/rke2_ipv6_only_qainfra}
+  - {name: rke2-nvidia, product: rke2, controller: mower, phase: 2, code: nv,
+     path: distros_qa/rke2-tests/rke2_nvidia_test_qainfra}
+  - {name: rke2-windows-agent, product: rke2, controller: mower, optional: true, phase: 2, code: wa,
+     path: distros_qa/rke2-tests/rke2_windows_agent_qainfra}
+  - {name: rke2-windows-agent-flannel, product: rke2, controller: mower, optional: true, phase: 2, code: wf,
+     path: distros_qa/rke2-tests/rke2_windows_agent_flannel_qainfra}
+  # Phase 3, airgap: each job keeps its own TEST_ARGS, as the batch does.
+  - {name: rke2-private-registry, product: rke2, controller: mower, phase: 3, code: pr,
+     path: distros_qa/rke2-tests/rke2_private_registry_qainfra}
+  - {name: rke2-system-default-registry, product: rke2, controller: mower, phase: 3, code: sd,
+     path: distros_qa/rke2-tests/rke2_system_default_registry_qainfra}
+  - {name: rke2-tarball, product: rke2, controller: mower, phase: 3, code: tb,
+     path: distros_qa/rke2-tests/rke2_tarball_qainfra}
+  - {name: rke2-tarball-prime-staging, product: rke2, controller: mower, phase: 3, code: ts,
+     path: distros_qa/rke2-tests/rke2_tarball_prime_staging_qainfra}
+  - {name: rke2-tarball-arm, product: rke2, controller: mower, phase: 3, code: ta,
+     path: distros_qa/rke2-tests/rke2_tarball_arm_qainfra}
+  - {name: rke2-tarball-arm-prime-staging, product: rke2, controller: mower, phase: 3, code: tp,
+     path: distros_qa/rke2-tests/rke2_tarball_arm_prime_staging_qainfra}
+  - {name: rke2-private-registry-windows, product: rke2, controller: mower, optional: true, phase: 3, code: pw,
+     path: distros_qa/rke2-tests/rke2_private_registry_windows_qainfra}
+  - {name: rke2-tarball-windows, product: rke2, controller: mower, optional: true, phase: 3, code: tw,
+     path: distros_qa/rke2-tests/rke2_tarball_windows_qainfra}
+  - {name: rke2-tarball-windows-prime-staging, product: rke2, controller: mower, optional: true, phase: 3, code: tx,
+     path: distros_qa/rke2-tests/rke2_tarball_windows_prime_staging_qainfra}
+  # Phase 4, upgrades from the latest GA of the same minor (previous minor for a .0 RC) to the RC.
+  - {name: rke2-suc-upgrade, product: rke2, controller: mower, phase: 4, code: su,
+     path: distros_qa/rke2-tests/rke2_suc_upgrade_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-suc-upgrade-splitroles, product: rke2, controller: mower, phase: 4, code: ss,
+     path: distros_qa/rke2-tests/rke2_suc_upgrade_splitroles_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-suc-upgrade-external-datastore, product: rke2, controller: mower, phase: 4, code: ue,
+     path: distros_qa/rke2-tests/rke2_suc_upgrade_external_datastore_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-manual-upgrade, product: rke2, controller: mower, phase: 4, code: mu,
+     path: distros_qa/rke2-tests/rke2_manual_upgrade_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-upgrade-node-replacement, product: rke2, controller: mower, phase: 4, code: nr,
+     path: distros_qa/rke2-tests/rke2_upgrade_node_replacement_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-manual-upgrade-arm, product: rke2, controller: mower, phase: 4, code: ma,
+     path: distros_qa/rke2-tests/rke2_manual_upgrade_arm_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-suc-upgrade-arm, product: rke2, controller: mower, phase: 4, code: sa,
+     path: distros_qa/rke2-tests/rke2_suc_upgrade_arm_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: rke2-manual-upgrade-slemicro, product: rke2, controller: mower, phase: 4, code: ms,
+     path: distros_qa/rke2-tests/rke2_manual_upgrade_slemicro_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  # Phase 5, Rancher on the RC (rke2 has the rpm jobs).
+  - {name: rke2-deploy-rancher-community, product: rke2, controller: mower, phase: 5, code: rc,
+     path: distros_qa/rke2-tests/rke2_deploy_rancher_community_rpm_qainfra}
+  - {name: rke2-deploy-rancher-prime-release, product: rke2, controller: mower, phase: 5, code: rr,
+     path: distros_qa/rke2-tests/rke2_deploy_rancher_prime_release_rpm_qainfra}
+  - {name: rke2-deploy-rancher-prime-staging, product: rke2, controller: mower, phase: 5, code: rg,
+     path: distros_qa/rke2-tests/rke2_deploy_rancher_prime_staging_rpm_qainfra}
+  ## k3s
+  # Phase 1, smoke: validate-cluster and validate-cluster-rpm share the RCs (newest half tarball).
+  - {name: k3s-validate-cluster, product: k3s, controller: mower, phase: 1, code: vc, split: install,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_qainfra}
+  - {name: k3s-validate-cluster-rpm, product: k3s, controller: mower, phase: 1, code: vr, split: install,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_rpm_qainfra}
+  - {name: k3s-validate-cluster-arm, product: k3s, controller: mower, phase: 1, code: va,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_arm_qainfra}
+  - {name: k3s-docker-cri, product: k3s, controller: mower, phase: 1, code: dc,
+     path: distros_qa/k3s-tests/k3s_docker_cri_qainfra}
+  # Phase 2, install.
+  - {name: k3s-conformance, product: k3s, controller: mower, phase: 2, code: cf,
+     path: distros_qa/k3s-tests/k3s_conformance_qainfra}
+  - {name: k3s-conformance-external-db, product: k3s, controller: mower, phase: 2, code: ce,
+     path: distros_qa/k3s-tests/k3s_conformance_external_db_qainfra}
+  - {name: k3s-external-datastore, product: k3s, controller: mower, phase: 2, code: ed,
+     path: distros_qa/k3s-tests/k3s_external_datastore_qainfra}
+  - {name: k3s-validate-cluster-arm-rpm, product: k3s, controller: mower, phase: 2, code: ar,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_arm_rpm_qainfra}
+  - {name: k3s-validate-cluster-slemicro, product: k3s, controller: mower, phase: 2, code: sm,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_slemicro_qainfra}
+  - {name: k3s-validate-cluster-slemicro-rpm, product: k3s, controller: mower, phase: 2, code: sr,
+     path: distros_qa/k3s-tests/k3s_validate_cluster_slemicro_rpm_qainfra}
+  - {name: k3s-restart-service, product: k3s, controller: mower, phase: 2, code: rs,
+     path: distros_qa/k3s-tests/k3s_restart_service_qainfra}
+  - {name: k3s-restart-service-splitroles, product: k3s, controller: mower, phase: 2, code: rp,
+     path: distros_qa/k3s-tests/k3s_restart_service_splitroles_qainfra}
+  - {name: k3s-reboot-instances, product: k3s, controller: mower, phase: 2, code: rb,
+     path: distros_qa/k3s-tests/k3s_reboot_instances_qainfra}
+  - {name: k3s-cluster-reset, product: k3s, controller: mower, phase: 2, code: cr,
+     path: distros_qa/k3s-tests/k3s_cluster_reset_qainfra}
+  - {name: k3s-cluster-restore, product: k3s, controller: mower, phase: 2, code: ct,
+     path: distros_qa/k3s-tests/k3s_cluster_restore_qainfra}
+  - {name: k3s-secrets-encryption, product: k3s, controller: mower, phase: 2, code: se,
+     path: distros_qa/k3s-tests/k3s_secrets_encryption_qainfra}
+  - {name: k3s-cert-rotate, product: k3s, controller: mower, phase: 2, code: ro,
+     path: distros_qa/k3s-tests/k3s_cert_rotate_qainfra}
+  - {name: k3s-kill-all-uninstall, product: k3s, controller: mower, phase: 2, code: ku,
+     path: distros_qa/k3s-tests/k3s_kill_all_uninstall_qainfra}
+  - {name: k3s-kill-all-uninstall-arm, product: k3s, controller: mower, phase: 2, code: ka,
+     path: distros_qa/k3s-tests/k3s_kill_all_uninstall_arm_qainfra}
+  - {name: k3s-dual-stack, product: k3s, controller: mower, optional: true, phase: 2, code: ds,
+     path: distros_qa/k3s-tests/k3s_dual_stack_qainfra}
+  - {name: k3s-ipv6-only, product: k3s, controller: mower, optional: true, phase: 2, code: i6,
+     path: distros_qa/k3s-tests/k3s_ipv6_only_qainfra}
+  # Phase 3, airgap: each job keeps its own TEST_ARGS, as the batch does.
+  - {name: k3s-private-registry, product: k3s, controller: mower, phase: 3, code: pr,
+     path: distros_qa/k3s-tests/k3s_private_registry_qainfra}
+  - {name: k3s-system-default-registry, product: k3s, controller: mower, phase: 3, code: sd,
+     path: distros_qa/k3s-tests/k3s_system_default_registry_qainfra}
+  - {name: k3s-tarball, product: k3s, controller: mower, phase: 3, code: tb,
+     path: distros_qa/k3s-tests/k3s_tarball_qainfra}
+  - {name: k3s-tarball-prime-staging, product: k3s, controller: mower, phase: 3, code: ts,
+     path: distros_qa/k3s-tests/k3s_tarball_prime_staging_qainfra}
+  - {name: k3s-tarball-arm, product: k3s, controller: mower, phase: 3, code: ta,
+     path: distros_qa/k3s-tests/k3s_tarball_arm_qainfra}
+  - {name: k3s-tarball-arm-prime-staging, product: k3s, controller: mower, phase: 3, code: tp,
+     path: distros_qa/k3s-tests/k3s_tarball_arm_prime_staging_qainfra}
+  # Phase 4, upgrades from the latest GA of the same minor (previous minor for a .0 RC) to the RC.
+  - {name: k3s-suc-upgrade, product: k3s, controller: mower, phase: 4, code: su,
+     path: distros_qa/k3s-tests/k3s_suc_upgrade_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-suc-upgrade-splitroles, product: k3s, controller: mower, phase: 4, code: ss,
+     path: distros_qa/k3s-tests/k3s_suc_upgrade_splitroles_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-suc-upgrade-external-datastore, product: k3s, controller: mower, phase: 4, code: ue,
+     path: distros_qa/k3s-tests/k3s_suc_upgrade_external_datastore_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-manual-upgrade, product: k3s, controller: mower, phase: 4, code: mu,
+     path: distros_qa/k3s-tests/k3s_manual_upgrade_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-upgrade-node-replacement, product: k3s, controller: mower, phase: 4, code: nr,
+     path: distros_qa/k3s-tests/k3s_upgrade_node_replacement_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-manual-upgrade-arm, product: k3s, controller: mower, phase: 4, code: ma,
+     path: distros_qa/k3s-tests/k3s_manual_upgrade_arm_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-suc-upgrade-arm, product: k3s, controller: mower, phase: 4, code: sa,
+     path: distros_qa/k3s-tests/k3s_suc_upgrade_arm_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  - {name: k3s-manual-upgrade-slemicro, product: k3s, controller: mower, phase: 4, code: ms,
+     path: distros_qa/k3s-tests/k3s_manual_upgrade_slemicro_qainfra,
+     params: {INSTALL_VERSION: "{{UPGRADE_FROM}}", UPGRADE_VERSION: "{{VERSION}}"}}
+  # Phase 5, Rancher on the RC (rke2 has the rpm jobs).
+  - {name: k3s-deploy-rancher-community, product: k3s, controller: mower, phase: 5, code: rc,
+     path: distros_qa/k3s-tests/k3s_deploy_rancher_community_qainfra}
+  - {name: k3s-deploy-rancher-prime-release, product: k3s, controller: mower, phase: 5, code: rr,
+     path: distros_qa/k3s-tests/k3s_deploy_rancher_prime_release_qainfra}
+  - {name: k3s-deploy-rancher-prime-staging, product: k3s, controller: mower, phase: 5, code: rg,
+     path: distros_qa/k3s-tests/k3s_deploy_rancher_prime_staging_qainfra}

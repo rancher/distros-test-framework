@@ -1,0 +1,37 @@
+# Release bot triage broker, run as %i (the user who owns the claude-sandbox and its Vertex login).
+# Installed by ops/releasebot/setup.sh prepare %i; see docs/releasebot.md.
+[Unit]
+Description=distros release bot triage broker (jenkins-failure-triage in claude-sandbox, as %i)
+Documentation=https://github.com/rancher/distros-test-framework/blob/qa-infra-RC-1/docs/releasebot.md
+After=network-online.target docker.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=%i
+Environment=PATH=/home/%i/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/lib/releasebot/current/releasebot -triage-broker \
+    -triage-spool /var/lib/releasebot-triage -triage-workspace /home/%i/releasebot-triage \
+    -triage-manifest /usr/local/lib/releasebot/current/triage-skill.sha256
+Restart=on-failure
+RestartSec=30
+# Spool files are made group-readable explicitly; everything else (sandbox state) stays private.
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+# Only what the docker client and the sandbox wrapper need is left (verified with systemd-run).
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

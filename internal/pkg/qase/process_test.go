@@ -48,3 +48,33 @@ func TestRKE2AdditionalSuitesProduceQaseResults(t *testing.T) {
 		})
 	}
 }
+
+// A panicked or timed-out spec in the embedded results is kept and counted as failed, like the
+// bulk results do, instead of being dropped as an unknown state.
+func TestUpdateTestDetailsCountsEveryFailureState(t *testing.T) {
+	for _, state := range []string{"failed", "panicked", "timedout"} {
+		remainingData = ""
+		var all []testDetails
+		var s status
+		out := `{"state":"` + state + `","name":"spec","type":"rke2 test","time":1}` + "\n"
+		row := &goTestData{Test: "Test_E2E", Output: out}
+		if err := updateTestDetails(&all, row, &s, "", map[string]bool{}); err != nil {
+			t.Fatal(err)
+		}
+		if s.failed != 1 || len(all) != 1 || all[0].status != state {
+			t.Fatalf("%s: failed %d, details %+v", state, s.failed, all)
+		}
+	}
+	remainingData = ""
+}
+
+// Failure details of a panicked spec reach the reporters like those of a failed one.
+func TestFailedTestDetailsIncludePanicked(t *testing.T) {
+	failure := &FailureDetails{}
+	pd := &processedTestdata{testSummary: []testOverview{{testCases: []testDetails{
+		{status: "panicked", failureDetails: failure}, {status: passStatus, failureDetails: &FailureDetails{}},
+	}}}}
+	if got := pd.GetFailedTestDetails(); len(got) != 1 || got[0] != failure {
+		t.Fatalf("failed details %v", got)
+	}
+}
