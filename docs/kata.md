@@ -10,11 +10,15 @@ No NVIDIA non-confidential or confidential scenarios are included in P0.
 The entrypoint calls `TestKata*` cases in `internal/pkg/testcase/kata.go`.
 Helpers live in the existing `internal/pkg/testcase/support` package, grouped into
 configuration/lifecycle, cluster setup, runtime identity, workloads,
-isolation and performance files. The dedicated performance Dockerfile lives there too.
+isolation and performance files. The optional manual-run fixture Dockerfile lives there too.
 Host observations use Go parsing of standard Linux/CRI commands over SSH;
 there is no additional runtime-language dependency. Initialization happens in
 KATA-01, and fixture cleanup uses the suite's `AfterSuite` alongside shared
-infrastructure teardown. Overall timeouts are set by the runner, not individual specs.
+infrastructure teardown. The cases run in an `Ordered` container because they
+share fixtures; `--randomize-all` does not reorder those cases. Overall timeouts
+are set by the runner, not individual specs. Kata command execution does not log
+each failed polling attempt: stderr is preserved in the returned error, and a
+timeout reports the last observation through the failing test.
 
 | Scenario | Automated check |
 | --- | --- |
@@ -34,10 +38,16 @@ failed observations fail the characterization case instead of silently passing.
 
 Follow [QA Infra configuration](qa-infra-integration.md) first. The selected
 qa-infra ref must include `worker_nested_virtualization` in its AWS
-`cluster_nodes` module. The dependency is developed on
-`fmoral2/qa-infra-automation:feat-kata-nested-virtualization`; publish/review that
-branch before using it remotely, then pin the reviewed ref. A ref predating this
-input fails OpenTofu validation instead of silently ignoring nested virtualization.
+`cluster_nodes` module and the role-aware RKE2 `server_flags`/`worker_flags`
+resolver. Select a published, reviewed tag/branch in `QA_INFRA_REF` and record
+its resolved SHA in the execution evidence. The nested-virtualization dependency
+is tracked in [qa-infra PR #250](https://github.com/rancher/qa-infra-automation/pull/250).
+The example and JJB job default to `main`; confirm that it contains these changes
+before running. If they are not merged yet, keep the job disabled or explicitly
+select a published, reviewed ref that includes both dependencies.
+A ref predating the module input fails OpenTofu validation instead of silently
+ignoring nested virtualization. Do not use an older playbook that lacks role-aware
+flag resolution: DTF no longer forwards server flags as global additional config.
 
 Use one server and two worker-only nodes. Select a supported nested-virtualization
 instance type, for example `c7i.2xlarge`, in `infrastructure/qainfra/vars.tfvars`.
@@ -53,78 +63,106 @@ Representative environment additions (replace approved versions and paths):
 ENV_PRODUCT=rke2
 PROVISIONER_MODULE=qainfra
 QA_INFRA_PROVIDER=aws
+QA_INFRA_REPO=rancher/qa-infra-automation
+QA_INFRA_REF=main
 PROVISIONER_TYPE=opentofu
-QA_INFRA_WORKER_NESTED=true
 ARCH=amd64
 NO_OF_SERVER_NODES=1
 NO_OF_WORKER_NODES=2
 SERVER_FLAGS='prime: true\nselinux: true\nprofile: cis'
-WORKER_FLAGS='prime: true\nselinux: true\nprofile: cis'
+WORKER_FLAGS='selinux: true\nprofile: cis'
 INSTALL_VERSION=<approved-rke2-version>
+INSTALL_CHANNEL=<approved-channel>
 INSTALL_METHOD=tar
 RESOURCE_NAME=<unique-prefix>
-KATA_TEST_IMAGE=<approved-busybox-repository>@sha256:<amd64-manifest-digest>
-KATA_PERF_IMAGE=<dedicated-fixture-repository>@sha256:<manifest-digest>
-KATA_PERF_MANIFEST=/absolute/path/to/perf-manifest.json
-KATA_PERF_CONFIG=/absolute/path/to/perf-config.json
 KATA_EVIDENCE_ROOT=/persistent/private/kata-evidence
 ```
 
-All three Prime/CIS/SELinux flags must be present for servers and workers at first
-boot. For RC/staging builds, also set the approved staging registry explicitly
-through `system-default-registry`. SELinux configuration is not proof of host
-enforcement: the suite requires Enforcing on RPM-family hosts, and records the
-actual mode on Ubuntu/Debian without claiming SELinux coverage there.
-The suite does not bypass unsupported RPM/SELinux combinations.
-The Kata chart's `selinux.enabled` follows actual enforcing mode on the selected
-worker; it is not forced on an AppArmor-only host. RKE2's `selinux: true` remains
-required in both cases.
+`prime: true` is server-only; agents inherit registry selection during bootstrap.
+Both roles require `selinux: true` and `profile: cis` from first boot. The suite
+rejects `prime` in worker flags instead of treating an ignored flag as evidence.
+Prime evidence comes from the server configuration; effective registry evidence
+comes from running kube-proxy images on every node and API-server/etcd images on
+the server. This initial suite requires kube-proxy (no proxy-free CNI mode).
+Future Track B/C coverage with Cilium kube-proxy replacement needs a different
+approved system-image oracle before that mode can run; do not skip the check.
 
-The ordinary test namespace uses PSA `restricted`. Exceptions are limited to the
-Kata installer namespace and a separate synthetic mount-probe namespace. The
-probe adds only guest `SYS_ADMIN` with unconfined seccomp, not `privileged: true`,
-host namespaces or host mounts. If another admission/LSM policy blocks it, the
-case fails with the cause; the suite does not relax that policy automatically.
+The suite owns its fixed defaults; there are no Kata image, manifest, config,
+build-type or expected-registry job parameters. It enables worker nested
+virtualization itself before provisioning.
 
-The test runner needs `kubectl`, OpenSSH and the normal qa-infra dependencies.
-Workers need `bash`, `ip`, `lsblk`, `base64`, usable `/dev/kvm` and passwordless sudo for
-QA. SSH uses a private, run-specific known-hosts file with accept-new, never a
-global host-key-checking bypass. Kata chart is pinned to **4.2.0**.
+The existing version, install channel and server configuration select the
+security baseline. Testing/RC/commit builds require
+`system-default-registry: stgregistry.suse.com` on the server. A GA release
+on stable/latest without that staging override expects `registry.rancher.com`
+through Prime's automatic selection. An explicit staging override selects the
+staging baseline even for a release-shaped tag. Confirm promotion before choosing
+the GA channel; a version string alone is not evidence of promotion. Workers
+inherit the registry; a conflicting explicit override fails preflight.
 
-## Performance fixture
+Host enforcement is fixed by the approved homogeneous `NODE_OS` row:
+`rhel10`/`sles16` require SELinux Enforcing and CRI SELinux;
+`ubuntu`/`sles15` select the approved AppArmor-only configuration and require
+the containerd runtime-default profile `cri-containerd.apparmor.d` loaded in
+`enforce` mode on every node. A runc witness must also report that exact profile
+in `enforce` mode through `/proc/1/attr/current`; module enablement and
+`disableApparmor=false` alone are insufficient. Other OS labels fail preflight
+until their row is reviewed. The latter rows are not SELinux-enforcement passes; do not select them
+to bypass an unexpected loss of enforcement. Both roles still require
+`selinux: true` and `profile: cis` in RKE2. Prime, kernel-protection settings,
+runtime enforcement and system-image registries are checked before/after install
+and after restart against the saved baseline.
 
-Use a dedicated, single-layer linux/amd64 BusyBox image for each execution. It
-must not be shared with system/functional workloads; the suite removes only this
-exact image through CRI, after its pods/sandboxes/VMs are gone. It never prunes
-containerd globally or drops the host page cache. Example fixture preparation:
+The AppArmor baseline is captured after the initial runc fixtures start and
+before Kata is installed: containerd can load its default profile lazily. The
+existing runc workloads are witnesses on the workers; one additional restricted
+sleep pod is bound to the server solely for this check. Their manifests request
+`runtime/default` using the AppArmor annotation supported by the current Go API
+dependency. Each check correlates the witness UID/node and CRI runtime identity,
+records the required profile/mode and process confinement, and rejects a missing,
+`complain` or `unconfined` result. It never loads a custom policy or changes profile
+modes to obtain a pass. Unrelated OS profiles and guest-side Kata AppArmor are
+not claimed as validated. The [aa-status documentation](https://www.apparmor.net/man/3.1/aa-status/)
+distinguishes module enablement from enforcing profiles; the
+[containerd implementation](https://github.com/containerd/containerd/blob/v2.3.4/internal/cri/sputil/apparmor_linux.go)
+defines runtime-default handling.
 
-```bash
-docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
-  --build-arg BASE="$KATA_TEST_IMAGE" --build-arg FIXTURE_ID="$UNIQUE_FIXTURE_ID" \
-  -f internal/pkg/testcase/support/kata-perf.Dockerfile \
-  -t "$DEDICATED_PERF_TAG" --push internal/pkg/testcase/support
-skopeo inspect --raw "docker://$DEDICATED_PERF_TAG" > perf-manifest.json
-skopeo inspect --config "docker://$DEDICATED_PERF_TAG" > perf-config.json
-skopeo manifest-digest perf-manifest.json
-```
+## Fixed fixture images
 
-Set `KATA_PERF_IMAGE` to that repository plus the printed digest and provide both
-JSON paths. Choose a fresh nonempty `UNIQUE_FIXTURE_ID` before building; this is
-fixture preparation and does not require a running cluster.
-These files must be accessible **inside** the test runner if using a
-container; export variables or include them in its ignored `config/.env`.
-Both images must be pullable by the new cluster; this initial suite does not
-inject imagePullSecrets. Preflight verifies manifest/config digests, one layer,
-linux/amd64 and a distinct performance image before creating infrastructure.
+`support/kataconfig.go` pins two single-platform linux/amd64 BusyBox 1.37.0
+manifests: glibc for functional checks and musl exclusively for performance.
+Kata and runc use the **same** performance image. Its manifest/config/layer
+digests and overlayfs chain are fixed in the test and were checked against the
+registry metadata. Updating fixtures is a reviewed code change, not a Jenkins
+parameter change. Nodes must be able to pull these public images.
+
+The automated suite no longer requires building/pushing a fresh image or
+supplying raw JSON for each run. It owns a fresh cluster and reserves the fixed
+performance image for characterization. Image aliases, other CRI users, retained
+content or a shared snapshot prevent a cold claim; the suite fails rather than
+deleting shared blobs or weakening its cache oracle. The custom-image recipe in
+the manual runbook remains separate from these automated fixed defaults.
 
 Cold means the fixture's manifest, config, layer and overlayfs chain are absent;
 warm means all are present before creating the pod. Actual workload snapshotter
 must be overlayfs. Guest kernel, pause image, host page cache, registry caches
 and installer images are not made cold. Cache-query/GC failures stop the case.
-Startup measures immediately before `kubectl create` to observed Ready (one-second
-polling, including client/API overhead). Runtime order alternates by round. Each
-warm pod also settles 30 seconds and receives twelve five-second host-side
-CPU/PSS observations including its correlated VM/shim/helper processes. Summary
+Startup uses the pod's API-recorded `creationTimestamp` and the `Ready=True`
+condition's `lastTransitionTime`, saved with the pod UID in the raw evidence.
+Both runtimes execute the same long-lived sleep command, without an HTTP server,
+readiness/liveness probes or other periodic work. `Ready` measures container
+startup, not HTTP application readiness; functional HTTP/DNS probes remain in
+the non-performance scenarios. Prewarming uses this same idle fixture.
+Client command and polling latency are excluded. These timestamps have
+one-second resolution and require synchronized API-server/worker clocks; missing
+timestamps or a negative duration fail the sample. A zero-second observation is
+valid at this resolution, not a claim of instantaneous startup. Kubelet status
+reporting still contributes to the measurement. These results must not be compared
+directly to earlier HTTP-probed or client-observed startup baselines. Runtime order
+alternates by round. Each warm pod also settles 30 seconds and receives twelve
+five-second host-side CPU/PSS observations including its correlated VM/shim/helper
+processes. PID/start-time, sandbox and container identity checks remain strict; a genuine process replacement
+or missing observation is not silently skipped to obtain a measurement. Summary
 reports median/worst startup, per-pod median idle cost and Kata-minus-runc medians;
 raw observations preserve the full distribution.
 
@@ -136,10 +174,18 @@ make test-kata DESTROY=true
 go test -timeout=180m -v -count=1 ./entrypoint/kata/... -destroy true --ginkgo.timeout=175m
 ```
 
-The existing runner accepts `TEST_DIR=kata`. A Jenkins job still needs its own
-configuration/parameters and timeout (at least 180 minutes); no job is created by
-this change. Qase uses the shared suite reporter and existing configured case/run
-IDs, not invented IDs for KATA scenario labels.
+The existing runner accepts `TEST_DIR=kata`; Jenkins selects
+`TEST_DIRECTORY=kata`. Mower's JJB definition is `rke2_kata_qainfra`.
+Keep it disabled until the suite and Jenkinsfile are published at both its SCM
+and runtime checkout refs. Use a timeout of at least 180 minutes. Qase uses
+assigned case/run IDs, not invented IDs for KATA labels.
+
+There is no Kata image/JSON argument forwarding in the Jenkinsfile. It only sets
+the internal evidence output path for this suite to
+`<agent workspace root>/qainfra-state/<job>/kata-evidence/<run_id>`.
+This sits outside both the checkout and disposable infrastructure state, so
+successful destroy and container removal preserve it. Retention and redacted
+export are operator-managed; raw evidence is not publicly archived.
 
 Evidence is retained in a private per-run directory under `KATA_EVIDENCE_ROOT`
 (default: local temporary directory); mount a persistent root for containers and
@@ -157,7 +203,7 @@ uninstall scenario or claim cleanup-hook coverage.
 ## Offline verification
 
 ```bash
-go test -mod=readonly -race -count=1 ./internal/pkg/testcase/... ./internal/provisioning/qainfra
+go test -mod=readonly -race -count=1 ./internal/resources ./internal/pkg/testcase/... ./internal/provisioning/qainfra
 go test -mod=readonly -c ./entrypoint/kata -o /tmp/dtf-kata.test
 golangci-lint run --tests ./internal/pkg/testcase/... ./internal/provisioning/qainfra ./entrypoint/kata
 ```

@@ -147,6 +147,11 @@ node {
                   if (serverFlags) { data += "SERVER_FLAGS=${serverFlags}\n" }
                   if (workerFlags) { data += "WORKER_FLAGS=${workerFlags}\n" }
 
+                  if (env.PRODUCT_NAME == 'rke2' && !workerFlags?.trim() &&
+                      (serverFlags =~ /(?:^|\\n|\n)\s*(profile|selinux)\s*:/).find()) {
+                    echo 'WARNING: WORKER_FLAGS is empty while SERVER_FLAGS contains hardening settings; agents do not inherit CIS/SELinux. Set worker flags explicitly or document the test exception.'
+                  }
+
                   ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES',
                    'SPLIT_ROLES', 'ETCD_ONLY_NODES', 'ETCD_CP_NODES', 'ETCD_WORKER_NODES',
                    'CP_ONLY_NODES', 'CP_WORKER_NODES', 'NODE_OS', 'AWS_AMI', 'ARCH', 'CNI',
@@ -159,6 +164,10 @@ node {
                     if (value?.trim()) {
                       data += "${name}=${value}\n"
                     }
+                  }
+
+                  if (env.TEST_DIRECTORY == 'kata') {
+                    data += "KATA_EVIDENCE_ROOT=${stateDirContainer}/kata-evidence/${runId}\n"
                   }
 
                   // Batch OS validation overrides map onto the qainfra contract too.
@@ -190,6 +199,10 @@ node {
                       // tofu state + run manifest outlive the test container (cleanup below relies on it).
                       "--mount 'type=bind,source=${stateDirHost},target=${stateDirContainer}'"
                     ]
+                    if (env.TEST_DIRECTORY == 'kata') {
+                      echo "Private Kata evidence survives cleanup under ${stateDirHost}/kata-evidence/${runId}; redact before publishing."
+                    }
+
                     runtimeMountsForCleanup = runtimeMounts
                     sh """
                     docker run --name ${testContainer} -t \

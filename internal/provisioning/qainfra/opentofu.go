@@ -337,7 +337,7 @@ func updateVarsFile(varsFilePath, uniqueID, product, resourceName string) error 
 			"aws_hostname_prefix %q is %d chars; AWS load-balancer / target-group "+
 				"names are capped at 32 and the tofu module appends up to 8 chars "+
 				"(e.g. -tg-9345), so the prefix must be ≤ %d. Shorten RESOURCE_NAME "+
-				"(currently %q, %d chars).",
+				"(currently %q, %d chars)",
 			prefix, len(prefix), awsHostnamePrefixMaxLen, resourceName, len(resourceName))
 	}
 
@@ -365,6 +365,10 @@ func updateMainTfModuleSource(config *driver.InfraConfig) error {
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
 	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
 	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
+	contentStr, nestedErr := injectNestedVirtualization(contentStr, qaInfraProvider, os.Getenv("QA_INFRA_WORKER_NESTED"))
+	if nestedErr != nil {
+		return nestedErr
+	}
 
 	if writeErr := os.WriteFile(mainTfPath, []byte(contentStr), 0o644); writeErr != nil {
 		return fmt.Errorf("failed to write updated main.tf: %w", writeErr)

@@ -100,6 +100,18 @@ DESTROY=false                                              # true tears the clus
 TEST_DIR=<suite>                                           # see per-suite below
 ```
 
+DTF forwards `SERVER_FLAGS` and `WORKER_FLAGS` separately to Ansible. The selected
+qa-infra ref must resolve these YAML mappings by node role for RKE2; server flags
+are not copied into the global `rke2_additional_config` extra-var. This keeps
+server-only settings such as `prime` out of agents and preserves worker overrides.
+Role-based selection predates [qa-infra PR #185](https://github.com/rancher/qa-infra-automation/pull/185)
+(`d2383fc`); that change fixed compatibility-input precedence, not the introduction
+of server/worker selection. Verify the selected ref's behavior rather than treating
+that commit as the minimum for role-based flags. Workers need their own hardening
+flags. Jenkins warns if these are empty while server flags contain
+`profile` or `selinux`; it does not silently copy server-only flags to agents.
+Airgap uses its separate provisioning/configuration path.
+
 ```bash
 # Cluster topology
 NO_OF_SERVER_NODES=1                                        # simple mode (all-roles servers + workers)
