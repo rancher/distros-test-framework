@@ -326,8 +326,8 @@ func CmdForPrivateNode(cluster *shared.Cluster, cmd, ip string) (res string, err
 	}
 
 	serverCmd := fmt.Sprintf(
-		"%v %v@%v '%v'",
-		ShCmdPrefix("ssh", cluster.Aws.KeyName),
+		"sudo chmod 400 /tmp/%v.pem && %v %v@%v '%v'",
+		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName),
 		awsUser, ip, cmd)
 	shared.LogLevel("debug", "Cmd on bastion node: %v", serverCmd)
 
@@ -349,11 +349,15 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 		shared.LogLevel("info", "Getting artifacts from URL: %v", registryURL)
 		version = url.QueryEscape(cluster.Config.Version)
 	}
+	var winVersion string
+	if platform == "windows" {
+		winVersion = GetWindowsOSVersion(cluster)
+	}
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
-			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
+			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, version, platform,
-		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType)
+		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType, winVersion)
 	shared.LogLevel("debug", "Get artifacts cmd: %v", cmd)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 

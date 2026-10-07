@@ -180,3 +180,21 @@ func HasWindowsAgent(cluster *shared.Cluster) bool {
 	}
 	return false
 }
+
+func GetWindowsOSVersion(cluster *shared.Cluster) string {
+	cmd := "(Get-CimInstance Win32_OperatingSystem).Caption"
+	res, err := CmdForPrivateNode(cluster, cmd, cluster.WinAgentIPs[0])
+	Expect(err).To(BeNil(), err)
+
+	// ssh prints post-quantum warnings ahead of the caption; keep only the caption line.
+	var caption string
+	for line := range strings.SplitSeq(res, "\n") {
+		if strings.Contains(line, "Windows") && !strings.HasPrefix(line, "**") {
+			caption = strings.TrimSpace(line)
+		}
+	}
+	Expect(caption).NotTo(BeEmpty(), "could not find Windows caption in output: %v", res)
+	shared.LogLevel("info", "Windows Version: %v", caption)
+
+	return caption
+}

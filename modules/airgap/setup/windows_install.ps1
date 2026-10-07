@@ -6,6 +6,40 @@ param (
     [string]$agentFlags
 )
 
+function Get-ValidatedImageTag {
+    [CmdletBinding()]
+    param()
+
+    # 1. Grab the OS description from the system
+    $OSCaption = (Get-CimInstance Win32_OperatingSystem).Caption
+
+    # 2. Evaluate the string and assign the image tag (Strict matching)
+    if ($OSCaption -like "*2022*") {
+        $ImageTag = "ltsc2022"
+    } 
+    elseif ($OSCaption -like "*2025*") {
+        $ImageTag = "2025"
+    }
+    elseif ($OSCaption -like "*2019*") {
+        $ImageTag = "1809"
+    }
+    else {
+        throw "ERROR: Unsupported operating system version detected ($OSCaption). Valid image tag could not be determined. Exiting script."
+    }
+
+    # 3. Check the current directory for files containing the determined image tag
+    # Note: Using $PSScriptRoot targets the directory where the script file resides. 
+    # Swap to (Get-Location) if you prefer the user's active console directory.
+    $MatchingFiles = Get-ChildItem -Path $PSScriptRoot -File -Filter "*$ImageTag*"
+
+    if (-not $MatchingFiles) {
+        throw "ERROR: No files containing the image tag '$ImageTag' were found in the directory '$PSScriptRoot'. Exiting script."
+    }
+
+    # 4. Output the validated tag so it can be captured outside the function
+    return $ImageTag
+}
+
 # Create dirs
 New-Item -Type Directory C:/etc/rancher/rke2 -Force
 New-Item -Type Directory C:/Users/Administrator/rke2-windows-artifacts/ -Force
@@ -35,12 +69,11 @@ if ($airgapMethod -like "private_registry") {
     Copy-Item C:/Users/Administrator/registries-windows.yaml C:/etc/rancher/rke2/registries.yaml
 }
 if ($airgapMethod -like "tarball") {
+    $ImageTag = Get-ValidatedImageTag
+    Write-Host "The validated image tag available for the rest of the script is: $ImageTag" -ForegroundColor Cyan
     Write-Host "Copy tarball artifacts..."
     New-Item -Type Directory C:/var/lib/rancher/rke2/agent/images -Force
-    Copy-Item C:/Users/Administrator/rke2-windows-ltsc2022-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
-    
-    # TODO: for windows 2019
-    #Copy-Item C:/Users/Administrator/rke2-windows-1809-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
+    Copy-Item C:/Users/Administrator/rke2-windows-$ImageTag-amd64-images.tar* C:/var/lib/rancher/rke2/agent/images/
 }
 
 Copy-Item C:/Users/Administrator/rke2.windows-amd64.tar.gz C:/Users/Administrator/rke2-windows-artifacts/

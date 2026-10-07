@@ -106,7 +106,7 @@ resource "aws_instance" "windows_worker" {
 
     # 5. Extract the OpenSSH public key format and append it to the authorized file
     ssh-keygen -y -f $tempPemPath | ForEach-Object { Add-Content -Path $adminKeyPath -Value $_ -Encoding ascii }
-    icacls.exe $authorizedKeys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
+    icacls.exe $adminKeyPath /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
     Restart-Service sshd
 
     Enable-WindowsOptionalFeature -Online -FeatureName Containers -All -NoRestart
