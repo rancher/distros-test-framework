@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -145,7 +146,7 @@ func TestBuildPlanSplitsSmokeAndGatesPhases(t *testing.T) {
 	}
 }
 
-// An optional job missing on Jenkins is skipped and does not hold the next phase. A required job
+// An optional job missing on jenkins is skipped and does not hold the next phase. A required job
 // that cannot run (missing, missing a parameter, unknown upgrade start) blocks the whole plan.
 func TestBuildPlanSkipsOptionalBlocksRequired(t *testing.T) {
 	m := loadMatrixText(t, phasedMatrix)
@@ -183,8 +184,8 @@ func TestBuildPlanSkipsOptionalBlocksRequired(t *testing.T) {
 	if gap := jobsFor(p, "v1.37.1-rc1+rke2r1")["gap"]; !slices.Equal(gap.DependsOn, []string{"conf"}) {
 		t.Fatalf("gap depends on %v, want only conf", gap.DependsOn)
 	}
-	if err = p.RunnableError(); err == nil || !strings.Contains(err.Error(), "2 required jobs cannot run") {
-		t.Fatalf("RunnableError = %v", err)
+	if err = p.runnableError(); err == nil || !strings.Contains(err.Error(), "2 required jobs cannot run") {
+		t.Fatalf("runnableError = %v", err)
 	}
 }
 
@@ -200,8 +201,8 @@ func TestBuildPlanRefusesWhenSmokeCannotRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "p/tar v1.37.1-rc1+rke2r1: job has no parameter INSTALL_VERSION"
-	if err = p.RunnableError(); err == nil || !strings.Contains(err.Error(), want) {
-		t.Fatalf("RunnableError = %v", err)
+	if err = p.runnableError(); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("runnableError = %v", err)
 	}
 }
 
@@ -216,7 +217,7 @@ func TestBuildPlanBlocksMissingRequiredJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Skipped) != 0 || len(p.Blocked) != 1 || p.Blocked[0].Path != "p/conf" || p.RunnableError() == nil {
+	if len(p.Skipped) != 0 || len(p.Blocked) != 1 || p.Blocked[0].Path != "p/conf" || p.runnableError() == nil {
 		t.Fatalf("skipped %v, blocked %v", p.Skipped, p.Blocked)
 	}
 }
@@ -261,7 +262,7 @@ func TestBuildPlanDropsOptionalParams(t *testing.T) {
 	}
 }
 
-// Without Jenkins credentials the jobs stay in the plan (dry-run can show it), with one warning.
+// Without jenkins credentials the jobs stay in the plan (dry-run can show it), with one warning.
 func TestBuildPlanUncheckedJobsWarnOnce(t *testing.T) {
 	m := loadMatrixText(t, phasedMatrix)
 	res := &fakeResolver{jobErr: errors.New("JENKINS_MOWER_AUTH is not set"), ga: map[string]string{
@@ -275,9 +276,9 @@ func TestBuildPlanUncheckedJobsWarnOnce(t *testing.T) {
 		!strings.Contains(p.Warnings[0], "6 jobs not checked") {
 		t.Fatalf("jobs=%d skipped=%v warnings=%v", len(p.Jobs), p.Skipped, p.Warnings)
 	}
-	// Unverified parameters would be silently ignored by Jenkins: such a plan must not run.
-	if err = p.RunnableError(); err == nil || !strings.Contains(err.Error(), "6 jobs could not be checked") {
-		t.Fatalf("RunnableError = %v", err)
+	// Unverified parameters would be silently ignored by jenkins: such a plan must not run.
+	if err = p.runnableError(); err == nil || !strings.Contains(err.Error(), "6 jobs could not be checked") {
+		t.Fatalf("runnableError = %v", err)
 	}
 }
 
@@ -374,7 +375,7 @@ func TestShippedMatrixPlan(t *testing.T) {
 			blockedUpgrades++
 		}
 	}
-	if blockedUpgrades == 0 || p.RunnableError() == nil {
+	if blockedUpgrades == 0 || p.runnableError() == nil {
 		t.Fatalf("upgrades not blocked: %+v", p.Blocked)
 	}
 	// The tarball half of the rke2 smoke must force tar: on SLES 16 the installer would pick rpm.
@@ -404,7 +405,7 @@ func TestGitHubLatestGA(t *testing.T) {
 		_, _ = w.Write([]byte("[" + strings.Join(refs, ",") + "]"))
 	}))
 	defer srv.Close()
-	gh := &GitHub{BaseURL: srv.URL, HTTP: srv.Client()}
+	gh := &gitHub{BaseURL: srv.URL, HTTP: srv.Client()}
 
 	// Same minor, older than the RC (v1.37.10 is newer than v1.37.2), highest revision wins.
 	for rc, want := range map[string]string{
@@ -450,7 +451,7 @@ func TestJenkinsJobParams(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	j := &Jenkins{BaseURL: srv.URL, HTTP: srv.Client()}
+	j := &jenkins{BaseURL: srv.URL, HTTP: srv.Client()}
 	ctx := context.Background()
 
 	params, ok, err := j.JobParams(ctx, "f/ok")
@@ -488,7 +489,7 @@ func TestDTFRefOverride(t *testing.T) {
 	}
 }
 
-// An unreachable controller or GitHub costs one check per plan, not one per job: the rest are
+// An unreachable controller or gitHub costs one check per plan, not one per job: the rest are
 // left unchecked at once and the plan is refused.
 func TestBuildPlanStopsAskingAFailedSource(t *testing.T) {
 	m, err := loadMatrix("../../../config/releasebot/matrix.yaml")
@@ -500,9 +501,9 @@ func TestBuildPlanStopsAskingAFailedSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.checks != 1 || res.gaCalls != 1 || len(p.Unchecked) == 0 || p.RunnableError() == nil {
+	if res.checks != 1 || res.gaCalls != 1 || len(p.Unchecked) == 0 || p.runnableError() == nil {
 		t.Fatalf("checks %d, GA calls %d, unchecked %d, runnable %v", res.checks, res.gaCalls, len(p.Unchecked),
-			p.RunnableError())
+			p.runnableError())
 	}
 }
 
@@ -584,5 +585,102 @@ func TestQaseRCsInReleaseOrder(t *testing.T) {
 	rcs, _ := qaseRCs(Request{RKE2: []string{"v1.36.10-rc1+rke2r1", "v1.36.9-rc1+rke2r1", "v1.37.1-rc2+rke2r1"}})
 	if got := strings.Join(rcs, ","); got != "v1.36.9-rc1,v1.36.10-rc1,v1.37.1-rc2" {
 		t.Fatalf("rcs %s", got)
+	}
+}
+
+func TestLoadMatrixRejectsUnknownController(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "m.yaml")
+	_ = os.WriteFile(path, []byte("jobs:\n  - {name: x, product: k3s, controller: nope, path: a}\n"), 0o600)
+	if _, err := loadMatrix(path); err == nil {
+		t.Fatal("expected error for unknown controller")
+	}
+}
+
+func TestBuildPlan(t *testing.T) {
+	m := testMatrix(t)
+	req := Request{
+		K3s:  []string{"v1.36.5-rc1+k3s1", "v1.37.1-rc1+k3s1"},
+		RKE2: []string{"v1.37.1-rc2+rke2r1"},
+	}
+
+	p, err := buildPlan(context.Background(), req, m, testNow, "rb-test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if m.DTFRef != "main" || p.Workflows[0].Inputs["k3s_versions"] != "v1.36.5-rc1+k3s1,v1.37.1-rc1+k3s1" {
+		t.Fatalf("release-checks inputs: %+v", p.Workflows[0])
+	}
+	if got := p.Workflows[1].Inputs["rcs"]; got != "v1.36.5-rc1,v1.37.1-rc2" {
+		t.Fatalf("qase rcs = %q", got)
+	}
+	if len(p.Warnings) != 1 {
+		t.Fatalf("expected one rc mismatch warning, got %v", p.Warnings)
+	}
+
+	var order []string
+	for _, j := range p.Jobs {
+		order = append(order, j.Path+" "+j.Version)
+	}
+	want := []string{
+		"a/rke2_smoke v1.37.1-rc2+rke2r1",
+		"a/k3s_smoke v1.37.1-rc1+k3s1",
+		"a/k3s_smoke v1.36.5-rc1+k3s1",
+		"a/rke2_slow v1.37.1-rc2+rke2r1",
+	}
+	if !reflect.DeepEqual(order, want) {
+		t.Fatalf("order:\n%v\nwant\n%v", order, want)
+	}
+
+	k := p.Jobs[1]
+	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "rbk137kx" {
+		t.Fatalf("params: %v", k.Params)
+	}
+}
+
+func TestBuildPlanEmpty(t *testing.T) {
+	if _, err := buildPlan(context.Background(), Request{}, testMatrix(t), testNow, "rb-test", nil); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestLoadMatrixRejectsBadDependencies(t *testing.T) {
+	// Each case must fail for its own reason, not for an unrelated field (codes are set).
+	for name, c := range map[string]struct{ jobs, want string }{
+		"unknown": {"  - {name: a, product: k3s, controller: m, path: p, code: a, dependsOn: [zzz]}\n", "zzz"},
+		"cross-product": {"  - {name: a, product: k3s, controller: m, path: p, code: a}\n" +
+			"  - {name: b, product: rke2, controller: m, path: p, code: b, dependsOn: [a]}\n", "dependencies"},
+		"cycle": {"  - {name: a, product: k3s, controller: m, path: p, code: a, dependsOn: [b]}\n" +
+			"  - {name: b, product: k3s, controller: m, path: p, code: b, dependsOn: [a]}\n", "cycle"},
+		"duplicate": {"  - {name: a, product: k3s, controller: m, path: p, code: a}\n" +
+			"  - {name: a, product: k3s, controller: m, path: q, code: b}\n", "unique"},
+		"later phase": {"  - {name: a, product: k3s, controller: m, path: p, code: a, phase: 1, dependsOn: [b]}\n" +
+			"  - {name: b, product: k3s, controller: m, path: q, code: b, phase: 2}\n", "later phase"},
+	} {
+		path := filepath.Join(t.TempDir(), "m.yaml")
+		body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" + c.jobs
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Fatalf("%s: expected an error about %q, got %v", name, c.want, err)
+		}
+	}
+	if _, err := loadMatrix("../../../config/releasebot/matrix.yaml"); err != nil {
+		t.Fatalf("shipped matrix: %v", err)
+	}
+}
+
+// Unknown matrix keys (a depends_on typo) are rejected instead of silently dropping deps.
+func TestLoadMatrixRejectsUnknownFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "m.yaml")
+	body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" +
+		"  - {name: smoke, product: k3s, controller: m, path: p}\n" +
+		"  - {name: conf, product: k3s, controller: m, path: q, depends_on: [smoke]}\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), "depends_on") {
+		t.Fatalf("expected unknown-field error naming depends_on, got %v", err)
 	}
 }

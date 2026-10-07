@@ -31,6 +31,7 @@ The bot reacts to a Slack mention (Socket Mode, `-listen`). It does not poll the
 | Unit tests | Done (`releasebot_test.go`: parsing, plan/order/prefix, Qase RC dedupe, Qase title/request-id matching/timeout, scheduler limits, transient and persistent query errors, lost trigger responses, canceled queue items, `dependsOn` release/block/validation, Jenkins trigger error classification over HTTP) |
 | Slack app: bot token, Socket Mode, `message.channels` event | Done; live-tested: mention and thread reply both arrive over the socket |
 | Slack scopes `groups:read`, `groups:history`, `app_mentions:read` | **Waiting for workspace admin approval** |
+| Resume after a restart; builds in unknown state watched instead of blocking new plans | Done (`runrecord.go`, `schedulerwatch.go`, `listener.go`) |
 | Socket Mode listener (`-listen`): auto-start, `status`/`stop`, concurrent runs | Done (`internal/pkg/slack`, `listener.go`, `planner.go`); dry-run verified live in #distros-test-reports, not yet run with `-dry-run=false` |
 | Hosting (vSphere VM) | Host prepared (`setup.sh prepare`, env file, hardened unit); first `deploy` waits for the reviewed commit |
 
@@ -57,8 +58,8 @@ The application lives in `internal/pkg/releasebot`, split by responsibility with
 - `app.go` and `controllers.go`: orchestration, injected client factories and client reuse.
 - `plan.go`, `planner.go`, `planoutput.go`: matrix validation, planning and presentation.
 - `scheduler.go`, `schedulercommands.go`, `schedulerstatus.go`, `capacity.go`: execution and run controls.
-- `triage.go`: the request/verdict contract and rerun gate; `triagecache.go`: verdict reuse.
-- `triagebroker.go`, `triagespool.go`, `triagesecurity.go`, `triageclaude.go`: broker transport and isolation.
+- `triage.go`: the request/verdict contract and rerun gate.
+- `triagebroker.go`: broker transport, spool, isolation checks, verdict reuse and the Claude runner.
 - `failurelog.go`, `transient.go`, `redact.go`: failure extraction, fixed retry rules and secret redaction.
 
 File names use lowercase joined words; test files retain Go's `_test.go` suffix.
@@ -81,14 +82,15 @@ The whole path of a failed build in a running plan; the sections linked give the
 2. **Can it still be rerun automatically?** No AI involved (`rerunDenied` in
    `schedulercommands.go`). A job already rerun once, or an ABORTED build, goes straight to step 6:
    triage could not change anything. A build whose state is unknown (trigger response lost, status
-   unreadable 10 times in a row) is not triaged either: it keeps its slot and the run ends blocked
-   until `unblock` (see [Listen mode](#listen-mode)).
+   unreadable 10 times in a row) has no result yet: it keeps its Jenkins slot, its dependents wait,
+   and it is checked every 5 min. When it is seen finishing, its result goes through these steps like
+   any other (a failure is triaged); one Jenkins has not answered for in 4 h is given up.
 3. **Quick triage** (see [Triage broker](#triage-broker)). Without a running broker
    (`releasebot-triage@<user>`) or with `-triage-spool` unset, this is skipped and the job goes to
    step 6 ("automatic triage unavailable"). Otherwise:
    - the bot downloads the console log (last 8 MiB) and extracts the failing part (secrets
      redacted), a signature, and whether a Ginkgo spec failed;
-   - a failure already triaged in the last 24 h reuses that verdict (`triagecache.go`): an
+   - a failure already triaged in the last 24 h reuses that verdict (`triagebroker.go`): an
      infrastructure failure by signature across jobs, RCs and products (one outage, one triage), a
      test failure by job and signature;
    - otherwise the request goes through the spool to the broker, which runs `claude-sandbox` in
@@ -110,8 +112,8 @@ The whole path of a failed build in a running plan; the sections linked give the
      about 7 min and $3) and posts it; the job keeps waiting for `retry` or `skip`;
    - `stop` starts no new job and ends the waiting ones as failed.
 7. **End of the run.** The summary lists every job. Failures (SKIPPED is not one) make the run end
-   with an error; builds left in unknown state block new plans until `unblock` (resuming runs after
-   a restart, which replaces this block, is pending).
+   with an error. A run waits for its watched builds before it reports its end; nothing it leaves
+   blocks other plans. A bot restart resumes the run in its thread (see [Listen mode](#listen-mode)).
 
 ### Parsing
 
@@ -513,7 +515,7 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-poll` | `60s` | Jenkins polling interval |
 | `-qase-timeout` | `15m` | How long to wait for the Qase runs to appear |
 | `-listen` | `false` | Serve requests from Slack instead of `-message` (see below) |
-| `-state-file` | `<user config dir>/releasebot/state.json` | Listen mode: block state and in-progress marker, kept across restarts |
+| `-state-file` | `<user config dir>/releasebot/state.json` | Listen mode: every run in progress (stage and jobs), saved at each change and resumed after a restart |
 | `-validate` | `false` | Load and check `-matrix`, then exit (`setup.sh deploy` runs it on the candidate) |
 | `-triage-spool` | | Listen mode: ask the triage broker through this spool (empty: every failure asks a person); broker mode: the spool to serve |
 | `-triage-wait` | `1h` | Listen mode: how long a failure waits for a verdict |
@@ -536,7 +538,7 @@ Environment:
 | `SLACK_BOT_TOKEN` | Listen mode: bot token (`xoxb`, needs `channels:history` and `chat:write`) |
 | `SLACK_APP_TOKEN` | Listen mode: app-level token (`xapp`, `connections:write`) for Socket Mode |
 | `RELEASEBOT_CHANNELS` | Listen mode: comma-separated channel ids to serve, e.g. `C07Q8H55F6Z` (#distros-test-reports); the older `RELEASEBOT_CHANNEL` still works |
-| `RELEASEBOT_OPEN_CHANNELS` | Listen mode: channels (also served) where anyone may start, stop and unblock runs |
+| `RELEASEBOT_OPEN_CHANNELS` | Listen mode: channels (also served) where anyone may start and steer runs |
 | `RELEASEBOT_ALLOWED_USERS` | Listen mode: comma-separated Slack user ids who may run plans in the other channels |
 | `RELEASEBOT_DRY_RUN` | systemd unit only: passed as `-dry-run`; `true` (default) or `false` in `/etc/releasebot/releasebot.env` |
 | `RELEASEBOT_DTF_REF` | Overrides the matrix's `dtfRef` (the workflow ref and every job's `BRANCH`, `{{DTF_REF}}`); set it to `main` once `qa-infra-RC-1` merges |
@@ -574,31 +576,48 @@ plan. Start with `-listen -dry-run=false` to run them.
    "Needs help" in the thread, mentioning who started the run, with the build URL and the triage
    summary. `retry` runs the job again; `skip` counts it as passed (SKIPPED in the summary) and
    lets the next phase start. Until then the run keeps waiting. Builds in unknown state are not
-   retried or skipped: they may still be running, so they follow the `unblock` path below.
+   retried or skipped: they may still be running, so they are watched (step 5).
    Without a running broker (or with `-triage-spool` unset), triage is skipped and every
    failure asks at once.
 4. Several runs can go at once (a new RC mid-release does not wait for the others); they share
    each controller's `maxConcurrent`. RC tags that another run is already validating are left out
    with a pointer to that run's thread, and the plan (workflows, Qase runs, jobs) is rebuilt for
    the remaining tags; only when every tag is already running is nothing started.
-5. If a run ends with builds in unknown state (trigger response lost, status unreadable, or the
-   bot stopped while builds were queued or running), their Jenkins capacity may still be in use,
-   so **new plans are blocked**. The same happens when a run fails, is stopped or canceled
-   (shutdown included) after its first dispatch or trigger, since repeating it could dispatch
-   workflows, create Qase runs or trigger builds twice; only a 4xx on the first dispatch proves
-   nothing started. After checking what the run started, someone who may run plans replies
-   `unblock` in its thread; that also frees the Jenkins slots its builds in unknown state held
-   (other runs keep theirs). Each blocked run has its own block, kept across restarts, and new
-   plans start only once every one of them is unblocked. Until then those slots stay taken, and if they fill a controller
-   every run reports its jobs there as not triggered instead of waiting forever. (Resuming runs
-   after a restart, which replaces this block, is next.)
-6. The block and the in-progress markers (written before a run starts) are kept in `-state-file`,
-   so a restart, even a killed process, comes back blocked instead of starting new builds next
-   to the old ones. Each post has its own 2-minute timeout, independent of how long the run takes,
-   so progress and the outcome are posted even for long runs and on shutdown.
+5. **Builds in unknown state** (trigger response lost, or status unreadable 10 times in a row)
+   may still be running, so they keep their Jenkins slot and have no result yet: their dependents
+   wait. The run checks them every 5 minutes. When one is seen finishing, its slot is freed, the
+   thread is told, and its result is handled like any other (a success lets the next phase run, a
+   failure is triaged). A build Jenkins still reports as running is never given up; one Jenkins
+   has not answered for in 4 hours (or a lost trigger with no URL to check) is: its slot is freed
+   and it fails its dependents. `status` counts them as "in unknown state (watched)". Nothing
+   blocks other plans: a run that fails or stops part-way says so in its thread (asking again may
+   dispatch workflows or create Qase runs again, so check first).
+6. **Restarts.** Every run is saved in `-state-file` before it starts and at each change: its
+   stage (dispatching, dispatched, jobs) and each job's state (pending, triggering, queued,
+   running with its URLs, unknown, triaging, waiting for help, done). When the bot starts again
+   (a deploy, a crash, even SIGKILL), it resumes each saved run in its own thread: queued and
+   running builds are followed from their URLs and take their slots back, triage cut by the
+   restart is redone, jobs waiting for help are posted again, finished jobs are not run again,
+   and later phases carry on. Resumed runs first take back the slots of their builds still on
+   Jenkins, all of them, before any triggers something new (they wait for each other at most 2
+   minutes; the bot starts serving Slack once they are ready). A job that was queued when the bot
+   stopped is found by its queue id among the job's builds if Jenkins has forgotten the queue item
+   meanwhile. A trigger the restart cut is treated as a build in unknown state (it may exist),
+   never triggered again. A job is only triggered after the state saying so is written: while the
+   state cannot be saved (full disk), nothing is triggered and the thread says why. `stop` is saved
+   at once, so a stopped run stays stopped after a restart. A run saved while its workflows were
+   being dispatched cannot tell what started: its thread is told and it is not resumed. A run
+   whose resume cannot be set up (missing Jenkins credentials, an unreadable matrix, no Qase runs)
+   stays saved: its builds on Jenkins keep their slots, its RC tags stay taken, and its thread says
+   why; the next start resumes it once the cause is fixed. On
+   shutdown a run stays saved and says so in its thread; one that ended by itself at that moment is
+   over. A bot started with `-dry-run` (the default) resumes nothing. The state file has a format
+   version; a bot refuses a newer one instead of misreading it.
+   Each post has its own 2-minute timeout, so progress and the outcome are posted even for long
+   runs and on shutdown.
 
 The bot ignores channels it does not serve, bot messages, edits and thread replies other than
-`status`, `stop`, `unblock`, `retry`, `skip` and `triage`. A reply sent with "Also send to channel"
+`status`, `stop`, `retry`, `skip` and `triage`. A reply sent with "Also send to channel"
 (`thread_broadcast`) counts.
 
 Reliability details:
@@ -658,12 +677,11 @@ scopes are approved this can move to `app_mention`.
    `QASE_RUN_ID` + `REPORT_TO_QASE=true` make the qainfra jobs report into them. Confirm the per-job `QASE_TEST_CASE_ID` defaults are right for each job.
 6. **Rerun poller on the shared Slack client.** The reporter (`internal/pkg/qase`) and the bot use
    `internal/pkg/slack`; `cmd/rerunpoller` still has its own `postToSlack` and history reads.
-7. **Resume after a restart** (step 5): today a restart mid-run blocks new plans until `unblock`.
-8. **Tokens for the bot.** A dedicated GitHub token (fine-grained, Actions write on this repo
+7. **Tokens for the bot.** A dedicated GitHub token (fine-grained, Actions write on this repo
    only) and a Jenkins service account instead of personal tokens. The triage MCP config needs a
    **read-only** Jenkins account: today the tool deny list is the only barrier between the model
    (which reads build logs anyone's build can print) and a token that can trigger builds.
-9. **Hosting**, see below.
+8. **Hosting**, see below.
 
 ## Hosting
 

@@ -6,11 +6,13 @@ import (
 
 // asyncQueue delivers messages in order from its own goroutine; push never blocks.
 type asyncQueue struct {
-	mu     sync.Mutex
-	items  []string
-	wake   chan struct{}
+	mu    sync.Mutex
+	items []string
+	wake  chan struct{}
+
+	// closed once every queued message was delivered after close
 	closed bool
-	done   chan struct{} // closed once every queued message was delivered after close
+	done   chan struct{}
 }
 
 func newAsyncQueue(deliver func(string)) *asyncQueue {

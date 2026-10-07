@@ -22,6 +22,20 @@ curl() {
   endpoint="${url#https://api.github.com/}"
   printf '%s\n' "$endpoint" >> "$AUDIT_TEST_ROOT/calls"
   [[ "$endpoint" == repos/rancher/rke2/* ]] && product=rke2r || product=k3s
+  case "$AUDIT_TEST_MODE" in
+    dns)
+      printf 'curl: (6) Could not resolve host: api.github.com\n' >&2
+      printf '000'; return 6 ;;
+    tls)
+      printf 'curl: (60) SSL certificate problem: unable to get local issuer certificate\n' >&2
+      printf '000'; return 60 ;;
+    proxy-secret)
+      printf 'curl: (5) Could not resolve proxy: qa:testtoken-never-print@proxy.invalid\n' >&2
+      printf '000'; return 5 ;;
+    unsafe-stderr)
+      printf 'curl: (999) password=testtoken-never-print\n' >&2
+      printf '000'; return 1 ;;
+  esac
   if [[ "$AUDIT_TEST_MODE" == http403 ]] ||
     [[ "$AUDIT_TEST_MODE" == missing-rke2 && "$endpoint" == *rke2/commits/*-rc* ]]; then
     printf '403'
@@ -101,15 +115,30 @@ curl() {
 export -f curl
 
 run() {
-  local selected_baselines="${3:-}"
-  [[ -n "$selected_baselines" ]] || selected_baselines='{}'
+  local selected_baselines='{}'
+  if (($# >= 3)); then selected_baselines="$3"; fi
   export AUDIT_TEST_MODE="$1"
   : > "$audit_test_root/calls"
   : > "$audit_test_root/step-summary"
+  mkdir -p "$audit_test_root/report"
+  printf '%s\n' '{"request_id":"STALE_REPORT","exit_code":0,"comparisons":[{"rc":"old"}]}' \
+    > "$audit_test_root/report/report.json"
+  printf '%s\n' 'STALE_REPORT: previous green run' > "$audit_test_root/report/summary.md"
   GH_TOKEN='testtoken-never-print' GITHUB_STEP_SUMMARY="$audit_test_root/step-summary" \
     bash "$script_dir/compare_release_commits.sh" --versions "$2" --baselines "$selected_baselines" \
-      --output-dir "$audit_test_root/report" > "$audit_test_root/log" 2>&1
+      --request-id current-test --output-dir "$audit_test_root/report" > "$audit_test_root/log" 2>&1
   result=$?
+}
+
+expect_config() {
+  if [[ -s "$audit_test_root/calls" ]] ||
+    ! cmp -s "$audit_test_root/report/summary.md" "$audit_test_root/step-summary" ||
+    grep -q 'STALE_REPORT' "$audit_test_root/report/report.json" "$audit_test_root/report/summary.md"; then
+    result=99
+  fi
+  expect "$1" 2 '.request_id == "current-test" and .exit_code == 2 and
+    (.comparisons | length) == 0 and (.findings | length) == 1 and
+    .findings[0].level == "ERROR" and .findings[0].code == "CONFIG"'
 }
 
 expect() {
@@ -154,6 +183,18 @@ for mode in http403 invalid-json empty-json multiple-json malformed-refs malform
   run "$mode" "$rc"
   expect "$mode fails collection, never a green empty comparison" 2 '.findings[0].level == "ERROR"'
 done
+run dns "$rc"
+expect 'DNS failures explain HTTP 000 in the report' 2 \
+  '.findings[0].message | contains("HTTP 000") and contains("curl: (6) Could not resolve host")'
+run tls "$rc"
+expect 'TLS failures explain HTTP 000 in the report' 2 \
+  '.findings[0].message | contains("HTTP 000") and contains("curl: (60) TLS certificate verification failed")'
+for mode in proxy-secret unsafe-stderr; do
+  run "$mode" "$rc"
+  if grep -q 'testtoken-never-print' "$audit_test_root/log" "$audit_test_root/report/report.json" \
+    "$audit_test_root/report/summary.md" "$audit_test_root/step-summary"; then result=99; fi
+  expect "$mode diagnostics never publish credential text" 2 '.findings[0].message | contains("curl:")'
+done
 run good 'v1.38.0-rc1+k3s1'
 expect 'a new minor does not silently fall back to the previous minor' 2 '.findings[0].code == "BASELINE"'
 run good 'v1.38.0-rc1+k3s1' '{"v1.38.0-rc1+k3s1":"v1.37.9+k3s1"}'
@@ -174,18 +215,50 @@ if grep -Eq '/releases\?' "$audit_test_root/calls"; then result=99; fi
 expect 'GA discovery does not enumerate the unbounded release catalog' 0
 for invalid in '' 'v1.37.10+rke2r1' 'v1.37.10-rc2+rke2r1,' 'v1.37.10-rc2+rke2r1/../x'; do
   run good "$invalid"
-  expect 'invalid or empty versions are refused before HTTP' 2
-  if [[ -s "$audit_test_root/calls" ]]; then result=99; expect 'invalid input sent no HTTP requests' 2; fi
+  expect_config 'invalid versions replace stale reports and populate the Actions summary'
 done
 run good "$rc" '{"v1.37.10-rc2+rke2r1":"v1.37.9+k3s1"}'
-expect 'cross-product baseline is refused' 2
+expect_config 'cross-product baseline is refused with fresh reports'
 run good "$rc" '{"v1.37.10-rc2+rke2r1":"v1.37.9-rc1+rke2r1"}'
-expect 'an RC cannot be used as a GA baseline' 2
+expect_config 'an RC baseline is refused with fresh reports'
 run good "$rc" '{"v1.37.10-rc1+rke2r1":"v1.37.9+rke2r1"}'
-expect 'unused baseline keys are refused instead of ignored' 2
+expect_config 'unused baseline keys are refused with fresh reports'
 run good "$rc" 'not-json'
-expect 'malformed baseline JSON is refused' 2
+expect_config 'malformed baseline JSON replaces old green artifacts with CONFIG reports'
 run good "$rc" '{} {}'
-expect 'multiple baseline JSON objects are refused' 2
+expect_config 'multiple baseline objects are refused with fresh reports'
+run good "$rc" ''
+expect_config 'an explicitly empty CLI baseline is refused with fresh reports'
+
+workflow="$script_dir/../.github/workflows/release-checks.yaml"
+workflow_run=$(awk '
+  /^      - name:/ { selected=0; running=0 }
+  /^        id: commit_compare$/ { selected=1 }
+  selected && /^        run: \|$/ { running=1; next }
+  running && /^          / { sub(/^          /, ""); print }
+' "$workflow")
+if [[ -z "$workflow_run" ]]; then result=99; expect 'workflow comparison run block exists' 0; fi
+
+# Capture only the script invocation; the real workflow shell still normalizes its inputs.
+bash() { jq -cn --args '$ARGS.positional' -- "$@" > "$AUDIT_TEST_ROOT/workflow-args"; }
+export -f bash
+run_workflow() {
+  : > "$audit_test_root/workflow-args"
+  K3S_VERSIONS="$1" RKE2_VERSIONS="$2" RKE2_LTS_VERSIONS="$3" BASELINES="$4" REQUEST_ID=workflow-test \
+    "$BASH" -e -o pipefail -c "$workflow_run" > "$audit_test_root/log" 2>&1
+  result=$?
+}
+run_workflow 'v1.37.1-rc2+k3s1' '' '' ''
+if ! jq -e '.[4] == "{}" and .[6] == "workflow-test"' "$audit_test_root/workflow-args" >/dev/null; then result=99; fi
+expect 'blank workflow baseline becomes the JSON default' 0
+run_workflow 'v1.37.0+k3s1' '' '' ''
+if [[ -s "$audit_test_root/workflow-args" ]]; then result=99; fi
+expect 'GA-only workflow inputs do not call the comparison script' 0
+run_workflow 'v1.37.1-rc2+k3s1' 'v1.36.5-rc2+rke2r1' 'v1.34.12-rc2+rke2r1' '{"v1.37.1-rc2+k3s1":"v1.37.0+k3s1"}'
+if ! jq -e '.[2] == "v1.37.1-rc2+k3s1,v1.36.5-rc2+rke2r1,v1.34.12-rc2+rke2r1" and
+  .[4] == "{\"v1.37.1-rc2+k3s1\":\"v1.37.0+k3s1\"}"' "$audit_test_root/workflow-args" >/dev/null; then result=99; fi
+expect 'workflow combines all three RC inputs and preserves explicit baselines' 0
+if grep -Eq '^[[:space:]]*run:.*\$\{\{.*inputs\.' "$workflow"; then result=99; fi
+expect 'artifact checks never interpolate workflow inputs into shell source' 0
 printf '\nPASS=%s FAIL=%s\n' "$passed" "$failed"
 ((failed == 0))

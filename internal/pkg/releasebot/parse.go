@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// Request is the set of release candidates asked for in a Slack message.
 type Request struct {
 	K3s  []string
 	RKE2 []string
@@ -19,7 +18,6 @@ var (
 	rke2RC = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+rke2r\d+`)
 )
 
-// ParseRequest extracts the k3s and rke2 RC tags from free text.
 func ParseRequest(text string) Request {
 	text = normalizeSlack(text)
 
@@ -71,7 +69,6 @@ func uniqueSorted(in []string) []string {
 	return out
 }
 
-// release is a parsed k3s/rke2 tag; rc is 0 for a GA release.
 type release struct{ major, minor, patch, rc, rev int }
 
 var releaseTag = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)(?:-rc(\d+))?\+(?:k3s|rke2r)(\d+)$`)

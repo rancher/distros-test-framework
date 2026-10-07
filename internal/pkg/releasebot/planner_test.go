@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// The listener's planner re-reads the matrix per request; without Jenkins credentials the jobs
+// The listener's planner re-reads the matrix per request; without jenkins credentials the jobs
 // cannot be checked, so the plan is refused, and it can be rebuilt without some tags.
 func TestPlannerRefusesUncheckedPlan(t *testing.T) {
 	matrix := filepath.Join(t.TempDir(), "m.yaml")

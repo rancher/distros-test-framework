@@ -10,31 +10,31 @@ import (
 )
 
 var (
-	// ErrQueueCanceled means Jenkins dropped the queue item: the job never ran, so its slot is free.
-	ErrQueueCanceled = errors.New("queue item was canceled")
+	// errQueueCanceled means jenkins dropped the queue item: the job never ran, so its slot is free.
+	errQueueCanceled = errors.New("queue item was canceled")
 
-	// ErrTriggerUnknown means the trigger may have been accepted (lost response, gateway error):
+	// errTriggerUnknown means the trigger may have been accepted (lost response, gateway error):
 	// a build may exist, so the job keeps its slot.
-	ErrTriggerUnknown = errors.New("trigger outcome unknown")
-	// ErrStateUnknown means a build's status could not be read before giving up: it may still run.
-	ErrStateUnknown = errors.New("build state unknown")
-	// ErrUnreconciledBuilds is returned by a run that ended with builds that may still be running
-	// on Jenkins. Their capacity was never released, so no new run may start until a person checks.
-	ErrUnreconciledBuilds = errors.New("builds left in unknown state")
-	// ErrPartialRun marks a run that failed after it may have dispatched or triggered something:
+	errTriggerUnknown = errors.New("trigger outcome unknown")
+
+	// errStateUnknown means a build's status could not be read before giving up: it may still run.
+	errStateUnknown = errors.New("build state unknown")
+
+	// errUnreconciledBuilds is returned by a run that ended with builds that may still be running
+	// on jenkins. Their capacity was never released, so no new run may start until a person checks.
+	errUnreconciledBuilds = errors.New("builds left in unknown state")
+
+	// errPartialRun marks a run that failed after it may have dispatched or triggered something:
 	// repeating it could duplicate workflows, Qase runs or builds, so a person checks first.
-	ErrPartialRun = errors.New("run stopped part-way")
+	errPartialRun = errors.New("run stopped part-way")
 )
 
-// defaultMaxPollErrors is how many consecutive failed status queries a job tolerates.
 const defaultMaxPollErrors = 10
 
 const resultSuccess = "SUCCESS"
 
-// ResultSkipped marks a failed job a person counted as passed (`skip`).
 const ResultSkipped = "SKIPPED"
 
-// Outcome is the final state of one scheduled job.
 type Outcome struct {
 	Job      JenkinsJob
 	BuildURL string
@@ -54,21 +54,43 @@ type Scheduler struct {
 
 	// Stop, once closed, starts no new job; running builds are still followed to the end.
 	Stop <-chan struct{}
-	// Owner names this run in Capacity, so `unblock` can free the slots its unknown builds hold.
+
+	// Owner names this run in Capacity: the slots its builds in unknown state hold are its own.
 	Owner string
 
 	// Triage looks at each failed build and may ask for one automatic rerun; nil never reruns.
 	Triage Triager
+
 	// DeepTriage is the full analysis a person asks for with `triage` on a waiting job; may be nil.
 	DeepTriage Triager
+
 	// Commands carries people's answers for jobs waiting for help. When nil nobody can answer,
 	// so a failure that needs help simply fails the job.
 	Commands <-chan Command
+
 	// Help reaches the people following the run (the run's thread); nil logs through Notify.
 	Help func(string)
 
 	// MaxPollErrors bounds consecutive failed queue/build queries per job (default 10).
 	MaxPollErrors int
+
+	// Journal saves the run's jobs (and whether it was stopped) whenever they change; while it fails,
+	// nothing is triggered. Resume, when set, is a saved run to carry on instead of the jobs given to
+	// Run (see runrecord.go), stopped if ResumeStopped.
+	Journal       func(jobs []JobRecord, stopped bool) error
+	Resume        []JobRecord
+	ResumeStopped bool
+
+	// Ready is called once a resumed run holds its builds' slots again; it then waits for Go, so
+	// no resumed run triggers before all of them took their slots back. Both may be nil.
+	Ready func()
+	Go    <-chan struct{}
+
+	// A build in unknown state keeps its slot and is checked every WatchPoll (default 5m) until it
+	// finishes, or WatchLimit (default 4h) after its state was lost.
+	WatchPoll  time.Duration
+	WatchLimit time.Duration
+	Now        func() time.Time
 
 	// Notify receives every state change with a level ("debug", "info", "warn", "error"), matching
 	// resources.LogLevel; may be nil.
@@ -76,19 +98,18 @@ type Scheduler struct {
 
 	statusMu sync.Mutex
 	status   string
+
+	// canceled: Run ended because its ctx did (shutdown), not because the run was over.
+	canceled bool
 }
 
-// Decision is triage's answer for a failed build.
 type Decision struct {
 	Rerun   bool
 	Summary string
 }
 
-// Triager explains a failed build and says whether rerunning it automatically is worth it. The
-// scheduler still refuses reruns its fixed rules forbid (see rerunDenied).
 type Triager func(ctx context.Context, o *Outcome) Decision
 
-// askTriager is the triager until automatic triage exists: every failure goes to a person.
 func askTriager(context.Context, *Outcome) Decision {
 	return Decision{Summary: "automatic triage is not set up yet"}
 }
@@ -102,11 +123,13 @@ const (
 
 // Command is a person's answer, from the run's thread, for a job waiting for help.
 type Command struct {
-	Action  string // CommandRetry, CommandSkip or CommandTriage
+	Action  string
 	Job     string
-	Version string // RC tag; may be empty when only one waiting job has that name
+	Version string
 	By      string
-	Reply   chan<- string // buffered (1): the scheduler never blocks on it and drops a reply that does not fit
+
+	// buffered (1): the scheduler never blocks on it and drops a reply that does not fit
+	Reply chan<- string
 }
 
 // ErrStopped marks jobs left untriggered because the run was stopped.
@@ -118,9 +141,14 @@ type running struct {
 	buildURL string
 	errs     int
 
-	// abandoned: state unknown (lost trigger response or too many failed queries); the entry
-	// only holds its slot, since a build may be running.
+	// abandoned: state unknown (lost trigger response or too many failed queries); the entry holds
+	// its slot while the build is watched: since its state was lost, seen when jenkins last answered
+	// for it, err its outcome if the watch gives up.
 	abandoned bool
+	since     time.Time
+	seen      time.Time
+	err       error
+	nextWatch time.Time
 }
 
 // runState is one Run: pending jobs, what occupies each controller, and finished results.
@@ -139,9 +167,19 @@ type runState struct {
 	quit     chan struct{}
 	stopped  bool
 
+	// Saved-run bookkeeping: the job whose trigger is in flight, failed jobs to triage again after
+	// a resume, help summaries, the last journal written, and whether "watching" was announced.
+	triggering  *JenkinsJob
+	retriage    []Outcome
+	helpNote    map[string]string
+	lastJournal string
+	saveFailing bool
+	watchSaid   bool
+
 	// triageCtx is canceled by stop, so a slow triage cannot keep a stopped run alive.
 	triageCtx    context.Context
 	cancelTriage context.CancelFunc
+
 	// help delivers "Needs help" messages from its own goroutine: a slow Slack post never holds
 	// up the scheduler.
 	help *asyncQueue
@@ -197,9 +235,12 @@ func (s *Scheduler) Run(ctx context.Context, jobs []JenkinsJob) []Outcome {
 		s.Capacity = &Capacity{}
 	}
 	stop := s.Stop
+	s.start(ctx, st)
 
 	for {
 		if ctx.Err() != nil {
+			// the last state, so a restart resumes from it (cancelRun is not saved).
+			_ = s.journal(st)
 			s.cancelRun(st, ctx.Err())
 
 			return st.out
@@ -213,26 +254,74 @@ func (s *Scheduler) Run(ctx context.Context, jobs []JenkinsJob) []Outcome {
 		s.markUnreachable(st)
 		s.publish(st)
 
-		live := st.liveCount()
-		waiting := len(st.triaging) + len(st.held)
-		if len(st.pending) == 0 && live == 0 && waiting == 0 {
-			return st.out
-		}
-		if live == 0 && waiting == 0 && !progressed && !s.anyStartable(st) {
-			// Nothing running and nothing can start: report instead of waiting forever.
-			for i := range st.pending {
-				st.finish(&Outcome{Job: st.pending[i], Err: errors.New("not triggered: dependencies never resolved")})
-			}
-
+		_ = s.journal(st)
+		if s.over(st, progressed) {
 			return st.out
 		}
 
 		if !s.wait(ctx, st, stop, poll) {
+			_ = s.journal(st)
 			s.cancelRun(st, ctx.Err())
 
 			return st.out
 		}
 	}
+}
+
+// start carries a saved run on (Resume), then holds until every resumed run is ready (Ready, Go).
+func (s *Scheduler) start(ctx context.Context, st *runState) {
+	if s.Resume != nil {
+		s.resume(st)
+	}
+	if s.Ready != nil {
+		s.Ready()
+	}
+	if s.Go != nil {
+		select {
+		case <-s.Go:
+		case <-ctx.Done():
+		}
+	}
+}
+
+// resume replaces the jobs given to Run with a saved run's (see seed) and triages again the
+// failures whose triage the restart cut.
+func (s *Scheduler) resume(st *runState) {
+	st.pending = nil
+	st.stopped = s.ResumeStopped
+	s.seed(st, s.Resume, s.now())
+	for i := range st.retriage {
+		s.settle(st, &st.retriage[i])
+	}
+	if st.stopped {
+		s.drain(st)
+	}
+}
+
+// over reports whether the run is finished: nothing pending, running, in triage or waiting for help,
+// and no build in unknown state left to watch. Jobs that can never start are reported as such.
+func (s *Scheduler) over(st *runState, progressed bool) bool {
+	live := st.liveCount()
+	waiting := len(st.triaging) + len(st.held)
+	watched := st.watchedCount()
+	if len(st.pending) > 0 && live == 0 && waiting == 0 && watched == 0 && !progressed && !s.anyStartable(st) {
+		// Nothing running or watched and nothing can start: report instead of waiting forever.
+		for i := range st.pending {
+			st.finish(&Outcome{Job: st.pending[i], Err: errors.New("not triggered: dependencies never resolved")})
+		}
+		st.pending = nil
+	}
+
+	if len(st.pending) > 0 || live > 0 || waiting > 0 {
+		return false
+	}
+	if watched > 0 && !st.watchSaid {
+		st.watchSaid = true
+		s.notify("info", "all other jobs ended; watching %d builds in unknown state (their jenkins slots "+
+			"stay taken) until they finish, at most %s", watched, s.watchLimit())
+	}
+
+	return watched == 0
 }
 
 // newRunState sets up one Run; end releases what it started.
@@ -244,9 +333,11 @@ func (s *Scheduler) newRunState(ctx context.Context, jobs []JenkinsJob) *runStat
 		done:     map[string]string{},
 		triaging: map[string]*Outcome{},
 		held:     map[string]*Outcome{},
+		helpNote: map[string]string{},
 		triaged:  make(chan triageResult),
 		quit:     make(chan struct{}),
 	}
+
 	st.triageCtx, st.cancelTriage = context.WithCancel(ctx)
 	st.deepCtx, st.cancelDeep = context.WithCancel(ctx)
 	st.help = newAsyncQueue(func(msg string) {
@@ -268,8 +359,7 @@ func (st *runState) end() {
 	st.help.close()
 }
 
-// wait sleeps until the next poll, acting on triage results and commands as they come; it
-// returns false when ctx is done.
+// wait sleeps until the next poll, acting on triage results and commands as they come.
 func (s *Scheduler) wait(ctx context.Context, st *runState, stop <-chan struct{}, poll time.Duration) bool {
 	select {
 	case <-ctx.Done():
@@ -302,6 +392,7 @@ func (s *Scheduler) drain(st *runState) {
 		st.finish(o)
 		delete(st.held, k)
 	}
+
 	// Triage still running is canceled; its failed outcome stands and a late verdict is ignored.
 	st.cancelTriage()
 	st.cancelDeep()
@@ -358,24 +449,34 @@ func (s *Scheduler) startWhatFits(ctx context.Context, st *runState) bool {
 			continue
 		}
 
+		if !s.trigger(ctx, st, b, &j) {
+			s.Capacity.release(j.Controller)
+			rest = append(rest, st.pending[i:]...) // not sent: the run state could not be saved
+			break
+		}
 		progressed = true
-		s.trigger(ctx, st, b, &j)
 	}
 	st.pending = rest
 
 	return progressed
 }
 
-// trigger starts one job. A confirmed rejection frees the slot; a trigger that may have been
-// accepted keeps it (abandoned), since a build may be running.
-func (s *Scheduler) trigger(ctx context.Context, st *runState, b Builder, j *JenkinsJob) {
+func (s *Scheduler) trigger(ctx context.Context, st *runState, b Builder, j *JenkinsJob) (sent bool) {
+	// Saved before sending: a restart mid-trigger then knows a build may exist.
+	st.triggering = j
+	if err := s.journal(st); err != nil {
+		st.triggering = nil
+		return false
+	}
+
 	q, err := b.Trigger(ctx, j)
+	st.triggering = nil
 	switch {
-	case errors.Is(err, ErrTriggerUnknown):
+	case errors.Is(err, errTriggerUnknown):
 		s.notify("warn", "trigger of %s %s may have been accepted: %v", j.Path, j.Version, err)
-		st.finish(&Outcome{Job: *j, Err: fmt.Errorf("%w; check %s for a build before re-running", err, j.Path)})
-		st.active[j.Controller] = append(st.active[j.Controller], &running{job: *j, abandoned: true})
-		s.Capacity.abandon(j.Controller, s.Owner)
+		r := &running{job: *j}
+		s.abandon(r, j.Controller, s.now(), fmt.Errorf("%w; check %s for a build before re-running", err, j.Path))
+		st.active[j.Controller] = append(st.active[j.Controller], r)
 	case err != nil:
 		s.notify("error", "failed to trigger %s %s: %v", j.Path, j.Version, err)
 		s.Capacity.release(j.Controller)
@@ -388,6 +489,8 @@ func (s *Scheduler) trigger(ctx context.Context, st *runState, b Builder, j *Jen
 		}
 		st.active[j.Controller] = append(st.active[j.Controller], &running{job: *j, queueURL: q})
 	}
+
+	return true
 }
 
 // anyStartable reports whether a pending job has all dependencies resolved (it only waits for capacity).
@@ -417,16 +520,19 @@ func (st *runState) depsState(j *JenkinsJob) (ready bool, blocker string) {
 	return ready, ""
 }
 
-// cancelRun reports what is left when ctx ends. Jenkins accepted the active jobs and they keep
+// cancelRun reports what is left when ctx ends. jenkins accepted the active jobs and they keep
 // running, so they are in unknown state and keep their slots; pending ones never started.
 func (s *Scheduler) cancelRun(st *runState, cause error) {
+	s.canceled = true
 	for ctrl, list := range st.active {
 		for _, r := range list {
-			if !r.abandoned {
-				s.Capacity.abandon(ctrl, s.Owner)
-				stopped := fmt.Errorf("%w: run stopped while it was queued or running: %w", ErrStateUnknown, cause)
-				st.out = append(st.out, Outcome{Job: r.job, BuildURL: r.buildURL, Err: stopped})
+			if r.abandoned {
+				st.out = append(st.out, Outcome{Job: r.job, BuildURL: r.buildURL, Err: r.err})
+				continue
 			}
+			s.Capacity.abandon(ctrl, s.Owner)
+			stopped := fmt.Errorf("%w: run stopped while it was queued or running: %w", errStateUnknown, cause)
+			st.out = append(st.out, Outcome{Job: r.job, BuildURL: r.buildURL, Err: stopped})
 		}
 	}
 	for i := range st.pending {
@@ -443,8 +549,11 @@ func (s *Scheduler) cancelRun(st *runState, cause error) {
 func (st *runState) finish(o *Outcome) {
 	st.out = append(st.out, *o)
 	result := o.Result
-	if o.Err != nil {
+	switch {
+	case o.Err != nil:
 		result = "error: " + o.Err.Error()
+	case result == ResultSkipped:
+		result = resultSuccess // a person counted it as passed: its dependents may run
 	}
 	st.done[o.Job.key()] = result
 }
@@ -470,18 +579,19 @@ func (s *Scheduler) reap(ctx context.Context, st *runState) {
 		var keep []*running
 		for _, r := range list {
 			if r.abandoned {
-				keep = append(keep, r)
+				if !s.watch(ctx, st, ctrl, r) {
+					keep = append(keep, r)
+				}
 				continue
 			}
 			outcome, done := s.check(ctx, s.Builders[ctrl], r)
 			switch {
 			case !done:
 				keep = append(keep, r)
-			case outcome.Err != nil && !errors.Is(outcome.Err, ErrQueueCanceled):
-				// State unknown: the build may still be running, so the slot stays taken.
-				st.finish(&outcome)
-				r.abandoned = true
-				s.Capacity.abandon(ctrl, s.Owner)
+			case outcome.Err != nil && !errors.Is(outcome.Err, errQueueCanceled):
+				// State unknown: the build may still be running, so the slot stays taken and its
+				// dependents wait while it is watched.
+				s.abandon(r, ctrl, s.now(), outcome.Err)
 				keep = append(keep, r)
 			default:
 				s.Capacity.release(ctrl)
@@ -492,16 +602,21 @@ func (s *Scheduler) reap(ctx context.Context, st *runState) {
 	}
 }
 
-// markUnreachable flags a controller once unknown-state jobs fill its whole limit: no capacity can
-// ever free up there, so its remaining jobs are reported. Below the limit it keeps being used.
+// markUnreachable flags a controller while unknown-state jobs fill its whole limit (its remaining
+// jobs are reported instead of waiting), and clears the flag once watching frees a slot there.
 func (s *Scheduler) markUnreachable(st *runState) {
 	for ctrl, lim := range s.Limits {
 		// Counted across runs: another run's unknown builds can fill the controller too.
 		abandoned := s.Capacity.Abandoned(ctrl)
-		if abandoned > 0 && abandoned >= lim.MaxConcurrent && !st.down[ctrl] {
+		full := abandoned > 0 && abandoned >= lim.MaxConcurrent
+		switch {
+		case full && !st.down[ctrl]:
 			st.down[ctrl] = true
 			s.notify("warn", "controller %s: all %d slots held by jobs in unknown state; not triggering more there",
 				ctrl, abandoned)
+		case !full && st.down[ctrl]:
+			delete(st.down, ctrl)
+			s.notify("info", "controller %s: a slot is free again; triggering there resumes", ctrl)
 		}
 	}
 }
@@ -516,8 +631,8 @@ func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, 
 	var err error
 	if r.buildURL == "" {
 		var u string
-		u, err = b.BuildFromQueue(ctx, r.queueURL)
-		if errors.Is(err, ErrQueueCanceled) {
+		u, err = s.buildFromQueue(ctx, b, r) // falls back to the job's builds if the queue forgot it
+		if errors.Is(err, errQueueCanceled) {
 			s.notify("warn", "%s %s: %v", r.job.Path, r.job.Version, err)
 			return Outcome{Job: r.job, Err: err}, true
 		}
@@ -550,7 +665,7 @@ func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, 
 
 	return Outcome{
 		Job: r.job, BuildURL: r.buildURL,
-		Err: fmt.Errorf("%w after %d failed status queries (last: %w); check %s by hand", ErrStateUnknown,
+		Err: fmt.Errorf("%w after %d failed status queries (last: %w); check %s by hand", errStateUnknown,
 			r.errs, err, firstNonEmpty(r.buildURL, r.queueURL)),
 	}, true
 }
@@ -569,13 +684,13 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-// unreconciled lists outcomes whose build may still be running on Jenkins (unknown trigger or
-// state) and returns ErrUnreconciledBuilds naming them, or nil when every build is accounted for.
+// unreconciled lists outcomes whose build may still be running on jenkins (unknown trigger or
+// state) and returns errUnreconciledBuilds naming them, or nil when every build is accounted for.
 func unreconciled(outcomes []Outcome) error {
 	var names []string
 	for i := range outcomes {
 		o := &outcomes[i]
-		if errors.Is(o.Err, ErrTriggerUnknown) || errors.Is(o.Err, ErrStateUnknown) {
+		if errors.Is(o.Err, errTriggerUnknown) || errors.Is(o.Err, errStateUnknown) {
 			names = append(names, fmt.Sprintf("%s %s %s", o.Job.Path, o.Job.Version,
 				firstNonEmpty(o.BuildURL, "(no build url)")))
 		}
@@ -584,5 +699,5 @@ func unreconciled(outcomes []Outcome) error {
 		return nil
 	}
 
-	return fmt.Errorf("%w: %s", ErrUnreconciledBuilds, strings.Join(names, "; "))
+	return fmt.Errorf("%w: %s", errUnreconciledBuilds, strings.Join(names, "; "))
 }

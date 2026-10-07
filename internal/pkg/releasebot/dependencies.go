@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// validateDependencies rejects duplicate job identities (product, version, name), references to
-// jobs that are not in the plan and dependency cycles, before anything is triggered.
+// validateDependencies rejects duplicate job identities (product, version, name).
 func validateDependencies(jobs []JenkinsJob) error {
 	var problems []string
 	deps := map[string][]string{}

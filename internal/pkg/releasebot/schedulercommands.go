@@ -85,6 +85,7 @@ func (s *Scheduler) askHelp(st *runState, o *Outcome, summary string) {
 	}
 
 	st.held[o.Job.key()] = o
+	st.helpNote[o.Job.key()] = summary
 	j := o.Job.Name + " " + o.Job.Version
 	st.help.push(fmt.Sprintf("Needs help: %s ended with %s. Reply `retry %s` to run it again or `skip %s` to "+
 		"count it as passed (`triage %s` for a full analysis); later phases of this RC wait until then.",

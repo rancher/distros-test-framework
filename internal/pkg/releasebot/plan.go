@@ -16,8 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// WorkflowDispatch is one GitHub Actions workflow_dispatch call.
-type WorkflowDispatch struct {
+// workflowDispatch is one gitHub Actions workflow_dispatch call.
+type workflowDispatch struct {
 	Repo     string
 	Workflow string
 	Ref      string
@@ -27,6 +27,7 @@ type WorkflowDispatch struct {
 // JenkinsJob is one build to trigger, already expanded for a single version.
 type JenkinsJob struct {
 	Name string
+
 	// Dependencies refer to jobs of the same product and version.
 	DependsOn  []string
 	Controller string
@@ -36,12 +37,10 @@ type JenkinsJob struct {
 	Phase      int
 	Priority   int
 	Params     map[string]string
-	// Zero for the initial build; incremented on reruns.
-	Attempt   int
-	QaseTitle string
+	Attempt    int
+	QaseTitle  string
 }
 
-// qaseRunPlaceholder is replaced by the run id once the Qase workflow has created the runs.
 const qaseRunPlaceholder = "{{QASE_RUN_ID}}"
 
 // Plan is everything a release request would do, in order.
@@ -49,36 +48,39 @@ type Plan struct {
 	Request Request
 
 	RequestID string
-	Workflows []WorkflowDispatch
+
 	// The workflow creates runs for both products for every version.
+	Workflows  []workflowDispatch
 	QaseTitles []string
 	Jobs       []JenkinsJob
+
 	// Missing optional jobs do not block phase progression.
 	Skipped []SkippedJob
+
 	// Missing required jobs prevent execution of the plan.
 	Blocked []SkippedJob
-	// Execution is refused when Jenkins parameters could not be verified.
+
+	// Execution is refused when jenkins parameters could not be verified.
 	Unchecked   []string
 	checkErr    error
 	UpgradeFrom map[string]string
 	Warnings    []string
 }
 
-// SkippedJob is a matrix job that does not run for one RC.
 type SkippedJob struct {
 	Path, Version, Reason string
 }
 
-// RunnableError says why the plan's jobs must not be triggered: a required job that cannot run,
-// or jobs whose parameters were never verified (Jenkins would silently ignore unknown ones).
-func (p *Plan) RunnableError() error {
+// runnableError says why the plan's jobs must not be triggered: a required job that cannot run,
+// or jobs whose parameters were never verified (jenkins would silently ignore unknown ones).
+func (p *Plan) runnableError() error {
 	var problems []string
 	if len(p.Blocked) > 0 {
 		problems = append(problems, fmt.Sprintf("%d required jobs cannot run (first: %s %s: %s)",
 			len(p.Blocked), p.Blocked[0].Path, p.Blocked[0].Version, p.Blocked[0].Reason))
 	}
 	if len(p.Unchecked) > 0 {
-		problems = append(problems, fmt.Sprintf("%d jobs could not be checked on Jenkins (%v)",
+		problems = append(problems, fmt.Sprintf("%d jobs could not be checked on jenkins (%v)",
 			len(p.Unchecked), p.checkErr))
 	}
 	if len(problems) == 0 {
@@ -91,8 +93,9 @@ func (p *Plan) RunnableError() error {
 // Resolver answers what a plan needs from outside. buildPlan works without one (tests, no
 // credentials): jobs are then not checked and upgrade jobs are Blocked (no start version).
 type Resolver interface {
-	// JobParams returns the job's parameter names; exists is false when Jenkins has no such job.
+	// JobParams returns the job's parameter names; exists is false when jenkins has no such job.
 	JobParams(ctx context.Context, controller, path string) (params []string, exists bool, err error)
+
 	// LatestGA returns the release an upgrade to rc starts from, with a note when it is unusual.
 	LatestGA(ctx context.Context, product, rc string) (version, note string, err error)
 }
@@ -105,12 +108,12 @@ type Matrix struct {
 	Controller map[string]Limits `yaml:"controllers"`
 	Jobs       []MatrixJob       `yaml:"jobs"`
 	Defaults   map[string]string `yaml:"defaultParams"`
+
 	// OptionalParams are one all-or-none group (Qase reporting): a job lacking any of them runs without
 	// all of them, with a plan warning. A job missing any other parameter the bot sets is refused.
 	OptionalParams []string `yaml:"optionalParams"`
 }
 
-// Limits bounds how many builds may run at once on a controller.
 type Limits struct {
 	URL           string `yaml:"url"`
 	MaxConcurrent int    `yaml:"maxConcurrent"`
@@ -124,22 +127,28 @@ type MatrixJob struct {
 	Controller string            `yaml:"controller"`
 	Path       string            `yaml:"path"`
 	Params     map[string]string `yaml:"params"`
+
 	// Phase gates the job per product+RC: it starts once every job of the previous phase passed.
 	Phase int `yaml:"phase"`
+
 	// Split shares the product's RCs among the jobs of the same group, newest RCs to the first job.
 	Split string `yaml:"split"`
 	Code  string `yaml:"code"`
+
 	// Optional jobs may be missing on the controller (not created yet): they are skipped, and the
 	// next phase does not wait for them. A missing required job refuses the plan.
 	Optional bool `yaml:"optional"`
+
 	// Priority orders jobs that can start (default: the phase).
 	Priority int `yaml:"priority"`
+
 	// DependsOn lists job names of the same product; they must succeed for the same RC first.
 	DependsOn []string `yaml:"dependsOn"`
 }
 
 const (
 	upgradeFromPlaceholder = "{{UPGRADE_FROM}}"
+
 	// qainfra names resources dsf-<HOSTNAME_PREFIX>-<product>-<5-char id> within 24 chars.
 	hostnameBudget = 24 - len("dsf-") - len("--") - 5
 )
@@ -229,6 +238,7 @@ func validateJobs(m *Matrix) error {
 		seen[j.Product+"|"+j.Name] = true
 		probe = append(probe, JenkinsJob{Name: j.Name, Product: j.Product, DependsOn: j.DependsOn})
 	}
+
 	// Dependencies resolve within one product/RC, so one probe version covers every expansion.
 	if err := validateDependencies(probe); err != nil {
 		return fmt.Errorf("matrix dependencies: %w", err)
@@ -281,7 +291,7 @@ func checkPrefix(m *Matrix, j *MatrixJob, codes map[string]string) error {
 }
 
 // buildPlan expands the request against the matrix; jobs are ordered by priority, then version.
-// res (optional) checks the jobs on Jenkins and resolves where upgrades start.
+// res (optional) checks the jobs on jenkins and resolves where upgrades start.
 func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, requestID string, res Resolver) (
 	*Plan, error,
 ) {
@@ -290,7 +300,7 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 	}
 
 	p := &Plan{Request: req, RequestID: requestID}
-	p.Workflows = append(p.Workflows, WorkflowDispatch{
+	p.Workflows = append(p.Workflows, workflowDispatch{
 		Repo:     m.DTFRepo,
 		Workflow: "release-checks.yaml",
 		Ref:      m.DTFRef,
@@ -303,7 +313,7 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 	rcs, warn := qaseRCs(req)
 	p.Warnings = append(p.Warnings, warn...)
 	if len(rcs) > 0 {
-		p.Workflows = append(p.Workflows, WorkflowDispatch{
+		p.Workflows = append(p.Workflows, workflowDispatch{
 			Repo:     m.DTFRepo,
 			Workflow: "qase-patch-validation-create.yaml",
 			Ref:      m.DTFRef,
@@ -354,6 +364,7 @@ func qaseRCs(req Request) (rcs, warnings []string) {
 	for _, rc := range byVersion {
 		rcs = append(rcs, rc)
 	}
+
 	// Oldest first by release (v1.36.9 before v1.36.10); base RCs carry no "+rke2rN", so one is
 	// added only to compare them.
 	sort.Slice(rcs, func(i, j int) bool { return newerTag(rcs[j]+"+rke2r1", rcs[i]+"+rke2r1") })
@@ -410,20 +421,23 @@ type jobCheck struct {
 	checked bool
 }
 
-// expander builds one RC's jobs, checking each Jenkins job once per plan.
+// expander builds one RC's jobs, checking each jenkins job once per plan.
 type expander struct {
 	ctx    context.Context
 	m      *Matrix
 	res    Resolver
 	plan   *Plan
-	params map[string]jobCheck // by controller|path
-	from   map[string]string   // upgrade start by product|tag; "" = unknown
+	params map[string]jobCheck
+
+	// upgrade start by product|tag; "" = unknown
+	from map[string]string
+
 	// failed: sources (a controller, "github") that already failed a check are not asked again,
-	// so an unreachable Jenkins costs one timeout per plan, not one per job.
+	// so an unreachable jenkins costs one timeout per plan, not one per job.
 	failed map[string]bool
 }
 
-// expandRC returns the jobs that run tag: split groups applied, jobs missing on Jenkins or
+// expandRC returns the jobs that run tag: split groups applied, jobs missing on jenkins or
 // missing a parameter left out, and each phase waiting for the previous one.
 func (x *expander) expandRC(product, tag string, share map[string]string) []JenkinsJob {
 	var jobs []JenkinsJob
@@ -432,11 +446,13 @@ func (x *expander) expandRC(product, tag string, share map[string]string) []Jenk
 		if mj.Product != product || (mj.Split != "" && share[mj.Split] != mj.Name) {
 			continue
 		}
+
 		job := expandJob(mj, tag, x.m.PrefixBase, x.m.Defaults)
 		if reason := x.fillUpgradeFrom(&job); reason != "" {
 			x.block(&job, reason)
 			continue
 		}
+
 		switch reason, absent := x.checkJob(&job); {
 		case absent && mj.Optional:
 			x.skip(&job, reason)
@@ -505,6 +521,7 @@ func (x *expander) fillUpgradeFrom(j *JenkinsJob) string {
 		}
 		x.from[key] = from
 	}
+
 	if from == "" {
 		return "upgrade start version unknown"
 	}
@@ -581,7 +598,7 @@ func (x *expander) note(w string) {
 func (x *expander) warnUnchecked() {
 	if n := len(x.plan.Unchecked); n > 0 {
 		x.plan.Warnings = append(x.plan.Warnings, fmt.Sprintf(
-			"%d jobs not checked on Jenkins (existence and parameters), so the plan cannot run: %v",
+			"%d jobs not checked on jenkins (existence and parameters), so the plan cannot run: %v",
 			n, x.plan.checkErr))
 	}
 }

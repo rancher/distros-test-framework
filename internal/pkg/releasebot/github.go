@@ -13,20 +13,20 @@ import (
 	"time"
 )
 
-type GitHub struct {
+type gitHub struct {
 	BaseURL string
 	Token   string
 	HTTP    *http.Client
 }
 
-func newGitHub(token string) *GitHub {
-	return &GitHub{BaseURL: "https://api.github.com", Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
+func newGitHub(token string) *gitHub {
+	return &gitHub{BaseURL: "https://api.github.com", Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
 }
 
 var productRepo = map[string]string{"k3s": "k3s-io/k3s", "rke2": "rancher/rke2"}
 
 // TagExists checks that a release tag exists in the product repository.
-func (g *GitHub) TagExists(ctx context.Context, product, tag string) (bool, error) {
+func (g *gitHub) TagExists(ctx context.Context, product, tag string) (bool, error) {
 	repo, ok := productRepo[product]
 	if !ok {
 		return false, fmt.Errorf("unknown product %q", product)
@@ -50,7 +50,7 @@ func (g *GitHub) TagExists(ctx context.Context, product, tag string) (bool, erro
 
 // LatestGA returns the newest GA release of rc's minor that is older than rc: the version an
 // upgrade to rc starts from. A .0 RC has none yet, so the previous minor is used and note says so.
-func (g *GitHub) LatestGA(ctx context.Context, product, rc string) (version, note string, err error) {
+func (g *gitHub) LatestGA(ctx context.Context, product, rc string) (version, note string, err error) {
 	target, ok := parseRelease(rc)
 	if !ok {
 		return "", "", fmt.Errorf("not a release tag: %q", rc)
@@ -85,7 +85,7 @@ func (g *GitHub) LatestGA(ctx context.Context, product, rc string) (version, not
 }
 
 // matchingTags lists every tag starting with prefix in one unpaged call (git matching-refs).
-func (g *GitHub) matchingTags(ctx context.Context, product, prefix string) ([]string, error) {
+func (g *gitHub) matchingTags(ctx context.Context, product, prefix string) ([]string, error) {
 	repo, ok := productRepo[product]
 	if !ok {
 		return nil, fmt.Errorf("unknown product %q", product)
@@ -120,15 +120,15 @@ func (g *GitHub) matchingTags(ctx context.Context, product, prefix string) ([]st
 	return tags, nil
 }
 
-// ErrDispatchRejected means GitHub answered the dispatch with a 4xx: no workflow run was created.
-var ErrDispatchRejected = errors.New("dispatch rejected")
+// errDispatchRejected means gitHub answered the dispatch with a 4xx: no workflow run was created.
+var errDispatchRejected = errors.New("dispatch rejected")
 
-// ErrDispatchNotSent means the dispatch never left the bot (no token, a canceled run, no connection).
-var ErrDispatchNotSent = errors.New("dispatch not sent")
+// errDispatchNotSent means the dispatch never left the bot (no token, a canceled run, no connection).
+var errDispatchNotSent = errors.New("dispatch not sent")
 
-func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
+func (g *gitHub) Dispatch(ctx context.Context, w workflowDispatch) error {
 	if g.Token == "" {
-		return fmt.Errorf("%w: GITHUB_TOKEN is required to dispatch %s", ErrDispatchNotSent, w.Workflow)
+		return fmt.Errorf("%w: GITHUB_TOKEN is required to dispatch %s", errDispatchNotSent, w.Workflow)
 	}
 
 	inputs := map[string]string{}
@@ -140,17 +140,17 @@ func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
 
 	body, err := json.Marshal(map[string]any{"ref": w.Ref, "inputs": inputs})
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrDispatchNotSent, err)
+		return fmt.Errorf("%w: %w", errDispatchNotSent, err)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return fmt.Errorf("%w: %w", ErrDispatchNotSent, ctxErr)
+		return fmt.Errorf("%w: %w", errDispatchNotSent, ctxErr)
 	}
 
 	resp, err := g.do(ctx, http.MethodPost,
 		fmt.Sprintf("/repos/%s/actions/workflows/%s/dispatches", w.Repo, w.Workflow), bytes.NewReader(body))
 	if err != nil {
 		if notSent(err) {
-			return fmt.Errorf("%w: %w", ErrDispatchNotSent, err)
+			return fmt.Errorf("%w: %w", errDispatchNotSent, err)
 		}
 
 		return err
@@ -161,7 +161,7 @@ func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		err = fmt.Errorf("dispatch %s: %s: %s", w.Workflow, resp.Status, bytes.TrimSpace(msg))
 		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			err = fmt.Errorf("%w: %w", ErrDispatchRejected, err)
+			err = fmt.Errorf("%w: %w", errDispatchRejected, err)
 		}
 
 		return err
@@ -170,7 +170,7 @@ func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
 	return nil
 }
 
-func (g *GitHub) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+func (g *gitHub) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, g.BaseURL+path, body)
 	if err != nil {
 		return nil, err

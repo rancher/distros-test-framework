@@ -30,6 +30,7 @@ type TriageRequest struct {
 	Result   string `json:"result"`
 	BuildURL string `json:"build_url"`
 	Attempt  int    `json:"attempt"`
+
 	// Excerpt is the failing part of the console log (see extractFailure), so the model starts
 	// from it instead of paging through the whole log.
 	Excerpt string `json:"excerpt,omitempty"`
@@ -52,10 +53,12 @@ func (v *Verdict) Decision() Decision {
 	if v.Error != "" {
 		return Decision{Summary: "automatic triage failed: " + slack.Escape(redactSecrets(v.Error))}
 	}
+
 	// The summary is the model's text, posted in Slack: redacted, and escaped so it cannot mention
 	// people, channels or @here, nor hide a link.
 	summary := fmt.Sprintf("%s, %d%% confidence: %s", v.Bucket, v.Confidence, v.Summary)
 	d := Decision{Rerun: v.Action == "rerun", Summary: slack.Escape(redactSecrets(summary))}
+
 	// The verdict only agrees to a rerun as an evidenced, confident INFRA diagnosis.
 	if why := v.rerunVeto(); d.Rerun && why != "" {
 		d.Rerun = false
@@ -65,7 +68,6 @@ func (v *Verdict) Decision() Decision {
 	return d
 }
 
-// The skill's buckets; only BucketInfra can agree to a rerun.
 const BucketInfra = "INFRA"
 
 var buckets = []string{BucketInfra, "JOB", "TEST-CODE", "PRODUCT", "UNKNOWN"}
@@ -121,6 +123,7 @@ func parseClaudeVerdict(raw []byte) (*Verdict, error) {
 		CostUSD          float64         `json:"total_cost_usd"`
 		DurationMS       int             `json:"duration_ms"`
 	}
+
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return nil, fmt.Errorf("claude output is not JSON: %w", err)
 	}

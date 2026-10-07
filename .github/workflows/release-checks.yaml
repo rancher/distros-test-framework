@@ -23,7 +23,9 @@ on:
         required: false
         default: '150'
       commit_baselines:
-        description: 'Optional GA-to-RC baselines as JSON: {"<RC tag>":"<GA tag>"}; otherwise auto-select within each minor'
+        description: >-
+          GA-to-RC baselines as JSON: {"<RC tag>":"<GA tag>"}; blank means automatic within each minor.
+          A new-minor .0 RC without a preceding GA requires an explicit baseline; otherwise the job fails.
         required: false
         default: '{}'
 
@@ -48,25 +50,34 @@ jobs:
       - name: Verify K3S versions - run captain shell script
         working-directory: ./scripts
         id: k3s_verify
-        if: ${{ github.event.inputs.k3s_versions != '' }}
-        run: ./release_checks.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        if: ${{ inputs.k3s_versions != '' }}
+        env:
+          VERSIONS: ${{ inputs.k3s_versions }}
+          PAGE_SIZE: ${{ inputs.page_size }}
+        run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
 
       - name: Verify RKE2 versions - run captain shell script
         working-directory: ./scripts
         id: rke2_verify
-        if: ${{ github.event.inputs.rke2_versions != '' }}
-        run: ./release_checks.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        if: ${{ inputs.rke2_versions != '' }}
+        env:
+          VERSIONS: ${{ inputs.rke2_versions }}
+          PAGE_SIZE: ${{ inputs.page_size }}
+        run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
 
       - name: Verify LTS RKE2 versions - run captain shell script
         working-directory: ./scripts
         id: rke2_lts_verify
-        if: ${{ github.event.inputs.rke2_lts_versions != '' }}
-        run: ./release_checks.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
+        if: ${{ inputs.rke2_lts_versions != '' }}
+        env:
+          VERSIONS: ${{ inputs.rke2_lts_versions }}
+        run: ./release_checks.sh -l "$VERSIONS" -d
         shell: sh
+        continue-on-error: true
 
       - name: Compare GA to RC commits
         id: commit_compare
@@ -82,6 +93,7 @@ jobs:
           BASELINES: ${{ inputs.commit_baselines }}
           REQUEST_ID: ${{ github.run_id }}
         run: |
+          if [[ -z "$BASELINES" ]]; then BASELINES='{}'; fi
           rc_versions=$(jq -rn --arg versions "$K3S_VERSIONS,$RKE2_VERSIONS,$RKE2_LTS_VERSIONS" '
             $versions | split(",") | map(gsub("^\\s+|\\s+$"; "")) |
             map(select(contains("-rc"))) | join(",")

@@ -23,7 +23,7 @@ var transientRules = []TransientRule{
 	// AWS answered with a server-side error.
 	{"aws-server-error", regexp.MustCompile(
 		`\b(InternalError|ServiceUnavailable|Unavailable): .*status code: 5\d\d`)},
-	// The Jenkins agent running the build disconnected.
+	// The jenkins agent running the build disconnected.
 	{agentLostRule, regexp.MustCompile(
 		`hudson\.remoting\.ChannelClosedException|Agent went offline during the build`)},
 	// Docker Hub pull rate limit.

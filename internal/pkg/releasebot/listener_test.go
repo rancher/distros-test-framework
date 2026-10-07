@@ -250,59 +250,6 @@ func TestListenerRunsNewTagsNextToDuplicates(t *testing.T) {
 	}
 }
 
-// Two runs that both end with unknown builds keep separate blocks: unblocking one frees only its
-// slots, new plans stay blocked until the other is unblocked too, and both survive a restart.
-func TestListenerKeepsOneBlockPerRun(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	tl := newTestListener(t, nil)
-	tl.StatePath = path
-	tl.Capacity = &Capacity{}
-	tl.errs = []error{
-		fmt.Errorf("%w: job-a v1", ErrUnreconciledBuilds),
-		fmt.Errorf("%w: job-b v2", ErrUnreconciledBuilds),
-	}
-	ctx := testContext(t)
-	for _, ts := range []string{"730.1", "731.1"} {
-		tl.Capacity.acquire("mower", 6)
-		tl.Capacity.abandon("mower", threadKey(testChan, ts))
-	}
-	tl.gate = make(chan struct{})
-	tl.Handle(ctx, mentionIn(testChan, alice, "730.1", "v1.37.1-rc2+rke2r1"))
-	tl.Handle(ctx, mentionIn(testChan, alice, "731.1", "v1.36.5-rc2+rke2r1"))
-	tl.waitRuns(t, 2)
-	close(tl.gate)
-	tl.Wait()
-
-	restarted := newTestListener(t, nil)
-	restarted.StatePath = path
-	if err := restarted.Restore(); err != nil {
-		t.Fatal(err)
-	}
-	if b := restarted.Blocked(); !strings.Contains(b, "thread 730.1") || !strings.Contains(b, "thread 731.1") {
-		t.Fatalf("blocks after restart: %q", b)
-	}
-
-	tl.Handle(ctx, reply(alice, "731.1", "unblock"))
-	stillBlocked := strings.Contains(tl.slack.all(), "1 other runs are still blocked")
-	if tl.Blocked() == "" || tl.Capacity.InUse("mower") != 1 || !stillBlocked {
-		t.Fatalf("after unblocking 731.1: blocked %q, in use %d:\n%s", tl.Blocked(), tl.Capacity.InUse("mower"),
-			tl.slack.all())
-	}
-	tl.Handle(ctx, mention(alice, "732.1"))
-	tl.Wait()
-	if tl.runs.Load() != 2 {
-		t.Fatalf("a new plan started while run 730.1 was still blocked")
-	}
-
-	tl.Handle(ctx, reply(alice, "730.1", "unblock"))
-	tl.Handle(ctx, mention(alice, "733.1"))
-	tl.Wait()
-	if tl.Blocked() != "" || tl.Capacity.InUse("mower") != 0 || tl.runs.Load() != 3 {
-		t.Fatalf("after both unblocks: blocked %q, in use %d, runs %d", tl.Blocked(), tl.Capacity.InUse("mower"),
-			tl.runs.Load())
-	}
-}
-
 // Duplicates are removed before a refusal is checked: only the plan with both tags is refused here
 // (the running tag has its own blocker), and the new tag still starts.
 func TestListenerRefusalOfDuplicateDoesNotBlockNewTags(t *testing.T) {
@@ -329,27 +276,6 @@ func TestListenerRefusalOfDuplicateDoesNotBlockNewTags(t *testing.T) {
 	if !strings.Contains(got, "561.1|PLAN for v1.36.5-rc2+rke2r1\n\nLeft out: v1.37.1-rc2+rke2r1") ||
 		strings.Contains(got, "Not started") {
 		t.Fatalf("posts:\n%s", got)
-	}
-}
-
-// unblock frees the slots that run's unknown builds held, and only those.
-func TestListenerUnblockFreesItsSlots(t *testing.T) {
-	tl := newTestListener(t, nil)
-	tl.Capacity = &Capacity{}
-	tl.errs = []error{fmt.Errorf("%w: job-a v1", ErrUnreconciledBuilds)}
-	ctx := testContext(t)
-	for _, owner := range []string{threadKey(testChan, "720.1"), threadKey(testChan, "other")} {
-		tl.Capacity.acquire("mower", 6)
-		tl.Capacity.abandon("mower", owner)
-	}
-
-	tl.Handle(ctx, mention(alice, "720.1"))
-	tl.Wait()
-	tl.Handle(ctx, reply(alice, "720.1", "unblock"))
-	if tl.Capacity.InUse("mower") != 1 || tl.Capacity.Abandoned("mower") != 1 ||
-		!strings.Contains(tl.slack.all(), "Freed 1 Jenkins slots") {
-		t.Fatalf("in use %d, abandoned %d:\n%s", tl.Capacity.InUse("mower"), tl.Capacity.Abandoned("mower"),
-			tl.slack.all())
 	}
 }
 
@@ -468,117 +394,12 @@ func TestListenerRefusesUnrunnablePlan(t *testing.T) {
 }
 
 func TestListenerPlanError(t *testing.T) {
-	tl := newTestListener(t, errors.New("tags not found on GitHub: v9.9.9-rc1+rke2r1"))
+	tl := newTestListener(t, errors.New("tags not found on gitHub: v9.9.9-rc1+rke2r1"))
 	tl.Handle(testContext(t), mention(alice, "650.1"))
 	tl.Wait()
 	if !strings.Contains(tl.slack.all(), "650.1|Could not build a release plan: tags not found") {
 		t.Fatalf("posts:\n%s", tl.slack.all())
 	}
-}
-
-// A run that ends with builds in unknown state blocks the next plan until someone allowed replies
-// `unblock` in that run's thread; their Jenkins capacity was never released.
-func TestListenerBlocksAfterUnreconciledBuilds(t *testing.T) {
-	tl := newTestListener(t, nil)
-	tl.errs = []error{fmt.Errorf("1 of 2 jobs did not succeed; %w: job-a v1 (no build url)", ErrUnreconciledBuilds)}
-	ctx := testContext(t)
-
-	tl.Handle(ctx, mention(alice, "700.1"))
-	tl.Wait()
-	tl.Handle(ctx, mention(alice, "701.1"))
-	tl.Wait()
-	if tl.runs.Load() != 1 || !strings.Contains(tl.slack.all(), "701.1|PLAN for v1.37.1-rc2+rke2r1\n\nNot started: "+
-		"new plans are blocked") {
-		t.Fatalf("second plan ran while builds were unreconciled (runs=%d):\n%s", tl.runs.Load(), tl.slack.all())
-	}
-
-	tl.Handle(ctx, reply(mallory, "700.1", "unblock"))
-	tl.Handle(ctx, reply(alice, "701.1", "unblock")) // wrong thread: ignored
-	if tl.Blocked() == "" {
-		t.Fatalf("unblocked by the wrong user or thread:\n%s", tl.slack.all())
-	}
-
-	tl.Handle(ctx, reply(alice, "700.1", "unblock"))
-	tl.Handle(ctx, mention(alice, "702.1"))
-	tl.Wait()
-	if tl.runs.Load() != 2 || !strings.Contains(tl.slack.all(), "Unblocked this run, by <@"+alice+">") {
-		t.Fatalf("runs=%d posts:\n%s", tl.runs.Load(), tl.slack.all())
-	}
-}
-
-// A run that stopped part-way blocks new runs and keeps the block across restarts; a run that
-// failed before starting anything does not.
-func TestListenerBlocksAfterPartialRun(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	tl := newTestListener(t, nil)
-	tl.StatePath = path
-	tl.errs = []error{
-		errors.New("GITHUB_TOKEN is required to dispatch wf.yaml"),
-		fmt.Errorf("%w: %w", ErrPartialRun, context.Canceled),
-	}
-	ctx := testContext(t)
-
-	for _, ts := range []string{"750.1", "751.1"} {
-		tl.Handle(ctx, mention(alice, ts))
-		tl.Wait()
-	}
-	if tl.runs.Load() != 2 || !strings.Contains(tl.slack.all(), "751.1|Release plan stopped part-way") {
-		t.Fatalf("an error before any side effect must not block (runs=%d):\n%s", tl.runs.Load(), tl.slack.all())
-	}
-
-	next := newTestListener(t, nil)
-	next.StatePath = path
-	if err := next.Restore(); err != nil {
-		t.Fatal(err)
-	}
-	next.Handle(ctx, mention(alice, "752.1"))
-	next.Wait()
-	if next.runs.Load() != 0 || next.Blocked() == "" || !strings.Contains(next.slack.all(), "new plans are blocked") {
-		t.Fatalf("partial run did not block after restart (runs=%d):\n%s", next.runs.Load(), next.slack.all())
-	}
-}
-
-// Runs in progress survive a restart as a block, even without a clean shutdown.
-func TestListenerStateSurvivesRestart(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	tl := newTestListener(t, nil)
-	tl.StatePath = path
-	tl.gate = make(chan struct{})
-	ctx := testContext(t)
-
-	tl.Handle(ctx, mention(alice, "800.1"))
-	tl.waitRuns(t, 1)
-	// Process killed here: only the state file is left.
-	raw, err := os.ReadFile(path)
-	if err != nil || !strings.Contains(string(raw), `"running":["`+testChan+`|800.1"]`) {
-		t.Fatalf("in-progress marker not written before the run: %s %v", raw, err)
-	}
-
-	next := newTestListener(t, nil)
-	next.StatePath = path
-	if err = next.Restore(); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(next.Blocked(), "stopped during the run in thread 800.1") {
-		t.Fatalf("restart did not block: %q", next.Blocked())
-	}
-	next.Handle(ctx, mention(alice, "801.1"))
-	next.waitPost(t, "801.1|") // plans run beside the event loop: let this one answer first
-	next.Handle(ctx, reply(alice, "800.1", "unblock"))
-	next.Handle(ctx, mention(alice, "802.1"))
-	next.Wait()
-	if next.runs.Load() != 1 || !strings.Contains(next.slack.all(), "801.1|PLAN for v1.37.1-rc2+rke2r1\n\nNot started") {
-		t.Fatalf("runs=%d posts:\n%s", next.runs.Load(), next.slack.all())
-	}
-	raw, _ = os.ReadFile(path)
-	var st listenerState
-	_ = json.Unmarshal(raw, &st)
-	if len(st.Blocks) != 0 || len(st.Running) != 0 {
-		t.Fatalf("state after unblock and a clean run: %s", raw)
-	}
-
-	close(tl.gate)
-	tl.Wait()
 }
 
 // The last progress lines and the outcome are posted even after the run's ctx is canceled.
@@ -601,17 +422,17 @@ func TestListenerPostsOutcomeAfterShutdown(t *testing.T) {
 		return &Planned{Summary: "PLAN", Run: func(runCtx context.Context, rc *RunControl) error {
 			cancel() // SIGTERM while running
 			<-runCtx.Done()
-			rc.Notify("stopping: 2 builds still on Jenkins")
+			rc.Notify("stopping: 2 builds still on jenkins")
 
-			return fmt.Errorf("%w: job-a v1", ErrUnreconciledBuilds)
+			return errors.Join(fmt.Errorf("%w: job-a v1", errUnreconciledBuilds), runCtx.Err())
 		}}, nil
 	}
 	tl.Handle(ctx, mention(alice, "900.1"))
 	tl.Wait()
 
 	all := strings.Join(posts, "\n")
-	if !strings.Contains(all, "stopping: 2 builds still on Jenkins") ||
-		!strings.Contains(all, "finished with builds in unknown state") {
+	if !strings.Contains(all, "stopping: 2 builds still on jenkins") ||
+		!strings.Contains(all, "this run is saved and resumes here") {
 		t.Fatalf("posts after shutdown were lost:\n%s", all)
 	}
 }
@@ -726,7 +547,7 @@ func TestInstanceLockAllowsOneBot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = AcquireInstanceLock(path); !errors.Is(err, ErrAlreadyRunning) {
+	if _, err = AcquireInstanceLock(path); !errors.Is(err, errAlreadyRunning) {
 		t.Fatalf("second instance: %v", err)
 	}
 	release()
@@ -748,7 +569,7 @@ func (tl *testListener) waitPost(t *testing.T, want string) {
 	}
 }
 
-// A plan stuck on a slow Jenkins does not hold the event loop: `stop` and `status` in a running
+// A plan stuck on a slow jenkins does not hold the event loop: `stop` and `status` in a running
 // thread are answered while it is being built.
 func TestListenerControlWhilePlanning(t *testing.T) {
 	tl := newTestListener(t, nil)
@@ -821,5 +642,303 @@ func TestListenerPlanQueueIsBounded(t *testing.T) {
 	tl.Wait()
 	if n := planned.Load(); n != 2 || strings.Contains(tl.slack.all(), "921.1|The bot is busy") {
 		t.Fatalf("planned %d, posts:\n%s", n, tl.slack.all())
+	}
+}
+
+// A run that ends with builds in unknown state, or part-way, is reported in its thread and blocks
+// nothing: the next plan starts.
+func TestListenerDoesNotBlockAfterBadEnds(t *testing.T) {
+	tl := newTestListener(t, nil)
+	tl.errs = []error{
+		fmt.Errorf("1 of 2 jobs did not succeed; %w: job-a v1", errUnreconciledBuilds),
+		fmt.Errorf("%w: dispatch b.yaml: 502", errPartialRun),
+	}
+	ctx := testContext(t)
+	for _, ts := range []string{"700.1", "701.1", "702.1"} {
+		tl.Handle(ctx, mention(alice, ts))
+		tl.Wait()
+	}
+	got := tl.slack.all()
+	if tl.runs.Load() != 3 || !strings.Contains(got, "700.1|Release plan finished; some builds stayed in unknown") ||
+		!strings.Contains(got, "701.1|Release plan stopped part-way") || strings.Contains(got, "blocked") {
+		t.Fatalf("runs=%d posts:\n%s", tl.runs.Load(), got)
+	}
+}
+
+// A run's progress is saved at each change; after a restart (the old process killed) it resumes in
+// its own thread from what was saved, takes `stop` there, and is removed from the state once over.
+func TestListenerResumesSavedRuns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	tl := newTestListener(t, nil)
+	tl.StatePath = path
+	saved := Progress{RequestID: "rb-1", Stage: StageJobs, Jobs: []JobRecord{
+		{Job: JenkinsJob{Name: "smoke", Version: "v1"}, State: jobRunning, BuildURL: "b/1"},
+	}}
+	tl.Plan = func(context.Context, string) (*Planned, error) {
+		killedWhileRunning := func(ctx context.Context, rc *RunControl) error {
+			_ = rc.Save(saved)
+			<-ctx.Done() // the process is killed while the build runs
+
+			return ctx.Err()
+		}
+
+		return &Planned{Summary: "PLAN", Tags: []string{"v1.37.1-rc2+rke2r1"}, Run: killedWhileRunning}, nil
+	}
+	ctx, kill := context.WithCancel(testContext(t))
+	tl.Handle(ctx, mention(alice, "800.1"))
+	waitFile(t, path, `"build_url":"b/1"`)
+	kill()
+	tl.Wait()
+
+	next := newTestListener(t, nil)
+	next.StatePath = path
+	resumed := make(chan Progress, 1)
+	next.Resume = func(_ context.Context, rc *RunControl, p Progress) error {
+		rc.Ready() // holds no slot: the other resumed runs (none here) may go
+		<-rc.Go
+		resumed <- p
+		<-rc.Stop
+
+		return nil
+	}
+	if err := next.Restore(); err != nil || next.SavedRuns() != 1 {
+		t.Fatalf("restore: %v, saved %d", err, next.SavedRuns())
+	}
+	ctx2 := testContext(t)
+	if n := next.ResumeRuns(ctx2); n != 1 {
+		t.Fatalf("resumed %d", n)
+	}
+	if p := receive(t, resumed); p.RequestID != "rb-1" || len(p.Jobs) != 1 || p.Jobs[0].BuildURL != "b/1" {
+		t.Fatalf("resumed from %+v", p)
+	}
+	next.Handle(ctx2, mention(alice, "801.1")) // same tag: the resumed run still holds it
+	next.waitPost(t, "801.1|")
+	next.Handle(ctx2, reply(alice, "800.1", "stop"))
+	next.Wait()
+	got := next.slack.all()
+	if !strings.Contains(got, "800.1|The bot restarted; resuming this run") ||
+		!strings.Contains(got, "801.1|PLAN for v1.37.1-rc2+rke2r1\n\nNot started: v1.37.1-rc2+rke2r1 already running") ||
+		!strings.Contains(got, "800.1|Release plan finished.") || next.SavedRuns() != 0 {
+		t.Fatalf("saved %d, posts:\n%s", next.SavedRuns(), got)
+	}
+	if raw, _ := os.ReadFile(path); strings.Contains(string(raw), "800.1") {
+		t.Fatalf("finished run still saved: %s", raw)
+	}
+}
+
+// A run saved before its workflows were all dispatched is not resumed (what started is unknown):
+// its thread says so and it leaves the state.
+func TestListenerDropsUnresumableRuns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	state := listenerState{Runs: map[string]*savedRun{
+		threadKey(testChan, "810.1"): {
+			Channel: testChan, TS: "810.1", User: alice, Progress: Progress{Stage: StageDispatching},
+		},
+	}}
+	raw, _ := json.Marshal(state)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tl := newTestListener(t, nil)
+	tl.StatePath = path
+	tl.Resume = func(context.Context, *RunControl, Progress) error {
+		t.Fatal("an unresumable run was resumed")
+		return nil
+	}
+	if err := tl.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if n := tl.ResumeRuns(testContext(t)); n != 0 || tl.SavedRuns() != 0 ||
+		!strings.Contains(tl.slack.all(), "810.1|<@"+alice+"> The bot restarted before this run had dispatched all") {
+		t.Fatalf("resumed %d, saved %d, posts:\n%s", n, tl.SavedRuns(), tl.slack.all())
+	}
+}
+
+func waitFile(t *testing.T, path, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if raw, _ := os.ReadFile(path); strings.Contains(string(raw), want) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never contained %q", path, want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// Resumed runs wait for each other: a run with only pending jobs triggers nothing until the run whose
+// build is still on jenkins has taken its slot back, so together they stay within the limit.
+func TestResumedRunsTakeTheirSlotsFirst(t *testing.T) {
+	smoke := JenkinsJob{Name: "smoke", Product: "rke2", Version: "v1", Controller: "mower", Path: "smoke"}
+	busy := JenkinsJob{Name: "busy", Product: "rke2", Version: "v2", Controller: "mower", Path: "busy"}
+	b := &resumeBuilder{triggers: map[string]int{}, hold: map[string]chan struct{}{"busy": make(chan struct{})}}
+	capacity := &Capacity{}
+	tl := newTestListener(t, nil)
+	tl.saved = map[string]*savedRun{
+		threadKey(testChan, "1"): {
+			Channel: testChan, TS: "1", User: alice,
+			Progress: Progress{Stage: StageJobs, Jobs: []JobRecord{{Job: smoke, State: jobPending}}},
+		},
+		threadKey(testChan, "2"): {
+			Channel: testChan, TS: "2", User: alice,
+			Progress: Progress{Stage: StageJobs, Jobs: []JobRecord{{Job: busy, State: jobRunning, BuildURL: "b/busy"}}},
+		},
+	}
+	post := tl.Post
+	tl.Post = func(ctx context.Context, channel, thread, text string) error {
+		if thread == "2" && strings.HasPrefix(text, "The bot restarted;") {
+			time.Sleep(100 * time.Millisecond) // the run holding a build starts late
+		}
+
+		return post(ctx, channel, thread, text)
+	}
+	tl.Resume = func(ctx context.Context, rc *RunControl, p Progress) error {
+		s := &Scheduler{
+			Builders: map[string]Builder{"mower": b}, Limits: map[string]Limits{"mower": {MaxConcurrent: 1}},
+			Poll: time.Millisecond, Capacity: capacity, Owner: rc.ID, Resume: p.Jobs, Ready: rc.Ready, Go: rc.Go,
+		}
+		s.Run(ctx, nil)
+
+		return nil
+	}
+	if n := tl.ResumeRuns(testContext(t)); n != 2 {
+		t.Fatalf("resumed %d", n)
+	}
+	time.Sleep(50 * time.Millisecond) // the pending run had every chance to trigger
+	if b.count("smoke") != 0 || capacity.InUse("mower") != 1 {
+		t.Fatalf("smoke triggered %d times past the limit, slots %d", b.count("smoke"), capacity.InUse("mower"))
+	}
+	close(b.hold["busy"])
+	tl.Wait()
+	if b.count("smoke") != 1 {
+		t.Fatalf("smoke triggered %d times once the slot was free", b.count("smoke"))
+	}
+}
+
+// `stop` is in the saved state at once, so a run stopped just before a restart resumes stopped.
+func TestStopIsSaved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	tl := newTestListener(t, nil)
+	tl.StatePath = path
+	tl.gate = make(chan struct{})
+	ctx := testContext(t)
+	tl.Handle(ctx, mention(alice, "820.1"))
+	tl.waitRuns(t, 1)
+	tl.Handle(ctx, reply(alice, "820.1", "stop"))
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), `"stopped":true`) {
+		t.Fatalf("stop not saved: %s", raw)
+	}
+	tl.Wait()
+}
+
+// A run's save reports a failure (the scheduler then triggers nothing), and the state file carries
+// a version: a newer one is refused instead of misread.
+func TestStateSaveErrorsAndVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	l := &Listener{StatePath: path}
+	run := l.newRunLocked("C", "1", "U", []string{"v1"}, time.Now())
+	if err := run.ctl.Save(Progress{Stage: StageJobs}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil { // the next write cannot replace the file
+		t.Fatal(err)
+	}
+	if err := run.ctl.Save(Progress{Stage: StageJobs, RequestID: "x"}); err == nil {
+		t.Fatal("a failed save was not reported")
+	}
+
+	newer, _ := json.Marshal(map[string]any{"version": stateVersion + 1})
+	if err := os.WriteFile(path, newer, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&Listener{StatePath: path}).Restore(); err == nil {
+		t.Fatal("a state of a newer format was read")
+	}
+}
+
+// Without a Resume the saved runs are kept for a bot that can resume them, and nobody is told
+// anything wrong.
+func TestNoResumeKeepsSavedRuns(t *testing.T) {
+	tl := newTestListener(t, nil)
+	tl.saved = map[string]*savedRun{threadKey(testChan, "1"): {
+		Channel: testChan, TS: "1",
+		Progress: Progress{Stage: StageJobs},
+	}}
+	if n := tl.ResumeRuns(testContext(t)); n != 0 || tl.SavedRuns() != 1 || tl.slack.all() != "" {
+		t.Fatalf("resumed %d, saved %d, posts %q", n, tl.SavedRuns(), tl.slack.all())
+	}
+}
+
+// A run that ended on its own just as the bot stopped is over: it is not saved to be resumed.
+func TestRunEndingAtShutdownIsNotSaved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	tl := newTestListener(t, nil)
+	tl.StatePath = path
+	ctx, stop := context.WithCancel(testContext(t))
+	tl.Plan = func(context.Context, string) (*Planned, error) {
+		return &Planned{Summary: "PLAN", Run: func(context.Context, *RunControl) error {
+			stop() // SIGTERM arrives as the run finishes by itself
+
+			return nil
+		}}, nil
+	}
+	tl.Handle(ctx, mention(alice, "830.1"))
+	tl.Wait()
+	if tl.SavedRuns() != 0 || !strings.Contains(tl.slack.all(), "830.1|Release plan finished.") {
+		t.Fatalf("saved %d, posts:\n%s", tl.SavedRuns(), tl.slack.all())
+	}
+}
+
+// The saved state is a copy: a run changing its own job parameters (Qase run ids) while another run
+// saves the whole state is no data race (run with -race).
+func TestSavedStateIsACopy(t *testing.T) {
+	l := &Listener{StatePath: filepath.Join(t.TempDir(), "state.json")}
+	a := l.newRunLocked("C", "1", "U", []string{"v1"}, time.Now())
+	b := l.newRunLocked("C", "2", "U", []string{"v2"}, time.Now())
+	params := map[string]string{"QASE_RUN_ID": "{{QASE_RUN_ID}}"}
+	progress := Progress{Stage: StageDispatched, Jobs: []JobRecord{{Job: JenkinsJob{Params: params}}}}
+	if err := a.ctl.Save(progress); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			params["QASE_RUN_ID"] = strconv.Itoa(i)
+		}
+	}()
+	for range 200 {
+		_ = b.ctl.Save(Progress{Stage: StageJobs})
+	}
+	<-done
+}
+
+// A resume that could not be set up keeps the run saved and its tags taken (its builds may run).
+func TestFailedResumeKeepsTheRun(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	tl := newTestListener(t, nil)
+	tl.StatePath = path
+	tl.saved = map[string]*savedRun{threadKey(testChan, "840.1"): {
+		Channel: testChan, TS: "840.1", User: alice,
+		Tags: []string{"v1.37.1-rc2+rke2r1"}, Progress: Progress{Stage: StageJobs},
+	}}
+	tl.Resume = func(_ context.Context, rc *RunControl, _ Progress) error {
+		rc.Ready()
+		return fmt.Errorf("%w: set JENKINS_MOWER_AUTH=user:apitoken", errResumeFailed)
+	}
+	ctx := testContext(t)
+	tl.ResumeRuns(ctx)
+	tl.Wait()
+	tl.Handle(ctx, mention(alice, "841.1"))
+	tl.Wait()
+	raw, _ := os.ReadFile(path)
+	got := tl.slack.all()
+	if tl.SavedRuns() != 1 || !strings.Contains(string(raw), "840.1") ||
+		!strings.Contains(got, "840.1|<@"+alice+"> could not resume the run: set JENKINS_MOWER_AUTH") ||
+		!strings.Contains(got, "841.1|PLAN for v1.37.1-rc2+rke2r1\n\nNot started: v1.37.1-rc2+rke2r1 already running") {
+		t.Fatalf("saved %d, state %s, posts:\n%s", tl.SavedRuns(), raw, got)
 	}
 }

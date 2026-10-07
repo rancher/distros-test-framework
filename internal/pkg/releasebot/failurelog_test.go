@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// ginkgoLog is a failed DTF build's console as Jenkins prints it (stamps, colors), with the
+// ginkgoLog is a failed DTF build's console as jenkins prints it (stamps, colors), with the
 // details that differ between RCs (volume ids, durations) as parameters.
 func ginkgoLog(pvc, version string, seconds int) string {
 	return strings.Join([]string{
@@ -101,7 +101,7 @@ func TestSignatureKeepsMeaningfulNumbers(t *testing.T) {
 	}
 }
 
-// Jenkins' own trailers are not a cause: a log with nothing else gets no signature (not reused).
+// jenkins' own trailers are not a cause: a log with nothing else gets no signature (not reused).
 func TestSignatureIgnoresGenericTrailers(t *testing.T) {
 	log := strings.Join([]string{
 		"[Pipeline] { (Run TestCombination)",

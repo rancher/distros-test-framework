@@ -21,17 +21,17 @@ func TestExecuteChecksQaseBeforeDispatch(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
-	gh := &GitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
+	gh := &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
 
 	plan := &Plan{
 		RequestID: "rb-1",
-		Workflows: []WorkflowDispatch{{Repo: "o/r", Workflow: "wf.yaml", Ref: "main"}},
+		Workflows: []workflowDispatch{{Repo: "o/r", Workflow: "wf.yaml", Ref: "main"}},
 		Jobs: []JenkinsJob{{
 			Name: "smoke", Product: "rke2", Version: "v1.37.1-rc1+rke2r1", Controller: "mower", Path: "p",
 			Params: map[string]string{"QASE_RUN_ID": "{{QASE_RUN_ID}}"},
 		}},
 	}
-	p := &Prepared{Plan: plan, Matrix: &Matrix{}, GitHub: gh}
+	p := &prepared{Plan: plan, Matrix: &Matrix{}, GitHub: gh}
 
 	err := New(&Config{Poll: time.Millisecond, QaseTimeout: time.Second}).Execute(context.Background(), p, nil)
 	if err == nil || !strings.Contains(err.Error(), "QASE_AUTOMATION_TOKEN") {
@@ -49,7 +49,7 @@ func TestExecuteChecksQaseBeforeDispatch(t *testing.T) {
 }
 
 // fakeDispatches answers each workflow dispatch with the next status, calling onDispatch first.
-func fakeDispatches(t *testing.T, statuses []int, onDispatch func()) (gh *GitHub, dispatches *int) {
+func fakeDispatches(t *testing.T, statuses []int, onDispatch func()) (gh *gitHub, dispatches *int) {
 	t.Helper()
 	n := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -60,13 +60,13 @@ func fakeDispatches(t *testing.T, statuses []int, onDispatch func()) (gh *GitHub
 	}))
 	t.Cleanup(srv.Close)
 
-	return &GitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}, &n
+	return &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}, &n
 }
 
 // After the first dispatch may have started a workflow, any failure is a partial run; only a
 // first dispatch rejected (4xx) or never sent (no token), or a failure before it, proves nothing started.
 func TestExecuteMarksPartialRuns(t *testing.T) {
-	wfs := []WorkflowDispatch{
+	wfs := []workflowDispatch{
 		{Repo: "o/r", Workflow: "a.yaml", Ref: "qa-infra-RC-1"},
 		{Repo: "o/r", Workflow: "b.yaml", Ref: "qa-infra-RC-1"},
 	}
@@ -108,11 +108,11 @@ func TestExecuteMarksPartialRuns(t *testing.T) {
 				plan.Jobs = jobs
 			}
 			app := New(&Config{Poll: time.Millisecond})
-			err := app.Execute(ctx, &Prepared{Plan: plan, Matrix: matrix, GitHub: gh}, nil)
+			err := app.Execute(ctx, &prepared{Plan: plan, Matrix: matrix, GitHub: gh}, nil)
 			if err == nil {
 				t.Fatal("expected an error")
 			}
-			if got := errors.Is(err, ErrPartialRun); got != tc.partial {
+			if got := errors.Is(err, errPartialRun); got != tc.partial {
 				t.Fatalf("partial = %v, want %v (err: %v)", got, tc.partial, err)
 			}
 			if *dispatches != tc.dispatches {
@@ -130,15 +130,15 @@ func TestExecuteRefusesUnrunnablePlan(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
-	gh := &GitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
+	gh := &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
 	plan := &Plan{
 		RequestID: "rb-1",
-		Workflows: []WorkflowDispatch{{Repo: "o/r", Workflow: "wf.yaml", Ref: "qa-infra-RC-1"}},
+		Workflows: []workflowDispatch{{Repo: "o/r", Workflow: "wf.yaml", Ref: "qa-infra-RC-1"}},
 		Jobs:      []JenkinsJob{{Name: "arm", Controller: "mower", Path: "p/arm"}},
 		Blocked:   []SkippedJob{{Path: "p/tar", Version: "v1", Reason: "job has no parameter INSTALL_VERSION"}},
 	}
 
-	p := &Prepared{Plan: plan, Matrix: &Matrix{}, GitHub: gh}
+	p := &prepared{Plan: plan, Matrix: &Matrix{}, GitHub: gh}
 	err := New(&Config{Poll: time.Millisecond}).Execute(context.Background(), p, nil)
 	if err == nil || !strings.Contains(err.Error(), "not running") || dispatches != 0 {
 		t.Fatalf("err=%v dispatches=%d", err, dispatches)
@@ -175,7 +175,7 @@ func (flakyBuilder) Finished(_ context.Context, b string) (done bool, result str
 // (which would block new plans).
 func TestRunJobsSkippedIsNotAFailure(t *testing.T) {
 	commands := make(chan Command, 1)
-	h := &Hooks{Notify: func(string, string, ...any) {}, Triage: askTriager, Commands: commands}
+	h := &hooks{Notify: func(string, string, ...any) {}, Triage: askTriager, Commands: commands}
 	h.Help = func(string) {
 		reply := make(chan string, 1)
 		commands <- Command{Action: CommandSkip, Job: "smoke", By: "U1", Reply: reply}
@@ -191,27 +191,28 @@ func TestRunJobsSkippedIsNotAFailure(t *testing.T) {
 	}
 	builders := map[string]Builder{"mower": flakyBuilder{}}
 
-	if err := New(&Config{Poll: time.Millisecond}).runJobs(context.Background(), h, matrix, builders, jobs); err != nil {
+	app := New(&Config{Poll: time.Millisecond})
+	if err := app.runJobs(context.Background(), h, &Progress{}, matrix, builders, jobs, nil); err != nil {
 		t.Fatalf("runJobs = %v, want nil after a skip", err)
 	}
 }
 
 // A dispatch that never left the bot says so: nothing can have started, so the run is not partial.
 func TestDispatchNotSent(t *testing.T) {
-	w := WorkflowDispatch{Repo: "o/r", Workflow: "wf.yaml", Ref: "main"}
-	if err := (&GitHub{Token: ""}).Dispatch(context.Background(), w); !errors.Is(err, ErrDispatchNotSent) {
+	w := workflowDispatch{Repo: "o/r", Workflow: "wf.yaml", Ref: "main"}
+	if err := (&gitHub{Token: ""}).Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("no token: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := newGitHub("tok").Dispatch(ctx, w); !errors.Is(err, ErrDispatchNotSent) {
+	if err := newGitHub("tok").Dispatch(ctx, w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("canceled: %v", err)
 	}
 	srv := httptest.NewServer(http.NotFoundHandler())
 	addr := srv.URL
 	srv.Close()
-	gh := &GitHub{BaseURL: addr, Token: "tok", HTTP: http.DefaultClient}
-	if err := gh.Dispatch(context.Background(), w); !errors.Is(err, ErrDispatchNotSent) {
+	gh := &gitHub{BaseURL: addr, Token: "tok", HTTP: http.DefaultClient}
+	if err := gh.Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("connection refused: %v", err)
 	}
 }

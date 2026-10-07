@@ -11,7 +11,7 @@ func (s *Scheduler) Status() string {
 	s.statusMu.Lock()
 	defer s.statusMu.Unlock()
 	if s.status == "" {
-		return "Starting the Jenkins jobs."
+		return "Starting the jenkins jobs."
 	}
 
 	return s.status
@@ -19,8 +19,8 @@ func (s *Scheduler) Status() string {
 
 // rcCounts is where one product+RC stands: the lowest phase with work left and its job counts.
 type rcCounts struct {
-	phase, waiting, running, triage, help, passed, failed int
-	busy                                                  bool
+	phase, waiting, running, triage, help, watched, passed, failed int
+	busy                                                           bool
 }
 
 func (c *rcCounts) at(phase int) {
@@ -46,6 +46,9 @@ func (c *rcCounts) String() string {
 	if c.help > 0 {
 		extra += fmt.Sprintf(", %d need help", c.help)
 	}
+	if c.watched > 0 {
+		extra += fmt.Sprintf(", %d in unknown state (watched)", c.watched)
+	}
 
 	return fmt.Sprintf("%s; %d running, %d waiting%s, %d passed, %d failed or not run",
 		where, c.running, c.waiting, extra, c.passed, c.failed)
@@ -69,11 +72,13 @@ func countByRC(st *runState) map[string]*rcCounts {
 	}
 	for _, list := range st.active {
 		for _, r := range list {
-			if !r.abandoned {
-				c := get(&r.job)
-				c.running++
-				c.at(r.job.Phase)
+			c := get(&r.job)
+			if r.abandoned {
+				c.watched++
+				continue
 			}
+			c.running++
+			c.at(r.job.Phase)
 		}
 	}
 	for _, o := range st.triaging {

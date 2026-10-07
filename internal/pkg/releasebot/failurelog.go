@@ -16,7 +16,8 @@ var (
 	stageMarker = regexp.MustCompile(`^\[Pipeline\] \{ \((.+)\)$`)
 	errorish    = regexp.MustCompile(`(?i)\b(error|fatal|panic|failed|failure|timed out|timeout)\b`)
 	notError    = regexp.MustCompile(`(?i)\bfailed=0\b|\berrors?: 0\b|ignoring|\bno errors?\b`)
-	// A timeout setting is not a timeout: Jenkins' "# timeout=10" on every git step, go test's
+
+	// A timeout setting is not a timeout: jenkins' "# timeout=10" on every git step, go test's
 	// -timeout=100m. It is removed before a line is checked, so a real error on it still counts.
 	timeoutSetting = regexp.MustCompile(`(?i)(?:#\s*|-{1,2}|\b)timeout\s*[=:]\s*\S+|-{1,2}timeout\s+\S+`)
 
@@ -30,7 +31,7 @@ var (
 		`\b\d+(\.\d+)?\s?(ms|s|m|h|seconds?|minutes?|hours?)\b|\b\d+h\d+m\d+s\b|\b\d+m\d+(\.\d+)?s\b`)
 	spaceRun = regexp.MustCompile(`\s+`)
 
-	// Only Jenkins' known failure trailers (and stack frames) are generic: they say nothing about
+	// Only jenkins' known failure trailers (and stack frames) are generic: they say nothing about
 	// the cause. Exceptions with their own message (hudson.AbortException: Could not find...) are causes.
 	genericLine = regexp.MustCompile(`^Finished: |^\[Pipeline\]|^Also:\s|` +
 		`^(ERROR: )?([\w.$]+Exception: )*script returned exit code|^at (hudson|org\.jenkinsci|java|jdk|groovy)\.`)

@@ -28,7 +28,7 @@ func planLines(p *Plan, mode string) []planLine {
 	}
 	add("info", "  k3s: %s | rke2: %s", list(p.Request.K3s), list(p.Request.RKE2))
 
-	add("info", "GitHub workflows (%d):", len(p.Workflows))
+	add("info", "gitHub workflows (%d):", len(p.Workflows))
 	for _, w := range p.Workflows {
 		var inputs []string
 		for k, v := range w.Inputs {
@@ -59,7 +59,7 @@ func planLines(p *Plan, mode string) []planLine {
 // jobLines lists the jobs by phase and RC (the log also gets each job's path and parameters),
 // then the upgrade starting versions and the skipped jobs grouped by job.
 func jobLines(p *Plan, add func(level, format string, args ...any)) {
-	add("info", "Jenkins jobs (%d); each RC starts a phase once all its jobs of the previous phase passed:",
+	add("info", "jenkins jobs (%d); each RC starts a phase once all its jobs of the previous phase passed:",
 		len(p.Jobs))
 	byPhase := map[int]map[string][]string{}
 	var phases []int
@@ -74,6 +74,7 @@ func jobLines(p *Plan, add func(level, format string, args ...any)) {
 		add("debug", "  phase %d %s %s prefix=%s params: %s", j.Phase, j.Path, j.Version,
 			j.Params["HOSTNAME_PREFIX"], sortedParams(j.Params))
 	}
+
 	sort.Ints(phases)
 	for _, ph := range phases {
 		add("info", "  Phase %d:", ph)
@@ -97,7 +98,7 @@ func jobLines(p *Plan, add func(level, format string, args ...any)) {
 	}
 
 	skippedLines(add, "Cannot run, so the plan will not start (%d):", p.Blocked)
-	skippedLines(add, "Skipped, optional jobs not on Jenkins yet (%d):", p.Skipped)
+	skippedLines(add, "Skipped, optional jobs not on jenkins yet (%d):", p.Skipped)
 }
 
 // skippedLines groups jobs by path and reason, listing the RCs each applies to.
@@ -130,17 +131,16 @@ func sortedParams(params map[string]string) string {
 	return strings.Join(out, " ")
 }
 
-// PrintPlan writes the plan to the operator's log, labeled with mode (DRY-RUN, EXECUTE) when set.
 func (a *App) PrintPlan(p *Plan, mode string) {
 	for _, l := range planLines(p, mode) {
 		a.cfg.Log(l.level, "%s", l.text)
 	}
 }
 
-// planSummary is the plan shown in Slack: without debug lines, as a code block.
 func planSummary(p *Plan) string {
 	var b strings.Builder
 	b.WriteString("```\n")
+
 	// No mode: the message posted with it says whether the plan started or is dry-run only.
 	for _, l := range planLines(p, "") {
 		if l.level != "debug" {

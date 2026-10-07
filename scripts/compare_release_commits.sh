@@ -9,17 +9,27 @@ usage() {
     'Exit: 0 complete/ahead; 1 attention (identical/behind/diverged); 2 collection/configuration error.'
 }
 
-config_error() { printf 'ERROR [CONFIG] %s\n' "$1" >&2; exit 2; }
+config_error() {
+  printf 'ERROR [CONFIG] %s\n' "$1" >&2
+  if [[ "${reports_ready:-false}" == true ]]; then
+    jq -cn --arg message "$1" '{level:"ERROR",code:"CONFIG",rc:"",message:$message}' \
+      >> "$work_dir/findings.jsonl"
+    write_reports || printf 'ERROR [REPORT] could not publish configuration failure reports\n' >&2
+  fi
+  exit 2
+}
 
 versions=''
 baselines='{}'
 output_dir='tmp/release-commits'
 request_id=''
+tags='[]'
+parse_error=''
 while (($#)); do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --versions|--baselines|--output-dir|--request-id)
-      (($# >= 2)) || config_error "missing value for $1"
+      if (($# < 2)); then parse_error="missing value for $1"; break; fi
       case "$1" in
         --versions) versions="$2" ;;
         --baselines) baselines="$2" ;;
@@ -27,21 +37,66 @@ while (($#)); do
         --request-id) request_id="$2" ;;
       esac
       shift 2 ;;
-    *) config_error 'unknown option; use --help' ;;
+    *) parse_error='unknown option; use --help'; shift ;;
   esac
 done
-for dependency in curl jq; do
-  command -v "$dependency" >/dev/null || config_error "install $dependency first"
+
+write_reports() {
+  local report_request_id="$request_id"
+  [[ "$report_request_id" =~ ^[a-zA-Z0-9._-]{0,80}$ ]] || report_request_id=''
+  jq -n --arg request_id "$report_request_id" --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson requested "$tags" --slurpfile comparisons "$work_dir/comparisons.jsonl" \
+    --slurpfile findings "$work_dir/findings.jsonl" '
+    {schema_version:1,request_id:$request_id,generated_at:$generated_at,requested:$requested,
+      comparisons:$comparisons,findings:$findings,
+      exit_code:(if any($findings[]; .level == "ERROR") then 2
+        elif any($findings[]; .level == "ATTENTION") then 1 else 0 end)}
+  ' > "$work_dir/report.json" || return 1
+  jq -r '
+    "# GA → RC commit comparison\n",
+    "Collection/comparison only: no issue-status or cross-minor backport validation.\n",
+    "Exit code: \(.exit_code). Compared \(.comparisons|length)/\(.requested|length) requested RCs.\n",
+    (.findings[] | "- **\(.level) [\(.code)]** \(.rc): \(.message | @html)"),
+    (.comparisons[] | "\n## \(.rc)\n",
+      "GA: `\(.base)` (\(.baseline_source)). Status: **\(.status)**. New commits: **\(.total_commits)**.\n",
+      "[Tag comparison](\(.compare_url)) · [Pinned comparison](\(.pinned_compare_url))\n",
+      "Base SHA: `\(.base_sha)`; RC SHA: `\(.head_sha)`.\n",
+      "<details><summary>Commits</summary>\n<ul>",
+      (.commits[] | "<li><a href=\"\(.url)\"><code>\(.sha[:12])</code></a> \(.subject | @html)</li>"),
+      "</ul>\n</details>\n")
+  ' "$work_dir/report.json" > "$work_dir/summary.md" || return 1
+  # Staging beside the outputs makes each replacement atomic, even on configuration errors.
+  mv -f -- "$work_dir/report.json" "$output_dir/report.json" || return 1
+  mv -f -- "$work_dir/summary.md" "$output_dir/summary.md" || return 1
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    cat -- "$output_dir/summary.md" >> "$GITHUB_STEP_SUMMARY" || return 1
+  fi
+}
+
+command -v jq >/dev/null || config_error 'install jq first; reports cannot be generated without it'
+[[ -n "$output_dir" ]] || config_error 'a nonempty output directory is required'
+mkdir -p -- "$output_dir" || config_error 'cannot create output directory; reports cannot be written'
+for name in report.json summary.md; do
+  [[ ! -L "$output_dir/$name" && ! -d "$output_dir/$name" ]] || config_error 'report paths must not be symlinks or directories'
 done
+umask 077
+work_dir=$(mktemp -d "$output_dir/.compare-commits.XXXXXX")
+trap 'rm -rf -- "$work_dir"' EXIT
+: > "$work_dir/comparisons.jsonl"
+: > "$work_dir/findings.jsonl"
+reports_ready=true
+[[ -z "$parse_error" ]] || config_error "$parse_error"
+command -v curl >/dev/null || config_error 'install curl first'
 [[ -n "$versions" && -n "$output_dir" ]] || config_error '--versions and a nonempty output directory are required'
 [[ "$request_id" =~ ^[a-zA-Z0-9._-]{0,80}$ ]] || config_error 'request id must be at most 80 letters/digits/._-'
 
 rc_pattern='^v[0-9]+\.[0-9]+\.[0-9]+-rc[1-9][0-9]*\+(k3s|rke2r)[1-9][0-9]*$'
 ga_pattern='^v[0-9]+\.[0-9]+\.[0-9]+\+(k3s|rke2r)[1-9][0-9]*$'
-tags=$(jq -cn --arg versions "$versions" '$versions | split(",") | map(gsub("^\\s+|\\s+$"; "")) | unique')
+candidate_tags=$(jq -cn --arg versions "$versions" '$versions | split(",") | map(gsub("^\\s+|\\s+$"; "")) | unique')
 while IFS= read -r tag; do
   [[ "$tag" =~ $rc_pattern ]] || config_error 'every version must be a full K3s/RKE2 RC tag (no empty entries)'
-done < <(jq -r '.[]' <<< "$tags")
+done < <(jq -r '.[]' <<< "$candidate_tags")
+tags="$candidate_tags"
 if ! jq -se --argjson tags "$tags" --arg rc "$rc_pattern" --arg ga "$ga_pattern" '
   length == 1 and (.[0] | type == "object" and all(to_entries[];
     (.key | test($rc)) and (.value | type == "string" and test($ga)) and
@@ -54,15 +109,6 @@ while IFS=$'\t' read -r rc base; do
   [[ "${base##*+}" =~ ^$product ]] || config_error 'a baseline must belong to the same product as its RC'
 done < <(jq -r 'to_entries[] | [.key,.value] | @tsv' <<< "$baselines")
 
-mkdir -p -- "$output_dir" || config_error 'cannot create output directory'
-for name in report.json summary.md; do
-  [[ ! -L "$output_dir/$name" ]] || config_error 'report paths must not be symlinks'
-done
-umask 077
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/dtf-compare-commits.XXXXXX")
-trap 'rm -rf -- "$work_dir"' EXIT
-: > "$work_dir/comparisons.jsonl"
-: > "$work_dir/findings.jsonl"
 headers=(--header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28')
 token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 if [[ -n "$token" ]]; then
@@ -80,14 +126,36 @@ finding() {
     '{level:$level,code:$code,rc:$rc,message:$message}' >> "$work_dir/findings.jsonl"
 }
 
+curl_diagnostic() {
+  local line='' code reason pattern='^curl: \(([0-9]+)\)'
+  IFS= read -r line < "$work_dir/curl-error" || true
+  [[ "$line" =~ $pattern ]] || return 0
+  code="${BASH_REMATCH[1]}"
+  # Classify the first line instead of publishing proxy credentials or arbitrary stderr text.
+  case "$code" in
+    5) reason='Could not resolve proxy' ;;
+    6) reason='Could not resolve host' ;;
+    7) reason='Failed to connect' ;;
+    22) reason='HTTP request failed' ;;
+    28) reason='Operation timed out' ;;
+    35) reason='TLS handshake failed' ;;
+    51|60) reason='TLS certificate verification failed' ;;
+    58|77) reason='TLS certificate could not be loaded' ;;
+    *) reason='Request failed (diagnostic text withheld)' ;;
+  esac
+  printf 'curl: (%s) %s' "$code" "$reason"
+}
+
 api() {
-  local endpoint="$1" destination="$2" rc="$3" allow_missing="${4:-false}" status
+  local endpoint="$1" destination="$2" rc="$3" allow_missing="${4:-false}" status detail
   if ! status=$(curl --disable --silent --show-error --fail --connect-timeout 10 --max-time 45 \
     --retry 2 --retry-delay 1 --retry-max-time 90 "${headers[@]}" \
     --output "$destination" --write-out '%{http_code}' "https://api.github.com/$endpoint" \
     2> "$work_dir/curl-error"); then
     [[ "$status" != 404 || "$allow_missing" != true ]] || return 4
-    finding ERROR COLLECTION "$rc" "GitHub request failed (HTTP ${status:-000}): $endpoint"
+    detail=$(curl_diagnostic)
+    [[ -z "$detail" ]] || detail="; $detail"
+    finding ERROR COLLECTION "$rc" "GitHub request failed (HTTP ${status:-000}): $endpoint$detail"
     return 1
   fi
   if [[ "$status" != 200 ]] || ! jq -se 'length == 1' "$destination" >/dev/null 2>&1; then
@@ -238,31 +306,7 @@ while IFS= read -r rc; do
     fi
   fi
 done < <(jq -r '.[]' <<< "$tags")
-jq -n --arg request_id "$request_id" --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --argjson requested "$tags" --slurpfile comparisons "$work_dir/comparisons.jsonl" \
-  --slurpfile findings "$work_dir/findings.jsonl" '
-  {schema_version:1,request_id:$request_id,generated_at:$generated_at,requested:$requested,
-    comparisons:$comparisons,findings:$findings,
-    exit_code:(if any($findings[]; .level == "ERROR") then 2
-      elif any($findings[]; .level == "ATTENTION") then 1 else 0 end)}
-' > "$output_dir/report.json"
-jq -r '
-  "# GA → RC commit comparison\n",
-  "Collection/comparison only: no issue-status or cross-minor backport validation.\n",
-  "Exit code: \(.exit_code). Compared \(.comparisons|length)/\(.requested|length) requested RCs.\n",
-  (.findings[] | "- **\(.level) [\(.code)]** \(.rc): \(.message | @html)"),
-  (.comparisons[] | "\n## \(.rc)\n",
-    "GA: `\(.base)` (\(.baseline_source)). Status: **\(.status)**. New commits: **\(.total_commits)**.\n",
-    "[Tag comparison](\(.compare_url)) · [Pinned comparison](\(.pinned_compare_url))\n",
-    "Base SHA: `\(.base_sha)`; RC SHA: `\(.head_sha)`.\n",
-    "<details><summary>Commits</summary>\n<ul>",
-    (.commits[] | "<li><a href=\"\(.url)\"><code>\(.sha[:12])</code></a> \(.subject | @html)</li>"),
-    "</ul>\n</details>\n")
-' "$output_dir/report.json" > "$output_dir/summary.md"
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  # The summary is readable on failed jobs too, without uploading any temporary credential files.
-  while IFS= read -r line; do printf '%s\n' "$line"; done < "$output_dir/summary.md" >> "$GITHUB_STEP_SUMMARY"
-fi
+write_reports || { printf 'ERROR [REPORT] could not publish reports\n' >&2; exit 2; }
 exit_code=$(jq '.exit_code' "$output_dir/report.json")
 printf '\nResult: exit %s. Reports: %s/report.json and %s/summary.md\n' "$exit_code" "$output_dir" "$output_dir"
 exit "$exit_code"

@@ -37,43 +37,49 @@ type RunControl struct {
 	Stop     <-chan struct{}
 	Commands <-chan Command
 	Help     func(string)
-	mu       sync.Mutex
-	status   func() string
+
+	// Save keeps the run's progress in the bot state, so a restart resumes it.
+	Save func(Progress) error
+
+	// Ready and Go hold resumed runs until all of them took their builds' slots back.
+	Ready func()
+	Go    <-chan struct{}
+
+	mu     sync.Mutex
+	status func() string
 }
 
-// SetStatus registers what `status` replies with (the scheduler's snapshot).
 func (c *RunControl) SetStatus(f func() string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.status = f
 }
 
-// Status returns the run's current snapshot.
 func (c *RunControl) Status() string {
 	c.mu.Lock()
 	f := c.status
 	c.mu.Unlock()
 	if f == nil {
-		return "Starting: workflows and Qase runs first, then the Jenkins jobs."
+		return "Starting: workflows and Qase runs first, then the jenkins jobs."
 	}
 
 	return f()
 }
 
 // Listener runs the release conversation: a mention with RC tags starts the plan at once and
-// replies in its thread; `stop`, `status` and `unblock` act on a run (docs/releasebot.md).
+// replies in its thread; `stop`, `status`, `retry`, `skip` and `triage` act on a run.
 type Listener struct {
 	// Channels are served; in OpenChannels anyone may start runs, elsewhere only Allowed users.
-	Channels     map[string]bool
+	Channels map[string]bool
+
 	OpenChannels map[string]bool
 	BotUserID    string
 	Allowed      map[string]bool
 	Plan         Planner
 	Post         func(ctx context.Context, channel, threadTS, text string) error
 
-	// Capacity is shared with the runs' schedulers; `unblock` frees the slots its run's unknown
-	// builds still hold. May be nil.
-	Capacity *Capacity
+	// Resume carries on a run saved before a restart (see ResumeRuns); nil drops saved runs.
+	Resume func(ctx context.Context, rc *RunControl, saved Progress) error
 
 	// ProgressInterval groups a run's progress lines into one message per interval (default 10s),
 	// so a busy run does not hit Slack's per-channel posting limit.
@@ -83,23 +89,22 @@ type Listener struct {
 
 	// Planning times out after 3m by default; separate workers keep stop/status responsive.
 	PlanTimeout time.Duration
+
 	// Default 2 workers; excess mentions wait in the bounded queue below.
 	MaxPlanning int
 
 	// Default 4 queued plans; further mentions receive "busy" immediately.
 	QueuedPlans int
 
-	// StatePath persists the block state and in-progress markers, so a restart (even SIGKILL)
-	// mid-run keeps new runs blocked until someone checks Jenkins. Empty keeps it in memory only.
+	// StatePath keeps every run in progress, saved at each change, so a restart (even SIGKILL)
+	// resumes them in their threads. Empty keeps it in memory only.
 	StatePath string
 	Now       func() time.Time
 
 	mu     sync.Mutex
-	active map[string]*activeRun // by thread key
+	active map[string]*activeRun
+	saved  map[string]*savedRun
 
-	// blocks, by run thread: runs that left builds in unknown state or stopped part-way. No new
-	// run starts while any is left; `unblock` in a run's thread clears that run's block only.
-	blocks    map[string]string
 	runs      sync.WaitGroup
 	planQueue chan planRequest
 	queueOnce sync.Once
@@ -122,18 +127,30 @@ type activeRun struct {
 
 func threadKey(channel, ts string) string { return channel + "|" + ts }
 
-// listenerState is what StatePath holds.
-type listenerState struct {
-	Blocks  map[string]string `json:"blocks,omitempty"`  // thread key -> reason
-	Running []string          `json:"running,omitempty"` // thread keys
+// savedRun is a run in progress as StatePath keeps it.
+type savedRun struct {
+	Channel  string    `json:"channel"`
+	TS       string    `json:"ts"`
+	User     string    `json:"user"`
+	Tags     []string  `json:"tags"`
+	Started  time.Time `json:"started"`
+	Progress Progress  `json:"progress"`
 }
 
-// Restore loads StatePath. A run that was in progress when the previous process stopped becomes a
-// block: its builds may still be running on Jenkins.
+// stateVersion is the format of StatePath; a newer one is refused rather than misread.
+const stateVersion = 1
+
+type listenerState struct {
+	Version int                  `json:"version"`
+	Runs    map[string]*savedRun `json:"runs,omitempty"`
+}
+
+// Restore loads the runs StatePath kept; ResumeRuns then carries them on.
 func (l *Listener) Restore() error {
 	if l.StatePath == "" {
 		return nil
 	}
+
 	raw, err := os.ReadFile(l.StatePath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -141,70 +158,115 @@ func (l *Listener) Restore() error {
 	if err != nil {
 		return err
 	}
+
 	var st listenerState
 	if err = json.Unmarshal(raw, &st); err != nil {
 		return fmt.Errorf("release bot state %s: %w", l.StatePath, err)
 	}
+	if st.Version > stateVersion {
+		return fmt.Errorf("release bot state %s has format %d, newer than this bot's %d", l.StatePath,
+			st.Version, stateVersion)
+	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.blocks = st.Blocks
-	for _, key := range st.Running {
-		if _, ok := l.blocks[key]; !ok {
-			_, ts, _ := strings.Cut(key, "|")
-			l.block(key, "the previous bot process stopped during the run in thread "+ts+
-				"; its builds may still be running")
-		}
-	}
+	l.saved = st.Runs
 
-	return l.saveLocked()
+	return nil
 }
 
-// block records a run's block. Callers hold l.mu.
-func (l *Listener) block(key, reason string) {
-	if l.blocks == nil {
-		l.blocks = map[string]string{}
+// ResumeRuns carries on, each in its own thread, the runs the previous process left.
+func (l *Listener) ResumeRuns(ctx context.Context) int {
+	if l.Resume == nil {
+		return 0
 	}
-	l.blocks[key] = reason
-}
-
-// Blocked describes the blocks left, if any: one reason per run, oldest thread first.
-func (l *Listener) Blocked() string {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	return l.blockedLocked()
-}
-
-func (l *Listener) blockedLocked() string {
-	keys := make([]string, 0, len(l.blocks))
-	for k := range l.blocks {
+	keys := make([]string, 0, len(l.saved))
+	for k := range l.saved {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
-	reasons := make([]string, 0, len(keys))
+	var resumed []*activeRun
+	var dropped []*savedRun
+
+	goAhead := make(chan struct{})
+	var ready sync.WaitGroup
 	for _, k := range keys {
-		_, ts, _ := strings.Cut(k, "|")
-		reasons = append(reasons, "thread "+ts+": "+l.blocks[k])
+		sr := l.saved[k]
+		if !sr.Progress.Resumable() {
+			dropped = append(dropped, sr)
+			delete(l.saved, k)
+			continue
+		}
+		run := l.newRunLocked(sr.Channel, sr.TS, sr.User, sr.Tags, sr.Started)
+		run.stopped = sr.Progress.Stopped
+		ready.Add(1)
+		run.ctl.Ready, run.ctl.Go = sync.OnceFunc(ready.Done), goAhead
+		resumed = append(resumed, run)
+	}
+	_ = l.saveLocked()
+	l.mu.Unlock()
+
+	for _, sr := range dropped {
+		l.postDetached(ctx, sr.Channel, sr.TS, "<@"+sr.User+"> The bot restarted before this run had dispatched all "+
+			"its workflows, so it cannot tell what started and does not resume it. Check the release-checks "+
+			"and Qase workflow runs, then ask again.")
+	}
+	for _, run := range resumed {
+		saved := l.savedProgress(run) // the run's own copy: it changes it (Qase run ids) as it goes
+		l.postDetached(ctx, run.channel, run.ts, "The bot restarted; resuming this run where it was "+
+			"(builds are followed again, failed jobs waiting for help are listed again).")
+		l.start(ctx, run, &Planned{Run: func(ctx context.Context, rc *RunControl) error {
+			return l.Resume(ctx, rc, saved)
+		}})
 	}
 
-	return strings.Join(reasons, "; ")
+	waitReady(&ready, readyTimeout)
+	close(goAhead)
+
+	return len(resumed)
 }
 
-// saveLocked writes the state atomically, with every active run marked. Callers hold l.mu.
+// readyTimeout bounds how long resumed runs wait for each other before triggering anyway.
+const readyTimeout = 2 * time.Minute
+
+func waitReady(wg *sync.WaitGroup, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+	}
+}
+
+func (l *Listener) SavedRuns() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return len(l.saved)
+}
+
+func (l *Listener) savedProgress(run *activeRun) Progress {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return l.saved[threadKey(run.channel, run.ts)].Progress.clone()
+}
+
+// saveLocked writes the state atomically. Callers hold l.mu.
 func (l *Listener) saveLocked() error {
 	if l.StatePath == "" {
 		return nil
 	}
-	st := listenerState{Blocks: l.blocks}
-	for k := range l.active {
-		st.Running = append(st.Running, k)
-	}
-	sort.Strings(st.Running)
-	raw, err := json.Marshal(st)
+	raw, err := json.Marshal(listenerState{Version: stateVersion, Runs: l.saved})
 	if err != nil {
 		return err
 	}
+
 	if mkErr := os.MkdirAll(filepath.Dir(l.StatePath), 0o700); mkErr != nil {
 		return mkErr
 	}
@@ -365,49 +427,86 @@ func (l *Listener) admit(e *slack.Event, planned *Planned) (run *activeRun, dup 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if len(l.blocks) > 0 {
-		return nil, nil, fmt.Sprintf("new plans are blocked because %d earlier runs did not finish cleanly (%s). "+
-			"Check what they started, then reply `unblock` in each run's thread and ask again.",
-			len(l.blocks), l.blockedLocked())
-	}
 	if dup, why = l.duplicatesLocked(planned.Tags); len(dup) > 0 {
 		return nil, dup, why
 	}
 
-	stop := make(chan struct{})
-	commands := make(chan Command, 4)
-	key := threadKey(e.Channel, e.TS)
-	run = &activeRun{
-		channel: e.Channel, ts: e.TS, user: e.User, tags: planned.Tags, started: l.now(),
-		ctl: &RunControl{ID: key, Stop: stop, Commands: commands}, stop: stop, commands: commands,
-	}
-	if l.active == nil {
-		l.active = map[string]*activeRun{}
-	}
-	l.active[key] = run
-	// Record the run before starting it, so even a killed process leaves new runs blocked.
+	run = l.newRunLocked(e.Channel, e.TS, e.User, planned.Tags, l.now())
+	// Recorded before it starts, so even a killed process leaves the run to resume.
 	if err := l.saveLocked(); err != nil {
+		key := threadKey(e.Channel, e.TS)
 		delete(l.active, key)
+		delete(l.saved, key)
 		return nil, nil, "could not record the run in the bot state (" + err.Error() + ")."
 	}
 
 	return run, nil, ""
 }
 
+// newRunLocked registers a run (new or resumed) with its controls and saved state. Callers hold l.mu.
+func (l *Listener) newRunLocked(channel, ts, user string, tags []string, started time.Time) *activeRun {
+	key := threadKey(channel, ts)
+	stop := make(chan struct{})
+	commands := make(chan Command, 4)
+	run := &activeRun{
+		channel: channel, ts: ts, user: user, tags: tags, started: started,
+		ctl: &RunControl{ID: key, Stop: stop, Commands: commands}, stop: stop, commands: commands,
+	}
+
+	run.ctl.Save = func(p Progress) error {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		sr := l.saved[key]
+		if sr == nil {
+			return nil
+		}
+		// `stop` is kept even before the scheduler sees it
+		p.Stopped = p.Stopped || run.stopped
+
+		// the run keeps changing its own (Qase run ids, params)
+		sr.Progress = p.clone()
+
+		return l.saveLocked()
+	}
+	if l.active == nil {
+		l.active = map[string]*activeRun{}
+	}
+	if l.saved == nil {
+		l.saved = map[string]*savedRun{}
+	}
+	l.active[key] = run
+	if l.saved[key] == nil {
+		l.saved[key] = &savedRun{Channel: channel, TS: ts, User: user, Tags: tags, Started: started}
+	}
+
+	return run
+}
+
 // duplicatesLocked returns the tags other runs already validate and where. Callers hold l.mu.
 func (l *Listener) duplicatesLocked(tags []string) (dup []string, why string) {
 	var where []string
-	for _, other := range l.active {
+	add := func(otherTags []string, channel, user string, started time.Time) {
 		var mine []string
 		for _, t := range tags {
-			if slices.Contains(other.tags, t) {
+			if slices.Contains(otherTags, t) {
 				mine = append(mine, t)
 			}
 		}
 		if len(mine) > 0 {
 			dup = append(dup, mine...)
 			where = append(where, fmt.Sprintf("%s already running in the <#%s> thread started by <@%s> at %s UTC",
-				strings.Join(mine, ", "), other.channel, other.user, other.started.UTC().Format("15:04")))
+				strings.Join(mine, ", "), channel, user, started.UTC().Format("15:04")))
+		}
+	}
+
+	for _, other := range l.active {
+		add(other.tags, other.channel, other.user, other.started)
+	}
+
+	// A saved run not running here (its resume failed) still owns its tags: its builds may run.
+	for key, sr := range l.saved {
+		if l.active[key] == nil {
+			add(sr.Tags, sr.Channel, sr.User, sr.Started)
 		}
 	}
 	if len(dup) == 0 {
@@ -423,13 +522,13 @@ func (l *Listener) onReply(ctx context.Context, e *slack.Event) {
 	if len(words) == 0 {
 		return
 	}
+
 	if cmd := strings.ToLower(words[0]); cmd == CommandRetry || cmd == CommandSkip || cmd == CommandTriage {
 		l.onJobCommand(ctx, e, cmd, words[1:])
 		return
 	}
+
 	switch strings.ToLower(strings.TrimSpace(e.Text)) {
-	case "unblock":
-		l.onUnblock(ctx, e)
 	case "stop":
 		l.onStop(ctx, e)
 	case "status":
@@ -496,46 +595,16 @@ func (l *Listener) onStop(ctx context.Context, e *slack.Event) {
 		l.mu.Unlock()
 		return
 	}
+
 	run.stopped = true
 	close(run.stop)
+	if sr := l.saved[threadKey(e.Channel, e.ThreadTS)]; sr != nil {
+		sr.Progress.Stopped = true
+		_ = l.saveLocked() // the scheduler saves it too once it stops
+	}
 	l.mu.Unlock()
 	l.post(ctx, e.Channel, e.ThreadTS, "Stopped by <@"+e.User+">: no new job will start; running builds are "+
 		"followed until they finish.")
-}
-
-func (l *Listener) onUnblock(ctx context.Context, e *slack.Event) {
-	key := threadKey(e.Channel, e.ThreadTS)
-	l.mu.Lock()
-	if _, ok := l.blocks[key]; !ok {
-		l.mu.Unlock()
-		return
-	}
-	if !l.mayRun(e) {
-		l.mu.Unlock()
-		l.post(ctx, e.Channel, e.ThreadTS, "<@"+e.User+"> is not allowed to unblock release plans.")
-		return
-	}
-
-	delete(l.blocks, key)
-	left := len(l.blocks)
-	saveErr := l.saveLocked()
-	l.mu.Unlock()
-
-	msg := "Unblocked this run, by <@" + e.User + ">. New plans can run again."
-	if left > 0 {
-		msg = fmt.Sprintf("Unblocked this run, by <@%s>. %d other runs are still blocked; new plans wait "+
-			"until they are unblocked too.", e.User, left)
-	}
-	if l.Capacity != nil {
-		if freed := l.Capacity.ReleaseAbandoned(key); freed > 0 {
-			msg += fmt.Sprintf(" Freed %d Jenkins slots held by that run's builds in unknown state.", freed)
-		}
-	}
-	if saveErr != nil {
-		msg += " (Could not save the bot state: " + saveErr.Error() + "; a restart may block again.)"
-	}
-
-	l.post(ctx, e.Channel, e.ThreadTS, msg)
 }
 
 // start runs an admitted plan in the background.
@@ -551,26 +620,35 @@ func (l *Listener) start(ctx context.Context, run *activeRun, planned *Planned) 
 		run.ctl.Help = func(text string) { post("<@" + run.user + "> " + text) }
 		err := planned.Run(ctx, run.ctl)
 		progress.close()
-
-		l.mu.Lock()
-		delete(l.active, threadKey(run.channel, run.ts))
-		unreconciled := errors.Is(err, ErrUnreconciledBuilds)
-		partial := errors.Is(err, ErrPartialRun)
-		if unreconciled || partial {
-			l.block(threadKey(run.channel, run.ts), err.Error())
+		if run.ctl.Ready != nil {
+			run.ctl.Ready() // a resume that ended early must not hold the others back
 		}
-		_ = l.saveLocked() // a failed save keeps the in-progress marker, which also blocks on restart
+
+		// Cut by shutdown, the run stays saved and the next bot process resumes it; one that ended
+		// on its own just as the bot stopped is over. A resume that could not be set up stays too.
+		shutdown := ctx.Err() != nil && errors.Is(err, context.Canceled)
+		notResumed := errors.Is(err, errResumeFailed)
+		l.mu.Lock()
+		key := threadKey(run.channel, run.ts)
+		delete(l.active, key)
+		if !shutdown && !notResumed {
+			delete(l.saved, key)
+		}
+		_ = l.saveLocked()
 		l.mu.Unlock()
 
 		switch {
-		case unreconciled:
-			post("Release plan finished with builds in unknown state: " + err.Error() +
-				"\nNew plans are blocked: their Jenkins capacity may still be in use. After checking those " +
-				"builds, reply `unblock` in this thread.")
-		case partial:
-			post("Release plan stopped part-way: " + err.Error() +
-				"\nNew plans are blocked: repeating it could dispatch workflows, create Qase runs or trigger " +
-				"builds again. After checking what already started, reply `unblock` in this thread.")
+		case shutdown:
+			post("The bot is stopping; this run is saved and resumes here when the bot starts again.")
+		case notResumed:
+			post("<@" + run.user + "> " + err.Error() + "\nThe run stays saved, its builds on jenkins keep their " +
+				"slots and its RC tags stay taken; fix the cause and restart the bot to resume it here.")
+		case errors.Is(err, errUnreconciledBuilds):
+			post("Release plan finished; some builds stayed in unknown state until the bot stopped watching " +
+				"them: " + err.Error() + "\nCheck them on jenkins before running those jobs again.")
+		case errors.Is(err, errPartialRun):
+			post("Release plan stopped part-way: " + err.Error() + "\nAsking again for the same tags may " +
+				"dispatch workflows, create Qase runs or trigger builds again: check what already started first.")
 		case err != nil:
 			post("Release plan finished with errors: " + err.Error())
 		default:
@@ -681,8 +759,8 @@ func (b *progressBatcher) close() {
 	<-b.done
 }
 
-// ErrAlreadyRunning means another bot process holds the instance lock.
-var ErrAlreadyRunning = errors.New("another release bot is already running")
+// errAlreadyRunning means another bot process holds the instance lock.
+var errAlreadyRunning = errors.New("another release bot is already running")
 
 // AcquireInstanceLock takes an exclusive, non-blocking flock on path and keeps it until release;
 // the kernel drops it when the process exits, so a crash never leaves a stale lock.
@@ -697,7 +775,7 @@ func AcquireInstanceLock(path string) (release func(), err error) {
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("%w (lock %s)", ErrAlreadyRunning, path)
+			return nil, fmt.Errorf("%w (lock %s)", errAlreadyRunning, path)
 		}
 
 		return nil, err

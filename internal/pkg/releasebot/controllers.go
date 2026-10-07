@@ -8,8 +8,8 @@ import (
 )
 
 type planResolver struct {
-	gh      *GitHub
-	jenkins map[string]*Jenkins
+	gh      *gitHub
+	jenkins map[string]*jenkins
 }
 
 func (r *planResolver) JobParams(ctx context.Context, controller, path string) (
@@ -30,17 +30,18 @@ func (r *planResolver) LatestGA(ctx context.Context, product, rc string) (versio
 type controllerClient struct {
 	name   string
 	url    string
-	client *Jenkins
+	client *jenkins
 }
 
 // Clients are reused for unchanged URLs and credentials; each plan still reloads its matrix.
-func (a *App) controllerClients(m *Matrix) map[string]*Jenkins {
+func (a *App) controllerClients(m *Matrix) map[string]*jenkins {
 	a.controllerMu.Lock()
 	defer a.controllerMu.Unlock()
 	if a.controllers == nil {
 		a.controllers = map[string]controllerClient{}
 	}
-	clients := make(map[string]*Jenkins, len(m.Controller))
+
+	clients := make(map[string]*jenkins, len(m.Controller))
 	for name, lim := range m.Controller {
 		baseURL := strings.TrimRight(lim.URL, "/")
 		key := name + "|" + baseURL
@@ -59,7 +60,7 @@ func (a *App) controllerClients(m *Matrix) map[string]*Jenkins {
 	return clients
 }
 
-func buildersFor(m *Matrix, clients map[string]*Jenkins) (map[string]Builder, error) {
+func buildersFor(m *Matrix, clients map[string]*jenkins) (map[string]Builder, error) {
 	builders := make(map[string]Builder, len(m.Controller))
 	for name := range m.Controller {
 		if clients[name] == nil {
@@ -82,7 +83,7 @@ func (a *App) controllerSnapshot() (entries []controllerClient, loaded bool) {
 }
 
 // JenkinsForBuild also serves builds from an older plan after the matrix changes.
-func (a *App) JenkinsForBuild(buildURL string) (*Jenkins, error) {
+func (a *App) JenkinsForBuild(buildURL string) (*jenkins, error) {
 	entries, loaded := a.controllerSnapshot()
 	if !loaded {
 		m, err := LoadMatrixWithRef(a.cfg.MatrixPath, a.cfg.DTFRef)

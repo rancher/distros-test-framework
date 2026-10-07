@@ -24,14 +24,19 @@ Override specific baselines with the optional `commit_baselines` JSON input:
 {"v1.26.14-rc1+rke2r1":"v1.26.13+rke2r1"}
 ```
 
+Leaving that workflow input blank is equivalent to `{}` (automatic selection).
+
 A new-minor `.0` RC with no earlier GA in its minor requires an explicit baseline.
 The script does not silently substitute a different minor. Overrides must be real
 published GA releases of the same product, and their keys must name supplied RCs.
 
 The step appends its Markdown report to the Actions summary and uploads
 `report.json` and `summary.md` as the `release-commit-comparison` artifact, including
-on failure. Temporary authentication files are never uploaded. Failures from this
-step participate in the workflow's final failure check.
+on collection or configuration failure. Configuration errors also generate a new
+`ERROR [CONFIG]` report, replacing any older reports. Report creation still requires
+jq and writable, non-symlink output files; filesystem/dependency failures are logged
+but cannot guarantee artifacts. Temporary authentication files are never uploaded.
+Failures from this step participate in the workflow's final failure check.
 
 ## Local use
 
@@ -47,7 +52,8 @@ bash scripts/compare_release_commits.sh \
 
 `--versions` accepts comma-separated full RC tags, including mixed products.
 `--request-id` optionally records a caller ID in the JSON report. The default output
-directory is ignored by Git. Rerunning replaces the two reports in that directory.
+directory is ignored by Git. Each report is staged in that directory and atomically
+replaces its previous file, including on input-validation failure.
 
 Tags are resolved to commit SHAs before comparison. The report includes both the
 human-readable tag comparison and an immutable SHA comparison, plus every commit's
@@ -55,6 +61,8 @@ SHA, subject and link. GA discovery lists matching tags only for the target mino
 and confirms that candidates are published releases. Comparison responses are paginated;
 incomplete, duplicate or inconsistent comparison pages are rejected. Failure for
 one RC does not stop collection for the others.
+Transport failures include the curl code and a classified DNS/TLS/timeout reason
+from its first error line, rather than publishing potentially sensitive stderr.
 
 ## Results
 

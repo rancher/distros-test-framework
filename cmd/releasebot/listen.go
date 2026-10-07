@@ -42,6 +42,7 @@ func readListenConfig() (*listenConfig, error) {
 		channels: envSet("RELEASEBOT_CHANNELS"), open: envSet("RELEASEBOT_OPEN_CHANNELS"),
 		allowed: envSet("RELEASEBOT_ALLOWED_USERS"),
 	}
+
 	for ch := range envSet("RELEASEBOT_CHANNEL") {
 		c.channels[ch] = true
 	}
@@ -90,11 +91,19 @@ func runListen(o *options) error {
 		failures = app.FailureTriage(o.triageSpool, o.triageWait)
 	}
 
-	// One capacity for all runs and the listener: `unblock` frees the slots a run's unknown builds hold.
+	// One capacity for all runs, new and resumed, so they respect each controller's limit together.
 	capacity := &releasebot.Capacity{}
-	l, err := newListener(o, sc, cfg, botID, capacity, app.Planner(capacity, failures))
+	l, err := newListener(o, sc, cfg, botID, app.Planner(capacity, failures))
 	if err != nil {
 		return err
+	}
+
+	l.Resume = app.Resumer(capacity, failures)
+	switch n := l.SavedRuns(); {
+	case n > 0 && o.dryRun:
+		resources.LogLevel("warn", "%d runs saved by a previous bot are not resumed in dry-run mode", n)
+	case n > 0:
+		resources.LogLevel("info", "resumed %d runs saved by the previous bot", l.ResumeRuns(ctx))
 	}
 
 	err = sc.RunSocketMode(ctx, func(e *slack.Event) { l.Handle(ctx, e) }, resources.LogLevel)
@@ -106,10 +115,9 @@ func runListen(o *options) error {
 	return err
 }
 
-// newListener wires the listener to Slack and restores its persisted block state.
+// newListener wires the listener to Slack and loads the runs a previous bot saved.
 func newListener(
-	o *options, sc *slack.Client, cfg *listenConfig, botID string,
-	capacity *releasebot.Capacity, plan releasebot.Planner,
+	o *options, sc *slack.Client, cfg *listenConfig, botID string, plan releasebot.Planner,
 ) (*releasebot.Listener, error) {
 	l := &releasebot.Listener{
 		Channels:     cfg.channels,
@@ -118,7 +126,6 @@ func newListener(
 		Allowed:      cfg.allowed,
 		DryRun:       o.dryRun,
 		StatePath:    o.stateFile,
-		Capacity:     capacity,
 		Plan:         plan,
 		Post: func(ctx context.Context, channel, threadTS, text string) error {
 			msg := &slack.Message{Channel: channel, ThreadTS: threadTS, Text: text}
@@ -133,9 +140,6 @@ func newListener(
 
 	if err := l.Restore(); err != nil {
 		return nil, err
-	}
-	if reason := l.Blocked(); reason != "" {
-		resources.LogLevel("warn", "starting blocked: %s (reply `unblock` in that thread)", reason)
 	}
 	if o.dryRun {
 		resources.LogLevel("info", "dry-run mode: requests get the plan only; start with -dry-run=false to execute")

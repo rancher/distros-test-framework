@@ -84,7 +84,7 @@ func TestVerdictRerunVeto(t *testing.T) {
 }
 
 // Every alternative of every rule reaches the rule through extraction, followed by the trailers
-// Jenkins prints after a failure (which must not become the primary failure).
+// jenkins prints after a failure (which must not become the primary failure).
 func TestTransientRulesThroughExtraction(t *testing.T) {
 	trailers := []string{
 		"ERROR: script returned exit code 1",
@@ -118,7 +118,7 @@ func TestTransientRulesThroughExtraction(t *testing.T) {
 }
 
 // With an agreeing INFRA verdict, a transient signal that is not the primary failure grants nothing:
-// an ignored warning before a permanent error, or throttling in cleanup after a Jenkins exception.
+// an ignored warning before a permanent error, or throttling in cleanup after a jenkins exception.
 func TestTransientSignalsThatAreNotTheCause(t *testing.T) {
 	agree := Decision{Rerun: true, Summary: "INFRA"}
 	for name, log := range map[string][]string{
