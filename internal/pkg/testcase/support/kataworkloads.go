@@ -29,7 +29,7 @@ func (s *KataRun) Coexistence(ctx context.Context) error {
 }
 
 func (s *KataRun) traffic(ctx context.Context, client, backend string) error {
-	return pollKata(ctx, 2*time.Minute, func(ctx context.Context) error {
+	trafficErr := pollKata(ctx, 2*time.Minute, func(ctx context.Context) error {
 		var endpoints core.Endpoints
 		if err := s.get(ctx, &endpoints, "endpoints", backend, "-n", s.ns); err != nil {
 			return err
@@ -43,7 +43,8 @@ func (s *KataRun) traffic(ctx context.Context, client, backend string) error {
 			return fmt.Errorf("service %s endpoint does not identify backend pod UID %s", backend, s.pods[backend].UID)
 		}
 
-		name := backend + "." + s.ns + ".svc"
+		// BusyBox nslookup stops at the first search domain's NXDOMAIN, so use the FQDN.
+		name := backend + "." + s.ns + ".svc.cluster.local"
 		if _, err := s.exec(ctx, s.pods[client], "nslookup", name); err != nil {
 			return fmt.Errorf("DNS %s -> %s: %w", client, backend, err)
 		}
@@ -59,6 +60,12 @@ func (s *KataRun) traffic(ctx context.Context, client, backend string) error {
 
 		return s.evidence(client+"-to-"+backend, map[string]string{"dns": name, "token": strings.TrimSpace(output)})
 	})
+	if trafficErr != nil {
+		return trafficErr
+	}
+	logKata("%s -> %s: DNS and HTTP reached the expected backend pod", client, backend)
+
+	return nil
 }
 
 func kataSelectorRejects(class *nodeapi.RuntimeClass, node *core.Node) bool {
@@ -141,7 +148,13 @@ func (s *KataRun) RejectIneligible(ctx context.Context) error {
 		return fmt.Errorf("verify scheduling rejection of pod %s: %w", pod.Name, rejectionErr)
 	}
 
-	return s.verifyNoSandbox(ctx, &pod)
+	if noSandboxErr := s.verifyNoSandbox(ctx, &pod); noSandboxErr != nil {
+		return noSandboxErr
+	}
+	logKata("pod %s on ordinary worker %s: Unschedulable by RuntimeClass node selector %v; no sandbox on any node",
+		pod.Name, s.ordinary, class.Scheduling.NodeSelector)
+
+	return nil
 }
 
 func (s *KataRun) verifyNoSandbox(ctx context.Context, pod *core.Pod) error {
@@ -183,10 +196,12 @@ func (s *KataRun) Restart(ctx context.Context) error {
 	if _, err := s.node(ctx, s.eligibleIP, "sudo", "-n", "systemctl", "restart", "rke2-agent"); err != nil {
 		return fmt.Errorf("restart rke2-agent on worker %s: %w", s.eligible, err)
 	}
+	logKata("restarted rke2-agent on Kata worker %s", s.eligible)
 
 	if err := pollKata(ctx, 5*time.Minute, s.recoverWorkloads); err != nil {
 		return fmt.Errorf("recover preexisting workloads after rke2-agent restart: %w", err)
 	}
+	logKata("all %d existing pods are Ready again after the restart", len(s.pods))
 
 	if chartErr := pollKata(ctx, 5*time.Minute, s.chartReady); chartErr != nil {
 		return fmt.Errorf("recover Kata installer after rke2-agent restart: %w", chartErr)

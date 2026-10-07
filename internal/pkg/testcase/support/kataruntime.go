@@ -58,14 +58,35 @@ func (s *KataRun) RuntimeIdentity(ctx context.Context) error {
 		if kernelErr := s.guestKernel(ctx, pod); kernelErr != nil {
 			return kernelErr
 		}
+		logKata("pod %s (RuntimeClass %s): %s", pod.Name, fixture.class, describeKataIdentity(pod.Identity))
 
 		if createErr := s.create(ctx, fixture.name+"-service", s.service(fixture.name)); createErr != nil {
 			return createErr
 		}
 	}
-	_, err := s.startPod(ctx, "runc-after", s.eligible, s.eligibleIP, "", s.opts.Image)
+	runcAfter, err := s.startPod(ctx, "runc-after", s.eligible, s.eligibleIP, "", s.opts.Image)
+	if err != nil {
+		return err
+	}
+	logKata("pod %s (no RuntimeClass) on the Kata worker: %s", runcAfter.Name, describeKataIdentity(runcAfter.Identity))
 
-	return err
+	return nil
+}
+
+// describeKataIdentity summarizes a pod's runtime evidence in one console line.
+func describeKataIdentity(raw json.RawMessage) string {
+	var record kataIdentity
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return "runtime identity unavailable"
+	}
+
+	vm := "no VM"
+	if len(record.VMs) == 1 {
+		vm = fmt.Sprintf("QEMU PID %d using /dev/kvm", record.VMs[0].PID)
+	}
+
+	return fmt.Sprintf("runtime %s, sandbox %.12s, %d host processes, %s",
+		record.Runtime, record.Sandbox, len(record.Processes), vm)
 }
 
 func (s *KataRun) guestKernel(ctx context.Context, pod *kataPod) error {
@@ -83,6 +104,7 @@ func (s *KataRun) guestKernel(ctx context.Context, pod *kataPod) error {
 	if len(fields) != 2 || host.HostKernel == "" || host.HostBootID == "" || fields[1] == host.HostBootID {
 		return fmt.Errorf("pod %s: guest kernel/boot identity not established independently of the host", pod.Name)
 	}
+	logKata("pod %s: guest kernel %s with its own boot ID (host kernel %s)", pod.Name, fields[0], host.HostKernel)
 
 	return s.evidence(pod.Name+"-guest-kernel", map[string]any{
 		"guest_kernel": fields[0], "guest_boot_id": fields[1],

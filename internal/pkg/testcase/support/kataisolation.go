@@ -36,6 +36,8 @@ func (s *KataRun) Isolation(ctx context.Context) (runErr error) {
 	if probeErr != nil {
 		return fmt.Errorf("host resource isolation in pod %s: %w", pod.Name, probeErr)
 	}
+	logKata("pod %s cannot see the host marker file, host PID %d, network namespace %s, /dev/%s or /dev/kvm",
+		pod.Name, marker.PID, marker.Netns, marker.Device)
 
 	if mountErr := s.guestMount(ctx); mountErr != nil {
 		return mountErr
@@ -123,6 +125,7 @@ func (s *KataRun) guestMount(ctx context.Context) error {
 	if verifyErr := s.hostMarker(ctx, "verify"); verifyErr != nil {
 		return fmt.Errorf("host changed while the guest mount was active: %w", verifyErr)
 	}
+	logKata("pod %s: privileged tmpfs mount inside the Kata guest worked; host markers unchanged", record.Name)
 
 	return s.deletePod(ctx, record)
 }

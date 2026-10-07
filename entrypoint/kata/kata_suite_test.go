@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 		kataConfig, err = support.LoadKataConfig(cfg)
 	}
 	if err != nil {
-		resources.LogLevel("error", "Kata P0 preflight: %v", err)
+		resources.LogLevel("error", "Kata preflight: %v", err)
 		os.Exit(1)
 	}
 
@@ -46,11 +46,11 @@ func TestMain(m *testing.M) {
 
 func TestKataSuite(t *testing.T) {
 	RegisterFailHandler(entrypoint.FailWithReport)
-	RunSpecs(t, "RKE2 Prime Kata P0 Test Suite (amd64, no NVIDIA)")
+	RunSpecs(t, "RKE2 Prime Kata Test Suite (amd64, no NVIDIA)")
 }
 
 var (
-	_ = ReportAfterSuite("Kata P0 Test Suite", entrypoint.ReportAfterSuite(&cluster, &reportSummary))
+	_ = ReportAfterSuite("Kata Test Suite", entrypoint.ReportAfterSuite(&cluster, &reportSummary))
 	_ = AfterSuite(func() {
 		defer entrypoint.AfterSuite(&cluster, &infraConfig, &reportSummary, &reportErr)()
 		Expect(support.CleanupKata(&kataConfig)).To(Succeed())

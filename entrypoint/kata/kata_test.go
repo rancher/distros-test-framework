@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Test Kata P0 Cluster:", Ordered, func() {
+var _ = Describe("Test Kata Cluster:", Ordered, func() {
 	It("Validate Nodes", func() {
 		testcase.TestNodeStatus(cluster, assert.NodeAssertReadyStatus(), nil)
 	})

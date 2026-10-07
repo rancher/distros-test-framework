@@ -1,11 +1,11 @@
-# RKE2 Prime Kata P0 suite
+# RKE2 Prime Kata suite
 
 `entrypoint/kata` is a normal infrastructure-owning Ginkgo suite. It uses
 `SetupClusterInfra`, OpenTofu/Ansible, shared reporting and `-destroy`; it does
 **not** take a pre-created cluster. `KUBE_CONFIG` is rejected before provisioning.
 The suite covers the **Prime** CPU-only amd64/x86-64 scope (Intel or AMD, not ARM).
 It does not assert that upstream Kata is technically restricted to Prime.
-No NVIDIA non-confidential or confidential scenarios are included in P0.
+No NVIDIA non-confidential or confidential scenarios are included in this suite.
 
 The entrypoint calls `TestKata*` cases in `internal/pkg/testcase/kata.go`.
 Helpers live in the existing `internal/pkg/testcase/support` package, grouped into
@@ -28,7 +28,7 @@ timeout reports the last observation through the failing test.
 | KATA-04 | RuntimeClass selector-specific rejection; no sandbox on any node, no fallback |
 | KATA-07 | RKE2 agent restart, existing workload recovery, new workload creation and traffic |
 | KATA-14 | Guest boot/kernel identity, host-only resource markers, guest-confined mount |
-| KATA-15 | Five cold + five warm starts per runtime; five idle CPU/PSS samples per runtime |
+| KATA-15 | Three cold + three warm starts per runtime; three idle CPU/PSS samples per runtime |
 
 This is an isolation smoke, not penetration testing or a security certification.
 Performance is characterization without an acceptance threshold. Missing or
@@ -159,7 +159,7 @@ timestamps or a negative duration fail the sample. A zero-second observation is
 valid at this resolution, not a claim of instantaneous startup. Kubelet status
 reporting still contributes to the measurement. These results must not be compared
 directly to earlier HTTP-probed or client-observed startup baselines. Runtime order
-alternates by round. Each warm pod also settles 30 seconds and receives twelve
+alternates by round. Each warm pod also settles 30 seconds and receives six
 five-second host-side CPU/PSS observations including its correlated VM/shim/helper
 processes. PID/start-time, sandbox and container identity checks remain strict; a genuine process replacement
 or missing observation is not silently skipped to obtain a measurement. Summary
@@ -187,17 +187,19 @@ This sits outside both the checkout and disposable infrastructure state, so
 successful destroy and container removal preserve it. Retention and redacted
 export are operator-managed; raw evidence is not publicly archived.
 
-Evidence is retained in a private per-run directory under `KATA_EVIDENCE_ROOT`
-(default: local temporary directory); mount a persistent root for containers and
-copy/archive it before removing the runner. Raw evidence includes node identities
-and internal addresses: redact it before public publication. No keys, tokens,
+The job console log is the run's record: each check logs what it verified
+(`Kata: …` lines), including security baselines, runtime identities, traffic
+results and the performance summary. The per-run directory under
+`KATA_EVIDENCE_ROOT` holds raw working files only; on Jenkins it lives in the
+agent workspace and is not archived. Raw files include node identities and
+internal addresses: redact them before public publication. No keys, tokens,
 kubeconfigs or full RKE2 configuration are copied into the evidence bundle.
 
 Owned workload/probe namespaces are removed even after a scenario failure. With
 `-destroy=true`, the shared AfterSuite destroys this run's infrastructure; the
 existing qa-infra interrupted-build cleanup remains the backstop. With
 `-destroy=false`, the cluster, Kata HelmChart, installer namespace and node label
-are deliberately retained for investigation. P0 does **not** perform the KATA-08
+are deliberately retained for investigation. The suite does **not** perform the KATA-08
 uninstall scenario or claim cleanup-hook coverage.
 
 ## Offline verification

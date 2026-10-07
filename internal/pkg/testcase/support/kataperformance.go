@@ -20,6 +20,12 @@ const (
 	containerdSocket = "/run/k3s/containerd/containerd.sock"
 )
 
+// Three rounds keep a meaningful median per series; more mostly add EC2 time.
+const (
+	kataPerfRounds       = 3
+	kataIdleObservations = 6
+)
+
 type kataMeasurement struct {
 	Runtime, Cache, Pod, UID string
 	CreatedAt, ReadyAt       time.Time
@@ -44,7 +50,7 @@ func (s *KataRun) Performance(ctx context.Context) error {
 				return err
 			}
 		}
-		for round := range 5 {
+		for round := range kataPerfRounds {
 			runtimes := []string{"runc", "kata"}
 			if round%2 == 1 {
 				slices.Reverse(runtimes)
@@ -56,6 +62,7 @@ func (s *KataRun) Performance(ctx context.Context) error {
 				if resultErr := errors.Join(sampleErr, saveErr); resultErr != nil {
 					return resultErr
 				}
+				logKata("performance %s %s round %d: Ready after %.0fs", runtime, cache, round+1, m.ReadySeconds)
 			}
 		}
 	}
@@ -63,6 +70,9 @@ func (s *KataRun) Performance(ctx context.Context) error {
 	summary, err := summarizeKata(results)
 	if err != nil {
 		return err
+	}
+	for _, key := range slices.Sorted(maps.Keys(summary)) {
+		logKata("performance summary %s: %+v", key, summary[key])
 	}
 
 	return s.evidence("performance-summary", summary)
@@ -436,7 +446,7 @@ func (s *KataRun) idle(ctx context.Context, pod *kataPod) (data json.RawMessage,
 		return nil, err
 	}
 
-	for observation := range 12 {
+	for observation := range kataIdleObservations {
 		if waitErr := waitKata(ctx, 5*time.Second); waitErr != nil {
 			return nil, fmt.Errorf("wait for idle observation %d: %w", observation+1, waitErr)
 		}
@@ -523,8 +533,8 @@ func kataIdleSeries(series map[string][]float64, m *kataMeasurement) error {
 	if err := json.Unmarshal(m.Idle, &record); err != nil {
 		return fmt.Errorf("decode idle observations for sample %s: %w", m.Pod, err)
 	}
-	if len(record.Samples) != 12 {
-		return errors.New("idle sample must contain twelve five-second observations")
+	if len(record.Samples) != kataIdleObservations {
+		return fmt.Errorf("idle sample must contain %d five-second observations", kataIdleObservations)
 	}
 
 	var pss, cpu []float64
@@ -549,8 +559,8 @@ func summarizeKataSeries(series map[string][]float64) (map[string]any, error) {
 	for _, suffix := range []string{"cold-ready_seconds", "warm-ready_seconds", "idle_pss_mib", "idle_cpu_cores"} {
 		for _, runtime := range []string{"runc", "kata"} {
 			key := runtime + "-" + suffix
-			if len(series[key]) != 5 {
-				return nil, errors.New("expected five observations for " + key)
+			if len(series[key]) != kataPerfRounds {
+				return nil, fmt.Errorf("expected %d observations for %s", kataPerfRounds, key)
 			}
 			out[key] = describeKataSamples(series[key])
 		}

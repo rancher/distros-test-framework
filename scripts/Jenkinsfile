@@ -199,10 +199,6 @@ node {
                       // tofu state + run manifest outlive the test container (cleanup below relies on it).
                       "--mount 'type=bind,source=${stateDirHost},target=${stateDirContainer}'"
                     ]
-                    if (env.TEST_DIRECTORY == 'kata') {
-                      echo "Private Kata evidence survives cleanup under ${stateDirHost}/kata-evidence/${runId}; redact before publishing."
-                    }
-
                     runtimeMountsForCleanup = runtimeMounts
                     sh """
                     docker run --name ${testContainer} -t \

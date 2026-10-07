@@ -20,13 +20,13 @@ import (
 
 const (
 	kataClass    = "kata-qemu-runtime-rs"
-	installLabel = "testing.rancher.io/kata-p0"
+	installLabel = "testing.rancher.io/kata-test"
 )
 
 func kataPtr[T any](v T) *T { return &v }
 
 func (s *KataRun) workload(name, node, class, image string) core.Pod {
-	labels := map[string]string{"kata-p0-run": s.ns, "kata-p0-backend": name}
+	labels := map[string]string{"kata-test-run": s.ns, "kata-test-backend": name}
 	pod := core.Pod{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -126,7 +126,7 @@ func (s *KataRun) service(name string) core.Service {
 			Namespace: s.ns,
 		},
 		Spec: core.ServiceSpec{
-			Selector: map[string]string{"kata-p0-run": s.ns, "kata-p0-backend": name},
+			Selector: map[string]string{"kata-test-run": s.ns, "kata-test-backend": name},
 			Ports: []core.ServicePort{{
 				Port:       8080,
 				TargetPort: intstr.FromInt(8080),
@@ -145,7 +145,7 @@ func (s *KataRun) namespace(ctx context.Context, name, policy string) error {
 			Name: name,
 			Labels: map[string]string{
 				"pod-security.kubernetes.io/enforce": policy,
-				"kata-p0-run":                        s.ns,
+				"kata-test-run":                      s.ns,
 			},
 		},
 	}
@@ -314,6 +314,9 @@ func (s *KataRun) discover(ctx context.Context) error {
 		return fmt.Errorf("verify readable/writable /dev/kvm on worker %s: %w", s.eligible, err)
 	}
 
+	logKata("nodes: Kata worker %s has a readable/writable /dev/kvm; ordinary worker %s stays on runc",
+		s.eligible, s.ordinary)
+
 	return nil
 }
 
@@ -329,7 +332,7 @@ func (s *KataRun) hostname(ctx context.Context, ip string, nodes *core.NodeList)
 		hostname := n.Labels["kubernetes.io/hostname"]
 		if hostname == strings.TrimSpace(output) || n.Name == strings.TrimSpace(output) {
 			if n.Status.NodeInfo.Architecture != "amd64" {
-				return "", errors.New("kata P0 supports amd64 only, not ARM")
+				return "", errors.New("kata supports amd64 only, not ARM")
 			}
 			matches = append(matches, n)
 		}
@@ -368,6 +371,9 @@ func (s *KataRun) installChart(ctx context.Context) error {
 	if readyErr := pollKata(ctx, 12*time.Minute, s.chartReady); readyErr != nil {
 		return fmt.Errorf("wait for Kata installer and RuntimeClasses: %w", readyErr)
 	}
+
+	logKata("kata-deploy chart %s installed: installer Ready only on %s; RuntimeClasses kata and %s use handler %s",
+		s.opts.ChartVersion, s.eligible, kataClass, kataClass)
 
 	return nil
 }
@@ -429,7 +435,12 @@ func (s *KataRun) checkOrdinary(ctx context.Context) error {
 		}
 	}
 
-	return s.traffic(ctx, "runc-local", "runc-remote")
+	if trafficErr := s.traffic(ctx, "runc-local", "runc-remote"); trafficErr != nil {
+		return trafficErr
+	}
+	logKata("ordinary worker %s: no Kata in its containerd config; runc pods kept their runtime", s.ordinary)
+
+	return nil
 }
 
 type kataSecurityState struct {
@@ -475,6 +486,11 @@ func (s *KataRun) checkSecurity(ctx context.Context, phase string) error {
 			if ip == s.eligibleIP {
 				s.kataSELinux = state.HostSELinux == "Enforcing"
 			}
+			logKata("security baseline %s (%s): host SELinux %s, CRI SELinux %t, AppArmor %t, "+
+				"protectKernelDefaults %t, profile %s, system images %v", ip, state.Role, state.HostSELinux,
+				state.CRISELinux, state.AppArmorEnabled, state.ProtectKernelDefaults, state.Requested.Profile,
+				state.SystemImages)
+
 			continue
 		}
 
@@ -485,6 +501,10 @@ func (s *KataRun) checkSecurity(ctx context.Context, phase string) error {
 		if diff := cmp.Diff(baseline, state); diff != "" {
 			return fmt.Errorf("security %s on node %s differs from baseline (-baseline +current):\n%s", phase, ip, diff)
 		}
+	}
+
+	if phase != "baseline" {
+		logKata("security %s: all nodes match the baseline", phase)
 	}
 
 	return nil

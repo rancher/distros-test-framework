@@ -78,20 +78,20 @@ func LoadKataConfig(cfg *config.Env) (KataConfig, error) {
 
 func validateKataClusterConfig(cfg *config.Env, env func(string) string) error {
 	if cfg.Product != "rke2" || cfg.ProvisionerModule != "qainfra" || cfg.QAInfraProvider != "aws" {
-		return errors.New("kata P0 requires RKE2 with PROVISIONER_MODULE=qainfra and QA_INFRA_PROVIDER=aws")
+		return errors.New("kata requires RKE2 with PROVISIONER_MODULE=qainfra and QA_INFRA_PROVIDER=aws")
 	}
 	if cfg.Arch != "amd64" || env("KUBE_CONFIG") != "" {
-		return errors.New("kata P0 requires amd64 and a new cluster (unset KUBE_CONFIG)")
+		return errors.New("kata requires amd64 and a new cluster (unset KUBE_CONFIG)")
 	}
 
 	for name, count := range map[string]string{"NO_OF_SERVER_NODES": "1", "NO_OF_WORKER_NODES": "2"} {
 		if env(name) != count || (env(strings.ToLower(name)) != "" && env(strings.ToLower(name)) != count) {
-			return fmt.Errorf("kata P0 requires %s=%s and no conflicting lowercase value", name, count)
+			return fmt.Errorf("kata requires %s=%s and no conflicting lowercase value", name, count)
 		}
 	}
 
 	if env("split_roles") == "true" || env("SPLIT_ROLES") == "true" {
-		return errors.New("kata P0 requires the simple one-server/two-worker topology")
+		return errors.New("kata requires the simple one-server/two-worker topology")
 	}
 
 	return nil
@@ -161,7 +161,7 @@ func validateKataSecurityFlags(flags string, server bool, policy *kataSecurityPo
 		return values, errors.New("RC/staging requires the approved system-default-registry explicitly on the server")
 	}
 	if values.Snapshotter != "" && values.Snapshotter != "overlayfs" {
-		return values, errors.New("p0 cold-cache characterization currently requires overlayfs")
+		return values, errors.New("cold-cache characterization currently requires overlayfs")
 	}
 
 	return values, nil
@@ -176,7 +176,7 @@ func StartKata(ctx context.Context, cluster *driver.Cluster, cfg *KataConfig) er
 		return err
 	}
 
-	resources.LogLevel("info", "Private Kata evidence: %s", cfg.run.dir)
+	logKata("working files for this run (not archived; this console log is the record): %s", cfg.run.dir)
 	if installErr := cfg.run.install(ctx); installErr != nil {
 		return fmt.Errorf("install Kata and validate the runc baseline: %w", installErr)
 	}
@@ -317,6 +317,11 @@ func (s *KataRun) create(ctx context.Context, name string, object any) error {
 	return nil
 }
 
+// logKata records what a check verified; the job console is the run's durable record.
+func logKata(format string, args ...any) {
+	resources.LogLevel("debug", "Kata: "+format, args...)
+}
+
 func pollKata(ctx context.Context, limit time.Duration, check func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
@@ -359,6 +364,6 @@ func (s *KataRun) cleanup(ctx context.Context) error {
 		}
 	}
 
-	// Keep the HelmChart on preserved clusters; uninstall is KATA-08, outside P0.
+	// Keep the HelmChart on preserved clusters; uninstall is KATA-08, outside this suite.
 	return errors.Join(errs...)
 }
