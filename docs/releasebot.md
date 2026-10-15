@@ -475,7 +475,9 @@ owns the claude-sandbox and its Vertex login (`fmoral` on the bot VM).
   Console logs are streamed to their real end (last 8 MiB); a log over 512 MiB is refused
   rather than cut short. A broker that crashes mid-triage leaves the request in `work/`;
   the next broker puts it back in `in/`; a broker stopped mid-triage leaves the request there
-  on purpose (no verdict), so the next one answers it while the bot still waits. When the bot stops waiting (`stop`, shutdown or
+  on purpose (no verdict), so the next one answers it while the bot still waits; with no broker
+  lock for 2 minutes in a row the bot gives the request up instead of waiting the whole
+  `-triage-wait`. When the bot stops waiting (`stop`, shutdown, the broker gone or
   `-triage-wait`) for a request the broker already claimed, it leaves `in/<id>.cancel` and the
   broker cancels that triage (and its container) instead of letting it run to its timeout. The
   prompt, with the log excerpt (redacted like the summaries), goes to `claude-sandbox` on stdin,

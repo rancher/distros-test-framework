@@ -131,8 +131,26 @@ func TestSpoolTriagerAsksOnFailure(t *testing.T) {
 		t.Fatalf("request not withdrawn: %v", left)
 	}
 
-	// No broker at all: ask at once instead of waiting for the timeout.
+	// A broker that dies after claiming the request: the request gives up once the lock has been
+	// gone for DownLimit, not after the whole timeout.
+	dying := newSpool(t)
+	release, lockErr := AcquireBrokerLock(dying)
+	if lockErr != nil {
+		t.Fatal(lockErr)
+	}
+	time.AfterFunc(10*time.Millisecond, release)
+	dyingClient := &BrokerClient{Dir: dying, Timeout: time.Hour, Poll: time.Millisecond, DownLimit: 20 * time.Millisecond}
 	start := time.Now()
+	d, _ = dyingClient.Ask(context.Background(), quickRequest())
+	if d.Rerun || !strings.Contains(d.Summary, "broker stopped") || time.Since(start) > 5*time.Second {
+		t.Fatalf("decision from a dead broker %+v after %s", d, time.Since(start))
+	}
+	if left, _ := os.ReadDir(filepath.Join(dying, spoolIn)); len(left) != 0 {
+		t.Fatalf("request not withdrawn: %v", left)
+	}
+
+	// No broker at all: ask at once instead of waiting for the timeout.
+	start = time.Now()
 	noBroker := &BrokerClient{Dir: newSpool(t), Timeout: time.Hour, Poll: time.Millisecond}
 	d, _ = noBroker.Ask(context.Background(), quickRequest())
 	if d.Rerun || !strings.Contains(d.Summary, "broker is not running") || time.Since(start) > time.Second {

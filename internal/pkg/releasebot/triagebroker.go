@@ -781,6 +781,9 @@ type BrokerClient struct {
 	Dir     string
 	Timeout time.Duration // how long a request waits for its verdict
 	Poll    time.Duration
+
+	// DownLimit (default 2m): a request gives up once the broker has held no lock for this long.
+	DownLimit time.Duration
 }
 
 // Ask returns the broker's decision; ok is false when triage could not run (no broker, timeout,
@@ -790,7 +793,11 @@ func (c *BrokerClient) Ask(ctx context.Context, req *TriageRequest) (d Decision,
 		return Decision{Summary: "automatic triage unavailable: the triage broker is not running"}, false
 	}
 	req.ID = newID()
-	v, err := askBroker(ctx, c.Dir, req, c.Timeout, pollOrDefault(c.Poll))
+	downLimit := c.DownLimit
+	if downLimit <= 0 {
+		downLimit = 2 * time.Minute
+	}
+	v, err := askBroker(ctx, c.Dir, req, c.Timeout, pollOrDefault(c.Poll), downLimit)
 	if err != nil {
 		return Decision{Summary: "automatic triage unavailable: " + err.Error()}, false
 	}
@@ -807,16 +814,26 @@ func pollOrDefault(p time.Duration) time.Duration {
 	return p
 }
 
-func askBroker(ctx context.Context, dir string, req *TriageRequest, timeout, poll time.Duration) (*Verdict, error) {
+func askBroker(
+	ctx context.Context, dir string, req *TriageRequest, timeout, poll, downLimit time.Duration,
+) (*Verdict, error) {
 	if err := writeSpoolFile(filepath.Join(dir, spoolIn), req.ID, req); err != nil {
 		return nil, fmt.Errorf("queue request: %w", err)
 	}
 	out := filepath.Join(dir, spoolOut, req.ID+".json")
 	defer os.Remove(out)
 
+	// withdraw removes the request; once the broker has claimed it, asks it to stop that triage.
+	withdraw := func() {
+		if err := os.Remove(filepath.Join(dir, spoolIn, req.ID+".json")); errors.Is(err, os.ErrNotExist) {
+			_ = writeSpoolRaw(filepath.Join(dir, spoolIn), req.ID+cancelSuffix, nil)
+		}
+	}
+
 	parent := ctx
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	var downSince time.Time
 	for {
 		raw, err := readSpoolFile(out)
 		if err == nil {
@@ -828,16 +845,24 @@ func askBroker(ctx context.Context, dir string, req *TriageRequest, timeout, pol
 
 			return v, nil
 		}
-
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
+
+		// A broker that died after claiming the request would otherwise cost the whole timeout.
+		switch {
+		case brokerRunning(dir):
+			downSince = time.Time{}
+		case downSince.IsZero():
+			downSince = time.Now()
+		case time.Since(downSince) >= downLimit:
+			withdraw()
+			return nil, fmt.Errorf("the triage broker stopped (no lock for %s)", downLimit)
+		}
+
 		select {
 		case <-ctx.Done():
-			// Withdraw the request; once the broker has claimed it, ask it to stop that triage.
-			if err := os.Remove(filepath.Join(dir, spoolIn, req.ID+".json")); errors.Is(err, os.ErrNotExist) {
-				_ = writeSpoolRaw(filepath.Join(dir, spoolIn), req.ID+cancelSuffix, nil)
-			}
+			withdraw()
 			if parent.Err() != nil {
 				return nil, fmt.Errorf("triage canceled: %w", parent.Err())
 			}
