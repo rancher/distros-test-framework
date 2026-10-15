@@ -4,29 +4,29 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
-// GitHub talks to the GitHub REST API; Token may be empty for read-only public calls.
-type GitHub struct {
+type gitHub struct {
 	BaseURL string
 	Token   string
 	HTTP    *http.Client
 }
 
-// NewGitHub returns a client for api.github.com.
-func NewGitHub(token string) *GitHub {
-	return &GitHub{BaseURL: "https://api.github.com", Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
+func newGitHub(token string) *gitHub {
+	return &gitHub{BaseURL: "https://api.github.com", Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
 }
 
 var productRepo = map[string]string{"k3s": "k3s-io/k3s", "rke2": "rancher/rke2"}
 
 // TagExists checks that a release tag exists in the product repository.
-func (g *GitHub) TagExists(ctx context.Context, product, tag string) (bool, error) {
+func (g *gitHub) TagExists(ctx context.Context, product, tag string) (bool, error) {
 	repo, ok := productRepo[product]
 	if !ok {
 		return false, fmt.Errorf("unknown product %q", product)
@@ -48,10 +48,120 @@ func (g *GitHub) TagExists(ctx context.Context, product, tag string) (bool, erro
 	}
 }
 
-// Dispatch fires a workflow_dispatch event; GitHub answers 204 with no run id.
-func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
+// LatestGA returns the newest published GA release of rc's minor that is older than rc: the version
+// an upgrade to rc starts from. A .0 RC has none yet, so the previous minor is used and note says so.
+func (g *gitHub) LatestGA(ctx context.Context, product, rc string) (version, note string, err error) {
+	target, ok := parseRelease(rc)
+	if !ok {
+		return "", "", fmt.Errorf("not a release tag: %q", rc)
+	}
+
+	for minor := target.minor; minor >= 0 && minor >= target.minor-1; minor-- {
+		tags, tagErr := g.matchingTags(ctx, product, fmt.Sprintf("v%d.%d.", target.major, minor))
+		if tagErr != nil {
+			return "", "", tagErr
+		}
+
+		// Newest first; a tag whose release is a draft or prerelease (or has none) is skipped.
+		var gas []string
+		for _, t := range tags {
+			if r, parsed := parseRelease(t); parsed && r.rc == 0 && r.minor == minor && r.less(target) {
+				gas = append(gas, t)
+			}
+		}
+		for _, tag := range newestFirst(gas) {
+			published, pubErr := g.published(ctx, product, tag)
+			if pubErr != nil {
+				return "", "", pubErr
+			}
+			if !published {
+				continue
+			}
+			if minor != target.minor {
+				note = fmt.Sprintf("%s: no v%d.%d GA yet, upgrading from %s", rc, target.major, target.minor, tag)
+			}
+
+			return tag, note, nil
+		}
+	}
+
+	return "", "", fmt.Errorf("%s: no published GA release of v%d.%d or the previous minor", rc, target.major, target.minor)
+}
+
+// published reports whether tag has a release that is neither a draft nor a prerelease (a draft is
+// not visible to the API: 404).
+func (g *gitHub) published(ctx context.Context, product, tag string) (bool, error) {
+	repo := productRepo[product]
+	resp, err := g.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/releases/tags/%s", repo, url.PathEscape(tag)), nil)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		return false, nil
+	case http.StatusOK:
+	default:
+		return false, fmt.Errorf("github release %s@%s: %s", repo, tag, resp.Status)
+	}
+
+	var rel struct {
+		Draft      bool `json:"draft"`
+		Prerelease bool `json:"prerelease"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return false, fmt.Errorf("github release %s@%s: %w", repo, tag, err)
+	}
+
+	return !rel.Draft && !rel.Prerelease, nil
+}
+
+// matchingTags lists every tag starting with prefix in one unpaged call (git matching-refs).
+func (g *gitHub) matchingTags(ctx context.Context, product, prefix string) ([]string, error) {
+	repo, ok := productRepo[product]
+	if !ok {
+		return nil, fmt.Errorf("unknown product %q", product)
+	}
+
+	resp, err := g.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/git/matching-refs/tags/%s", repo, prefix), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github tags %s@%s*: %s", repo, prefix, resp.Status)
+	}
+
+	// A truncated answer could hide the newest GA; refuse it rather than pick an older one.
+	if strings.Contains(resp.Header.Get("Link"), `rel="next"`) {
+		return nil, fmt.Errorf("github tags %s@%s*: the answer is paged; not all tags were read", repo, prefix)
+	}
+	var refs []struct {
+		Ref string `json:"ref"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&refs); err != nil {
+		return nil, fmt.Errorf("github tags %s@%s*: %w", repo, prefix, err)
+	}
+
+	tags := make([]string, 0, len(refs))
+	for _, r := range refs {
+		tags = append(tags, strings.TrimPrefix(r.Ref, "refs/tags/"))
+	}
+
+	return tags, nil
+}
+
+// errDispatchRejected means gitHub answered the dispatch with a 4xx: no workflow run was created.
+var errDispatchRejected = errors.New("dispatch rejected")
+
+// errDispatchNotSent means the dispatch never left the bot (no token, a canceled run, no connection).
+var errDispatchNotSent = errors.New("dispatch not sent")
+
+func (g *gitHub) Dispatch(ctx context.Context, w workflowDispatch) error {
 	if g.Token == "" {
-		return fmt.Errorf("GITHUB_TOKEN is required to dispatch %s", w.Workflow)
+		return fmt.Errorf("%w: GITHUB_TOKEN is required to dispatch %s", errDispatchNotSent, w.Workflow)
 	}
 
 	inputs := map[string]string{}
@@ -60,27 +170,40 @@ func (g *GitHub) Dispatch(ctx context.Context, w WorkflowDispatch) error {
 			inputs[k] = v
 		}
 	}
+
 	body, err := json.Marshal(map[string]any{"ref": w.Ref, "inputs": inputs})
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errDispatchNotSent, err)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("%w: %w", errDispatchNotSent, ctxErr)
 	}
 
 	resp, err := g.do(ctx, http.MethodPost,
 		fmt.Sprintf("/repos/%s/actions/workflows/%s/dispatches", w.Repo, w.Workflow), bytes.NewReader(body))
 	if err != nil {
+		if notSent(err) {
+			return fmt.Errorf("%w: %w", errDispatchNotSent, err)
+		}
+
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("dispatch %s: %s: %s", w.Workflow, resp.Status, bytes.TrimSpace(msg))
+		err = fmt.Errorf("dispatch %s: %s: %s", w.Workflow, resp.Status, bytes.TrimSpace(msg))
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			err = fmt.Errorf("%w: %w", errDispatchRejected, err)
+		}
+
+		return err
 	}
 
 	return nil
 }
 
-func (g *GitHub) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+func (g *gitHub) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, g.BaseURL+path, body)
 	if err != nil {
 		return nil, err

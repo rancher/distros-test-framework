@@ -228,7 +228,7 @@ func updateTestDetails(
 		errorLog := out.ErrorLog
 		var failureDetails *FailureDetails
 
-		if out.State == "failed" {
+		if isFailureStatus(out.State) {
 			errorLog = extractErrorLogFromContent(fullLog, row.Test)
 			failureDetails = extractFailureDetails(fullLog, row.Test, out.Name, out.Time/nanosToMinutes)
 		}
@@ -244,12 +244,13 @@ func updateTestDetails(
 
 		*allTests = append(*allTests, td)
 
-		switch out.State {
-		case failStatus:
+		// Panicked, timed out and interrupted specs are failures too, as in the bulk results.
+		switch {
+		case isFailureStatus(out.State):
 			s.failed++
-		case passStatus:
+		case out.State == passStatus:
 			s.passed++
-		case skipStatus:
+		case out.State == skipStatus:
 			s.skipped++
 		}
 	}
@@ -283,7 +284,7 @@ func extractTestOutput(res string) []Output {
 		if nextBraceIdx == -1 {
 			// If no more supposedly JSON stuff...
 			// If a current test output is marked as failed, append the remaining text to its error log and break.
-			if currentOutput != nil && currentOutput.State == "failed" {
+			if currentOutput != nil && isFailureStatus(currentOutput.State) {
 				currentOutput.ErrorLog += remainingData[i:]
 			}
 			break
@@ -294,7 +295,7 @@ func extractTestOutput(res string) []Output {
 
 		// If there's any data between the current position and the next '{', and if the current test
 		// has failed status, add this data to its error log.
-		if nextBraceIdx > i && currentOutput != nil && currentOutput.State == "failed" {
+		if nextBraceIdx > i && currentOutput != nil && isFailureStatus(currentOutput.State) {
 			currentOutput.ErrorLog += remainingData[i:nextBraceIdx]
 		}
 
@@ -342,7 +343,7 @@ func extractTestOutput(res string) []Output {
 
 				// if JSON block does not represent a test output and a test is active but failed state,
 				// append this block to its error log.
-			} else if currentOutput != nil && currentOutput.State == "failed" {
+			} else if currentOutput != nil && isFailureStatus(currentOutput.State) {
 				currentOutput.ErrorLog += jsonStr
 			}
 		} else {
@@ -350,7 +351,7 @@ func extractTestOutput(res string) []Output {
 			// IF we can't unmarshal the JSON block, instead of exit or error out
 			// Instead of exiting, we add this data to the error log if the state is failed,
 			// because we might want extra logs for failed tests.
-			if currentOutput != nil && currentOutput.State == "failed" {
+			if currentOutput != nil && isFailureStatus(currentOutput.State) {
 				currentOutput.ErrorLog += jsonStr
 			}
 		}
@@ -603,7 +604,7 @@ func (pd *processedTestdata) GetFailedTestDetails() []*FailureDetails {
 	var failures []*FailureDetails
 	for _, overview := range pd.testSummary {
 		for _, tc := range overview.testCases {
-			if tc.status == failStatus && tc.failureDetails != nil {
+			if isFailureStatus(tc.status) && tc.failureDetails != nil {
 				failures = append(failures, tc.failureDetails)
 			}
 		}

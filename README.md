@@ -2,7 +2,8 @@
 
 The acceptance tests are a customizable way to create clusters and perform validations on them such that the requirements of specific features and functions can be validated.
 
-- It relies on [Terraform](https://www.terraform.io/) to provide the underlying cluster configuration.
+- The supported CI provisions clusters with [QA-INFRA](./docs/qa-infra-integration.md) (OpenTofu); the legacy
+  [Terraform](https://www.terraform.io/) provisioner is still available and is the default when `PROVISIONER_MODULE` is unset.
 - It uses [Ginkgo](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/) as assertion framework.
 
 See `docs/` for any more specific information and examples.

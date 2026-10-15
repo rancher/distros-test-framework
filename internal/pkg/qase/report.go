@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/types"
 	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -37,6 +38,10 @@ type TestCase struct {
 	Elapsed        int64
 	CaseID         int64
 	FailureDetails *FailureDetails
+	// IsSpec is true for It nodes; suite hooks (BeforeSuite/AfterSuite) never count as executed specs.
+	IsSpec bool
+	// IsSetup marks BeforeSuite hooks: when one fails, no spec runs at all.
+	IsSetup bool
 }
 
 // Failures contains detailed information about a test failure.
@@ -106,8 +111,8 @@ func (c Client) SpecReportTestResults(ctx context.Context, cluster *driver.Clust
 		comment:   newNullString(),
 	}
 
-	tcs, _ := specReportToTestCase(report)
-	request := parseResults(cluster, tcs, reportSummary, &req)
+	tcs, suiteSucceeded := specReportToTestCase(report)
+	request := parseResults(cluster, tcs, suiteSucceeded, reportSummary, &req)
 
 	if err := c.createTestResult(ctx, request); err != nil {
 		resources.LogLevel("error", "failed to create test result: %w\n", err)
@@ -146,18 +151,29 @@ func specReportToTestCase(report *Report) ([]TestCase, bool) {
 	for i := range report.SpecReports {
 		r := &report.SpecReports[i]
 		var f Failures
-		if r.State.String() != passStatus {
+		switch {
+		case r.State.Is(types.SpecStateFailureStates):
 			f = Failures{
 				Message:        r.Failure.Message,
 				Location:       r.Failure.Location.String(),
 				CodeLocation:   r.Failure.FailureNodeLocation.String(),
 				FullStackTrace: r.Failure.Location.FullStackTrace,
 			}
+		case r.State.Is(types.SpecStateSkipped):
+			// Ginkgo stores the Skip() reason in Failure.Message; keep it without treating it as a failure.
+			f = Failures{Message: r.Failure.Message}
 		}
 
+		// Hooks (BeforeSuite, AfterSuite...) have no text: name them by their node type.
+		name := r.LeafNodeText
+		if name == "" {
+			name = r.LeafNodeType.String()
+		}
 		tcs = append(tcs, TestCase{
-			Name:       r.LeafNodeText,
+			Name:       name,
 			Status:     r.State.String(),
+			IsSpec:     r.LeafNodeType == types.NodeTypeIt,
+			IsSetup:    r.LeafNodeType.Is(types.NodeTypeBeforeSuite | types.NodeTypeSynchronizedBeforeSuite),
 			StackTrace: f,
 			Elapsed:    int64(r.RunTime.Seconds()),
 		})
@@ -166,24 +182,78 @@ func specReportToTestCase(report *Report) ([]TestCase, bool) {
 	return tcs, report.SuiteSucceeded
 }
 
+// failureStatuses are Ginkgo's SpecStateFailureStates as strings; skipped/pending are not failures.
+var failureStatuses = func() map[string]bool {
+	m := make(map[string]bool)
+	for _, st := range []types.SpecState{
+		types.SpecStateFailed, types.SpecStateAborted, types.SpecStatePanicked,
+		types.SpecStateInterrupted, types.SpecStateTimedout,
+	} {
+		m[st.String()] = true
+	}
+
+	return m
+}()
+
+func isFailureStatus(status string) bool { return failureStatuses[status] }
+
+func isSkippedStatus(status string) bool {
+	return status == skipStatus || status == types.SpecStatePending.String()
+}
+
+// resultStatus turns outcomes into the Qase result: any failure, hook included, is failed;
+// passed/skipped is decided only by It specs, so a green BeforeSuite around skipped Its is skipped.
+func resultStatus(testCases []TestCase, suiteSucceeded bool) string {
+	passedSpecs, skippedSpecs := 0, 0
+	for i := range testCases {
+		tc := &testCases[i]
+		switch {
+		case isFailureStatus(tc.Status):
+			return failStatus
+		case !tc.IsSpec:
+			continue
+		case tc.Status == passStatus:
+			passedSpecs++
+		case isSkippedStatus(tc.Status):
+			skippedSpecs++
+		}
+	}
+	if !suiteSucceeded {
+		return failStatus
+	}
+	if passedSpecs == 0 && skippedSpecs > 0 {
+		return skipStatus
+	}
+
+	return passStatus
+}
+
 // parseResults receives the test results and parses the results into the createResultRequest.
 func parseResults(
 	cluster *driver.Cluster,
 	testCases []TestCase,
+	suiteSucceeded bool,
 	reportSummary string,
 	req *createResultRequest,
 ) *createResultRequest {
 	testResSummary := tcResultSummary(cluster, reportSummary)
-	var failedSubTests []TestCase
+	var failedSubTests, skippedSubTests []*TestCase
+	setupFailed := false
 
-	for _, tc := range testCases {
-		if tc.Status != passStatus {
+	for i := range testCases {
+		tc := &testCases[i]
+		setupFailed = setupFailed || (tc.IsSetup && isFailureStatus(tc.Status))
+		switch {
+		case isFailureStatus(tc.Status):
 			failedSubTests = append(failedSubTests, tc)
+		case isSkippedStatus(tc.Status) && tc.IsSpec:
+			skippedSubTests = append(skippedSubTests, tc)
 		}
 	}
 
+	req.status = resultStatus(testCases, suiteSucceeded)
+
 	if len(failedSubTests) > 0 {
-		req.status = failStatus
 		var comments string
 		for _, tc := range failedSubTests {
 			updatedFullStackTrace := makeClickableLinks(tc.StackTrace.FullStackTrace)
@@ -198,14 +268,33 @@ func parseResults(
 			)
 		}
 		testResSummary += fmt.Sprintf("\n"+"\n"+"Failed sub-tests:\n%s"+"\n", comments)
-		req.comment = newNullableString(testResSummary)
-	} else {
-		req.status = passStatus
-		req.comment = newNullableString(fmt.Sprintf("Version Tested: %s\n", cluster.Config.Version))
-		req.comment = newNullableString(testResSummary)
+	} else if !suiteSucceeded {
+		testResSummary += "\n\nSuite failed outside its specs (BeforeSuite/AfterSuite); see the job log.\n"
 	}
 
+	testResSummary += skippedSection(skippedSubTests, setupFailed)
+
+	req.comment = newNullableString(testResSummary)
+
 	return req
+}
+
+// skippedSection lists skipped specs; only a failed BeforeSuite keeps specs from running, any other
+// failure leaves Skip()s as skips.
+func skippedSection(skipped []*TestCase, setupFailed bool) string {
+	if len(skipped) == 0 {
+		return ""
+	}
+	heading := "Skipped sub-tests (not failures)"
+	if setupFailed {
+		heading = "Specs not run (BeforeSuite failed)"
+	}
+	out := "\n\n" + heading + ":\n"
+	for _, tc := range skipped {
+		out += fmt.Sprintf("- %s (%s): %s\n", tc.Name, tc.Status, tc.StackTrace.Message)
+	}
+
+	return out
 }
 
 func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
@@ -216,7 +305,7 @@ func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
 			var stackTrace Failures
 			var failureDetails *FailureDetails
 
-			if td.status == failStatus {
+			if isFailureStatus(td.status) {
 				stackTrace = Failures{
 					Message: td.errorLog,
 				}
@@ -226,6 +315,7 @@ func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
 			tc := TestCase{
 				Name:           td.testSuiteName + " " + td.testCaseName,
 				Status:         td.status,
+				IsSpec:         true,
 				StackTrace:     stackTrace,
 				Elapsed:        int64(td.elapsedTime),
 				CaseID:         td.caseID,
@@ -241,27 +331,28 @@ func testSuiteDetailsToTestCase(testOverview []testOverview) []TestCase {
 
 func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 	caseGroups := make(map[int64][]TestCase)
-	for _, tc := range testCases {
-		if tc.CaseID <= 0 {
+	for i := range testCases {
+		if testCases[i].CaseID <= 0 {
 			continue
 		}
-		caseGroups[tc.CaseID] = append(caseGroups[tc.CaseID], tc)
+		caseGroups[testCases[i].CaseID] = append(caseGroups[testCases[i].CaseID], testCases[i])
 	}
 
 	var reqs []createResultRequest
 
 	for cid, group := range caseGroups {
-		// here we default finalStatus to passStatus and update it to failStatus if any of the sub-tests fail.
-		finalStatus := passStatus
+		// Any failing sub-test fails the case; a case whose sub-tests were all skipped is skipped.
+		finalStatus := resultStatus(group, true)
 		var totalElapsed int64
 		var commentBuilder strings.Builder
 		commentBuilder.WriteString("Version Tested: Latest master commit, see link above on description!\n\n")
 
-		for _, tc := range group {
+		for i := range group {
+			tc := &group[i]
 			totalElapsed += tc.Elapsed
 
-			if tc.Status == failStatus {
-				finalStatus = failStatus
+			switch {
+			case isFailureStatus(tc.Status):
 				commentBuilder.WriteString(fmt.Sprintf(
 					"---\n**FAILED Sub-test:** %s\n\n",
 					tc.Name,
@@ -272,11 +363,10 @@ func parseBulkResults(testCases []TestCase, runID int32) []createResultRequest {
 				} else if tc.StackTrace.Message != "" {
 					commentBuilder.WriteString(fmt.Sprintf("**Error Message:**\n```\n%s\n```\n\n", tc.StackTrace.Message))
 				}
-			} else {
-				commentBuilder.WriteString(fmt.Sprintf(
-					"Passed sub-test: %s\n",
-					tc.Name,
-				))
+			case isSkippedStatus(tc.Status):
+				commentBuilder.WriteString(fmt.Sprintf("Skipped sub-test: %s\n", tc.Name))
+			default:
+				commentBuilder.WriteString(fmt.Sprintf("Passed sub-test: %s\n", tc.Name))
 			}
 		}
 

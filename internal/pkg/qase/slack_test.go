@@ -10,7 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
+
+	"github.com/rancher/distros-test-framework/internal/pkg/slack"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -89,19 +92,37 @@ func TestFailureBlocksTruncateUnicodeWithoutCorruption(t *testing.T) {
 	}
 }
 
-func TestPostFailureDetailsSendsEveryBoundedChunkToThread(t *testing.T) {
-	var messages []slackMessage
+// fakeSlack returns a client whose posts are recorded; responses answer them in order, and
+// without responses every post succeeds.
+func fakeSlack(responses ...string) (sc *slackClient, messages *[]slackMessage) {
+	messages = &[]slackMessage{}
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		var msg slackMessage
 		if err := json.NewDecoder(req.Body).Decode(&msg); err != nil {
-			t.Fatalf("decode request: %v", err)
+			return nil, fmt.Errorf("decode request: %w", err)
 		}
-		messages = append(messages, msg)
-		body := io.NopCloser(bytes.NewBufferString(`{"ok":true,"ts":"1.2"}`))
+		*messages = append(*messages, msg)
+		resp := `{"ok":true,"ts":"1.2"}`
+		if len(responses) > 0 {
+			if len(*messages) > len(responses) {
+				return nil, fmt.Errorf("unexpected Slack request %d", len(*messages))
+			}
+			resp = responses[len(*messages)-1]
+		}
+		body := io.NopCloser(bytes.NewBufferString(resp))
 
 		return &http.Response{StatusCode: http.StatusOK, Body: body, Header: make(http.Header)}, nil
 	})}
-	sc := &slackClient{channelID: "C123", client: client}
+	sc = &slackClient{channelID: "C123", api: &slack.Client{
+		BaseURL: "https://slack.test/api", Token: "xoxb",
+		HTTP: client, PostInterval: time.Millisecond,
+	}}
+
+	return sc, messages
+}
+
+func TestPostFailureDetailsSendsEveryBoundedChunkToThread(t *testing.T) {
+	sc, sent := fakeSlack()
 	pd := &processedTestdata{testSummary: []testOverview{{testCases: make([]testDetails, 28)}}}
 	for i, failure := range fakeFailures(28) {
 		pd.testSummary[0].testCases[i] = testDetails{status: failStatus, failureDetails: failure}
@@ -110,6 +131,7 @@ func TestPostFailureDetailsSendsEveryBoundedChunkToThread(t *testing.T) {
 	if err := sc.PostFailureDetails(pd, "thread-123"); err != nil {
 		t.Fatalf("PostFailureDetails: %v", err)
 	}
+	messages := *sent
 	if len(messages) != 3 {
 		t.Fatalf("sent %d messages, want 3", len(messages))
 	}
@@ -121,26 +143,11 @@ func TestPostFailureDetailsSendsEveryBoundedChunkToThread(t *testing.T) {
 }
 
 func TestPostSlackResultsFallsBackAndReturnsDetailsError(t *testing.T) {
-	responses := []string{
+	sc, sent := fakeSlack(
 		`{"ok":true,"ts":"parent-123"}`,
 		`{"ok":false,"error":"invalid_blocks"}`,
 		`{"ok":true,"ts":"fallback-123"}`,
-	}
-	var messages []slackMessage
-	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		var msg slackMessage
-		if err := json.NewDecoder(req.Body).Decode(&msg); err != nil {
-			return nil, fmt.Errorf("decode request: %w", err)
-		}
-		messages = append(messages, msg)
-		if len(messages) > len(responses) {
-			return nil, fmt.Errorf("unexpected Slack request %d", len(messages))
-		}
-		body := io.NopCloser(bytes.NewBufferString(responses[len(messages)-1]))
-
-		return &http.Response{StatusCode: http.StatusOK, Body: body, Header: make(http.Header)}, nil
-	})}
-	sc := &slackClient{channelID: "C123", client: client}
+	)
 	failure := fakeFailures(1)[0]
 	failure.TestSuite = "Test_E2EBtrfsSnapshot"
 	pd := &processedTestdata{
@@ -161,6 +168,7 @@ func TestPostSlackResultsFallsBackAndReturnsDetailsError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "invalid_blocks") {
 		t.Fatalf("error = %v, want surfaced invalid_blocks failure", err)
 	}
+	messages := *sent
 	if len(messages) != 3 {
 		t.Fatalf("sent %d messages, want summary + details + fallback", len(messages))
 	}
@@ -237,5 +245,28 @@ func TestGetFailedTestDirsFallsBackToDefaults(t *testing.T) {
 
 	if got := getFailedTestDirs(pd, t.TempDir(), "unknown-product"); got != nil {
 		t.Errorf("unknown product without file should give nil, got %v", got)
+	}
+}
+
+// A panicked spec is listed under "Failed Tests" in the Slack summary like a failed one.
+func TestSlackFailedListIncludesPanicked(t *testing.T) {
+	sc, sent := fakeSlack(`{"ok":true,"ts":"parent-123"}`, `{"ok":true,"ts":"d"}`)
+	pd := &processedTestdata{
+		failedTests: 1,
+		testSummary: []testOverview{{testCases: []testDetails{
+			{testSuiteName: "Test_E2EBtrfsSnapshot", testCaseName: "crashed spec", status: "panicked"},
+			{testSuiteName: "Test_E2EBtrfsSnapshot", testCaseName: "fine spec", status: passStatus},
+		}}},
+		testSuiteSummary: []testSuiteDetails{{testSuiteName: "Test_E2EBtrfsSnapshot", failedTests: 1}},
+	}
+	base := t.TempDir()
+	if err := os.Mkdir(filepath.Join(base, "report"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = postSlackResults(sc, pd, "k3s", "amd64", base, 0)
+	raw, _ := json.Marshal((*sent)[0])
+	summary := string(raw)
+	if !strings.Contains(summary, "Test_E2EBtrfsSnapshot / crashed spec") || strings.Contains(summary, "/ fine spec") {
+		t.Fatalf("summary: %s", summary)
 	}
 }

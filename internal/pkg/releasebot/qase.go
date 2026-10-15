@@ -12,13 +12,13 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/qase"
 )
 
-// QaseRunTitle mirrors scripts/qase-patch-validation.sh; the script hardcodes the rke2r1/k3s1 suffix
+// qaseRunTitle mirrors scripts/qase-patch-validation.sh; the script hardcodes the rke2r1/k3s1 suffix
 // whatever the tag says, so this must stay in sync with it.
-func QaseRunTitle(product, tag string, now time.Time) string {
+func qaseRunTitle(product, tag string, now time.Time) string {
 	suffix := map[string]string{"rke2": "rke2r1", "k3s": "k3s1"}[product]
 
 	return fmt.Sprintf("%s %s %d Patch Validation for %s+%s",
-		strings.ToUpper(product), now.UTC().Format("January"), now.UTC().Year(), BaseVersion(tag), suffix)
+		strings.ToUpper(product), now.UTC().Format("January"), now.UTC().Year(), baseVersion(tag), suffix)
 }
 
 // QaseRun is the part of a Qase run the bot matches on.
@@ -38,8 +38,8 @@ type Qase struct {
 	client *qase.Client
 }
 
-// NewQase returns a runs finder backed by the shared Qase client; it fails without QASE_AUTOMATION_TOKEN.
-func NewQase() (*Qase, error) {
+// newQase returns a runs finder backed by the shared Qase client; it fails without QASE_AUTOMATION_TOKEN.
+func newQase() (*Qase, error) {
 	c, err := qase.AddQase()
 	if err != nil {
 		return nil, err
@@ -78,9 +78,9 @@ func qaseRequestMarker(requestID string) string {
 	return " | Release bot request: " + requestID
 }
 
-// MatchQaseRun picks the run with the exact title created for requestID (its description ends with
+// matchQaseRun picks the run with the exact title created for requestID (its description ends with
 // the request marker). With an empty requestID (runs created by hand) the newest run with the title wins.
-func MatchQaseRun(runs []QaseRun, title, requestID string) (int64, bool) {
+func matchQaseRun(runs []QaseRun, title, requestID string) (int64, bool) {
 	var best int64
 	for _, r := range runs {
 		if r.Title != title {
@@ -97,8 +97,8 @@ func MatchQaseRun(runs []QaseRun, title, requestID string) (int64, bool) {
 	return best, best > 0
 }
 
-// WaitQaseRuns polls until every title has a run for requestID and returns title -> id.
-func WaitQaseRuns(ctx context.Context, f QaseRunFinder, titles []string, requestID string,
+// waitQaseRuns polls until every title has a run for requestID and returns title -> id.
+func waitQaseRuns(ctx context.Context, f QaseRunFinder, titles []string, requestID string,
 	poll, timeout time.Duration,
 ) (map[string]int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -116,7 +116,7 @@ func WaitQaseRuns(ctx context.Context, f QaseRunFinder, titles []string, request
 				lastErr = err
 				continue
 			}
-			if id, ok := MatchQaseRun(runs, title, requestID); ok {
+			if id, ok := matchQaseRun(runs, title, requestID); ok {
 				found[title] = id
 			}
 		}
@@ -145,9 +145,9 @@ func WaitQaseRuns(ctx context.Context, f QaseRunFinder, titles []string, request
 	}
 }
 
-// ApplyQaseRunIDs replaces {{QASE_RUN_ID}} in every job's params with the run of its product/version;
+// applyQaseRunIDs replaces {{QASE_RUN_ID}} in every job's params with the run of its product/version;
 // it fails if a job needs a run id that was not resolved, so nothing reports to the wrong run.
-func ApplyQaseRunIDs(jobs []JenkinsJob, ids map[string]int64) error {
+func applyQaseRunIDs(jobs []JenkinsJob, ids map[string]int64) error {
 	for i := range jobs {
 		j := &jobs[i]
 		for k, v := range j.Params {
@@ -165,8 +165,8 @@ func ApplyQaseRunIDs(jobs []JenkinsJob, ids map[string]int64) error {
 	return nil
 }
 
-// NewRequestID returns a unique id for one dispatch, e.g. rb-20260928T134501-9f3a1c2e.
-func NewRequestID(now time.Time) string {
+// newRequestID returns a unique id for one dispatch, e.g. rb-20260928T134501-9f3a1c2e.
+func newRequestID(now time.Time) string {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
 

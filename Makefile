@@ -134,9 +134,14 @@ test-nvidia:
 #========================= TestCode Static Quality Check =========================#
 pre-commit: go-check unit-tests
 
-# Unit tests only — entrypoint suites are build-tagged e2e and need real infra.
+# Every test that runs locally without infra; entrypoint suites need real clusters, so they are left out.
 unit-tests:
-	@go test -count=1 ./internal/...
+	@command -v jq >/dev/null || { echo "unit-tests need jq (release script tests)" >&2; exit 1; }
+	@go test -race -count=1 ./internal/... ./cmd/...
+	@sh scripts/security_regression_test.sh
+	@sh scripts/release_checks_test.sh
+	@bash scripts/compare_release_commits_test.sh
+	@bash ops/releasebot/setup_test.sh
 
 go-check:
 	@gofmt -s -w .
