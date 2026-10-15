@@ -387,13 +387,23 @@ func TestShippedMatrixPlan(t *testing.T) {
 	}
 }
 
-func TestGitHubLatestGA(t *testing.T) {
-	tags := map[string][]string{
-		"v1.37.": {"v1.37.0-rc1+rke2r1", "v1.37.0+rke2r1", "v1.37.1-rc1+rke2r1", "v1.37.1+rke2r1", "v1.37.10+rke2r1"},
-		"v1.36.": {"v1.36.3+rke2r1", "v1.36.4+rke2r1", "v1.36.4+rke2r2"},
-		"v1.38.": {"v1.38.0-rc1+rke2r1"},
-	}
+// fakeGitHubTags serves matching-refs for tags (prefix -> tags; "v1.35." is paged) and the release
+// of each tag: the body in releases, 404 for an empty one, a published GA for the rest.
+func fakeGitHubTags(t *testing.T, tags map[string][]string, releases map[string]string) *gitHub {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tag, isRelease := strings.CutPrefix(r.URL.Path, "/repos/rancher/rke2/releases/tags/"); isRelease {
+			switch body, known := releases[tag]; {
+			case known && body == "":
+				w.WriteHeader(http.StatusNotFound)
+			case known:
+				_, _ = w.Write([]byte(body))
+			default:
+				_, _ = w.Write([]byte(`{"draft":false,"prerelease":false}`))
+			}
+
+			return
+		}
 		prefix := strings.TrimPrefix(r.URL.Path, "/repos/rancher/rke2/git/matching-refs/tags/")
 		if prefix == "v1.35." {
 			w.Header().Set("Link", `<https://api.github.com/x?page=2>; rel="next"`)
@@ -404,14 +414,26 @@ func TestGitHubLatestGA(t *testing.T) {
 		}
 		_, _ = w.Write([]byte("[" + strings.Join(refs, ",") + "]"))
 	}))
-	defer srv.Close()
-	gh := &gitHub{BaseURL: srv.URL, HTTP: srv.Client()}
+	t.Cleanup(srv.Close)
 
-	// Same minor, older than the RC (v1.37.10 is newer than v1.37.2), highest revision wins.
+	return &gitHub{BaseURL: srv.URL, HTTP: srv.Client()}
+}
+
+func TestGitHubLatestGA(t *testing.T) {
+	tags := map[string][]string{
+		"v1.37.": {"v1.37.0-rc1+rke2r1", "v1.37.0+rke2r1", "v1.37.1-rc1+rke2r1", "v1.37.1+rke2r1", "v1.37.10+rke2r1"},
+		"v1.36.": {"v1.36.3+rke2r1", "v1.36.4+rke2r1", "v1.36.4+rke2r2"},
+		"v1.38.": {"v1.38.0-rc1+rke2r1"},
+	}
+	// v1.37.10 is still a draft (invisible: 404) and v1.36.4+rke2r2 has no release; the rest are published.
+	releases := map[string]string{"v1.36.4+rke2r2": "", "v1.37.10+rke2r1": ""}
+	gh := fakeGitHubTags(t, tags, releases)
+
+	// Same minor, older than the RC (v1.37.10 is newer than v1.37.2), highest published revision wins.
 	for rc, want := range map[string]string{
 		"v1.37.2-rc1+rke2r1": "v1.37.1+rke2r1",
 		"v1.37.1-rc2+rke2r1": "v1.37.0+rke2r1",
-		"v1.36.5-rc1+rke2r1": "v1.36.4+rke2r2",
+		"v1.36.5-rc1+rke2r1": "v1.36.4+rke2r1",
 	} {
 		got, note, err := gh.LatestGA(context.Background(), "rke2", rc)
 		if err != nil || got != want || note != "" {
@@ -425,10 +447,17 @@ func TestGitHubLatestGA(t *testing.T) {
 		t.Fatalf("paged tags: got %q, err %v", got, err)
 	}
 
-	// A .0 RC has no GA of its minor yet: the previous minor's latest, with a note.
+	// A .0 RC has no GA of its minor yet: the previous minor's latest published one (v1.37.10 is a
+	// draft), with a note.
 	got, note, err := gh.LatestGA(context.Background(), "rke2", "v1.38.0-rc1+rke2r1")
-	if err != nil || got != "v1.37.10+rke2r1" || !strings.Contains(note, "no v1.38 GA yet") {
+	if err != nil || got != "v1.37.1+rke2r1" || !strings.Contains(note, "no v1.38 GA yet") {
 		t.Fatalf("v1.38.0-rc1: got %q note %q err %v", got, note, err)
+	}
+
+	// A prerelease is not a GA either.
+	releases["v1.37.1+rke2r1"] = `{"tag_name":"v1.37.1+rke2r1","draft":false,"prerelease":true}`
+	if got, _, err = gh.LatestGA(context.Background(), "rke2", "v1.37.2-rc1+rke2r1"); err != nil || got != "v1.37.0+rke2r1" {
+		t.Fatalf("prerelease skipped: got %q err %v", got, err)
 	}
 	if _, _, err := gh.LatestGA(context.Background(), "rke2", "v1.40.0-rc1+rke2r1"); err == nil {
 		t.Fatal("expected an error when neither minor has a GA")
@@ -635,6 +664,38 @@ func TestBuildPlan(t *testing.T) {
 	k := p.Jobs[1]
 	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "rbk137kx" {
 		t.Fatalf("params: %v", k.Params)
+	}
+}
+
+// A new-minor .0 RC has no GA in its minor: release-checks gets the previous minor's GA as its
+// commit baseline, or the plan is refused when none can be resolved.
+func TestBuildPlanNewMinorBaseline(t *testing.T) {
+	m := testMatrix(t)
+	req := Request{RKE2: []string{"v1.38.0-rc1+rke2r1"}}
+	res := &fakeResolver{ga: map[string]string{"v1.38.0-rc1+rke2r1": "v1.37.5+rke2r1"}}
+
+	p, err := buildPlan(context.Background(), req, m, testNow, "rb-test", res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Workflows[0].Inputs["commit_baselines"]; got != `{"v1.38.0-rc1+rke2r1":"v1.37.5+rke2r1"}` {
+		t.Fatalf("commit_baselines = %q", got)
+	}
+	if !slices.ContainsFunc(p.Warnings, func(w string) bool { return strings.Contains(w, "v1.37.5+rke2r1") }) {
+		t.Fatalf("the baseline must be shown in the plan: %v", p.Warnings)
+	}
+
+	for name, res := range map[string]Resolver{"no resolver": nil, "no previous GA": &fakeResolver{}} {
+		if _, err = buildPlan(context.Background(), req, m, testNow, "rb-test", res); err == nil ||
+			!strings.Contains(err.Error(), "commit baseline for v1.38.0-rc1+rke2r1") {
+			t.Fatalf("%s: err = %v", name, err)
+		}
+	}
+
+	// A patch RC needs none: the workflow finds the GA within the minor itself.
+	p, err = buildPlan(context.Background(), Request{RKE2: []string{"v1.37.1-rc1+rke2r1"}}, m, testNow, "rb-test", nil)
+	if err != nil || p.Workflows[0].Inputs["commit_baselines"] != "" {
+		t.Fatalf("patch rc: err %v inputs %v", err, p.Workflows[0].Inputs)
 	}
 }
 

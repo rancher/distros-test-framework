@@ -126,6 +126,9 @@ A message with no tags is rejected.
 
 - `release-checks.yaml` gets `k3s_versions` and `rke2_versions` (comma separated; empty inputs
   are omitted). Its `rke2_lts_versions` input is for manual runs; the bot does not set it.
+  A new-minor `.0` RC has no GA in its minor for the commit comparison, so the bot resolves the
+  previous minor's latest GA, shows it in the plan and passes it as `commit_baselines`; when it
+  cannot be resolved the plan is refused.
 - `qase-patch-validation-create.yaml` gets `rcs`, one `vX.Y.Z-rcN` per patch version. The script
   creates the runs for both products from each entry, so k3s and rke2 of the same version collapse
   into one. When the products are on different RCs of the same version (k3s rc1, rke2 rc2), the
@@ -198,8 +201,9 @@ Each template runs once per RC of its product. In params:
   `rbr137vc` for `rke2-validate-cluster` on v1.37. qa-infra caps `dsf-<prefix>-<product>-<id>` at
   24 characters, so the prefix has at most 9 (rke2) or 10 (k3s); `loadMatrix` rejects a template
   that could exceed it. The 5-character id is unique per build, so reruns keep the same prefix.
-- `{{UPGRADE_FROM}}` becomes the latest GA release of the RC's minor that is older than the RC
-  (from the GitHub tags; for a `.0` RC, the previous minor's latest GA, and the plan says so).
+- `{{UPGRADE_FROM}}` becomes the latest published GA release of the RC's minor that is older than
+  the RC (from the GitHub tags, skipping tags whose release is a draft or prerelease; for a `.0`
+  RC, the previous minor's latest GA, and the plan says so).
   Upgrade jobs set `INSTALL_VERSION: "{{UPGRADE_FROM}}"` and `UPGRADE_VERSION: "{{VERSION}}"`;
   their default `TEST_ARGS` already read `${UPGRADE_VERSION}`.
 
@@ -247,7 +251,7 @@ and retry policy"):
 - capacity shared by all runs; queue items and builds in unknown state keep their slot;
 - one automatic rerun at most, only when a transient-infrastructure rule matches; everything else
   asks in the thread (`retry`, `skip`, `triage`);
-- upgrade start = latest GA of the RC's minor (previous minor for `.0`), shown in the plan.
+- upgrade start = latest published GA of the RC's minor (previous minor for `.0`), shown in the plan.
 
 Not done yet:
 
@@ -300,9 +304,12 @@ Query errors never free a slot early, so a flaky controller cannot push it over 
 - After `MaxPollErrors` (10) consecutive failures the job is reported as "state unknown" with
   the last error and its build or queue URL to check by hand. It keeps holding its slot for the
   rest of the run, since the build may still be running.
-- A job in unknown state takes only its own slot; the controller keeps using the rest. Only when
-  such jobs fill the controller's whole `maxConcurrent` is it marked unreachable and its
-  pending jobs reported as not triggered, instead of waiting forever.
+- A job in unknown state takes only its own slot; the controller keeps using the rest. When
+  such jobs fill the controller's whole `maxConcurrent` it is marked unreachable: its pending
+  jobs wait (across runs) until watching frees a slot, at most `WatchLimit`.
+- A trigger answered by a gateway error (502/503/504, a lost response) pauses the controller for
+  every run (`TriggerBackoff`, 5 minutes): one short outage cannot fill its slots with builds in
+  unknown state.
 - A queue item Jenkins canceled never ran, so its slot is released at once.
 
 ### Failure triage and retry policy
@@ -607,9 +614,12 @@ plan. Start with `-listen -dry-run=false` to run them.
    state cannot be saved (full disk), nothing is triggered and the thread says why. `stop` is saved
    at once, so a stopped run stays stopped after a restart. A run saved while its workflows were
    being dispatched cannot tell what started: its thread is told and it is not resumed. A run
-   whose resume cannot be set up (missing Jenkins credentials, an unreadable matrix, no Qase runs)
+   whose resume cannot be set up (missing Jenkins or Qase credentials, an unreadable matrix)
    stays saved: its builds on Jenkins keep their slots, its RC tags stay taken, and its thread says
-   why; the next start resumes it once the cause is fixed. On
+   why; the next start resumes it once the cause is fixed. A run resumed before its jobs started
+   looks its Qase runs up the way the first attempt did (runs created by hand with
+   `-skip-workflows` carry no request id); runs still missing after the timeout end it as a normal
+   failure, freeing its tags, and a run stopped at that point skips the lookup. On
    shutdown a run stays saved and says so in its thread; one that ended by itself at that moment is
    over. A bot started with `-dry-run` (the default) resumes nothing. The state file has a format
    version; a bot refuses a newer one instead of misreading it.

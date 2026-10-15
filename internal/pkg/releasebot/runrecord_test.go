@@ -466,6 +466,25 @@ func TestSavedUnknownReasonIsNotRepeated(t *testing.T) {
 	}
 }
 
+// A job that ended in unknown state keeps that class through save and load: the resumed run still
+// reports it as unreconciled.
+func TestFinishedUnknownJobKeepsClassAfterRestart(t *testing.T) {
+	st := &runState{out: []Outcome{{Job: phasedPair()[0], Err: fmt.Errorf("%w: EOF", errTriggerUnknown)}}}
+	raw, err := json.Marshal(st.records())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recs []JobRecord
+	if err = json.Unmarshal(raw, &recs); err != nil {
+		t.Fatal(err)
+	}
+
+	out := resumed(&resumeBuilder{triggers: map[string]int{}}, recs).Run(testContext(t), nil)
+	if len(out) != 1 || !errors.Is(out[0].Err, errStateUnknown) || unreconciled(out) == nil {
+		t.Fatalf("out %+v", out)
+	}
+}
+
 // A controller marked unreachable while unknown builds filled it is usable again once watching frees
 // a slot: the next phase runs there.
 func TestControllerReachableAgain(t *testing.T) {

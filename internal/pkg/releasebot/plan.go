@@ -3,6 +3,7 @@ package releasebot
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -300,14 +301,12 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 	}
 
 	p := &Plan{Request: req, RequestID: requestID}
+	checks := map[string]string{
+		"k3s_versions":  strings.Join(req.K3s, ","),
+		"rke2_versions": strings.Join(req.RKE2, ","),
+	}
 	p.Workflows = append(p.Workflows, workflowDispatch{
-		Repo:     m.DTFRepo,
-		Workflow: "release-checks.yaml",
-		Ref:      m.DTFRef,
-		Inputs: map[string]string{
-			"k3s_versions":  strings.Join(req.K3s, ","),
-			"rke2_versions": strings.Join(req.RKE2, ","),
-		},
+		Repo: m.DTFRepo, Workflow: "release-checks.yaml", Ref: m.DTFRef, Inputs: checks,
 	})
 
 	rcs, warn := qaseRCs(req)
@@ -331,6 +330,10 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 		params: map[string]jobCheck{}, from: map[string]string{}, failed: map[string]bool{},
 	}
 	x.expandAll(req, now)
+	if err := x.commitBaselines(req, checks); err != nil {
+		return nil, err
+	}
+
 	// Check the expanded graph (phases included) before anything external happens.
 	if err := validateDependencies(p.Jobs); err != nil {
 		return nil, fmt.Errorf("plan dependencies: %w", err)
@@ -530,6 +533,41 @@ func (x *expander) fillUpgradeFrom(j *JenkinsJob) string {
 	}
 
 	return ""
+}
+
+// commitBaselines adds to the release-checks inputs the GA each new-minor .0 RC is compared with:
+// its minor has no GA, so the workflow cannot pick one. Unresolved, the plan is refused instead.
+func (x *expander) commitBaselines(req Request, checks map[string]string) error {
+	out := map[string]string{}
+	for product, tags := range map[string][]string{"k3s": req.K3s, "rke2": req.RKE2} {
+		for _, tag := range tags {
+			if r, ok := parseRelease(tag); !ok || r.patch != 0 {
+				continue
+			}
+
+			from := x.from[product+"|"+tag]
+			if from == "" && x.res != nil && !x.failed["github"] {
+				v, _, err := x.res.LatestGA(x.ctx, product, tag)
+				if err != nil {
+					return fmt.Errorf("commit baseline for %s: %w", tag, err)
+				}
+				from = v
+			}
+			if from == "" {
+				return fmt.Errorf("commit baseline for %s: the previous minor's GA could not be resolved", tag)
+			}
+
+			out[tag] = from
+			x.note(fmt.Sprintf("%s: release-checks compares its commits with %s (previous minor GA)", tag, from))
+		}
+	}
+
+	if len(out) > 0 {
+		raw, _ := json.Marshal(out)
+		checks["commit_baselines"] = string(raw)
+	}
+
+	return nil
 }
 
 // checkJob returns why the job cannot run ("" to keep it) and whether the job is absent from the

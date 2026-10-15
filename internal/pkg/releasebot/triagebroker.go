@@ -887,7 +887,8 @@ func writeSpoolRaw(dir, name string, raw []byte) error {
 
 // readSpoolFile reads a regular spool file without following a symlink.
 func readSpoolFile(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	// O_NONBLOCK: a FIFO put in the spool must not hold the open until someone writes.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}

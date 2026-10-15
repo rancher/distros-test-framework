@@ -30,11 +30,13 @@ const (
 
 // Progress is what a run saves at each change, enough to resume it after a restart.
 type Progress struct {
-	RequestID  string      `json:"request_id,omitempty"`
-	Stage      string      `json:"stage,omitempty"`
-	Stopped    bool        `json:"stopped,omitempty"`
-	QaseTitles []string    `json:"qase_titles,omitempty"`
-	Jobs       []JobRecord `json:"jobs,omitempty"`
+	RequestID  string   `json:"request_id,omitempty"`
+	Stage      string   `json:"stage,omitempty"`
+	Stopped    bool     `json:"stopped,omitempty"`
+	QaseTitles []string `json:"qase_titles,omitempty"`
+	// QaseManualRuns: the runs were created by hand (-skip-workflows), so they carry no request id.
+	QaseManualRuns bool        `json:"qase_manual_runs,omitempty"`
+	Jobs           []JobRecord `json:"jobs,omitempty"`
 }
 
 // clone is a copy sharing nothing with p, so the saved state never changes under the run's feet.
@@ -64,6 +66,14 @@ type JobRecord struct {
 	Err      string     `json:"error,omitempty"`
 	Summary  string     `json:"summary,omitempty"`
 	Since    time.Time  `json:"since,omitzero"`
+
+	// Unknown keeps a finished job's "build may still run" class across a restart (Err is only text).
+	Unknown bool `json:"unknown,omitempty"`
+}
+
+// buildUnknown: the job's build may still be running on jenkins (lost trigger response or state).
+func buildUnknown(err error) bool {
+	return errors.Is(err, errTriggerUnknown) || errors.Is(err, errStateUnknown)
 }
 
 // records is the run as saved: every job once, in a stable order, so an unchanged run saves nothing.
@@ -113,7 +123,7 @@ func (st *runState) records() []JobRecord {
 
 	for i := range st.out {
 		o := &st.out[i]
-		rec := JobRecord{Job: o.Job, State: jobDone, BuildURL: o.BuildURL, Result: o.Result}
+		rec := JobRecord{Job: o.Job, State: jobDone, BuildURL: o.BuildURL, Result: o.Result, Unknown: buildUnknown(o.Err)}
 		if o.Err != nil {
 			rec.Err = o.Err.Error()
 		}
@@ -132,7 +142,10 @@ func outcomeRecords(m map[string]*Outcome, state string, notes map[string]string
 	out := make([]JobRecord, 0, len(keys))
 	for _, k := range keys {
 		o := m[k]
-		rec := JobRecord{Job: o.Job, State: state, BuildURL: o.BuildURL, Result: o.Result, Summary: notes[k]}
+		rec := JobRecord{
+			Job: o.Job, State: state, BuildURL: o.BuildURL, Result: o.Result, Summary: notes[k],
+			Unknown: buildUnknown(o.Err),
+		}
 		if o.Err != nil {
 			rec.Err = o.Err.Error()
 		}
@@ -148,7 +161,10 @@ func (s *Scheduler) seed(st *runState, recs []JobRecord, now time.Time) {
 	for i := range recs {
 		rec := &recs[i]
 		o := Outcome{Job: rec.Job, BuildURL: rec.BuildURL, Result: rec.Result}
-		if rec.Err != "" {
+		switch {
+		case rec.Unknown:
+			o.Err = savedUnknown(rec.Err)
+		case rec.Err != "":
 			o.Err = errors.New(rec.Err)
 		}
 		ctrl := rec.Job.Controller

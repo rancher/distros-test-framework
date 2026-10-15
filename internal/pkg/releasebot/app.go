@@ -155,6 +155,7 @@ func (a *App) Execute(ctx context.Context, p *prepared, h *hooks) (err error) {
 
 	// From here on the run can be resumed: nothing it did so far would be repeated.
 	progress.Stage, progress.QaseTitles, progress.Jobs = StageDispatched, p.Plan.QaseTitles, pendingRecords(p.Plan.Jobs)
+	progress.QaseManualRuns = a.cfg.SkipWorkflows
 	_ = h.save(progress)
 
 	if a.cfg.SkipJobs || len(p.Plan.Jobs) == 0 {
@@ -239,13 +240,20 @@ func (a *App) Resume(ctx context.Context, saved *Progress, h *hooks) (err error)
 
 	progress := saved
 	if saved.Stage == StageDispatched {
-		if jobsNeedQaseRun(jobs) {
+		// Stopped before any build: no Qase run to wait for, the jobs are reported as stopped.
+		if !saved.Stopped && jobsNeedQaseRun(jobs) {
 			qase, qErr := a.cfg.NewQase()
 			if qErr != nil {
 				return a.resumeFailed(saved, h, fmt.Errorf("jobs use {{QASE_RUN_ID}}: %w", qErr))
 			}
-			if fillErr := a.fillQaseRunIDs(ctx, h.Notify, qase, saved.QaseTitles, jobs, saved.RequestID); fillErr != nil {
-				return a.resumeFailed(saved, h, fillErr)
+			requestID := saved.RequestID
+			if saved.QaseManualRuns {
+				requestID = ""
+			}
+			// Runs still missing after the timeout fail the run as a first attempt would (its tags are
+			// freed); only a shutdown keeps it saved (the listener checks for ctx cancellation).
+			if fillErr := a.fillQaseRunIDs(ctx, h.Notify, qase, saved.QaseTitles, jobs, requestID); fillErr != nil {
+				return fillErr
 			}
 		}
 

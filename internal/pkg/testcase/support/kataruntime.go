@@ -59,10 +59,11 @@ func (s *KataRun) RuntimeIdentity(ctx context.Context) error {
 			return kernelErr
 		}
 		logKata("pod %s (RuntimeClass %s): %s", pod.Name, fixture.class, describeKataIdentity(pod.Identity))
+	}
 
-		if createErr := s.create(ctx, fixture.name+"-service", s.service(fixture.name)); createErr != nil {
-			return createErr
-		}
+	// Only kata-local serves traffic (Coexistence); the alias pod proves the RuntimeClass alone.
+	if createErr := s.create(ctx, "kata-local-service", s.service("kata-local")); createErr != nil {
+		return createErr
 	}
 	runcAfter, err := s.startPod(ctx, "runc-after", s.eligible, s.eligibleIP, "", s.opts.Image)
 	if err != nil {

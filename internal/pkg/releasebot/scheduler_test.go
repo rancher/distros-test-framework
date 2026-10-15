@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -214,8 +215,8 @@ func (*unknownBuilder) Trigger(context.Context, *JenkinsJob) (string, error) {
 	return "", fmt.Errorf("%w: EOF", errTriggerUnknown)
 }
 
-// A slot held by another run's unknown build makes this run report the controller instead of
-// waiting forever; once the first run stops watching that build, its slot is free for new runs.
+// A slot held by another run's unknown build makes this run wait, not fail its jobs: once the
+// first run stops watching that build, its slot is free and the waiting jobs start.
 func TestAbandonedSlotsAcrossRuns(t *testing.T) {
 	capacity := &Capacity{}
 	limits := map[string]Limits{"mower": {MaxConcurrent: 1}}
@@ -223,6 +224,7 @@ func TestAbandonedSlotsAcrossRuns(t *testing.T) {
 		return &Scheduler{
 			Builders: map[string]Builder{"mower": b}, Limits: limits, Poll: time.Millisecond,
 			Capacity: capacity, Owner: owner, WatchPoll: time.Millisecond, WatchLimit: 300 * time.Millisecond,
+			TriggerBackoff: time.Millisecond,
 		}
 	}
 
@@ -236,8 +238,8 @@ func TestAbandonedSlotsAcrossRuns(t *testing.T) {
 	}
 
 	for _, o := range sched("B", &fakeBuilder{polls: map[string]int{}}).Run(testContext(t), runOf("v2", 2)) {
-		if o.Err == nil || !strings.Contains(o.Err.Error(), "unreachable") {
-			t.Fatalf("run B: %+v", o)
+		if o.Result != resultSuccess {
+			t.Fatalf("run B must wait for A's slot, not fail: %+v", o)
 		}
 	}
 
@@ -372,7 +374,7 @@ func runScheduler(t *testing.T, b *scriptBuilder, limit int, paths ...string) (o
 		Poll:          time.Millisecond,
 		MaxPollErrors: 3,
 		// Unknown builds are not checked again here, and the run ends shortly after losing them.
-		WatchPoll: time.Hour, WatchLimit: 20 * time.Millisecond,
+		WatchPoll: time.Hour, WatchLimit: 20 * time.Millisecond, TriggerBackoff: time.Millisecond,
 		Notify: func(_, f string, a ...any) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -413,14 +415,14 @@ func TestSchedulerQueueErrorKeepsSlot(t *testing.T) {
 }
 
 // Persistent query errors (403/404) are reported, bounded, and never treated as "running";
-// the unknown build keeps its slot, so with limit 1 the controller is marked unreachable.
+// the unknown build keeps its slot, so with limit 1 the second job waits until watching frees it.
 func TestSchedulerPersistentErrorsGiveUp(t *testing.T) {
 	e403 := errors.New("GET build: 403 Forbidden")
 	b := &scriptBuilder{finished: map[string][]error{"a": {e403, e403, e403, e403, e403, e403}}}
 	out, logs := runScheduler(t, b, 1, "a", "b")
 
-	if b.triggers != 1 {
-		t.Fatalf("triggered %d jobs; the stuck slot must block the second", b.triggers)
+	if !startedAfterFreed(logs) {
+		t.Fatalf("b must start only once a's slot is given up: %v", logs)
 	}
 	byPath := map[string]Outcome{}
 	for _, o := range out {
@@ -429,8 +431,8 @@ func TestSchedulerPersistentErrorsGiveUp(t *testing.T) {
 	if e := byPath["a"].Err; e == nil || !errors.Is(e, e403) || !strings.Contains(e.Error(), "after 3 failed") {
 		t.Fatalf("job a: %v", e)
 	}
-	if e := byPath["b"].Err; e == nil || !strings.Contains(e.Error(), "unreachable") {
-		t.Fatalf("job b: %v", e)
+	if byPath["b"].Result != resultSuccess {
+		t.Fatalf("job b must run once the slot is freed: %+v", byPath["b"])
 	}
 	failures := 0
 	for _, l := range logs {
@@ -478,19 +480,65 @@ func TestSchedulerCanceledQueueFreesSlot(t *testing.T) {
 	}
 }
 
-// jenkins accepted the POST but the response was lost; the slot must stay taken.
+// jenkins accepted the POST but the response was lost; the slot must stay taken until the watch
+// gives it up, and only then the next job runs there.
 func TestSchedulerLostTriggerResponseKeepsSlot(t *testing.T) {
 	b := &scriptBuilder{lost: map[string]bool{"a": true}}
-	out, _ := runScheduler(t, b, 1, "a", "b")
-	if b.triggers != 1 || b.peak > 1 {
-		t.Fatalf("triggers=%d peak=%d: b must not start while a may be running", b.triggers, b.peak)
+	out, logs := runScheduler(t, b, 1, "a", "b")
+	if !startedAfterFreed(logs) {
+		t.Fatalf("b must not start while a may be running: %v", logs)
 	}
 	got := outcomesByPath(out)
 	if !errors.Is(got["a v1"].Err, errTriggerUnknown) {
 		t.Fatalf("a: %+v", got["a v1"])
 	}
-	if e := got["b v1"].Err; e == nil || !strings.Contains(e.Error(), "unreachable") {
+	if got["b v1"].Result != resultSuccess {
 		t.Fatalf("b: %+v", got["b v1"])
+	}
+}
+
+// startedAfterFreed: job b was triggered only after a's slot was given up by the watch.
+func startedAfterFreed(logs []string) bool {
+	index := func(s string) int {
+		return slices.IndexFunc(logs, func(l string) bool { return strings.Contains(l, s) })
+	}
+	freed, started := index("slot is free again"), index("triggered b v1")
+
+	return freed >= 0 && started > freed
+}
+
+// timedBuilder records when each trigger happened.
+type timedBuilder struct {
+	scriptBuilder
+	at []time.Time
+}
+
+func (b *timedBuilder) Trigger(ctx context.Context, j *JenkinsJob) (string, error) {
+	b.at = append(b.at, time.Now())
+
+	return b.scriptBuilder.Trigger(ctx, j)
+}
+
+// A gateway error on one trigger pauses the controller: with a free slot, the next job there still
+// waits for the backoff, so a short outage cannot fill every slot with unknown builds.
+func TestSchedulerGatewayErrorPausesController(t *testing.T) {
+	b := &timedBuilder{scriptBuilder: scriptBuilder{lost: map[string]bool{"a": true}}}
+	backoff := 50 * time.Millisecond
+	s := &Scheduler{
+		Builders: map[string]Builder{"mower": b}, Limits: map[string]Limits{"mower": {MaxConcurrent: 2}},
+		Poll: time.Millisecond, WatchPoll: time.Hour, WatchLimit: 20 * time.Millisecond, TriggerBackoff: backoff,
+	}
+	jobs := []JenkinsJob{
+		{Name: "a", Controller: "mower", Path: "a", Version: "v1"},
+		{Name: "b", Controller: "mower", Path: "b", Version: "v1"},
+	}
+
+	got := outcomesByPath(s.Run(testContext(t), jobs))
+	if len(b.at) != 2 || b.at[1].Sub(b.at[0]) < backoff {
+		t.Fatalf("triggers at %v: b must wait %s after a's gateway error", b.at, backoff)
+	}
+	if !errors.Is(got["a v1"].Err, errTriggerUnknown) || got["b v1"].Result != resultSuccess {
+		t.Fatalf("outcomes: %+v", got)
 	}
 }
 

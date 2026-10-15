@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -55,12 +56,6 @@ type Failure struct {
 
 var provisionError = regexp.MustCompile(`error provisioning infrastructure`)
 
-func extractFailure(log string) (excerpt, signature string) {
-	f := AnalyzeFailure(log)
-
-	return f.Excerpt, f.Signature
-}
-
 func AnalyzeFailure(log string) Failure {
 	lines := cleanLines(log)
 	failed, summary := ginkgoFailures(lines)
@@ -80,7 +75,13 @@ func AnalyzeFailure(log string) Failure {
 			keys = append(keys, lines[i])
 		}
 	} else {
-		errs := firstErrors(lines, maxErrorBlocks)
+		// A provisioning failure is explained in its own stage, not by an ERROR an earlier,
+		// successful stage printed (pip's resolver during a docker build).
+		from := 0
+		if p := slices.IndexFunc(lines, provisionError.MatchString); p >= 0 {
+			from = stageStart(lines, p)
+		}
+		errs := firstErrors(lines, from, maxErrorBlocks)
 		if len(errs) > 0 {
 			first := primaryError(lines, errs)
 			stage = stageBefore(lines, first)
@@ -186,9 +187,10 @@ func errorBlock(lines []string, i int) []string {
 
 // firstErrors returns the first n error-like or rule-matching lines ("Agent went offline" has no
 // error word), skipping lines the log marks as not an error (ignoring, failed=0).
-func firstErrors(lines []string, n int) []int {
+func firstErrors(lines []string, from, n int) []int {
 	var out []int
-	for i, l := range lines {
+	for i := from; i < len(lines); i++ {
+		l := lines[i]
 		checked := timeoutSetting.ReplaceAllString(l, "")
 		signal := matchesTransientLine(l) || errorish.MatchString(checked)
 		if signal && !notError.MatchString(checked) && !strings.HasPrefix(l, "[Pipeline]") {
@@ -222,6 +224,17 @@ func primaryError(lines []string, errs []int) int {
 	}
 
 	return errs[0]
+}
+
+// stageStart is where the stage line i belongs to begins (0 without a marker).
+func stageStart(lines []string, i int) int {
+	for j := i; j >= 0; j-- {
+		if stageMarker.MatchString(strings.TrimSpace(lines[j])) {
+			return j
+		}
+	}
+
+	return 0
 }
 
 func stageBefore(lines []string, i int) string {

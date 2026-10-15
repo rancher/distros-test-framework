@@ -2,6 +2,7 @@ package releasebot
 
 import (
 	"sync"
+	"time"
 )
 
 // Capacity counts the builds each controller runs for the bot, across all runs. A build in
@@ -10,6 +11,27 @@ type Capacity struct {
 	mu        sync.Mutex
 	used      map[string]int
 	abandoned map[string]map[string]int // owner -> controller -> slots
+	paused    map[string]time.Time      // controller -> no run triggers there before this
+}
+
+// pause stops every run triggering on controller until the given time (a gateway error answered a
+// trigger: the controller is likely down, and each lost response would hold a slot for hours).
+func (c *Capacity) pause(controller string, until time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.paused == nil {
+		c.paused = map[string]time.Time{}
+	}
+	if until.After(c.paused[controller]) {
+		c.paused[controller] = until
+	}
+}
+
+func (c *Capacity) isPaused(controller string, now time.Time) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return now.Before(c.paused[controller])
 }
 
 // take holds a slot whatever the limit: a build already on jenkins (resumed after a restart).

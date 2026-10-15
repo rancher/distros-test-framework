@@ -3,11 +3,18 @@ package releasebot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	qaseclient "github.com/qase-tms/qase-go/qase-api-client"
+
+	"github.com/rancher/distros-test-framework/internal/pkg/qase"
 )
 
 // Jobs that use {{QASE_RUN_ID}} need the Qase client; without a token the CLI must stop before
@@ -119,6 +126,70 @@ func TestExecuteMarksPartialRuns(t *testing.T) {
 				t.Fatalf("dispatches = %d, want %d", *dispatches, tc.dispatches)
 			}
 		})
+	}
+}
+
+// A resume looks the Qase runs up as the first attempt did (manual runs carry no request id); runs
+// still missing after the timeout are a normal failure, and a stopped run skips the lookup.
+func TestResumeQaseLookup(t *testing.T) {
+	title := "RKE2 September 2026 Patch Validation for v1.37.1+rke2r1"
+	// One fake for both: Qase answers with a run created by hand, jenkins refuses every trigger.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/job/") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"status":true,"result":{"entities":[{"id":901,"title":%q,"description":null}]}}`, title)
+	}))
+	defer srv.Close()
+	matrixPath := filepath.Join(t.TempDir(), "m.yaml")
+	matrix := "controllers:\n  mower: {url: " + srv.URL + ", maxConcurrent: 1}\njobs: []\n"
+	if writeErr := os.WriteFile(matrixPath, []byte(matrix), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	cfg := qaseclient.NewConfiguration()
+	cfg.Servers = qaseclient.ServerConfigurations{{URL: srv.URL + "/v1"}}
+	qctx := context.WithValue(context.Background(), qaseclient.ContextAPIKeys,
+		map[string]qaseclient.APIKey{"TokenAuth": {Key: "tok"}})
+
+	asked := 0
+	app := New(&Config{
+		MatrixPath: matrixPath, Poll: time.Millisecond, QaseTimeout: 50 * time.Millisecond,
+		NewQase: func() (*Qase, error) {
+			asked++
+			return newQaseFrom(&qase.Client{QaseAPI: qaseclient.NewAPIClient(cfg), Ctx: qctx}), nil
+		},
+		JenkinsAuth: func(string) (string, string, bool) { return "u", "t", true },
+	})
+	saved := func(manual, stopped bool) *Progress {
+		job := JenkinsJob{
+			Name: "smoke", Product: "rke2", Version: "v1.37.1-rc1+rke2r1", Controller: "mower", Path: "p",
+			QaseTitle: title, Params: map[string]string{"QASE_RUN_ID": "{{QASE_RUN_ID}}"},
+		}
+
+		return &Progress{
+			RequestID: "rb-1", Stage: StageDispatched, QaseTitles: []string{title}, QaseManualRuns: manual,
+			Stopped: stopped, Jobs: pendingRecords([]JenkinsJob{job}),
+		}
+	}
+
+	// Manual runs: the one without a request marker is found, and the run goes on to its jobs.
+	err := app.Resume(context.Background(), saved(true, false), &hooks{})
+	if asked != 1 || err == nil || errors.Is(err, errResumeFailed) || strings.Contains(err.Error(), "not found") {
+		t.Fatalf("manual runs: asked=%d err=%v", asked, err)
+	}
+
+	// Dispatched runs: the marker is required; none within the timeout is a normal failure.
+	err = app.Resume(context.Background(), saved(false, false), &hooks{})
+	if asked != 2 || err == nil || errors.Is(err, errResumeFailed) || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("dispatched runs: asked=%d err=%v", asked, err)
+	}
+
+	// Stopped before any build: no lookup, the jobs are reported as stopped.
+	err = app.Resume(context.Background(), saved(false, true), &hooks{})
+	if asked != 2 || err == nil || errors.Is(err, errResumeFailed) || !strings.Contains(err.Error(), "did not succeed") {
+		t.Fatalf("stopped run: asked=%d err=%v", asked, err)
 	}
 }
 

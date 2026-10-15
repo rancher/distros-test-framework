@@ -48,8 +48,8 @@ func (g *gitHub) TagExists(ctx context.Context, product, tag string) (bool, erro
 	}
 }
 
-// LatestGA returns the newest GA release of rc's minor that is older than rc: the version an
-// upgrade to rc starts from. A .0 RC has none yet, so the previous minor is used and note says so.
+// LatestGA returns the newest published GA release of rc's minor that is older than rc: the version
+// an upgrade to rc starts from. A .0 RC has none yet, so the previous minor is used and note says so.
 func (g *gitHub) LatestGA(ctx context.Context, product, rc string) (version, note string, err error) {
 	target, ok := parseRelease(rc)
 	if !ok {
@@ -62,26 +62,59 @@ func (g *gitHub) LatestGA(ctx context.Context, product, rc string) (version, not
 			return "", "", tagErr
 		}
 
-		best, bestRel := "", release{}
+		// Newest first; a tag whose release is a draft or prerelease (or has none) is skipped.
+		var gas []string
 		for _, t := range tags {
-			r, parsed := parseRelease(t)
-			if !parsed || r.rc != 0 || r.minor != minor || !r.less(target) {
-				continue
-			}
-			if best == "" || bestRel.less(r) {
-				best, bestRel = t, r
+			if r, parsed := parseRelease(t); parsed && r.rc == 0 && r.minor == minor && r.less(target) {
+				gas = append(gas, t)
 			}
 		}
-		if best != "" {
+		for _, tag := range newestFirst(gas) {
+			published, pubErr := g.published(ctx, product, tag)
+			if pubErr != nil {
+				return "", "", pubErr
+			}
+			if !published {
+				continue
+			}
 			if minor != target.minor {
-				note = fmt.Sprintf("%s: no v%d.%d GA yet, upgrading from %s", rc, target.major, target.minor, best)
+				note = fmt.Sprintf("%s: no v%d.%d GA yet, upgrading from %s", rc, target.major, target.minor, tag)
 			}
 
-			return best, note, nil
+			return tag, note, nil
 		}
 	}
 
-	return "", "", fmt.Errorf("%s: no GA release of v%d.%d or the previous minor", rc, target.major, target.minor)
+	return "", "", fmt.Errorf("%s: no published GA release of v%d.%d or the previous minor", rc, target.major, target.minor)
+}
+
+// published reports whether tag has a release that is neither a draft nor a prerelease (a draft is
+// not visible to the API: 404).
+func (g *gitHub) published(ctx context.Context, product, tag string) (bool, error) {
+	repo := productRepo[product]
+	resp, err := g.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/releases/tags/%s", repo, url.PathEscape(tag)), nil)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		return false, nil
+	case http.StatusOK:
+	default:
+		return false, fmt.Errorf("github release %s@%s: %s", repo, tag, resp.Status)
+	}
+
+	var rel struct {
+		Draft      bool `json:"draft"`
+		Prerelease bool `json:"prerelease"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return false, fmt.Errorf("github release %s@%s: %w", repo, tag, err)
+	}
+
+	return !rel.Draft && !rel.Prerelease, nil
 }
 
 // matchingTags lists every tag starting with prefix in one unpaged call (git matching-refs).

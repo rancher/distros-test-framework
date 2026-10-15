@@ -23,6 +23,10 @@ var (
 	// Kubernetes names a Secret, not its content: `secret "rke2-serving" not found`.
 	k8sSecretStatus = regexp.MustCompile(`(?i)\bsecrets?\s+"[^"\n]*"\s+(?:not found|created|configured|unchanged|` +
 		`deleted|already exists|is forbidden|is invalid)\b`)
+	// Credentials no label announces: a URL's user:password and k3s tokens (K10<ca hash>::<id>.<secret>
+	// or <id>.<secret>, see k3s token generate).
+	urlUserInfo    = regexp.MustCompile(`\b([a-z][a-z0-9+.-]*://)[^\s/@:]+:[^\s/@]+@`)
+	bootstrapToken = regexp.MustCompile(`\bK10[0-9a-f]{64}::\S+|\b[a-z0-9]{6}\.[a-z0-9]{16}\b`)
 )
 
 // proseAfter: a line whose text after the label is only these words stays ("the token expired").
@@ -40,6 +44,8 @@ func init() {
 }
 
 func redactSecrets(s string) string {
+	s = urlUserInfo.ReplaceAllString(s, "${1}[redacted]@")
+	s = bootstrapToken.ReplaceAllString(s, "[redacted]")
 	lines := strings.Split(s, "\n")
 	for i := range lines {
 		lines[i] = redactLine(lines[i])

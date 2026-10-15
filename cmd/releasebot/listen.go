@@ -107,6 +107,9 @@ func runListen(o *options) error {
 	}
 
 	err = sc.RunSocketMode(ctx, func(e *slack.Event) { l.Handle(ctx, e) }, resources.LogLevel)
+	// Without Slack nobody can answer a job waiting for help: the runs are cut (they stay saved
+	// and resume on the next start) instead of holding the process up forever.
+	stop()
 	l.Wait()
 	if errors.Is(err, context.Canceled) {
 		return nil

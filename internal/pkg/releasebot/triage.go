@@ -31,7 +31,7 @@ type TriageRequest struct {
 	BuildURL string `json:"build_url"`
 	Attempt  int    `json:"attempt"`
 
-	// Excerpt is the failing part of the console log (see extractFailure), so the model starts
+	// Excerpt is the failing part of the console log (see AnalyzeFailure), so the model starts
 	// from it instead of paging through the whole log.
 	Excerpt string `json:"excerpt,omitempty"`
 }

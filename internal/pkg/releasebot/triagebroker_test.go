@@ -839,10 +839,17 @@ func TestRedactSecrets(t *testing.T) {
 		"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",                                      // AWS secret key
 		"ghp_R3aLlyL0ngT0kenValue1234567890abcd",                                        // gitHub token
 		"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n", // JWT
+		"abc123.0123456789abcdef",                                                       // k3s join token
+		"K10" + strings.Repeat("ab", 32) + "::abc123.0123456789abcdef",                  // k3s token with CA hash
+		"K10" + strings.Repeat("ab", 32) + "::server:hunter2",
 	} {
 		if got := redactSecrets("got " + secret + " end"); got != "got [redacted] end" {
 			t.Fatalf("not redacted: %q", got)
 		}
+	}
+	url := "https://alice:DummY42!@example.invalid/data" //nolint:gosec // fake credential
+	if got := redactSecrets(url); got != "https://[redacted]@example.invalid/data" {
+		t.Fatalf("URL credentials: %q", got)
 	}
 }
 

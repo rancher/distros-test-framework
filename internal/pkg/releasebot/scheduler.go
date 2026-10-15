@@ -92,6 +92,10 @@ type Scheduler struct {
 	WatchLimit time.Duration
 	Now        func() time.Time
 
+	// TriggerBackoff (default 5m): after a trigger's outcome is unknown, no run triggers on that
+	// controller for this long, so one outage does not fill its slots with unknown builds.
+	TriggerBackoff time.Duration
+
 	// Notify receives every state change with a level ("debug", "info", "warn", "error"), matching
 	// resources.LogLevel; may be nil.
 	Notify func(level, format string, args ...any)
@@ -432,10 +436,10 @@ func (s *Scheduler) startWhatFits(ctx context.Context, st *runState) bool {
 			continue
 		}
 
-		if st.down[j.Controller] {
-			s.notify("warn", "not triggering %s %s: controller %s is unreachable", j.Path, j.Version, j.Controller)
-			st.finish(&Outcome{Job: j, Err: fmt.Errorf("not triggered: controller %s unreachable", j.Controller)})
-			progressed = true
+		// Unreachable (its slots held by unknown builds) or just answered a gateway error: the job
+		// waits, it is not lost; watching frees the slots within WatchLimit.
+		if st.down[j.Controller] || s.Capacity.isPaused(j.Controller, s.now()) {
+			rest = append(rest, j)
 			continue
 		}
 
@@ -473,7 +477,9 @@ func (s *Scheduler) trigger(ctx context.Context, st *runState, b Builder, j *Jen
 	st.triggering = nil
 	switch {
 	case errors.Is(err, errTriggerUnknown):
-		s.notify("warn", "trigger of %s %s may have been accepted: %v", j.Path, j.Version, err)
+		s.notify("warn", "trigger of %s %s may have been accepted: %v; not triggering on %s for %s",
+			j.Path, j.Version, err, j.Controller, s.triggerBackoff())
+		s.Capacity.pause(j.Controller, s.now().Add(s.triggerBackoff()))
 		r := &running{job: *j}
 		s.abandon(r, j.Controller, s.now(), fmt.Errorf("%w; check %s for a build before re-running", err, j.Path))
 		st.active[j.Controller] = append(st.active[j.Controller], r)
@@ -670,6 +676,14 @@ func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, 
 	}, true
 }
 
+func (s *Scheduler) triggerBackoff() time.Duration {
+	if s.TriggerBackoff > 0 {
+		return s.TriggerBackoff
+	}
+
+	return 5 * time.Minute
+}
+
 func (s *Scheduler) notify(level, format string, args ...any) {
 	if s.Notify != nil {
 		s.Notify(level, format, args...)
@@ -690,7 +704,7 @@ func unreconciled(outcomes []Outcome) error {
 	var names []string
 	for i := range outcomes {
 		o := &outcomes[i]
-		if errors.Is(o.Err, errTriggerUnknown) || errors.Is(o.Err, errStateUnknown) {
+		if buildUnknown(o.Err) {
 			names = append(names, fmt.Sprintf("%s %s %s", o.Job.Path, o.Job.Version,
 				firstNonEmpty(o.BuildURL, "(no build url)")))
 		}

@@ -28,8 +28,9 @@ func ginkgoLog(pvc, version string, seconds int) string {
 
 // The same failure on two RCs has one signature; a different failure has another.
 func TestExtractFailureSignature(t *testing.T) {
-	ex1, sig1 := extractFailure(ginkgoLog("0158ab16-37b5-447f-97da-6d35ee3873ab", "v1.37.1-rc2+k3s1", 178))
-	_, sig2 := extractFailure(ginkgoLog("9a1c2d3e-1111-4222-8333-444455556666", "v1.35.9-rc2+k3s1", 181))
+	f1 := AnalyzeFailure(ginkgoLog("0158ab16-37b5-447f-97da-6d35ee3873ab", "v1.37.1-rc2+k3s1", 178))
+	ex1, sig1 := f1.Excerpt, f1.Signature
+	sig2 := AnalyzeFailure(ginkgoLog("9a1c2d3e-1111-4222-8333-444455556666", "v1.35.9-rc2+k3s1", 181)).Signature
 	if sig1 == "" || sig1 != sig2 {
 		t.Fatalf("same failure, signatures %q and %q", sig1, sig2)
 	}
@@ -46,7 +47,7 @@ func TestExtractFailureSignature(t *testing.T) {
 	}
 
 	other := strings.ReplaceAll(ginkgoLog("x", "v1", 1), "local-path volume cleanup failed", "pod not ready in 5m")
-	if _, sig3 := extractFailure(other); sig3 == sig1 {
+	if sig3 := AnalyzeFailure(other).Signature; sig3 == sig1 {
 		t.Fatal("a different failure reason got the same signature")
 	}
 }
@@ -63,15 +64,16 @@ func TestExtractFailureWithoutGinkgo(t *testing.T) {
 			"Finished: FAILURE",
 		}, "\n")
 	}
-	ex, sig := extractFailure(tofu("10.0.0.1"))
-	if _, sig2 := extractFailure(tofu("10.0.9.9")); sig == "" || sig != sig2 {
+	f := AnalyzeFailure(tofu("10.0.0.1"))
+	ex, sig := f.Excerpt, f.Signature
+	if sig2 := AnalyzeFailure(tofu("10.0.9.9")).Signature; sig == "" || sig != sig2 {
 		t.Fatalf("signatures %q and %q", sig, sig2)
 	}
 	if !strings.Contains(ex, "Stage: Configure and Build") || !strings.Contains(ex, "InsufficientInstanceCapacity") ||
 		strings.Contains(ex, "failed=0\n---") {
 		t.Fatalf("excerpt:\n%s", ex)
 	}
-	if _, none := extractFailure("[Pipeline] End of Pipeline\nFinished: SUCCESS"); none != "" {
+	if none := AnalyzeFailure("[Pipeline] End of Pipeline\nFinished: SUCCESS").Signature; none != "" {
 		t.Fatalf("signature for a log without failures: %q", none)
 	}
 }
@@ -80,7 +82,7 @@ func TestExtractFailureWithoutGinkgo(t *testing.T) {
 // not a plain exit 1. Volatile values (ids, addresses, times, durations) do not count.
 func TestSignatureKeepsMeaningfulNumbers(t *testing.T) {
 	sig := func(line string) string {
-		_, s := extractFailure("[Pipeline] { (Run TestCombination)\n" + line + "\nFinished: FAILURE")
+		s := AnalyzeFailure("[Pipeline] { (Run TestCombination)\n" + line + "\nFinished: FAILURE").Signature
 		return s
 	}
 	for name, pair := range map[string][2]string{
@@ -101,6 +103,28 @@ func TestSignatureKeepsMeaningfulNumbers(t *testing.T) {
 	}
 }
 
+// An ERROR printed by an earlier, successful stage (pip during the docker build) is not the cause
+// of a provisioning failure: the primary comes from that stage, so its transient rule still applies.
+func TestProvisioningFailureIgnoresEarlierStageErrors(t *testing.T) {
+	log := strings.Join([]string{
+		"[Pipeline] { (Build)",
+		"ERROR: pip's dependency resolver does not currently take into account all the packages",
+		"Successfully built dtf:latest",
+		"[Pipeline] { (Provision)",
+		"Error: creating EC2 Instance: InsufficientInstanceCapacity: no capacity in us-east-2c for t3a.medium",
+		"  on main.tf line 12",
+		"error provisioning infrastructure",
+		"Finished: FAILURE",
+	}, "\n")
+	f := AnalyzeFailure(log)
+	if rule := MatchTransient(&f); rule == nil || rule.ID != "aws-insufficient-capacity" {
+		t.Fatalf("rule %+v; primary:\n%s", rule, f.Primary)
+	}
+	if strings.Contains(f.Primary, "pip") || !strings.Contains(f.Excerpt, "Stage: Provision") {
+		t.Fatalf("primary:\n%s\nexcerpt:\n%s", f.Primary, f.Excerpt)
+	}
+}
+
 // jenkins' own trailers are not a cause: a log with nothing else gets no signature (not reused).
 func TestSignatureIgnoresGenericTrailers(t *testing.T) {
 	log := strings.Join([]string{
@@ -109,7 +133,7 @@ func TestSignatureIgnoresGenericTrailers(t *testing.T) {
 		"Also:   hudson.remoting.ProxyException: hudson.AbortException: script returned exit code 1",
 		"Finished: FAILURE",
 	}, "\n")
-	if _, sig := extractFailure(log); sig != "" {
+	if sig := AnalyzeFailure(log).Signature; sig != "" {
 		t.Fatalf("signature %q from generic trailers only", sig)
 	}
 }
@@ -134,9 +158,9 @@ func TestSignatureKeepsGomegaValues(t *testing.T) {
 			"Finished: FAILURE",
 		}, "\n")
 	}
-	_, one := extractFailure(gomega("1", "12.345"))
-	_, oom := extractFailure(gomega("137", "12.345"))
-	_, again := extractFailure(gomega("1", "98.7"))
+	one := AnalyzeFailure(gomega("1", "12.345")).Signature
+	oom := AnalyzeFailure(gomega("137", "12.345")).Signature
+	again := AnalyzeFailure(gomega("1", "98.7")).Signature
 	if one == "" || one == oom || one != again {
 		t.Fatalf("exit 1 %q, exit 137 %q, exit 1 again %q", one, oom, again)
 	}
