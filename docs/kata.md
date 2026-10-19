@@ -25,7 +25,7 @@ timeout reports the last observation through the failing test.
 | KATA-01 | Install chart on one worker; keep ordinary worker and default runc unaffected |
 | KATA-02 | Explicit runtime and alias; pod UID → CRI sandbox → containerd runtime → shim → KVM VM |
 | KATA-03 | DNS and Service HTTP in both directions, colocated and cross-worker |
-| KATA-04 | RuntimeClass selector-specific rejection; no sandbox on any node, no fallback |
+| KATA-04 | RuntimeClass selector-specific rejection; no sandbox or new QEMU VM on any node, no fallback |
 | KATA-07 | RKE2 agent restart, existing workload recovery, new workload creation and traffic |
 | KATA-14 | Guest boot/kernel identity, host-only resource markers, guest-confined mount |
 | KATA-15 | Three cold + three warm starts per runtime; three idle CPU/PSS samples per runtime |
@@ -33,6 +33,14 @@ timeout reports the last observation through the failing test.
 This is an isolation smoke, not penetration testing or a security certification.
 Performance is characterization without an acceptance threshold. Missing or
 failed observations fail the characterization case instead of silently passing.
+
+KATA-04 records QEMU PIDs and process start ticks on all three nodes before
+creating the rejected pod. Six observations at least six seconds apart check
+for its CRI sandbox and any new QEMU, including one absent from CRI metadata.
+The final observation occurs after at least 30 seconds. This dedicated-cluster
+check fails on any new QEMU, including an unrelated VM restart; it does not guess
+ownership from pod UIDs in process arguments. These are sampled observations,
+not continuous monitoring of processes that start and exit between samples.
 
 ## Prerequisites and provisioning
 

@@ -125,42 +125,61 @@ func (s *KataRun) RejectIneligible(ctx context.Context) error {
 		return err
 	}
 
+	baselineVMs, inventoryErr := s.qemuInventory(ctx)
+	if inventoryErr != nil {
+		return fmt.Errorf("capture VM baseline before scheduling rejection: %w", inventoryErr)
+	}
+	if evidenceErr := s.evidence("rejection-vm-baseline", baselineVMs); evidenceErr != nil {
+		return evidenceErr
+	}
+
 	pod := s.workload("kata-rejected", s.ordinary, kataClass, s.opts.Image)
 	if err := s.create(ctx, pod.Name, pod); err != nil {
 		return err
 	}
 
-	rejectionErr := pollKata(ctx, time.Minute, func(ctx context.Context) error {
+	if rejectionErr := s.waitForRejection(ctx, &pod); rejectionErr != nil {
+		return fmt.Errorf("verify scheduling rejection of pod %s: %w", pod.Name, rejectionErr)
+	}
+
+	if observationErr := s.verifyRejection(ctx, &pod, baselineVMs); observationErr != nil {
+		return observationErr
+	}
+
+	logKata("pod %s on ordinary worker %s: Unschedulable by RuntimeClass node selector %v; no sandbox or new VM on any node",
+		pod.Name, s.ordinary, class.Scheduling.NodeSelector)
+
+	return nil
+}
+
+func (s *KataRun) waitForRejection(ctx context.Context, pod *core.Pod) error {
+	return pollKata(ctx, time.Minute, func(ctx context.Context) error {
 		var events core.EventList
-		if podErr := s.get(ctx, &pod, "pod", pod.Name, "-n", s.ns); podErr != nil {
+		if podErr := s.get(ctx, pod, "pod", pod.Name, "-n", s.ns); podErr != nil {
 			return podErr
 		}
 		selector := "involvedObject.uid=" + string(pod.UID)
 		if eventsErr := s.get(ctx, &events, "events", "-n", s.ns, "--field-selector", selector); eventsErr != nil {
 			return eventsErr
 		}
-		if !kataExpectedRejection(&pod, &events) {
+		if !kataExpectedRejection(pod, &events) {
 			return errors.New("waiting for RuntimeClass selector-specific Unschedulable condition and event")
 		}
 
 		return s.evidence("rejection-events", events)
 	})
-	if rejectionErr != nil {
-		return fmt.Errorf("verify scheduling rejection of pod %s: %w", pod.Name, rejectionErr)
-	}
-
-	if noSandboxErr := s.verifyNoSandbox(ctx, &pod); noSandboxErr != nil {
-		return noSandboxErr
-	}
-
-	logKata("pod %s on ordinary worker %s: Unschedulable by RuntimeClass node selector %v; no sandbox on any node",
-		pod.Name, s.ordinary, class.Scheduling.NodeSelector)
-
-	return nil
 }
 
-func (s *KataRun) verifyNoSandbox(ctx context.Context, pod *core.Pod) error {
-	for range 5 {
+func (s *KataRun) verifyRejection(ctx context.Context, pod *core.Pod, baselineVMs map[string]map[int]uint64) error {
+	for observation := range 6 {
+		if observation > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(6 * time.Second):
+			}
+		}
+
 		if err := s.get(ctx, pod, "pod", pod.Name, "-n", s.ns); err != nil {
 			return err
 		}
@@ -175,10 +194,22 @@ func (s *KataRun) verifyNoSandbox(ctx context.Context, pod *core.Pod) error {
 			}
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(6 * time.Second):
+		currentVMs, inventoryErr := s.qemuInventory(ctx)
+		if inventoryErr != nil {
+			return fmt.Errorf("check VMs during rejection of pod %s: %w", pod.Name, inventoryErr)
+		}
+		if evidenceErr := s.evidence(fmt.Sprintf("rejection-vms-%d", observation), currentVMs); evidenceErr != nil {
+			return evidenceErr
+		}
+
+		// This dedicated cluster must not start another QEMU during the negative observation window.
+		for ip, vms := range currentVMs {
+			for pid, start := range vms {
+				if previous, found := baselineVMs[ip][pid]; !found || previous != start {
+					return fmt.Errorf("pod %s rejection: new QEMU PID %d (start ticks %d) on node %s",
+						pod.Name, pid, start, ip)
+				}
+			}
 		}
 	}
 	_, err := s.kubectl(ctx, "delete", "pod", pod.Name, "-n", s.ns, "--wait=false")

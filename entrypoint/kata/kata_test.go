@@ -24,7 +24,7 @@ var _ = Describe("Test Kata Cluster:", Ordered, func() {
 	It("KATA-03 preserves bidirectional same-node and cross-node DNS/HTTP", func() {
 		testcase.TestKataCoexistence(&kataConfig)
 	})
-	It("KATA-04 rejects an ineligible worker without creating a sandbox", func() {
+	It("KATA-04 rejects an ineligible worker without creating a sandbox or VM", func() {
 		testcase.TestKataRejectIneligible(&kataConfig)
 	})
 	It("KATA-07 recovers existing and fresh workloads after the RKE2 agent restart", func() {

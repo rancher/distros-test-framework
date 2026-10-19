@@ -28,7 +28,7 @@ func TestKataCoexistence(cfg *support.KataConfig) {
 	Expect(s.Coexistence(context.Background())).To(Succeed())
 }
 
-// TestKataRejectIneligible verifies selector-specific rejection without a sandbox.
+// TestKataRejectIneligible verifies selector-specific rejection without a sandbox or new VM.
 func TestKataRejectIneligible(cfg *support.KataConfig) {
 	s, err := support.RequireKata(cfg, "runc-remote")
 	Expect(err).NotTo(HaveOccurred())

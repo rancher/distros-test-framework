@@ -375,6 +375,26 @@ func (s *KataRun) processes(ctx context.Context, ip string) ([]kataProcess, erro
 	return result, nil
 }
 
+func (s *KataRun) qemuInventory(ctx context.Context) (map[string]map[int]uint64, error) {
+	inventory := make(map[string]map[int]uint64)
+	for _, ip := range append([]string{s.cluster.ServerIPs[0]}, s.cluster.AgentIPs...) {
+		table, processErr := s.processes(ctx, ip)
+		if processErr != nil {
+			return nil, processErr
+		}
+
+		vms := make(map[int]uint64)
+		for _, process := range table {
+			if len(process.Args) > 0 && strings.Contains(filepath.Base(process.Args[0]), "qemu-system") {
+				vms[process.PID] = process.StartTicks
+			}
+		}
+		inventory[ip] = vms
+	}
+
+	return inventory, nil
+}
+
 func parseKataProcess(line string) (kataProcess, error) {
 	var result kataProcess
 	parts := strings.Split(line, "\t")
