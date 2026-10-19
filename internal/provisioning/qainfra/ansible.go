@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -319,15 +318,14 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 		"--extra-vars", "kubernetes_version=" + installVersion,
 	}
 
-	serverFlags := config.Cluster.Config.ServerFlags
-	args = addServerFlags(args, serverFlags)
+	// The playbook selects flags per node role; a global additional-config dict bypasses that selection.
+	args = addServerFlags(args, config.Cluster.Config.ServerFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
 	args = addChannel(args, config.Cluster.Config.Channel)
 
 	if strings.Contains(config.Product, "rke2") {
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
-		args = addRKE2AdditionalConfig(args, serverFlags)
 		args = addOptionalFiles(args)
 	}
 
@@ -353,76 +351,6 @@ func addOptionalFiles(args []string) []string {
 	}
 
 	return append(args, "--extra-vars", string(jsonBytes))
-}
-
-// addRKE2AdditionalConfig parses server_flags into a JSON object.
-func addRKE2AdditionalConfig(args []string, serverFlags string) []string {
-	extras := formatServerFlagsToDict(resources.NormalizeString(serverFlags))
-	if len(extras) == 0 {
-		return args
-	}
-
-	// Wrap in {var: dict} JSON so Ansible parses the value as a dict.
-	// Bare "key=json" CLI form treats the value as a literal string.
-	wrapper := map[string]any{"rke2_additional_config": extras}
-	jsonBytes, err := json.Marshal(wrapper)
-	if err != nil {
-		resources.LogLevel("warn",
-			"failed to marshal rke2_additional_config (%v); SERVER_FLAGS will "+
-				"NOT be written into /etc/rancher/rke2/config.yaml", err)
-		return args
-	}
-
-	keys := make([]string, 0, len(extras))
-	for k := range extras {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	resources.LogLevel("info",
-		"Forwarding %d SERVER_FLAGS key(s) into rke2_additional_config: %v",
-		len(keys), keys)
-
-	return append(args, "--extra-vars", string(jsonBytes))
-}
-
-// formatServerFlagsToDict turns the multi-line SERVER_FLAGS YAML scalar into a
-// flat map. Each non-empty, non-comment line is parsed as "key: value"
-// (value trimmed/unquoted); lines without a colon are skipped.
-func formatServerFlagsToDict(s string) map[string]any {
-	out := map[string]any{}
-	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		i := strings.IndexByte(line, ':')
-		if i <= 0 {
-			continue
-		}
-		key := strings.TrimSpace(line[:i])
-		val := strings.TrimSpace(line[i+1:])
-		if key == "" {
-			continue
-		}
-		out[key] = flagScalarValue(val)
-	}
-
-	return out
-}
-
-// flagScalarValue types only bare true/false so to_nice_yaml renders quoted values always stay strings.
-func flagScalarValue(val string) any {
-	if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') && val[len(val)-1] == val[0] {
-		return val[1 : len(val)-1]
-	}
-	switch val {
-	case "true":
-		return true
-	case "false":
-		return false
-	}
-
-	return val
 }
 
 func addChannel(args []string, channel string) []string {
