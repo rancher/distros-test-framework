@@ -1,8 +1,6 @@
 package testcase
 
 import (
-	"regexp"
-	"strconv"
 	"strings"
 
 	. "github.com/onsi/gomega"
@@ -16,8 +14,6 @@ const (
 	statusCompleted            = "Completed"
 	securityResponderPodPrefix = "rke2-security-responder-"
 )
-
-var minorVersionRE = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
 
 var (
 	ciliumPodsRunning    = 0
@@ -137,9 +133,8 @@ func processCiliumStatus(pod *resources.Pod) {
 	}
 }
 
-// isSecurityResponderPod reports whether pod belongs to a run of the rke2-security-responder
-// CronJob, bundled with RKE2 v1.37 and newer. Each successful run leaves a Completed pod
-// until the next run, so the pod is not expected to stay Running.
+// isSecurityResponderPod reports whether pod is a run of the RKE2 1.37+ security-responder
+// CronJob, whose successful runs leave a Completed pod until the next run.
 func isSecurityResponderPod(cluster *driver.Cluster, pod *resources.Pod) bool {
 	if cluster.Config.Product != "rke2" || pod.NameSpace != "kube-system" {
 		return false
@@ -149,26 +144,5 @@ func isSecurityResponderPod(cluster *driver.Cluster, pod *resources.Pod) bool {
 		return false
 	}
 
-	return isVersionAtLeast(cluster.Config.Version, 1, 37)
-}
-
-// isVersionAtLeast reports whether a version such as v1.37.1+rke2r1 is at least major.minor.
-// Versions that do not start with a semantic version, such as commit hashes, return false.
-func isVersionAtLeast(version string, major, minor int) bool {
-	matches := minorVersionRE.FindStringSubmatch(version)
-	if len(matches) < 3 {
-		return false
-	}
-
-	versionMajor, majorErr := strconv.Atoi(matches[1])
-	versionMinor, minorErr := strconv.Atoi(matches[2])
-	if majorErr != nil || minorErr != nil {
-		return false
-	}
-
-	if versionMajor != major {
-		return versionMajor > major
-	}
-
-	return versionMinor >= minor
+	return resources.IsVersionAtLeast(cluster.Config.Version, 1, 37)
 }

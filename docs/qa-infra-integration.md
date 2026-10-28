@@ -81,6 +81,18 @@ CHANNEL=stable                                              # Channel to use: st
 ARCH=amd64                                                  # Architecture to use: amd64, arm64, etc.
 ```
 
+Before stopping or replacing nodes, the AWS cluster-restore and node-replacement
+tests read the first server's EC2 `KeyName` using `DescribeInstances`. Additional
+nodes reuse that key instead of the independently configured `AWS_SSH_KEY_NAME`.
+This works with either provisioning path and does not read OpenTofu state. The
+lookup requires one running instance, uses the configured VPC when available,
+and requires a VPC for private IPs. A missing/ambiguous instance, missing key, or
+API error stops the test before it changes the nodes; there is no fallback to the
+configured key. The source node must still be running when this lookup occurs.
+The selected key belongs to the AWS client only; SSH settings used for bastion
+file names and reports remain unchanged. Clients without this selection keep
+using the configured key for instance creation.
+
 ### Environment Variables per test
 
 The vars above apply to every run. Each suite (selected by `TEST_DIR`, sometimes refined

@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -157,7 +158,28 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	return nodeArgsMapSlice
 }
 
-// DeleteNode deletes a node from the cluster filtering the name out by the IP.
+// StopAndDeleteNode stops the kubelet before deletion so it cannot register the Node again.
+func StopAndDeleteNode(ip, product, nodeType string) error {
+	if ip == "" {
+		return errors.New("node IP is required")
+	}
+
+	serviceName, serviceErr := productService(product, nodeType)
+	if serviceErr != nil {
+		return fmt.Errorf("resolve service on node %s: %w", ip, serviceErr)
+	}
+
+	// RunCommandOnNode ignores failures mentioning restart.
+	cmd := "sudo timeout 120s systemctl stop " + serviceName
+	_, stopErr := RunCommandOnNodeWithStdin(cmd, ip, nil)
+	if stopErr != nil {
+		return fmt.Errorf("stop %s before deleting node %s: %w", serviceName, ip, stopErr)
+	}
+
+	return DeleteNode(ip)
+}
+
+// DeleteNode deletes a node by IP and waits for its removal. The kubelet must already be stopped.
 func DeleteNode(ip string) error {
 	if ip == "" {
 		return ReturnLogError("must send a ip: %s\n", ip)
@@ -168,15 +190,14 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to get node name by ip: %w\n", err)
 	}
 
-	_, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
-	if delErr != nil {
-		return ReturnLogError("failed to delete node: %w\n", delErr)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
 
-	// delay not meant to wait if node is deleted.
-	// but rather to give time for the node to be removed from the cluster.
-	delay := time.After(20 * time.Second)
-	<-delay
+	_, delErr := RunHostArgsContext(ctx, "kubectl", "delete", "node", name,
+		"--wait=true", "--timeout=60s", "--kubeconfig="+KubeConfigFile)
+	if delErr != nil {
+		return fmt.Errorf("delete node %s (%s): %w", name, ip, delErr)
+	}
 
 	return nil
 }

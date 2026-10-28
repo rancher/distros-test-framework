@@ -1,6 +1,7 @@
 package testcase
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -19,6 +20,9 @@ import (
 )
 
 func TestClusterRestore(cluster *driver.Cluster, awsClient *aws.Client, cfg *config.Env, flags *customflag.FlagConfig) {
+	keyErr := awsClient.UseInstanceSSHKey(context.Background(), cluster.ServerIPs[0])
+	Expect(keyErr).NotTo(HaveOccurred(), "resolve source node SSH key before restore")
+
 	clusterToken, clusterTokenErr := resources.FetchToken(cluster.Config.Product, cluster.ServerIPs[0])
 	Expect(clusterTokenErr).NotTo(HaveOccurred())
 
