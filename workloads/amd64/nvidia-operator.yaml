@@ -6,7 +6,7 @@ metadata:
 spec:
   repo: https://helm.ngc.nvidia.com/nvidia
   chart: gpu-operator
-  version: v25.10.0
+  version: v26.7.2
   targetNamespace: gpu-operator
   createNamespace: true
   valuesContent: |-
