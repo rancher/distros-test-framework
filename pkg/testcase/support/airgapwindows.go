@@ -186,6 +186,8 @@ func GetWindowsOSVersion(cluster *shared.Cluster) string {
 	res, err := CmdForPrivateNode(cluster, cmd, cluster.WinAgentIPs[0])
 	Expect(err).To(BeNil(), err)
 
+	fmt.Println(res)
+
 	// ssh prints post-quantum warnings ahead of the caption; keep only the caption line.
 	var caption string
 	for line := range strings.SplitSeq(res, "\n") {
