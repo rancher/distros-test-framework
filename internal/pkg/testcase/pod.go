@@ -10,7 +10,10 @@ import (
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
-const statusCompleted = "Completed"
+const (
+	statusCompleted            = "Completed"
+	securityResponderPodPrefix = "rke2-security-responder-"
+)
 
 var (
 	ciliumPodsRunning    = 0
@@ -86,6 +89,9 @@ func processPodStatus(
 			Equal(statusCompleted),
 		), pod.Name)
 
+	case isSecurityResponderPod(cluster, pod):
+		g.Expect(pod.Status).Should(BeElementOf(statusRunning, statusCompleted), pod.Name)
+
 	case strings.Contains(pod.Name, "cilium-operator") && cluster.Config.Product == "rke2" &&
 		cluster.NumServers == 1 && cluster.NumAgents == 0:
 		processCiliumStatus(pod)
@@ -125,4 +131,18 @@ func processCiliumStatus(pod *resources.Pod) {
 		Expect(pod.Ready).To(Equal("1/1"), pod.Name, pod.Status)
 		ciliumPodsRunning++
 	}
+}
+
+// isSecurityResponderPod reports whether pod is a run of the RKE2 1.37+ security-responder
+// CronJob, whose successful runs leave a Completed pod until the next run.
+func isSecurityResponderPod(cluster *driver.Cluster, pod *resources.Pod) bool {
+	if cluster.Config.Product != "rke2" || pod.NameSpace != "kube-system" {
+		return false
+	}
+
+	if !strings.HasPrefix(pod.Name, securityResponderPodPrefix) {
+		return false
+	}
+
+	return resources.IsVersionAtLeast(cluster.Config.Version, 1, 37)
 }

@@ -37,6 +37,9 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	}
 
 	awsClient := getAwsClient(cluster)
+	keyErr := awsClient.UseInstanceSSHKey(context.Background(), cluster.ServerIPs[0])
+	Expect(keyErr).NotTo(HaveOccurred(), "resolve source node SSH key before node replacement")
+
 	// qainfra sets the uppercase form; legacy set the lowercase one via tfvars.
 	resourceName := os.Getenv("RESOURCE_NAME")
 	if resourceName == "" {
@@ -68,7 +71,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	Expect(nodeNameErr).NotTo(HaveOccurred(),
 		"resolve node name for leader %s before deletion: %v", serverLeaderIP, nodeNameErr)
 
-	delErr := deleteRemainServer(serverLeaderIP, awsClient)
+	delErr := deleteRemainServer(serverLeaderIP, cluster.Config.Product, awsClient)
 	Expect(delErr).NotTo(HaveOccurred(), "delete old nodes: %v", delErr)
 	resources.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
@@ -78,9 +81,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	Expect(convErr).NotTo(HaveOccurred(), "workload convergence after node removal: %v", convErr)
 
 	clusterErr := validateClusterHealth()
-	if clusterErr != nil {
-		resources.LogLevel("error", "error validating cluster health: %w\n", clusterErr)
-	}
+	Expect(clusterErr).NotTo(HaveOccurred(), "cluster health after node replacement")
 }
 
 func scpToNewNodes(cluster *driver.Cluster, nodeType string, newNodeIps []string) error {
@@ -246,7 +247,7 @@ func nodeReplaceServers(
 
 	// delete first the server that is not the leader neither the server ip in the kubeconfig.
 	oldServerIPs := cluster.ServerIPs
-	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
+	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], cluster.Config.Product, a); delErr != nil {
 		resources.LogLevel("error", "error deleting server: %w\n", delErr)
 
 		return delErr
@@ -439,7 +440,7 @@ func joinRemainServers(
 		externalIp := newExternalServerIps[i]
 
 		if i < len(oldServerIPs[1:]) {
-			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
+			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], cluster.Config.Product, a); delErr != nil {
 				resources.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldServerIPs[i])
 
 				return delErr
@@ -545,12 +546,12 @@ func joinSteps(cluster *driver.Cluster,
 	return nil
 }
 
-func deleteRemainServer(ip string, a *aws.Client) error {
+func deleteRemainServer(ip, product string, a *aws.Client) error {
 	if ip == "" {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
-	if delNodeErr := resources.DeleteNode(ip); delNodeErr != nil {
+	if delNodeErr := resources.StopAndDeleteNode(ip, product, server); delNodeErr != nil {
 		resources.LogLevel("error", "error deleting server: %w\n", delNodeErr)
 
 		return delNodeErr
@@ -620,7 +621,7 @@ func replaceAgents(
 
 func deleteAgents(a *aws.Client, c *driver.Cluster) error {
 	for _, i := range c.AgentIPs {
-		if deleteNodeErr := resources.DeleteNode(i); deleteNodeErr != nil {
+		if deleteNodeErr := resources.StopAndDeleteNode(i, c.Config.Product, agent); deleteNodeErr != nil {
 			resources.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
 
 			return deleteNodeErr
