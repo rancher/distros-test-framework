@@ -182,16 +182,20 @@ func HasWindowsAgent(cluster *shared.Cluster) bool {
 }
 
 func GetWindowsOSVersion(cluster *shared.Cluster) string {
-	cmd := "(Get-CimInstance Win32_OperatingSystem).Caption"
-	res, err := CmdForPrivateNode(cluster, cmd, cluster.WinAgentIPs[0])
-	Expect(err).To(BeNil(), err)
+	Expect(cluster.WinAgentIPs).NotTo(BeEmpty(), "no windows agent IPs found")
 
-	fmt.Println(res)
+	// RunCommandOnNode returns stderr instead of stdout when stderr is non-empty, so ssh
+	// warnings would hide the caption; drop them. powershell -Command works from cmd or PS shells.
+	cmd := fmt.Sprintf(
+		`sudo chmod 400 /tmp/%v.pem && %v Administrator@%v 'powershell -NoProfile -Command `+
+			`"(Get-CimInstance Win32_OperatingSystem).Caption"' 2>/dev/null`,
+		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName), cluster.WinAgentIPs[0])
+	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	Expect(err).NotTo(HaveOccurred(), "failed to get windows os version")
 
-	// ssh prints post-quantum warnings ahead of the caption; keep only the caption line.
 	var caption string
 	for line := range strings.SplitSeq(res, "\n") {
-		if strings.Contains(line, "Windows") && !strings.HasPrefix(line, "**") {
+		if strings.Contains(line, "Windows") {
 			caption = strings.TrimSpace(line)
 		}
 	}

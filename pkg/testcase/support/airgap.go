@@ -349,10 +349,10 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 		shared.LogLevel("info", "Getting artifacts from URL: %v", registryURL)
 		version = url.QueryEscape(cluster.Config.Version)
 	}
-	winVersion := "Microsoft Windows Server 2025 Datacenter"
-	// if platform == "windows" {
-	// 	winVersion = GetWindowsOSVersion(cluster)
-	// }
+	var winVersion string
+	if platform == "windows" {
+		winVersion = GetWindowsOSVersion(cluster)
+	}
 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
