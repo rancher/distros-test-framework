@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"github.com/rancher/distros-test-framework/internal/resources"
@@ -404,7 +405,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 				Tags: []*ec2.Tag{
 					{
 						Key:   aws.String("Name"),
-						Value: aws.String("-distros-qa"),
+						Value: aws.String(name + "-distros-qa"),
 					},
 					{
 						Key:   aws.String("Team"),
@@ -515,85 +516,87 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 	return *reservation.Instances[0].InstanceId, nil
 }
 
-// TerminateInstanceAndWait terminates the instance with the given IP (if still present)
-// and blocks until EC2 reports it as terminated. Safe to call repeatedly.
-func (c Client) TerminateInstanceAndWait(ip string) error {
-	instance, err := c.findInstanceByIP(ip)
-	if err != nil {
-		return err
- 	}
+// liveInstanceStates excludes "terminated" so recycled IPs never match dead instances.
+var liveInstanceStates = []string{"pending", "running", "stopping", "stopped", "shutting-down"}
 
-	if instance == nil || instance.InstanceId == nil || instance.State == nil ||
-		instance.State.Name == nil {
-		return resources.ReturnLogError("EC2 instance for ip %s has incomplete metadata\n", ip)
-	}
-
-	instanceID := *instance.InstanceId
-	switch *instance.State.Name {
-	case "terminated":
-		resources.LogLevel("info", "instance %s for ip %s is already terminated", instanceID, ip)
-		return nil
-	case "running", "pending", "stopping", "stopped":
-		if _, err := c.ec2.TerminateInstances(&ec2.TerminateInstancesInput{
-			InstanceIds: []*string{instance.InstanceId},
-		}); err != nil {
-			return resources.ReturnLogError(
-				"error terminating instance %s: %w\n",
-				instanceID,
-				err,
-			)
- 		}
- 	}
-
-	if err := c.ec2.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
-		InstanceIds: []*string{instance.InstanceId},
-	}); err != nil {
- 		return resources.ReturnLogError("error waiting for termination of %s: %w\n", ip, err)
- 	}
-
-	resources.LogLevel("info", "instance(s) for ip %s terminated", ip)
-
-	return nil
-}
-
-func (c Client) findInstanceByIP(ip string) (*ec2.Instance, error) {
+// InstanceIDByIP returns the ID of the single live instance owning ip, or "" when none exists.
+// It errors on ambiguous matches so callers never terminate the wrong instance.
+func (c Client) InstanceIDByIP(ip string) (string, error) {
 	if ip == "" {
-		return nil, resources.ReturnLogError("must send an ip")
+		return "", resources.ReturnLogError("must send an ip")
 	}
 
-	// EC2 uses different filters for public IPv4, private IPv4, and IPv6.
-	filters := []string{
-		"ip-address",
-		"private-ip-address",
-		"ipv6-address",
+	filterNames := []string{"ip-address", "private-ip-address"}
+	if strings.Contains(ip, ":") {
+		filterNames = []string{"ipv6-address"}
 	}
 
-	for _, filterName := range filters {
-		res, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{
-			Filters: []*ec2.Filter{
-				{
-					Name:   aws.String(filterName),
-					Values: aws.StringSlice([]string{ip}),
-				},
-			},
-		})
-		if err != nil {
-			return nil, resources.ReturnLogError(
-				"error describing instances using %s: %w\n",
-				filterName,
-				err,
-			)
+	ids := map[string]struct{}{}
+	for _, filterName := range filterNames {
+		filters := []*ec2.Filter{
+			{Name: aws.String(filterName), Values: aws.StringSlice([]string{ip})},
+			{Name: aws.String("instance-state-name"), Values: aws.StringSlice(liveInstanceStates)},
+		}
+		if c.infra != nil && c.infra.Aws.Subnets != "" {
+			filters = append(filters, &ec2.Filter{
+				Name:   aws.String("subnet-id"),
+				Values: aws.StringSlice([]string{c.infra.Aws.Subnets}),
+			})
 		}
 
+		res, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{Filters: filters})
+		if err != nil {
+			return "", resources.ReturnLogError("error describing instances using %s: %w\n", filterName, err)
+		}
 		for _, reservation := range res.Reservations {
 			for _, instance := range reservation.Instances {
-				return instance, nil
+				if instance.InstanceId != nil {
+					ids[*instance.InstanceId] = struct{}{}
+				}
 			}
 		}
 	}
 
-	return nil, resources.ReturnLogError(
-		"no EC2 instance found for ip %s\n",
-		ip,
-	)
+	switch len(ids) {
+	case 0:
+		return "", nil
+	case 1:
+		for id := range ids {
+			return id, nil
+		}
+	}
+
+	return "", resources.ReturnLogError("ip %s matches multiple live instances: %v\n", ip, ids)
+}
+
+// TerminateInstanceByIDAndWait terminates the instance and blocks until EC2 reports it terminated.
+// An unknown or already terminated instance is success, so reruns converge.
+func (c Client) TerminateInstanceByIDAndWait(instanceID string) error {
+	if instanceID == "" {
+		return resources.ReturnLogError("must send an instance id")
+	}
+
+	ids := []*string{aws.String(instanceID)}
+	if _, err := c.ec2.TerminateInstances(&ec2.TerminateInstancesInput{InstanceIds: ids}); err != nil {
+		if isInstanceNotFound(err) {
+			resources.LogLevel("info", "instance %s not found, treating as terminated", instanceID)
+
+			return nil
+		}
+
+		return resources.ReturnLogError("error terminating instance %s: %w\n", instanceID, err)
+	}
+
+	if err := c.ec2.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{InstanceIds: ids}); err != nil {
+		return resources.ReturnLogError("error waiting for termination of %s: %w\n", instanceID, err)
+	}
+	resources.LogLevel("info", "instance %s terminated", instanceID)
+
+	return nil
+}
+
+func isInstanceNotFound(err error) bool {
+	var aerr awserr.Error
+
+	return errors.As(err, &aerr) && strings.HasPrefix(aerr.Code(), "InvalidInstanceID.NotFound")
 }

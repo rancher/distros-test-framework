@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -244,14 +245,8 @@ func nodeReplaceServers(
 		return err
 	}
 
-	// delete first the server that is not the leader neither the server ip in the kubeconfig.
-	oldServerIPs := cluster.ServerIPs
-	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
-		resources.LogLevel("error", "error deleting server: %w\n", delErr)
-
-		return delErr
-	}
-
+	// Point kubectl at the new first server before any removal so deleting the
+	// server the kubeconfig used to target cannot cut off the API.
 	resources.LogLevel("info", "Proceeding to update kubeconfig file to point to new first server join %s\n",
 		newFirstServerIP)
 	_, kbCfgErr := legacy.UpdateKubeConfig(newFirstServerIP, resourceName, cluster.Config.Product)
@@ -265,6 +260,14 @@ func nodeReplaceServers(
 		resources.LogLevel("error", "error validating node join: %w with ip: %s", nodeErr, newFirstServerIP)
 
 		return nodeErr
+	}
+
+	// delete first the server that is not the leader.
+	oldServerIPs := cluster.ServerIPs
+	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
+		resources.LogLevel("error", "error deleting server: %w\n", delErr)
+
+		return delErr
 	}
 
 	// join the rest of the servers and delete all except the leader.
@@ -550,19 +553,108 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
-	if delNodeErr := resources.DeleteNode(ip); delNodeErr != nil {
-		resources.LogLevel("error", "error deleting server: %w\n", delNodeErr)
+	return removeNode(ip, a)
+}
 
-		return delNodeErr
-	}
-	resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
+// stopProductServicesCmd stops whichever k3s/rke2 unit exists so the node cannot re-register.
+const stopProductServicesCmd = `for u in k3s k3s-agent rke2-server rke2-agent; do ` +
+	`if systemctl cat "$u.service" >/dev/null 2>&1; then sudo systemctl stop "$u"; fi; done`
 
-	err := a.DeleteInstance(ip)
-	if err != nil {
+var errNodeNotFound = errors.New("node not found")
+
+// nodeRemoval holds the steps of removeNode so the ordering and retry paths are testable.
+type nodeRemoval struct {
+	checkAPIReachable func(ip string) error
+	resolveName       func(ip string) (string, error)
+	resolveInstanceID func(ip string) (string, error)
+	stopServices      func(ip string) error
+	deleteNode        func(name string) error
+	terminate         func(instanceID string) error
+}
+
+// removeNode stops the product service, deletes the Node, then terminates the instance.
+// k3s 1.37+ re-registers a node deleted while it still runs; each step tolerates reruns.
+func removeNode(ip string, a *aws.Client) error {
+	return nodeRemoval{
+		checkAPIReachable: ensureAPINotOnNode,
+		resolveName:       nodeNameByIP,
+		resolveInstanceID: a.InstanceIDByIP,
+		stopServices: func(ip string) error {
+			_, err := resources.RunCommandOnNode(stopProductServicesCmd, ip)
+
+			return err
+		},
+		deleteNode: resources.DeleteNodeByName,
+		terminate:  a.TerminateInstanceByIDAndWait,
+	}.run(ip)
+}
+
+func (r nodeRemoval) run(ip string) error {
+	if err := r.checkAPIReachable(ip); err != nil {
 		return err
 	}
 
+	name, nameErr := r.resolveName(ip)
+	if nameErr != nil && !errors.Is(nameErr, errNodeNotFound) {
+		return resources.ReturnLogError("failed to resolve node name for %s: %w\n", ip, nameErr)
+	}
+
+	instanceID, idErr := r.resolveInstanceID(ip)
+	if idErr != nil {
+		return resources.ReturnLogError("failed to resolve instance for %s: %w\n", ip, idErr)
+	}
+
+	if instanceID != "" {
+		if err := r.stopServices(ip); err != nil {
+			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
+		}
+	}
+
+	if name != "" {
+		if err := r.deleteNode(name); err != nil {
+			return err
+		}
+		resources.LogLevel("debug", "Node %s (%s) deleted from the cluster\n", name, ip)
+	}
+
+	if instanceID != "" {
+		if err := r.terminate(instanceID); err != nil {
+			return err
+		}
+		resources.LogLevel("debug", "Instance %s (%s) deleted from cloud provider\n", instanceID, ip)
+	}
+
+	if name != "" {
+		// Final heartbeat or kubelet sync can recreate the Node just before termination.
+		return r.deleteNode(name)
+	}
+
 	return nil
+}
+
+// ensureAPINotOnNode fails when kubectl targets the node being removed.
+func ensureAPINotOnNode(ip string) error {
+	server, err := resources.RunHostArgs("kubectl", "config", "view", "--minify", "-o",
+		"jsonpath={.clusters[0].cluster.server}", "--kubeconfig="+resources.KubeConfigFile)
+	if err != nil {
+		return resources.ReturnLogError("failed to read kubeconfig server: %w\n", err)
+	}
+	if kubeconfigTargetsNode(server, ip) {
+		return resources.ReturnLogError(
+			"kubeconfig server %s points at node %s being removed; point it at a surviving server first\n",
+			server, ip)
+	}
+
+	return nil
+}
+
+func kubeconfigTargetsNode(server, ip string) bool {
+	u, err := url.Parse(strings.TrimSpace(server))
+	if err != nil {
+		return false
+	}
+
+	return u.Hostname() == ip
 }
 
 func nodeReplaceAgents(
@@ -631,18 +723,11 @@ func replaceAgents(
 
 func deleteAgents(a *aws.Client, c *driver.Cluster) error {
 	for _, ip := range c.AgentIPs {
-		if deleteNodeErr := resources.DeleteNode(ip); deleteNodeErr != nil {
-			resources.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
+		if err := removeNode(ip, a); err != nil {
+			resources.LogLevel("error", "error deleting agent %s: %v\n", ip, err)
 
-			return deleteNodeErr
-		}
-		resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
-
-		err := a.DeleteInstance(ip)
-		if err != nil {
 			return err
 		}
-		resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", ip)
 	}
 
 	return nil
@@ -746,6 +831,9 @@ func nodeNameByIP(ip string) (string, error) {
 		if resolveErr == nil {
 			return name, nil
 		}
+		if errors.Is(resolveErr, errNodeNotFound) {
+			return "", resolveErr
+		}
 		lastErr = resolveErr
 		resources.LogLevel("warn", "resolve node name attempt %d/3 for %s failed: %v", attempt, ip, resolveErr)
 	}
@@ -769,7 +857,7 @@ func findNodeNameByIP(cs kubernetes.Interface, ip string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no node found with address %s", ip)
+	return "", fmt.Errorf("%w with address %s", errNodeNotFound, ip)
 }
 
 // waitWorkloadConvergence blocks until removedNode is fully drained (absent from
