@@ -168,10 +168,11 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to get node name by ip: %w\n", err)
 	}
 
-	_, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
+	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
 	if delErr != nil {
 		return ReturnLogError("failed to delete node: %w\n", delErr)
 	}
+	LogLevel("info", "%s", res)
 
 	// delay not meant to wait if node is deleted.
 	// but rather to give time for the node to be removed from the cluster.
@@ -291,4 +292,62 @@ func CheckNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
 	}
 
 	return overThreshold, nil
+}
+
+const (
+	nodeGoneTimeout = 2 * time.Minute
+	nodeGonePoll    = 5 * time.Second
+	nodeGoneStable  = 3
+)
+
+// DeleteNodeByName deletes the node and confirms it stays gone, re-deleting if it re-registers.
+func DeleteNodeByName(name string) error {
+	return deleteNodeUntilGone(name, RunHostArgs, nodeGoneTimeout, nodeGonePoll, nodeGoneStable)
+}
+
+type hostArgsRunner func(name string, args ...string) (string, error)
+
+// deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
+func deleteNodeUntilGone(
+	name string,
+	run hostArgsRunner,
+	timeout, interval time.Duration,
+	stable int,
+) error {
+	if name == "" {
+		return ReturnLogError("must send a node name")
+	}
+
+	deadline := time.Now().Add(timeout)
+	absent := 0
+	for {
+		if absent == 0 {
+			if res, err := run("kubectl", "delete", "node", name, "--ignore-not-found",
+				"--wait=false", "--kubeconfig="+KubeConfigFile); err != nil {
+				LogLevel("warn", "delete node %s failed: %v", name, err)
+			} else {
+				LogLevel("info", "%s", res)
+			}
+		}
+
+		out, err := run("kubectl", "get", "node", name, "--ignore-not-found",
+			"-o", "name", "--kubeconfig="+KubeConfigFile)
+		switch {
+		case err != nil:
+			absent = 0
+		case strings.TrimSpace(out) == "":
+			absent++
+			if absent >= stable {
+				return nil
+			}
+		default:
+			LogLevel("warn", "node %s still present or re-registered, deleting again", name)
+			absent = 0
+		}
+
+		if time.Now().After(deadline) {
+			return ReturnLogError("node %s not removed from the cluster within %s\n", name, timeout)
+		}
+		time.Sleep(interval)
+	}
 }
