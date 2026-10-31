@@ -550,17 +550,26 @@ func deleteRemainServer(ip string, a *aws.Client) error {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
-	if delNodeErr := resources.DeleteNode(ip); delNodeErr != nil {
-		resources.LogLevel("error", "error deleting server: %w\n", delNodeErr)
+	return removeNode(ip, a)
+}
 
-		return delNodeErr
+// removeNode terminates the instance first, then deletes the Node object.
+// k3s 1.37+ re-registers the node as NotReady if it is deleted while still running.
+func removeNode(ip string, a *aws.Client) error {
+	name, nameErr := resources.GetNodeNameByIP(ip)
+	if nameErr != nil {
+		return resources.ReturnLogError("failed to resolve node name for %s: %w\n", ip, nameErr)
 	}
-	resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
 
-	err := a.DeleteInstance(ip)
-	if err != nil {
+	if err := a.TerminateInstanceAndWait(ip); err != nil {
 		return err
 	}
+	resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", ip)
+
+	if err := resources.DeleteNodeByName(name); err != nil {
+		return err
+	}
+	resources.LogLevel("debug", "Node %s (%s) deleted from the cluster\n", name, ip)
 
 	return nil
 }
@@ -631,18 +640,11 @@ func replaceAgents(
 
 func deleteAgents(a *aws.Client, c *driver.Cluster) error {
 	for _, ip := range c.AgentIPs {
-		if deleteNodeErr := resources.DeleteNode(ip); deleteNodeErr != nil {
-			resources.LogLevel("error", "error deleting agent: %w\n", deleteNodeErr)
+		if err := removeNode(ip, a); err != nil {
+			resources.LogLevel("error", "error deleting agent %s: %v\n", ip, err)
 
-			return deleteNodeErr
-		}
-		resources.LogLevel("debug", "Node IP deleted from the cluster: %s\n", ip)
-
-		err := a.DeleteInstance(ip)
-		if err != nil {
 			return err
 		}
-		resources.LogLevel("debug", "Instance IP deleted from cloud provider: %s\n", ip)
 	}
 
 	return nil

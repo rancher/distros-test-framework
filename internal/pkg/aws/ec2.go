@@ -521,7 +521,7 @@ func (c Client) TerminateInstanceAndWait(ip string) error {
 	instance, err := c.findInstanceByIP(ip)
 	if err != nil {
 		return err
- 	}
+	}
 
 	if instance == nil || instance.InstanceId == nil || instance.State == nil ||
 		instance.State.Name == nil {
@@ -542,14 +542,14 @@ func (c Client) TerminateInstanceAndWait(ip string) error {
 				instanceID,
 				err,
 			)
- 		}
- 	}
+		}
+	}
 
 	if err := c.ec2.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
 		InstanceIds: []*string{instance.InstanceId},
 	}); err != nil {
- 		return resources.ReturnLogError("error waiting for termination of %s: %w\n", ip, err)
- 	}
+		return resources.ReturnLogError("error waiting for termination of %s: %w\n", ip, err)
+	}
 
 	resources.LogLevel("info", "instance(s) for ip %s terminated", ip)
 
