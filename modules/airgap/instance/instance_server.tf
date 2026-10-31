@@ -77,6 +77,42 @@ resource "aws_instance" "windows_worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   get_password_data      = true
+  user_data              = <<-EOF
+    <powershell>
+    $ErrorActionPreference = "Stop"
+
+    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+    Set-Service -Name sshd -StartupType Automatic
+    New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
+    Start-Service sshd
+
+    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+    
+    # 1. Capture the multi-line tfvars PEM string from Terraform
+    $rawPemKey = @"
+    ${trimspace(file(var.access_key))}
+    "@
+
+    # 2. Setup standard paths for Windows Administrator SSH keys
+    $tempPemPath  = "$env:TEMP\temp_key.pem"
+    $adminKeyPath = "$env:ProgramData\ssh\administrators_authorized_keys"
+
+    # 3. Create the target SSH directory if it doesn't exist
+    $sshConfigDir = Split-Path $adminKeyPath
+    if (-not (Test-Path $sshConfigDir)) { New-Item -ItemType Directory -Path $sshConfigDir | Out-Null }
+
+    # 4. Safely drop the PEM contents onto disk temporarily
+    Set-Content -Path $tempPemPath -Value $rawPemKey -Encoding ascii
+
+    # 5. Extract the OpenSSH public key format and append it to the authorized file
+    ssh-keygen -y -f $tempPemPath | ForEach-Object { Add-Content -Path $adminKeyPath -Value $_ -Encoding ascii }
+    icacls.exe $adminKeyPath /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
+    Restart-Service sshd
+
+    Enable-WindowsOptionalFeature -Online -FeatureName Containers -All -NoRestart
+    Restart-Computer -Force
+    </powershell>
+  EOF
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker${count.index + 1}"
     Team                 = local.resource_tag
