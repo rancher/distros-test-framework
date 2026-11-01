@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -516,6 +517,12 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 	return *reservation.Instances[0].InstanceId, nil
 }
 
+// terminateTimeout covers the terminate call and the wait together; a var so tests can shrink it.
+var (
+	terminateTimeout = 5 * time.Minute
+	describeTimeout  = 1 * time.Minute
+)
+
 // liveInstanceStates excludes "terminated" so recycled IPs never match dead instances.
 var liveInstanceStates = []string{"pending", "running", "stopping", "stopped", "shutting-down"}
 
@@ -537,14 +544,18 @@ func (c Client) InstanceIDByIP(ip string) (string, error) {
 			{Name: aws.String(filterName), Values: aws.StringSlice([]string{ip})},
 			{Name: aws.String("instance-state-name"), Values: aws.StringSlice(liveInstanceStates)},
 		}
-		if c.infra != nil && c.infra.Aws.Subnets != "" {
+		// Public and IPv6 addresses are unique across live instances, so only private
+		// addresses (unique per VPC) are scoped; scoping the others could hide a real owner.
+		if filterName == "private-ip-address" && c.infra != nil && c.infra.Aws.Subnets != "" {
 			filters = append(filters, &ec2.Filter{
 				Name:   aws.String("subnet-id"),
 				Values: aws.StringSlice([]string{c.infra.Aws.Subnets}),
 			})
 		}
 
-		res, err := c.ec2.DescribeInstances(&ec2.DescribeInstancesInput{Filters: filters})
+		ctx, cancel := context.WithTimeout(context.Background(), describeTimeout)
+		res, err := c.ec2.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{Filters: filters})
+		cancel()
 		if err != nil {
 			return "", resources.ReturnLogError("error describing instances using %s: %w\n", filterName, err)
 		}
@@ -576,8 +587,11 @@ func (c Client) TerminateInstanceByIDAndWait(instanceID string) error {
 		return resources.ReturnLogError("must send an instance id")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), terminateTimeout)
+	defer cancel()
+
 	ids := []*string{aws.String(instanceID)}
-	if _, err := c.ec2.TerminateInstances(&ec2.TerminateInstancesInput{InstanceIds: ids}); err != nil {
+	if _, err := c.ec2.TerminateInstancesWithContext(ctx, &ec2.TerminateInstancesInput{InstanceIds: ids}); err != nil {
 		if isInstanceNotFound(err) {
 			resources.LogLevel("info", "instance %s not found, treating as terminated", instanceID)
 
@@ -587,7 +601,7 @@ func (c Client) TerminateInstanceByIDAndWait(instanceID string) error {
 		return resources.ReturnLogError("error terminating instance %s: %w\n", instanceID, err)
 	}
 
-	if err := c.ec2.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{InstanceIds: ids}); err != nil {
+	if err := c.ec2.WaitUntilInstanceTerminatedWithContext(ctx, &ec2.DescribeInstancesInput{InstanceIds: ids}); err != nil {
 		return resources.ReturnLogError("error waiting for termination of %s: %w\n", instanceID, err)
 	}
 	resources.LogLevel("info", "instance %s terminated", instanceID)

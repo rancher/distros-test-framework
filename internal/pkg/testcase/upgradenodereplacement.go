@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -44,6 +45,10 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 		resourceName = os.Getenv("resource_name")
 	}
 
+	// Bind removal to instance IDs captured now; IPs can be recycled by AWS later.
+	oldIDs, idsErr := captureInstanceIDs(awsClient, cluster.ServerIPs, cluster.AgentIPs)
+	Expect(idsErr).NotTo(HaveOccurred(), "capture old instance ids: %v", idsErr)
+
 	// create and prepare the servers
 	var newExternalServerIps, newPrivateServerIps []string
 	newExternalServerIps, newPrivateServerIps = createAndPrepNodes(awsClient, cluster, server, resourceName)
@@ -53,14 +58,14 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	Expect(err).NotTo(HaveOccurred())
 
 	serverErr := nodeReplaceServers(cluster, awsClient, serverLeaderIP, token,
-		version, channel, resourceName, newExternalServerIps, newPrivateServerIps)
+		version, channel, resourceName, newExternalServerIps, newPrivateServerIps, oldIDs)
 	Expect(serverErr).NotTo(HaveOccurred(), "replace server nodes: %v", serverErr)
 	cluster.ServerIPs = newExternalServerIps
 	resources.LogLevel("info", "Server control plane nodes replaced with ips: %s\n", newExternalServerIps)
 
 	// replace agents only if exists.
 	if len(cluster.AgentIPs) > 0 {
-		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token, resourceName)
+		nodeReplaceAgents(cluster, awsClient, version, channel, serverLeaderIP, token, resourceName, oldIDs)
 	}
 	// delete the last remaining server = leader.
 	// Resolve the leader's node name pre-delete so the wait can demand its drainage
@@ -69,7 +74,7 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	Expect(nodeNameErr).NotTo(HaveOccurred(),
 		"resolve node name for leader %s before deletion: %v", serverLeaderIP, nodeNameErr)
 
-	delErr := deleteRemainServer(serverLeaderIP, awsClient)
+	delErr := deleteRemainServer(serverLeaderIP, awsClient, oldIDs)
 	Expect(delErr).NotTo(HaveOccurred(), "delete old nodes: %v", delErr)
 	resources.LogLevel("debug", "Last Server deleted ip: %s\n", serverLeaderIP)
 
@@ -227,6 +232,7 @@ func nodeReplaceServers(
 	a *aws.Client,
 	serverLeaderIp, token, version, channel, resourceName string,
 	newExternalServerIps, newPrivateServerIps []string,
+	oldIDs oldNodeIDs,
 ) error {
 	if token == "" {
 		return resources.ReturnLogError("token not sent\n")
@@ -262,17 +268,19 @@ func nodeReplaceServers(
 		return nodeErr
 	}
 
-	// delete first the server that is not the leader.
+	// Delete the old non-leader servers in order, the first one now; the leader goes last.
 	oldServerIPs := cluster.ServerIPs
-	if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-2], a); delErr != nil {
-		resources.LogLevel("error", "error deleting server: %w\n", delErr)
+	if oldIP, ok := oldServerToRemove(oldServerIPs, 0); ok {
+		if delErr := deleteRemainServer(oldIP, a, oldIDs); delErr != nil {
+			resources.LogLevel("error", "error deleting server: %w\n", delErr)
 
-		return delErr
+			return delErr
+		}
 	}
 
 	// join the rest of the servers and delete all except the leader.
 	err = joinRemainServers(cluster, a, newExternalServerIps, newPrivateServerIps,
-		oldServerIPs, serverLeaderIp, token, version, channel)
+		oldServerIPs, serverLeaderIp, token, version, channel, oldIDs)
 	if err != nil {
 		return err
 	}
@@ -426,6 +434,15 @@ func buildRke2Cmd(
 	return cmd, nil
 }
 
+// oldServerToRemove returns the i-th old non-leader server to remove (the leader, index 0, goes last).
+func oldServerToRemove(oldServerIPs []string, i int) (string, bool) {
+	if i < 0 || i+1 >= len(oldServerIPs) {
+		return "", false
+	}
+
+	return oldServerIPs[i+1], true
+}
+
 func joinRemainServers(
 	cluster *driver.Cluster,
 	a *aws.Client,
@@ -436,14 +453,15 @@ func joinRemainServers(
 	token,
 	version,
 	channel string,
+	oldIDs oldNodeIDs,
 ) error {
 	for i := 1; i <= len(newExternalServerIps[1:]); i++ {
 		privateIp := newPrivateServerIps[i]
 		externalIp := newExternalServerIps[i]
 
-		if i < len(oldServerIPs[1:]) {
-			if delErr := deleteRemainServer(oldServerIPs[len(oldServerIPs)-1], a); delErr != nil {
-				resources.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldServerIPs[i])
+		if oldIP, ok := oldServerToRemove(oldServerIPs, i); ok {
+			if delErr := deleteRemainServer(oldIP, a, oldIDs); delErr != nil {
+				resources.LogLevel("error", "error deleting server: %w\n for ip: %s", delErr, oldIP)
 
 				return delErr
 			}
@@ -548,19 +566,56 @@ func joinSteps(cluster *driver.Cluster,
 	return nil
 }
 
-func deleteRemainServer(ip string, a *aws.Client) error {
+func deleteRemainServer(ip string, a *aws.Client, oldIDs oldNodeIDs) error {
 	if ip == "" {
 		return resources.ReturnLogError("ip not sent\n")
 	}
 
-	return removeNode(ip, a)
+	return removeNode(ip, a, oldIDs)
 }
 
 // stopProductServicesCmd stops whichever k3s/rke2 unit exists so the node cannot re-register.
 const stopProductServicesCmd = `for u in k3s k3s-agent rke2-server rke2-agent; do ` +
 	`if systemctl cat "$u.service" >/dev/null 2>&1; then sudo systemctl stop "$u"; fi; done`
 
+// stopServicesTimeout bounds the SSH stop; the shared SSH helpers have no deadline of their own.
+const stopServicesTimeout = 90 * time.Second
+
 var errNodeNotFound = errors.New("node not found")
+
+// runBounded returns after timeout even if fn is still blocked; fn's goroutine is abandoned.
+func runBounded(timeout time.Duration, fn func() error) error {
+	done := make(chan error, 1)
+	go func() { done <- fn() }()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(timeout):
+		return fmt.Errorf("timed out after %s", timeout)
+	}
+}
+
+// oldNodeIDs maps each pre-upgrade node IP to its instance ID, captured before any IP can be recycled.
+type oldNodeIDs map[string]string
+
+func captureInstanceIDs(a *aws.Client, ipLists ...[]string) (oldNodeIDs, error) {
+	ids := oldNodeIDs{}
+	for _, ips := range ipLists {
+		for _, ip := range ips {
+			id, err := a.InstanceIDByIP(ip)
+			if err != nil {
+				return nil, err
+			}
+			if id == "" {
+				return nil, resources.ReturnLogError("no live instance found for node ip %s\n", ip)
+			}
+			ids[ip] = id
+		}
+	}
+
+	return ids, nil
+}
 
 // nodeRemoval holds the steps of removeNode so the ordering and retry paths are testable.
 type nodeRemoval struct {
@@ -574,22 +629,30 @@ type nodeRemoval struct {
 
 // removeNode stops the product service, deletes the Node, then terminates the instance.
 // k3s 1.37+ re-registers a node deleted while it still runs; each step tolerates reruns.
-func removeNode(ip string, a *aws.Client) error {
+func removeNode(ip string, a *aws.Client, oldIDs oldNodeIDs) error {
 	return nodeRemoval{
 		checkAPIReachable: ensureAPINotOnNode,
 		resolveName:       nodeNameByIP,
 		resolveInstanceID: a.InstanceIDByIP,
 		stopServices: func(ip string) error {
-			_, err := resources.RunCommandOnNode(stopProductServicesCmd, ip)
+			return runBounded(stopServicesTimeout, func() error {
+				_, err := resources.RunCommandOnNode(stopProductServicesCmd, ip)
 
-			return err
+				return err
+			})
 		},
 		deleteNode: resources.DeleteNodeByName,
 		terminate:  a.TerminateInstanceByIDAndWait,
-	}.run(ip)
+	}.run(ip, oldIDs[ip])
 }
 
-func (r nodeRemoval) run(ip string) error {
+// run only ever terminates expectedID. A different live instance on ip means the IP was
+// recycled, so it is left untouched and no service is stopped on it.
+func (r nodeRemoval) run(ip, expectedID string) error {
+	if expectedID == "" {
+		return resources.ReturnLogError("no recorded instance id for %s, refusing to remove\n", ip)
+	}
+
 	if err := r.checkAPIReachable(ip); err != nil {
 		return err
 	}
@@ -599,15 +662,22 @@ func (r nodeRemoval) run(ip string) error {
 		return resources.ReturnLogError("failed to resolve node name for %s: %w\n", ip, nameErr)
 	}
 
-	instanceID, idErr := r.resolveInstanceID(ip)
+	currentID, idErr := r.resolveInstanceID(ip)
 	if idErr != nil {
 		return resources.ReturnLogError("failed to resolve instance for %s: %w\n", ip, idErr)
 	}
 
-	if instanceID != "" {
+	switch currentID {
+	case expectedID:
 		if err := r.stopServices(ip); err != nil {
 			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
 		}
+	case "":
+	default:
+		// The Node resolved from this ip may be the other instance's, so never delete it.
+		resources.LogLevel("warn", "ip %s now belongs to instance %s, not %s; leaving it and its Node untouched\n",
+			ip, currentID, expectedID)
+		name = ""
 	}
 
 	if name != "" {
@@ -617,19 +687,26 @@ func (r nodeRemoval) run(ip string) error {
 		resources.LogLevel("debug", "Node %s (%s) deleted from the cluster\n", name, ip)
 	}
 
-	if instanceID != "" {
-		if err := r.terminate(instanceID); err != nil {
-			return err
-		}
-		resources.LogLevel("debug", "Instance %s (%s) deleted from cloud provider\n", instanceID, ip)
+	if err := r.terminate(expectedID); err != nil {
+		return err
+	}
+	resources.LogLevel("debug", "Instance %s (%s) deleted from cloud provider\n", expectedID, ip)
+
+	if name == "" {
+		return nil
 	}
 
-	if name != "" {
-		// Final heartbeat or kubelet sync can recreate the Node just before termination.
-		return r.deleteNode(name)
+	// A final kubelet sync can recreate the Node just before termination. Only delete it
+	// when no live instance holds the ip, so a replacement reusing the name is never hit.
+	liveID, liveErr := r.resolveInstanceID(ip)
+	if liveErr != nil || liveID != "" {
+		resources.LogLevel("warn", "skipping final delete of Node %s: ip %s lookup err=%v live instance=%q\n",
+			name, ip, liveErr, liveID)
+
+		return nil
 	}
 
-	return nil
+	return r.deleteNode(name)
 }
 
 // ensureAPINotOnNode fails when kubectl targets the node being removed.
@@ -639,7 +716,11 @@ func ensureAPINotOnNode(ip string) error {
 	if err != nil {
 		return resources.ReturnLogError("failed to read kubeconfig server: %w\n", err)
 	}
-	if kubeconfigTargetsNode(server, ip) {
+	targets, parseErr := kubeconfigTargetsNode(server, ip)
+	if parseErr != nil {
+		return resources.ReturnLogError("cannot tell if kubeconfig targets node %s: %w\n", ip, parseErr)
+	}
+	if targets {
 		return resources.ReturnLogError(
 			"kubeconfig server %s points at node %s being removed; point it at a surviving server first\n",
 			server, ip)
@@ -648,13 +729,25 @@ func ensureAPINotOnNode(ip string) error {
 	return nil
 }
 
-func kubeconfigTargetsNode(server, ip string) bool {
+// kubeconfigTargetsNode compares parsed IPs (IPv6 has many spellings) and errors when the
+// endpoint is unusable so the caller fails closed.
+func kubeconfigTargetsNode(server, ip string) (bool, error) {
 	u, err := url.Parse(strings.TrimSpace(server))
 	if err != nil {
-		return false
+		return false, fmt.Errorf("invalid kubeconfig server %q: %w", server, err)
 	}
 
-	return u.Hostname() == ip
+	host := u.Hostname()
+	if host == "" {
+		return false, fmt.Errorf("kubeconfig server %q has no host", server)
+	}
+
+	hostIP, nodeIP := net.ParseIP(host), net.ParseIP(ip)
+	if hostIP != nil && nodeIP != nil {
+		return hostIP.Equal(nodeIP), nil
+	}
+
+	return strings.EqualFold(host, ip), nil
 }
 
 func nodeReplaceAgents(
@@ -665,11 +758,12 @@ func nodeReplaceAgents(
 	serverLeaderIp,
 	token,
 	resourceName string,
+	oldIDs oldNodeIDs,
 ) {
 	newExternalAgentIps, newPrivateAgentIps := createAndPrepNodes(awsClient, cluster, agent, resourceName)
 
 	agentErr := replaceAgents(cluster, awsClient, serverLeaderIp, token, version, channel,
-		newExternalAgentIps, newPrivateAgentIps)
+		newExternalAgentIps, newPrivateAgentIps, oldIDs)
 	Expect(agentErr).NotTo(HaveOccurred(), "error replacing agents: %s", agentErr)
 	cluster.AgentIPs = newExternalAgentIps
 
@@ -681,6 +775,7 @@ func replaceAgents(
 	a *aws.Client,
 	serverLeaderIp, token, version, channel string,
 	newExternalAgentIps, newPrivateAgentIps []string,
+	oldIDs oldNodeIDs,
 ) error {
 	if token == "" {
 		return resources.ReturnLogError("token not sent\n")
@@ -690,7 +785,7 @@ func replaceAgents(
 		return resources.ReturnLogError("externalIps or privateIps empty\n")
 	}
 
-	if err := deleteAgents(a, cluster); err != nil {
+	if err := deleteAgents(a, cluster, oldIDs); err != nil {
 		resources.LogLevel("error", "error deleting agent: %w\n", err)
 
 		return err
@@ -721,9 +816,9 @@ func replaceAgents(
 	return nil
 }
 
-func deleteAgents(a *aws.Client, c *driver.Cluster) error {
+func deleteAgents(a *aws.Client, c *driver.Cluster, oldIDs oldNodeIDs) error {
 	for _, ip := range c.AgentIPs {
-		if err := removeNode(ip, a); err != nil {
+		if err := removeNode(ip, a, oldIDs); err != nil {
 			resources.LogLevel("error", "error deleting agent %s: %v\n", ip, err)
 
 			return err

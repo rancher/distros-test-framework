@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -296,22 +297,24 @@ func CheckNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
 
 const (
 	nodeGoneTimeout = 2 * time.Minute
+	nodeGoneCall    = 30 * time.Second
 	nodeGonePoll    = 5 * time.Second
 	nodeGoneStable  = 3
 )
 
 // DeleteNodeByName deletes the node and confirms it stays gone, re-deleting if it re-registers.
 func DeleteNodeByName(name string) error {
-	return deleteNodeUntilGone(name, RunHostArgs, nodeGoneTimeout, nodeGonePoll, nodeGoneStable)
+	return deleteNodeUntilGone(name, RunHostArgsContext, nodeGoneTimeout, nodeGoneCall, nodeGonePoll, nodeGoneStable)
 }
 
-type hostArgsRunner func(name string, args ...string) (string, error)
+type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
 
 // deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
+// Each kubectl call is bounded by perCall and by the time left in timeout.
 func deleteNodeUntilGone(
 	name string,
 	run hostArgsRunner,
-	timeout, interval time.Duration,
+	timeout, perCall, interval time.Duration,
 	stable int,
 ) error {
 	if name == "" {
@@ -319,19 +322,28 @@ func deleteNodeUntilGone(
 	}
 
 	deadline := time.Now().Add(timeout)
+	kubectl := func(args ...string) (string, error) {
+		budget := min(time.Until(deadline), perCall)
+		if budget <= 0 {
+			return "", context.DeadlineExceeded
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		defer cancel()
+
+		return run(ctx, "kubectl", append(args, "--kubeconfig="+KubeConfigFile)...)
+	}
+
 	absent := 0
 	for {
 		if absent == 0 {
-			if res, err := run("kubectl", "delete", "node", name, "--ignore-not-found",
-				"--wait=false", "--kubeconfig="+KubeConfigFile); err != nil {
+			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
 				LogLevel("warn", "delete node %s failed: %v", name, err)
 			} else {
 				LogLevel("info", "%s", res)
 			}
 		}
 
-		out, err := run("kubectl", "get", "node", name, "--ignore-not-found",
-			"-o", "name", "--kubeconfig="+KubeConfigFile)
+		out, err := kubectl("get", "node", name, "--ignore-not-found", "-o", "name")
 		switch {
 		case err != nil:
 			absent = 0

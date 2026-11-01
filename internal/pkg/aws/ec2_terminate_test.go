@@ -1,11 +1,14 @@
 package aws
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 
@@ -18,12 +21,15 @@ type fakeEC2 struct {
 	describeErr  error
 	terminateErr error
 	waitErr      error
+	blockWait    bool
 	gotFilters   [][]*ec2.Filter
 	terminated   []string
 	waited       int
 }
 
-func (f *fakeEC2) DescribeInstances(in *ec2.DescribeInstancesInput) (*ec2.DescribeInstancesOutput, error) {
+func (f *fakeEC2) DescribeInstancesWithContext(
+	_ aws.Context, in *ec2.DescribeInstancesInput, _ ...request.Option,
+) (*ec2.DescribeInstancesOutput, error) {
 	f.gotFilters = append(f.gotFilters, in.Filters)
 	if f.describeErr != nil {
 		return nil, f.describeErr
@@ -38,7 +44,9 @@ func (f *fakeEC2) DescribeInstances(in *ec2.DescribeInstancesInput) (*ec2.Descri
 	return out, nil
 }
 
-func (f *fakeEC2) TerminateInstances(in *ec2.TerminateInstancesInput) (*ec2.TerminateInstancesOutput, error) {
+func (f *fakeEC2) TerminateInstancesWithContext(
+	_ aws.Context, in *ec2.TerminateInstancesInput, _ ...request.Option,
+) (*ec2.TerminateInstancesOutput, error) {
 	if f.terminateErr != nil {
 		return nil, f.terminateErr
 	}
@@ -47,8 +55,15 @@ func (f *fakeEC2) TerminateInstances(in *ec2.TerminateInstancesInput) (*ec2.Term
 	return &ec2.TerminateInstancesOutput{}, nil
 }
 
-func (f *fakeEC2) WaitUntilInstanceTerminated(*ec2.DescribeInstancesInput) error {
+func (f *fakeEC2) WaitUntilInstanceTerminatedWithContext(
+	ctx aws.Context, _ *ec2.DescribeInstancesInput, _ ...request.WaiterOption,
+) error {
 	f.waited++
+	if f.blockWait {
+		<-ctx.Done()
+
+		return ctx.Err()
+	}
 
 	return f.waitErr
 }
@@ -88,14 +103,24 @@ func TestInstanceIDByIPScopesStateAndSubnet(t *testing.T) {
 	if _, err := c.InstanceIDByIP("1.2.3.4"); err != nil {
 		t.Fatal(err)
 	}
-	seen := map[string]bool{}
-	for _, f := range f.gotFilters[0] {
-		seen[aws.StringValue(f.Name)] = true
-	}
-	for _, want := range []string{"instance-state-name", "subnet-id"} {
-		if !seen[want] {
-			t.Errorf("missing %s filter", want)
+	hasFilter := func(call []*ec2.Filter, name string) bool {
+		for _, fl := range call {
+			if aws.StringValue(fl.Name) == name {
+				return true
+			}
 		}
+
+		return false
+	}
+	// gotFilters[0] is the public ip-address lookup, [1] the private-ip-address one.
+	if !hasFilter(f.gotFilters[0], "instance-state-name") || !hasFilter(f.gotFilters[1], "instance-state-name") {
+		t.Error("every lookup must filter by live state")
+	}
+	if hasFilter(f.gotFilters[0], "subnet-id") {
+		t.Error("public ip lookup must not be subnet scoped")
+	}
+	if !hasFilter(f.gotFilters[1], "subnet-id") {
+		t.Error("private ip lookup must be subnet scoped")
 	}
 }
 
@@ -137,5 +162,21 @@ func TestTerminateInstanceByIDAndWaitErrors(t *testing.T) {
 	}
 	if err := (Client{ec2: &fakeEC2{}}).TerminateInstanceByIDAndWait(""); err == nil {
 		t.Error("expected empty id error")
+	}
+}
+
+func TestTerminateInstanceByIDAndWaitIsBoundedByDeadline(t *testing.T) {
+	prev := terminateTimeout
+	terminateTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { terminateTimeout = prev })
+
+	f := &fakeEC2{blockWait: true}
+	start := time.Now()
+	err := (Client{ec2: f}).TerminateInstanceByIDAndWait("i-1")
+	if err == nil || time.Since(start) > 2*time.Second {
+		t.Fatalf("expected a prompt deadline error, got %v after %s", err, time.Since(start))
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && f.waited != 1 {
+		t.Errorf("waiter not reached or error not deadline related: %v", err)
 	}
 }
