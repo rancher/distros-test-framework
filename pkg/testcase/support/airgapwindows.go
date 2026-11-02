@@ -194,7 +194,7 @@ func GetWindowsOSVersion(cluster *shared.Cluster) string {
 	Expect(err).NotTo(HaveOccurred(), "failed to get windows os version")
 
 	var caption string
-	for line := range strings.SplitSeq(res, "\n") {
+	for _, line := range strings.Split(res, "\n") {
 		if strings.Contains(line, "Windows") {
 			caption = strings.TrimSpace(line)
 		}
