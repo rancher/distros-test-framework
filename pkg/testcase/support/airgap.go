@@ -349,16 +349,16 @@ func GetArtifacts(cluster *shared.Cluster, platform, registryURL, tarballType st
 		shared.LogLevel("info", "Getting artifacts from URL: %v", registryURL)
 		version = url.QueryEscape(cluster.Config.Version)
 	}
-	var winVersion string
-	if platform == "windows" {
-		winVersion = GetWindowsOSVersion(cluster)
+	var winCaption string
+	if platform == "windows" && tarballType != "" {
+		winCaption = GetWindowsOSCaption(cluster)
 	}
 
 	cmd := fmt.Sprintf(
 		"sudo chmod +x get_artifacts.sh && "+
 			`sudo ./get_artifacts.sh "%v" "%v" "%v" "%v" "%v" "%v" "%v" "%v"`,
 		cluster.Config.Product, version, platform,
-		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType, winVersion)
+		cluster.Config.Arch, registryURL, cluster.Config.ServerFlags, tarballType, winCaption)
 	shared.LogLevel("debug", "Get artifacts cmd: %v", cmd)
 	res, err = shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
 

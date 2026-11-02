@@ -27,13 +27,11 @@ function Get-ValidatedImageTag {
         throw "ERROR: Unsupported operating system version detected ($OSCaption). Valid image tag could not be determined. Exiting script."
     }
 
-    # 3. Check the current directory for files containing the determined image tag
-    # Note: Using $PSScriptRoot targets the directory where the script file resides. 
-    # Swap to (Get-Location) if you prefer the user's active console directory.
-    $MatchingFiles = Get-ChildItem -Path $PSScriptRoot -File -Filter "*$ImageTag*"
+    # 3. Require the exact tarball that is copied later (same directory and name pattern)
+    $MatchingFiles = Get-ChildItem -Path "C:/Users/Administrator" -File -Filter "rke2-windows-$ImageTag-amd64-images.tar*"
 
     if (-not $MatchingFiles) {
-        throw "ERROR: No files containing the image tag '$ImageTag' were found in the directory '$PSScriptRoot'. Exiting script."
+        throw "ERROR: Tarball 'rke2-windows-$ImageTag-amd64-images.tar*' not found in C:/Users/Administrator. Exiting script."
     }
 
     # 4. Output the validated tag so it can be captured outside the function
