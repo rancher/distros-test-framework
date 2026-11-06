@@ -4,7 +4,14 @@ Start-Transcript -Path "$env:ProgramData\ssh_setup.log" -Append
 
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 Set-Service -Name sshd -StartupType Automatic
-New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -RemoteAddress ("${ssh_allowed_cidrs}" -split ",")
+# The OpenSSH install creates an any-source rule; restrict it instead of adding a second one.
+$sshRule = "OpenSSH-Server-In-TCP"
+$sshCidrs = "${ssh_allowed_cidrs}" -split ","
+if (Get-NetFirewallRule -Name $sshRule -ErrorAction SilentlyContinue) {
+    Set-NetFirewallRule -Name $sshRule -Enabled True -RemoteAddress $sshCidrs
+} else {
+    New-NetFirewallRule -Name $sshRule -DisplayName 'OpenSSH SSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -RemoteAddress $sshCidrs
+}
 Start-Service sshd
 
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
