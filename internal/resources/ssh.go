@@ -273,6 +273,48 @@ func RunCommandOnNodeWithStdin(cmd, ip string, stdin io.Reader) (string, error) 
 	return stdoutBuf.String(), nil
 }
 
+// RunCommandOnNodeContext runs cmd over SSH and closes the session when ctx ends. It returns
+// only after the remote run has finished, so nothing keeps running after the caller moves on.
+func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error) {
+	if cmd == "" {
+		return "", ReturnLogError("cmd should not be empty")
+	}
+
+	conn, err := getOrDialSSH(ip + ":22")
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
+	}
+
+	session, err := conn.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+	defer session.Close()
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	session.Stdout = &stdoutBuf
+	session.Stderr = &stderrBuf
+
+	done := make(chan error, 1)
+	go func() { done <- session.Run(cmd) }()
+
+	select {
+	case runErr := <-done:
+		if runErr != nil {
+			return "", fmt.Errorf("command %s failed on %s: %w, stderr: %s",
+				cmd, ip, runErr, strings.TrimSpace(stderrBuf.String()))
+		}
+
+		return strings.TrimSpace(stdoutBuf.String()), nil
+	case <-ctx.Done():
+		_ = session.Signal(ssh.SIGKILL)
+		_ = session.Close()
+		<-done
+
+		return "", fmt.Errorf("command %s canceled on %s: %w", cmd, ip, ctx.Err())
+	}
+}
+
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
 	session, err := conn.NewSession()
 	if err != nil {

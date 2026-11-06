@@ -3,8 +3,8 @@ package testcase
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +14,9 @@ import (
 type removalRecorder struct {
 	calls []string
 	r     nodeRemoval
+	// recheckID/recheckErr are what the ip lookup returns after stopping, before termination.
+	recheckID  string
+	recheckErr error
 	// liveAfter/liveAfterErr are what the ip lookup returns after termination.
 	liveAfter    string
 	liveAfterErr error
@@ -21,7 +24,7 @@ type removalRecorder struct {
 
 // currentID is the instance now live on the ip before removal ("" when none).
 func newRecorder(name, currentID string) *removalRecorder {
-	rec := &removalRecorder{}
+	rec := &removalRecorder{recheckID: currentID}
 	lookups := 0
 	rec.r = nodeRemoval{
 		checkAPIReachable: func(string) error { rec.calls = append(rec.calls, "check"); return nil },
@@ -36,6 +39,9 @@ func newRecorder(name, currentID string) *removalRecorder {
 			lookups++
 			if lookups == 1 {
 				return currentID, nil
+			}
+			if !slices.Contains(rec.calls, "terminate") {
+				return rec.recheckID, rec.recheckErr
 			}
 
 			return rec.liveAfter, rec.liveAfterErr
@@ -65,7 +71,7 @@ func TestRemoveNodeRetryAfterTerminationStillDeletesNode(t *testing.T) {
 	if err := rec.r.run("1.2.3.4", "i-1"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"check", "delete", "terminate", "delete"}
+	want := []string{"check", "terminate", "delete"}
 	if !reflect.DeepEqual(rec.calls, want) {
 		t.Fatalf("calls = %v, want %v", rec.calls, want)
 	}
@@ -122,6 +128,34 @@ func TestRemoveNodeSkipsFinalDeleteWhenOwnershipIndeterminate(t *testing.T) {
 	}
 	if got := rec.calls[len(rec.calls)-1]; got != "terminate" {
 		t.Fatalf("final call = %s, want terminate (no final delete)", got)
+	}
+}
+
+// The ip can be recycled during the (slow) service stop, so ownership is re-verified before the Node delete.
+func TestRemoveNodeSkipsNodeDeleteWhenOwnerChangesDuringStop(t *testing.T) {
+	for name, tc := range map[string]struct {
+		id        string
+		err       error
+		finalWant string
+	}{
+		"other instance": {id: "i-NEW"},
+		"no owner":       {id: "", finalWant: "delete"},
+		"lookup error":   {err: errors.New("describe throttled"), finalWant: "delete"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := newRecorder("n1", "i-1")
+			rec.recheckID, rec.recheckErr = tc.id, tc.err
+			if err := rec.r.run("1.2.3.4", "i-1"); err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"check", "stop", "terminate"}
+			if tc.finalWant != "" {
+				want = append(want, tc.finalWant)
+			}
+			if !reflect.DeepEqual(rec.calls, want) {
+				t.Fatalf("calls = %v, want %v", rec.calls, want)
+			}
+		})
 	}
 }
 
@@ -222,31 +256,6 @@ func TestKubeconfigTargetsNode(t *testing.T) {
 				t.Errorf("got (%v, %v), want (%v, err=%v)", got, err, tc.want, tc.wantErr)
 			}
 		})
-	}
-}
-
-func TestRunBoundedReturnsWhenFnHangs(t *testing.T) {
-	block := make(chan struct{})
-	defer close(block)
-
-	start := time.Now()
-	err := runBounded(50*time.Millisecond, func() error {
-		<-block
-
-		return nil
-	})
-	if err == nil || time.Since(start) > 2*time.Second {
-		t.Fatalf("expected a prompt timeout error, got %v after %s", err, time.Since(start))
-	}
-}
-
-func TestRunBoundedPropagatesResult(t *testing.T) {
-	want := errors.New("boom")
-	if err := runBounded(time.Second, func() error { return want }); !errors.Is(err, want) {
-		t.Fatalf("got %v, want %v", err, want)
-	}
-	if err := runBounded(time.Second, func() error { return nil }); err != nil {
-		t.Fatalf("unexpected error %v", err)
 	}
 }
 

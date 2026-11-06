@@ -583,19 +583,6 @@ const stopServicesTimeout = 90 * time.Second
 
 var errNodeNotFound = errors.New("node not found")
 
-// runBounded returns after timeout even if fn is still blocked; fn's goroutine is abandoned.
-func runBounded(timeout time.Duration, fn func() error) error {
-	done := make(chan error, 1)
-	go func() { done <- fn() }()
-
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(timeout):
-		return fmt.Errorf("timed out after %s", timeout)
-	}
-}
-
 // oldNodeIDs maps each pre-upgrade node IP to its instance ID, captured before any IP can be recycled.
 type oldNodeIDs map[string]string
 
@@ -635,11 +622,12 @@ func removeNode(ip string, a *aws.Client, oldIDs oldNodeIDs) error {
 		resolveName:       nodeNameByIP,
 		resolveInstanceID: a.InstanceIDByIP,
 		stopServices: func(ip string) error {
-			return runBounded(stopServicesTimeout, func() error {
-				_, err := resources.RunCommandOnNode(stopProductServicesCmd, ip)
+			ctx, cancel := context.WithTimeout(context.Background(), stopServicesTimeout)
+			defer cancel()
 
-				return err
-			})
+			_, err := resources.RunCommandOnNodeContext(ctx, stopProductServicesCmd, ip)
+
+			return err
 		},
 		deleteNode: resources.DeleteNodeByName,
 		terminate:  a.TerminateInstanceByIDAndWait,
@@ -667,10 +655,21 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 		return resources.ReturnLogError("failed to resolve instance for %s: %w\n", ip, idErr)
 	}
 
+	// Only a confirmed owner (before and after the stop) may have its Node deleted pre-termination;
+	// anything else is left to the post-termination delete.
+	ownedThroughout := false
+
 	switch currentID {
 	case expectedID:
 		if err := r.stopServices(ip); err != nil {
 			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
+		}
+
+		stillID, stillErr := r.resolveInstanceID(ip)
+		ownedThroughout = stillErr == nil && stillID == expectedID
+		if stillErr == nil && stillID != "" && stillID != expectedID {
+			resources.LogLevel("warn", "ip %s was reassigned to %s during stop; leaving its Node untouched\n", ip, stillID)
+			name = ""
 		}
 	case "":
 	default:
@@ -680,7 +679,7 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 		name = ""
 	}
 
-	if name != "" {
+	if name != "" && ownedThroughout {
 		if err := r.deleteNode(name); err != nil {
 			return err
 		}
