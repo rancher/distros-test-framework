@@ -187,20 +187,30 @@ func GetWindowsOSCaption(cluster *shared.Cluster) string {
 	// RunCommandOnNode returns stderr instead of stdout when it is non-empty, so mute ssh
 	// warnings but keep real errors (LogLevel=ERROR) to diagnose connection failures.
 	cmd := fmt.Sprintf(
-		`sudo chmod 400 /tmp/%v.pem && %v -o LogLevel=ERROR Administrator@%v `+
+		`sudo chmod 400 /tmp/%v.pem && %v -o LogLevel=ERROR -o ConnectTimeout=10 Administrator@%v `+
 			`'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption"'`,
 		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName), cluster.WinAgentIPs[0])
-	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
-	Expect(err).NotTo(HaveOccurred(), "failed to get windows os caption")
 
+	// User data installs sshd and reboots after the instance is already status-ok, so sshd may be late.
 	var caption string
-	for _, line := range strings.Split(res, "\n") {
+	Eventually(func(g Gomega) {
+		res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+		g.Expect(err).NotTo(HaveOccurred(), "windows node ssh not ready")
+
+		caption = parseWindowsCaption(res)
+		g.Expect(caption).NotTo(BeEmpty(), "could not find Windows caption in output: %v", res)
+	}, "15m", "20s").Should(Succeed(), "failed to get windows os caption")
+	shared.LogLevel("info", "Windows OS caption: %v", caption)
+
+	return caption
+}
+
+func parseWindowsCaption(out string) (caption string) {
+	for _, line := range strings.Split(out, "\n") {
 		if strings.Contains(line, "Windows") {
 			caption = strings.TrimSpace(line)
 		}
 	}
-	Expect(caption).NotTo(BeEmpty(), "could not find Windows caption in output: %v", res)
-	shared.LogLevel("info", "Windows OS caption: %v", caption)
 
 	return caption
 }
