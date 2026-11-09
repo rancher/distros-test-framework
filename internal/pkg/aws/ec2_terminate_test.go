@@ -19,6 +19,8 @@ type fakeEC2 struct {
 	ec2iface.EC2API
 	byFilter     map[string][]string
 	describeErr  error
+	subnets      []*ec2.Subnet
+	subnetErr    error
 	terminateErr error
 	waitErr      error
 	blockWait    bool
@@ -42,6 +44,12 @@ func (f *fakeEC2) DescribeInstancesWithContext(
 	}
 
 	return out, nil
+}
+
+func (f *fakeEC2) DescribeSubnetsWithContext(
+	_ aws.Context, _ *ec2.DescribeSubnetsInput, _ ...request.Option,
+) (*ec2.DescribeSubnetsOutput, error) {
+	return &ec2.DescribeSubnetsOutput{Subnets: f.subnets}, f.subnetErr
 }
 
 func (f *fakeEC2) TerminateInstancesWithContext(
@@ -97,30 +105,51 @@ func TestInstanceIDByIP(t *testing.T) {
 	}
 }
 
-func TestInstanceIDByIPScopesStateAndSubnet(t *testing.T) {
-	f := &fakeEC2{}
+func TestInstanceIDByIPScopesStateAndVPC(t *testing.T) {
+	f := &fakeEC2{subnets: []*ec2.Subnet{{VpcId: aws.String("vpc-1")}}}
 	c := Client{ec2: f, infra: &driver.Cluster{Aws: driver.AwsConfig{Subnets: "subnet-1"}}}
 	if _, err := c.InstanceIDByIP("1.2.3.4"); err != nil {
 		t.Fatal(err)
 	}
-	hasFilter := func(call []*ec2.Filter, name string) bool {
+	filterValue := func(call []*ec2.Filter, name string) (string, bool) {
 		for _, fl := range call {
 			if aws.StringValue(fl.Name) == name {
-				return true
+				return aws.StringValue(fl.Values[0]), true
 			}
 		}
 
-		return false
+		return "", false
 	}
 	// gotFilters[0] is the public ip-address lookup, [1] the private-ip-address one.
-	if !hasFilter(f.gotFilters[0], "instance-state-name") || !hasFilter(f.gotFilters[1], "instance-state-name") {
-		t.Error("every lookup must filter by live state")
+	if _, ok := filterValue(f.gotFilters[0], "instance-state-name"); !ok {
+		t.Error("public lookup must filter by live state")
 	}
-	if hasFilter(f.gotFilters[0], "subnet-id") {
-		t.Error("public ip lookup must not be subnet scoped")
+	if _, ok := filterValue(f.gotFilters[1], "instance-state-name"); !ok {
+		t.Error("private lookup must filter by live state")
 	}
-	if !hasFilter(f.gotFilters[1], "subnet-id") {
-		t.Error("private ip lookup must be subnet scoped")
+	if _, ok := filterValue(f.gotFilters[0], "vpc-id"); ok {
+		t.Error("public ip lookup must not be vpc scoped")
+	}
+	if _, ok := filterValue(f.gotFilters[1], "subnet-id"); ok {
+		t.Error("private ip lookup must not be subnet scoped, other subnets can own the ip")
+	}
+	if got, _ := filterValue(f.gotFilters[1], "vpc-id"); got != "vpc-1" {
+		t.Errorf("private ip lookup vpc-id = %q, want vpc-1", got)
+	}
+}
+
+func TestInstanceIDByIPFailsClosedWhenVPCUnresolved(t *testing.T) {
+	infra := &driver.Cluster{Aws: driver.AwsConfig{Subnets: "subnet-1"}}
+	for name, f := range map[string]*fakeEC2{
+		"describe error": {subnetErr: errors.New("boom")},
+		"no subnet":      {},
+		"empty vpc":      {subnets: []*ec2.Subnet{{}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := (Client{ec2: f, infra: infra}).InstanceIDByIP("1.2.3.4"); err == nil {
+				t.Fatal("expected error rather than an unscoped private ip lookup")
+			}
+		})
 	}
 }
 

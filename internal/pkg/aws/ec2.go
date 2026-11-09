@@ -545,11 +545,15 @@ func (c Client) InstanceIDByIP(ip string) (string, error) {
 			{Name: aws.String("instance-state-name"), Values: aws.StringSlice(liveInstanceStates)},
 		}
 		// Public and IPv6 addresses are unique across live instances, so only private
-		// addresses (unique per VPC) are scoped; scoping the others could hide a real owner.
+		// addresses (unique per VPC, not per subnet) are scoped to the VPC.
 		if filterName == "private-ip-address" && c.infra != nil && c.infra.Aws.Subnets != "" {
+			vpcID, vpcErr := c.vpcIDOfSubnet(c.infra.Aws.Subnets)
+			if vpcErr != nil {
+				return "", vpcErr
+			}
 			filters = append(filters, &ec2.Filter{
-				Name:   aws.String("subnet-id"),
-				Values: aws.StringSlice([]string{c.infra.Aws.Subnets}),
+				Name:   aws.String("vpc-id"),
+				Values: aws.StringSlice([]string{vpcID}),
 			})
 		}
 
@@ -578,6 +582,24 @@ func (c Client) InstanceIDByIP(ip string) (string, error) {
 	}
 
 	return "", resources.ReturnLogError("ip %s matches multiple live instances: %v\n", ip, ids)
+}
+
+// vpcIDOfSubnet resolves the VPC so private IPs are checked across all its subnets.
+func (c Client) vpcIDOfSubnet(subnetID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), describeTimeout)
+	defer cancel()
+
+	res, err := c.ec2.DescribeSubnetsWithContext(ctx, &ec2.DescribeSubnetsInput{
+		SubnetIds: aws.StringSlice([]string{subnetID}),
+	})
+	if err != nil {
+		return "", resources.ReturnLogError("error resolving vpc of subnet %s: %w\n", subnetID, err)
+	}
+	if len(res.Subnets) != 1 || aws.StringValue(res.Subnets[0].VpcId) == "" {
+		return "", resources.ReturnLogError("subnet %s did not resolve to exactly one vpc\n", subnetID)
+	}
+
+	return aws.StringValue(res.Subnets[0].VpcId), nil
 }
 
 // TerminateInstanceByIDAndWait terminates the instance and blocks until EC2 reports it terminated.

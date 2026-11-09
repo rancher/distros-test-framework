@@ -304,7 +304,14 @@ const (
 
 // DeleteNodeByName deletes the node and confirms it stays gone, re-deleting if it re-registers.
 func DeleteNodeByName(name string) error {
-	return deleteNodeUntilGone(name, RunHostArgsContext, nodeGoneTimeout, nodeGoneCall, nodeGonePoll, nodeGoneStable)
+	return DeleteNodeByNameIf(name, nil)
+}
+
+// DeleteNodeByNameIf is DeleteNodeByName, but mayDelete must return true immediately before every
+// delete. When it returns false the loop stops and leaves the Node alone; nil always allows.
+func DeleteNodeByNameIf(name string, mayDelete func() bool) error {
+	return deleteNodeUntilGone(
+		name, RunHostArgsContext, nodeGoneTimeout, nodeGoneCall, nodeGonePoll, nodeGoneStable, mayDelete)
 }
 
 type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
@@ -316,6 +323,7 @@ func deleteNodeUntilGone(
 	run hostArgsRunner,
 	timeout, perCall, interval time.Duration,
 	stable int,
+	mayDelete func() bool,
 ) error {
 	if name == "" {
 		return ReturnLogError("must send a node name")
@@ -336,6 +344,11 @@ func deleteNodeUntilGone(
 	absent := 0
 	for {
 		if absent == 0 {
+			if mayDelete != nil && !mayDelete() {
+				LogLevel("warn", "not deleting node %s: ownership by the old instance is not confirmed", name)
+
+				return nil
+			}
 			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
 				LogLevel("warn", "delete node %s failed: %v", name, err)
 			} else {

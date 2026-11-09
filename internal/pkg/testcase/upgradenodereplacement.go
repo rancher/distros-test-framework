@@ -610,7 +610,7 @@ type nodeRemoval struct {
 	resolveName       func(ip string) (string, error)
 	resolveInstanceID func(ip string) (string, error)
 	stopServices      func(ip string) error
-	deleteNode        func(name string) error
+	deleteNode        func(name string, mayDelete func() bool) error
 	terminate         func(instanceID string) error
 }
 
@@ -629,7 +629,7 @@ func removeNode(ip string, a *aws.Client, oldIDs oldNodeIDs) error {
 
 			return err
 		},
-		deleteNode: resources.DeleteNodeByName,
+		deleteNode: resources.DeleteNodeByNameIf,
 		terminate:  a.TerminateInstanceByIDAndWait,
 	}.run(ip, oldIDs[ip])
 }
@@ -655,21 +655,10 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 		return resources.ReturnLogError("failed to resolve instance for %s: %w\n", ip, idErr)
 	}
 
-	// Only a confirmed owner (before and after the stop) may have its Node deleted pre-termination;
-	// anything else is left to the post-termination delete.
-	ownedThroughout := false
-
 	switch currentID {
 	case expectedID:
 		if err := r.stopServices(ip); err != nil {
 			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
-		}
-
-		stillID, stillErr := r.resolveInstanceID(ip)
-		ownedThroughout = stillErr == nil && stillID == expectedID
-		if stillErr == nil && stillID != "" && stillID != expectedID {
-			resources.LogLevel("warn", "ip %s was reassigned to %s during stop; leaving its Node untouched\n", ip, stillID)
-			name = ""
 		}
 	case "":
 	default:
@@ -679,11 +668,17 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 		name = ""
 	}
 
-	if name != "" && ownedThroughout {
-		if err := r.deleteNode(name); err != nil {
+	// Ownership is re-read before every delete; an empty owner is indeterminate pre-termination.
+	if name != "" && currentID == expectedID {
+		ownedByExpected := func() bool {
+			id, err := r.resolveInstanceID(ip)
+
+			return err == nil && id == expectedID
+		}
+		if err := r.deleteNode(name, ownedByExpected); err != nil {
 			return err
 		}
-		resources.LogLevel("debug", "Node %s (%s) deleted from the cluster\n", name, ip)
+		resources.LogLevel("debug", "Node %s (%s) delete step finished\n", name, ip)
 	}
 
 	if err := r.terminate(expectedID); err != nil {
@@ -695,17 +690,15 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 		return nil
 	}
 
-	// A final kubelet sync can recreate the Node just before termination. Only delete it
-	// when no live instance holds the ip, so a replacement reusing the name is never hit.
-	liveID, liveErr := r.resolveInstanceID(ip)
-	if liveErr != nil || liveID != "" {
-		resources.LogLevel("warn", "skipping final delete of Node %s: ip %s lookup err=%v live instance=%q\n",
-			name, ip, liveErr, liveID)
+	// A final kubelet sync can recreate the Node just before termination. Delete it only
+	// while no live instance holds the ip, so a replacement reusing the name is never hit.
+	noLiveOwner := func() bool {
+		id, err := r.resolveInstanceID(ip)
 
-		return nil
+		return err == nil && id == ""
 	}
 
-	return r.deleteNode(name)
+	return r.deleteNode(name, noLiveOwner)
 }
 
 // ensureAPINotOnNode fails when kubectl targets the node being removed.

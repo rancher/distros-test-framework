@@ -47,8 +47,14 @@ func newRecorder(name, currentID string) *removalRecorder {
 			return rec.liveAfter, rec.liveAfterErr
 		},
 		stopServices: func(string) error { rec.calls = append(rec.calls, "stop"); return nil },
-		deleteNode:   func(string) error { rec.calls = append(rec.calls, "delete"); return nil },
-		terminate:    func(string) error { rec.calls = append(rec.calls, "terminate"); return nil },
+		deleteNode: func(_ string, mayDelete func() bool) error {
+			if mayDelete == nil || mayDelete() {
+				rec.calls = append(rec.calls, "delete")
+			}
+
+			return nil
+		},
+		terminate: func(string) error { rec.calls = append(rec.calls, "terminate"); return nil },
 	}
 
 	return rec
@@ -145,6 +151,7 @@ func TestRemoveNodeSkipsNodeDeleteWhenOwnerChangesDuringStop(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rec := newRecorder("n1", "i-1")
 			rec.recheckID, rec.recheckErr = tc.id, tc.err
+			rec.liveAfter = tc.id // a replacement that took the ip is still live afterwards
 			if err := rec.r.run("1.2.3.4", "i-1"); err != nil {
 				t.Fatal(err)
 			}
@@ -168,7 +175,7 @@ func TestRemoveNodeRefusesWithoutRecordedID(t *testing.T) {
 
 func TestRemoveNodeNodeDeleteFailureKeepsInstance(t *testing.T) {
 	rec := newRecorder("n1", "i-1")
-	rec.r.deleteNode = func(string) error { return errors.New("api down") }
+	rec.r.deleteNode = func(string, func() bool) error { return errors.New("api down") }
 	if err := rec.r.run("1.2.3.4", "i-1"); err == nil {
 		t.Fatal("expected error")
 	}
