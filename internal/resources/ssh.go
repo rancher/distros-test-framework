@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -190,7 +191,8 @@ func fatalSSHError(err error, cfg *RetryCfg) bool {
 	return false
 }
 
-func configureSSH(host string) (*ssh.Client, error) {
+// configureSSHContext bounds both the TCP dial and the SSH handshake by ctx.
+func configureSSHContext(ctx context.Context, host string) (*ssh.Client, error) {
 	var (
 		cfg *ssh.ClientConfig
 		err error
@@ -210,12 +212,27 @@ func configureSSH(host string) (*ssh.Client, error) {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	conn, err := ssh.Dial("tcp", host, cfg)
+	var dialer net.Dialer
+	netConn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, ReturnLogError("failed to dial: %w", err)
 	}
 
-	return conn, nil
+	// The handshake has no context support, so a deadline on the raw conn bounds it.
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = netConn.SetDeadline(deadline)
+	}
+	stop := context.AfterFunc(ctx, func() { _ = netConn.Close() })
+	defer stop()
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, host, cfg)
+	if err != nil {
+		_ = netConn.Close()
+		return nil, ReturnLogError("failed to dial: %w", err)
+	}
+	_ = netConn.SetDeadline(time.Time{})
+
+	return ssh.NewClient(sshConn, chans, reqs), nil
 }
 
 func resolveSSHConfig() (user, path string) {
@@ -280,7 +297,7 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 		return "", ReturnLogError("cmd should not be empty")
 	}
 
-	conn, err := getOrDialSSH(ip + ":22")
+	conn, err := getOrDialSSHContext(ctx, ip+":22")
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
@@ -341,6 +358,11 @@ func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, e
 
 // getOrDialSSH checks existence of a SSH connection or dials a new one with configureSSH(host).
 func getOrDialSSH(host string) (*ssh.Client, error) {
+	return getOrDialSSHContext(context.Background(), host)
+}
+
+// getOrDialSSHContext is getOrDialSSH with the health check and dial bounded by ctx.
+func getOrDialSSHContext(ctx context.Context, host string) (*ssh.Client, error) {
 	connPool.Lock()
 	conn := connPool.connClient[host]
 	connPool.Unlock()
@@ -348,7 +370,7 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	// if there is an existing connection, check if it's still valid.
 	// if not, remove it from the pool.
 	if conn != nil {
-		_, _, err := runsshCommand("echo ok", conn)
+		err := pingSSH(ctx, conn)
 		if err == nil {
 			return conn, nil
 		}
@@ -359,9 +381,9 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	}
 
 	// get a new connection and add it to the pool.
-	newConn, err := configureSSH(host)
+	newConn, err := configureSSHContext(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("failed to configure SSH: %v", err)
+		return nil, fmt.Errorf("failed to configure SSH: %w", err)
 	}
 
 	connPool.Lock()
@@ -371,6 +393,16 @@ func getOrDialSSH(host string) (*ssh.Client, error) {
 	LogLevel("debug", "SSH connection pool: %v\n", &connPool.connClient)
 
 	return newConn, nil
+}
+
+// pingSSH closes conn when ctx ends, since a stuck session cannot be interrupted otherwise.
+func pingSSH(ctx context.Context, conn *ssh.Client) error {
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+
+	_, _, err := runsshCommand("echo ok", conn)
+
+	return err
 }
 
 func publicKey(path string) (ssh.AuthMethod, error) {
