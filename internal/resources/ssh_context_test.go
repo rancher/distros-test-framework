@@ -6,11 +6,14 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func writeTestKey(t *testing.T) string {
@@ -63,5 +66,59 @@ func TestConfigureSSHContextBoundsStalledHandshake(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Fatalf("dial outlived its context: %s", elapsed)
+	}
+}
+
+// A peer that authenticates but never answers the session-open request must not outlive ctx.
+func TestNewSessionContextBoundsUnansweredSessionOpen(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &ssh.ServerConfig{NoClientAuth: true}
+	cfg.AddHostKey(signer)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, acceptErr := ln.Accept()
+		if acceptErr != nil {
+			return
+		}
+		_, chans, reqs, handshakeErr := ssh.NewServerConn(c, cfg)
+		if handshakeErr != nil {
+			return
+		}
+		go ssh.DiscardRequests(reqs)
+		for range chans { // never accept or reject: the open stays unanswered
+		}
+	}()
+
+	conn, err := ssh.Dial("tcp", ln.Addr().String(), &ssh.ClientConfig{
+		User:            "test",
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err = newSessionContext(ctx, conn)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline error, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("session open outlived its context: %s", elapsed)
 	}
 }

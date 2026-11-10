@@ -302,7 +302,7 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
 
-	session, err := conn.NewSession()
+	session, err := newSessionContext(ctx, conn)
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %w", err)
 	}
@@ -330,6 +330,19 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 
 		return "", fmt.Errorf("command %s canceled on %s: %w", cmd, ip, ctx.Err())
 	}
+}
+
+// newSessionContext closes conn when ctx ends, since NewSession cannot be canceled otherwise.
+func newSessionContext(ctx context.Context, conn *ssh.Client) (*ssh.Session, error) {
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+
+	session, err := conn.NewSession()
+	if err != nil && ctx.Err() != nil {
+		return nil, fmt.Errorf("%w: %w", err, ctx.Err())
+	}
+
+	return session, err
 }
 
 func runsshCommand(cmd string, conn *ssh.Client) (stdoutStr, stderrStr string, err error) {
