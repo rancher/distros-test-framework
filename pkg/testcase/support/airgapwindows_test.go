@@ -4,10 +4,14 @@ import "testing"
 
 func TestParseWindowsCaption(t *testing.T) {
 	tests := []struct{ name, in, want string }{
-		{"2025", "Microsoft Windows Server 2025 Datacenter\r\n", 
-		"Microsoft Windows Server 2025 Datacenter"},
-		{"ssh warning first", "Warning: Permanently added host\nMicrosoft Windows Server 2022 Datacenter\n", 
-		"Microsoft Windows Server 2022 Datacenter"},
+		{
+			"2025", "Microsoft Windows Server 2025 Datacenter\r\n",
+			"Microsoft Windows Server 2025 Datacenter",
+		},
+		{
+			"ssh warning first", "Warning: Permanently added host\nMicrosoft Windows Server 2022 Datacenter\n",
+			"Microsoft Windows Server 2022 Datacenter",
+		},
 		{"empty", "", ""},
 		{"ssh error only", "ssh: connect to host 1.2.3.4 port 22: Connection timed out", ""},
 	}
