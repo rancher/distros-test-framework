@@ -3,7 +3,12 @@ data "aws_vpc" "selected" {
 }
 
 locals {
-  ssh_allowed_cidrs = join(",", concat([data.aws_vpc.selected.cidr_block], data.aws_vpc.selected.ipv6_cidr_block_associations[*].ipv6_cidr_block))
+  # cidr_block is only the primary CIDR; the bastion may sit in a secondary one.
+  ssh_allowed_cidrs = join(",", distinct(concat(
+    [data.aws_vpc.selected.cidr_block],
+    data.aws_vpc.selected.cidr_block_associations[*].cidr_block,
+    data.aws_vpc.selected.ipv6_cidr_block_associations[*].ipv6_cidr_block,
+  )))
 }
 
 resource "aws_instance" "master" {
