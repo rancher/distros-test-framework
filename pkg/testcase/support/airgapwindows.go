@@ -25,9 +25,7 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 
 	for idx, agentIP := range cluster.WinAgentIPs {
 		shared.LogLevel("info", "Install %v on Windows agent-%v...", cluster.Config.Product, idx+1)
-		cmd := fmt.Sprintf(
-			`powershell .\windows_install.ps1 "%v" "%v" "%v" "%v" "%v"`,
-			serverIP, token, agentIP, airgapMethod, agentFlags)
+		cmd := windowsInstallCmd(serverIP, agentIP, airgapMethod, agentFlags)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
@@ -60,6 +58,16 @@ func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagCon
 	}
 
 	return nil
+}
+
+// windowsInstallCmd omits empty agentFlags because a trailing "" breaks quote parsing on Windows 2019.
+func windowsInstallCmd(serverIP, agentIP, airgapMethod, agentFlags string) string {
+	cmd := fmt.Sprintf(`powershell .\windows_install.ps1 "%v" "%v" "%v" "%v"`, serverIP, token, agentIP, airgapMethod)
+	if agentFlags != "" {
+		cmd += fmt.Sprintf(` "%v"`, agentFlags)
+	}
+
+	return cmd
 }
 
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.

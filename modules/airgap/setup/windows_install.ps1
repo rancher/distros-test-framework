@@ -78,6 +78,8 @@ Copy-Item C:/Users/Administrator/rke2.windows-amd64.tar.gz C:/Users/Administrato
 Copy-Item C:/Users/Administrator/sha256sum-amd64.txt C:/Users/Administrator/rke2-windows-artifacts/
 
 Write-Host "Install rke2 service..."
+# Server Manager cmdlets fail reading the console buffer over ssh on 2019 unless progress is off.
+$ProgressPreference = 'SilentlyContinue'
 C:/Users/Administrator/rke2-install.ps1 -ArtifactPath C:/Users/Administrator/rke2-windows-artifacts
 
 Write-Host "Add rke2 service..."

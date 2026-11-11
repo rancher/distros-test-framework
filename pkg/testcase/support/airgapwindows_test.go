@@ -25,3 +25,13 @@ func TestParseWindowsCaption(t *testing.T) {
 		})
 	}
 }
+
+func TestWindowsInstallCmd(t *testing.T) {
+	base := `powershell .\windows_install.ps1 "1.1.1.1" "` + token + `" "2.2.2.2" "tarball"`
+	if got := windowsInstallCmd("1.1.1.1", "2.2.2.2", "tarball", ""); got != base {
+		t.Fatalf("empty flags: got %q, want %q", got, base)
+	}
+	if got, want := windowsInstallCmd("1.1.1.1", "2.2.2.2", "tarball", "x: y"), base+` "x: y"`; got != want {
+		t.Fatalf("with flags: got %q, want %q", got, want)
+	}
+}
