@@ -211,11 +211,11 @@ func GetWindowsOSCaption(cluster *shared.Cluster) string {
 }
 
 func windowsOSCaption(cluster *shared.Cluster, ip string) (string, error) {
-	// RunCommandOnNode returns stderr instead of stdout when it is non-empty, so mute ssh
-	// warnings but keep real errors (LogLevel=ERROR) to diagnose connection failures.
+	// RunCommandOnNode returns stderr instead of stdout when it is non-empty, so mute ssh warnings.
+	// The default shell is already powershell; a nested powershell mangles quoting on 2019.
 	cmd := fmt.Sprintf(
 		`sudo chmod 400 /tmp/%v.pem && %v -o LogLevel=ERROR -o ConnectTimeout=10 Administrator@%v `+
-			`'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption"'`,
+			`'(Get-CimInstance Win32_OperatingSystem).Caption'`,
 		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName), ip)
 
 	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
