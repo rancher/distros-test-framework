@@ -180,3 +180,9 @@ variable "external_db_subnet_ids" {
   type        = list(string)
   default     = []
 }
+
+variable "aws_bastion_subnet" {
+  description = "Bastion subnet for dualstack/ipv6only runs; empty reuses aws_subnet."
+  type        = string
+  default     = ""
+}

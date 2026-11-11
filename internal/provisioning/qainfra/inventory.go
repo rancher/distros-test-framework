@@ -30,6 +30,9 @@ type clusterNodesJSON struct {
 		Arch          string `json:"arch,omitempty"`
 		RunID         string `json:"run_id,omitempty"`
 		QAInfraSHA    string `json:"qa_infra_sha,omitempty"`
+		// The dualstack/ipv6 modules publish the bastion here instead of a bastion object.
+		BastionIP  string `json:"bastion_ip,omitempty"`
+		BastionDNS string `json:"bastion_dns,omitempty"`
 	} `json:"metadata"`
 	Nodes   []clusterNode   `json:"nodes"`
 	Bastion *clusterBastion `json:"bastion,omitempty"`
@@ -40,6 +43,7 @@ type clusterNode struct {
 	Roles      []string `json:"roles"`
 	PublicIP   string   `json:"public_ip"`
 	PrivateIP  string   `json:"private_ip"`
+	IPv6       string   `json:"ipv6,omitempty"`
 	InstanceID string   `json:"instance_id,omitempty"`
 	AZ         string   `json:"az,omitempty"`
 }
@@ -81,12 +85,19 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 		return nil, errors.New("cluster_nodes_json output is empty — did 'tofu apply' complete?")
 	}
 
+	return parseClusterNodesJSON(raw)
+}
+
+func parseClusterNodesJSON(raw []byte) (*clusterNodesJSON, error) {
 	var data clusterNodesJSON
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal cluster_nodes_json: %w", err)
 	}
 	if err := data.validateSchema(); err != nil {
 		return nil, err
+	}
+	if data.Bastion == nil && data.Metadata.BastionIP != "" {
+		data.Bastion = &clusterBastion{PublicIP: data.Metadata.BastionIP, PublicDNS: data.Metadata.BastionDNS}
 	}
 
 	return &data, nil
@@ -294,9 +305,14 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 	}
 
 	var yaml string
+	ssh := config.Cluster.SSH
 	if config.InfraProvisioner.AirgapSetup {
-		ssh := config.Cluster.SSH
 		yaml, err = buildAirgapInventory(data, ssh.User, ssh.PrivKeyPath, ssh.KeyName)
+		if err != nil {
+			return err
+		}
+	} else if env := networkEnv(config.Module); env != "" {
+		yaml, err = buildNetworkInventory(data, env, ssh.User, ssh.PrivKeyPath)
 		if err != nil {
 			return err
 		}

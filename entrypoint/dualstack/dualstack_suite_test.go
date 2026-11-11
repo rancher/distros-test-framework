@@ -35,6 +35,10 @@ func TestMain(m *testing.M) {
 		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+	// qainfra selects qa-infra's dualstack module and playbook from ENV_MODULE.
+	if cfg.ProvisionerModule == "qainfra" {
+		cfg.Module = "dualstack"
+	}
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	os.Exit(m.Run())
 }

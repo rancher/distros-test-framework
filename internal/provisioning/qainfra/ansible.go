@@ -92,7 +92,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	}
 
 	patch := "\n# Injected by distros-test-framework: surface AWS public IP via kubelet.\n" +
-		"node-external-ip: {{ ansible_host }}\n"
+		nodeExternalIPPatch(networkEnv(config.Module)) + "\n"
 
 	f, err := os.OpenFile(templatePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -251,7 +251,8 @@ func ensureSSHAnsibleConfig(config *driver.InfraConfig) error {
 }
 
 func executeAnsiblePlaybook(config *driver.InfraConfig) error {
-	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup)
+	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup,
+		networkEnv(config.Module))
 	if playbookNameErr != nil {
 		return fmt.Errorf("failed to get playbook name: %w", playbookNameErr)
 	}
@@ -292,9 +293,12 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 	return nil
 }
 
-func getPlaybookPath(product string, airgap bool) (string, error) {
+func getPlaybookPath(product string, airgap bool, networkEnv string) (string, error) {
 	if airgap {
 		return airgapPlaybook, nil
+	}
+	if networkEnv != "" {
+		return fmt.Sprintf("%s-playbook-%s.yml", strings.ToLower(product), networkEnv), nil
 	}
 	switch strings.ToLower(product) {
 	case "k3s":

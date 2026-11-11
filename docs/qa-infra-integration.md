@@ -178,6 +178,13 @@ ARCH=amd64                                                 # amd64 | arm64
 ```
 
 ```bash
+# dualstack / ipv6only  (TEST_DIR=dualstack | ipv6only; rke2 + aws only)
+# Needs a qa-infra ref with the dualstack/ipv6 modules (rancher/qa-infra-automation#184) and a
+# dual-stack VPC/subnet/SG in vars.tfvars; optional aws_bastion_subnet (defaults to aws_subnet).
+# Details: docs/qa-infra-internals.md#5-dual-stack-and-ipv6-only-on-qainfra
+```
+
+```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used
 DATASTORE_TYPE=external
 EXTERNAL_DB=postgres                                       # postgres | mysql | mariadb | aurora-mysql
