@@ -10,6 +10,7 @@ if ((Get-WindowsCapability -Online -Name OpenSSH.Server*).State -ne 'Installed')
     }
 }
 Set-Service -Name sshd -StartupType Automatic
+Stop-Service sshd -ErrorAction SilentlyContinue
 New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -RemoteAddress ("${ssh_allowed_cidrs}" -split ",")
 
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force

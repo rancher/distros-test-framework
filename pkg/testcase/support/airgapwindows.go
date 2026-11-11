@@ -212,10 +212,11 @@ func GetWindowsOSCaption(cluster *shared.Cluster) string {
 
 func windowsOSCaption(cluster *shared.Cluster, ip string) (string, error) {
 	// RunCommandOnNode returns stderr instead of stdout when it is non-empty, so mute ssh warnings.
-	// The default shell is already powershell; a nested powershell mangles quoting on 2019.
+	// Quotes are stripped on the remote side, so avoid them. Progress CLIXML on stderr would replace the caption.
 	cmd := fmt.Sprintf(
 		`sudo chmod 400 /tmp/%v.pem && %v -o LogLevel=ERROR -o ConnectTimeout=10 Administrator@%v `+
-			`'(Get-CimInstance Win32_OperatingSystem).Caption'`,
+			`'$ProgressPreference=[Management.Automation.ActionPreference]::SilentlyContinue; `+
+			`(Get-CimInstance Win32_OperatingSystem).Caption'`,
 		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName), ip)
 
 	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
