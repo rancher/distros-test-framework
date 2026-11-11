@@ -2,10 +2,15 @@
 $ErrorActionPreference = "Stop"
 Start-Transcript -Path "$env:ProgramData\ssh_setup.log" -Append
 
-Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+if ((Get-WindowsCapability -Online -Name OpenSSH.Server*).State -ne 'Installed') {
+    try {
+        Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+    } catch {
+        throw "OpenSSH.Server is not in the AMI and cannot be downloaded in the airgapped subnet: $_"
+    }
+}
 Set-Service -Name sshd -StartupType Automatic
 New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -RemoteAddress ("${ssh_allowed_cidrs}" -split ",")
-Start-Service sshd
 
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
 
@@ -35,8 +40,8 @@ for ($i = 1; $i -le 12 -and $pubKey -notmatch '^ssh-'; $i++) {
 if ($pubKey -notmatch '^ssh-') { throw "public key not available from instance metadata" }
 Set-Content -Path $adminKeyPath -Value $pubKey -Encoding ascii
 icacls.exe $adminKeyPath /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
-Restart-Service sshd
 
+# sshd stays stopped until the reboot so a reachable sshd means setup is complete.
 Enable-WindowsOptionalFeature -Online -FeatureName Containers -All -NoRestart
 Restart-Computer -Force
 </powershell>
