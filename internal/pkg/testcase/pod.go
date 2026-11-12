@@ -133,16 +133,12 @@ func processCiliumStatus(pod *resources.Pod) {
 	}
 }
 
-// isSecurityResponderPod reports whether pod is a run of the RKE2 1.37+ security-responder
-// CronJob, whose successful runs leave a Completed pod until the next run.
+// isSecurityResponderPod reports whether pod is a run of the RKE2 security-responder CronJob,
+// whose successful runs leave a Completed pod until the next run. Older RKE2 has no such pod.
 func isSecurityResponderPod(cluster *driver.Cluster, pod *resources.Pod) bool {
 	if cluster.Config.Product != "rke2" || pod.NameSpace != "kube-system" {
 		return false
 	}
 
-	if !strings.HasPrefix(pod.Name, securityResponderPodPrefix) {
-		return false
-	}
-
-	return resources.IsVersionAtLeast(cluster.Config.Version, 1, 37)
+	return strings.HasPrefix(pod.Name, securityResponderPodPrefix)
 }

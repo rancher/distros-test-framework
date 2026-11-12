@@ -50,10 +50,15 @@ func (s *KataRun) Isolation(ctx context.Context) (runErr error) {
 	return s.evidence("isolation-host-markers", marker)
 }
 
-const guestIsolation = `test -d /proc && test -d /sys && test -d /dev
-test ! -e "$1/token" && test ! -e "/proc/1/root$1/token"
-test ! -e "/run/netns/$3" && test ! -e /dev/kvm
-test ! -e "/dev/$5" && test ! -e "/sys/class/block/$5"
+const guestIsolation = `test -d /proc
+test -d /sys
+test -d /dev
+test ! -e "$1/token"
+test ! -e "/proc/1/root$1/token"
+test ! -e "/run/netns/$3"
+test ! -e /dev/kvm
+test ! -e "/dev/$5"
+test ! -e "/sys/class/block/$5"
 if test -r "/proc/$2/cmdline"; then
   if tr '\000' ' ' < "/proc/$2/cmdline" | grep -F "$4"; then exit 1; fi
 fi`
@@ -197,7 +202,8 @@ func (s *KataRun) hostMarker(ctx context.Context, mode string) error {
 }
 
 const kataMarkerCreate = `root=/var/tmp/"$1"
-test ! -e /tmp/"$1"-guest && test ! -e /run/netns/"$1"
+test ! -e /tmp/"$1"-guest
+test ! -e /run/netns/"$1"
 mkdir -m 755 "$root"
 pid=; netns=false
 cleanup() {
@@ -219,12 +225,14 @@ for attempt in 1 2 3 4 5; do
   sleep 0.1
 done
 tr '\000' '\n' < /proc/"$pid"/cmdline | grep -Fx -- "$1" >/dev/null
-test -b /dev/"$2" && test -e /run/netns/"$1"
+test -b /dev/"$2"
+test -e /run/netns/"$1"
 printf '%s\n' "$pid"
 trap - EXIT`
 
 const kataMarkerCheck = `root=/var/tmp/"$1"
-test ! -L "$root" && test -d "$root"
+test ! -L "$root"
+test -d "$root"
 test "$(cat "$root/token")" = "$1"
 pid=$(cat "$root/pid")
 case "$pid" in ''|*[!0-9]*) exit 1;; esac
@@ -232,7 +240,8 @@ device=$(cat "$root/device")
 case "$device" in ''|*[!a-zA-Z0-9_-]*) exit 1;; esac
 if test "$2" = verify; then
   tr '\000' '\n' < /proc/"$pid"/cmdline | grep -Fx -- "$1" >/dev/null
-  test -e /run/netns/"$1" && test -b /dev/"$device"
+  test -e /run/netns/"$1"
+  test -b /dev/"$device"
   test ! -e /tmp/"$1"-guest
   if awk -v path="/tmp/$1-guest" '$2 == path {found=1} END {exit !found}' /proc/mounts; then exit 1; fi
 else

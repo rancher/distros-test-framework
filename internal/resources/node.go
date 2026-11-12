@@ -158,27 +158,6 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	return nodeArgsMapSlice
 }
 
-// StopAndDeleteNode stops the kubelet before deletion so it cannot register the Node again.
-func StopAndDeleteNode(ip, product, nodeType string) error {
-	if ip == "" {
-		return errors.New("node IP is required")
-	}
-
-	serviceName, serviceErr := productService(product, nodeType)
-	if serviceErr != nil {
-		return fmt.Errorf("resolve service on node %s: %w", ip, serviceErr)
-	}
-
-	// RunCommandOnNode ignores failures mentioning restart.
-	cmd := "sudo timeout 120s systemctl stop " + serviceName
-	_, stopErr := RunCommandOnNodeWithStdin(cmd, ip, nil)
-	if stopErr != nil {
-		return fmt.Errorf("stop %s before deleting node %s: %w", serviceName, ip, stopErr)
-	}
-
-	return DeleteNode(ip)
-}
-
 // DeleteNode deletes a node by IP and waits for its removal. The kubelet must already be stopped.
 func DeleteNode(ip string) error {
 	if ip == "" {
