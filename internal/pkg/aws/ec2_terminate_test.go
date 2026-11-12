@@ -87,11 +87,17 @@ func TestInstanceIDByIP(t *testing.T) {
 		{"public ip", "1.2.3.4", map[string][]string{"ip-address": {"i-1"}}, "i-1", false},
 		{"private ip", "10.0.0.4", map[string][]string{"private-ip-address": {"i-2"}}, "i-2", false},
 		{"ipv6", "2600::1", map[string][]string{"ipv6-address": {"i-3"}}, "i-3", false},
-		{"same instance via both filters", "1.2.3.4",
-			map[string][]string{"ip-address": {"i-1"}, "private-ip-address": {"i-1"}}, "i-1", false},
+		{
+			"same instance via both filters", "1.2.3.4",
+			map[string][]string{"ip-address": {"i-1"}, "private-ip-address": {"i-1"}},
+			"i-1", false,
+		},
 		{"no live instance means already gone", "1.2.3.4", nil, "", false},
-		{"ambiguous match fails", "1.2.3.4",
-			map[string][]string{"ip-address": {"i-1", "i-9"}}, "", true},
+		{
+			"ambiguous match fails", "1.2.3.4",
+			map[string][]string{"ip-address": {"i-1", "i-9"}},
+			"", true,
+		},
 		{"empty ip", "", nil, "", true},
 	}
 	for _, tc := range tests {
@@ -207,5 +213,15 @@ func TestTerminateInstanceByIDAndWaitIsBoundedByDeadline(t *testing.T) {
 	}
 	if !errors.Is(err, context.DeadlineExceeded) && f.waited != 1 {
 		t.Errorf("waiter not reached or error not deadline related: %v", err)
+	}
+}
+
+func TestScopeVPCIDPrefersConfiguredVPCWithoutDescribeSubnets(t *testing.T) {
+	f := &fakeEC2{subnetErr: errors.New("UnauthorizedOperation")}
+	c := Client{ec2: f, infra: &driver.Cluster{Aws: driver.AwsConfig{VPCID: "vpc-1", Subnets: "subnet-1"}}}
+
+	got, err := c.scopeVPCID()
+	if err != nil || got != "vpc-1" {
+		t.Fatalf("scopeVPCID = %q, %v; want vpc-1 without calling DescribeSubnets", got, err)
 	}
 }

@@ -581,6 +581,10 @@ const stopProductServicesCmd = `for u in k3s k3s-agent rke2-server rke2-agent; d
 // stopServicesTimeout bounds the SSH stop; the shared SSH helpers have no deadline of their own.
 const stopServicesTimeout = 90 * time.Second
 
+const stopAttempts = 3
+
+var stopRetryDelay = 5 * time.Second
+
 var errNodeNotFound = errors.New("node not found")
 
 // oldNodeIDs maps each pre-upgrade node IP to its instance ID, captured before any IP can be recycled.
@@ -625,13 +629,28 @@ func removeNode(ip string, a *aws.Client, oldIDs oldNodeIDs) error {
 			ctx, cancel := context.WithTimeout(context.Background(), stopServicesTimeout)
 			defer cancel()
 
-			_, err := resources.RunCommandOnNodeContext(ctx, stopProductServicesCmd, ip)
-
-			return err
+			return stopWithRetry(ctx, ip)
 		},
 		deleteNode: resources.DeleteNodeByNameIf,
 		terminate:  a.TerminateInstanceByIDAndWait,
 	}.run(ip, oldIDs[ip])
+}
+
+// stopWithRetry retries within ctx; the stop command is idempotent, so transient SSH errors are safe to repeat.
+func stopWithRetry(ctx context.Context, ip string) error {
+	var err error
+	for attempt := 0; attempt < stopAttempts; attempt++ {
+		if _, err = resources.RunCommandOnNodeContext(ctx, stopProductServicesCmd, ip); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(stopRetryDelay):
+		}
+	}
+
+	return err
 }
 
 // run only ever terminates expectedID. A different live instance on ip means the IP was
@@ -653,6 +672,11 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 	currentID, idErr := r.resolveInstanceID(ip)
 	if idErr != nil {
 		return resources.ReturnLogError("failed to resolve instance for %s: %w\n", ip, idErr)
+	}
+
+	if errors.Is(nameErr, errNodeNotFound) && currentID == expectedID {
+		resources.LogLevel("warn", "no Node matches %s while instance %s is live; "+
+			"assuming it was already deleted, a Node left behind will fail later checks\n", ip, expectedID)
 	}
 
 	switch currentID {
@@ -928,6 +952,15 @@ func nodeNameByIP(ip string) (string, error) {
 	return "", lastErr
 }
 
+func addressesEqual(a, b string) bool {
+	pa, pb := net.ParseIP(a), net.ParseIP(b)
+	if pa != nil && pb != nil {
+		return pa.Equal(pb)
+	}
+
+	return a == b
+}
+
 func findNodeNameByIP(cs kubernetes.Interface, ip string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -938,7 +971,7 @@ func findNodeNameByIP(cs kubernetes.Interface, ip string) (string, error) {
 	}
 	for i := range nodeList.Items {
 		for _, addr := range nodeList.Items[i].Status.Addresses {
-			if addr.Address == ip {
+			if addressesEqual(addr.Address, ip) {
 				return nodeList.Items[i].Name, nil
 			}
 		}

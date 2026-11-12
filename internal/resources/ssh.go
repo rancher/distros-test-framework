@@ -326,10 +326,21 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 	case <-ctx.Done():
 		_ = session.Signal(ssh.SIGKILL)
 		_ = session.Close()
+		// A blackholed peer never acks the session close, so drop the connection to unblock Run.
+		dropPooledConn(ip+":22", conn)
 		<-done
 
 		return "", fmt.Errorf("command %s canceled on %s: %w", cmd, ip, ctx.Err())
 	}
+}
+
+func dropPooledConn(host string, conn *ssh.Client) {
+	_ = conn.Close()
+	connPool.Lock()
+	if connPool.connClient[host] == conn {
+		delete(connPool.connClient, host)
+	}
+	connPool.Unlock()
 }
 
 // newSessionContext closes conn when ctx ends, since NewSession cannot be canceled otherwise.

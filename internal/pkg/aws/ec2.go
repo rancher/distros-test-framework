@@ -546,15 +546,17 @@ func (c Client) InstanceIDByIP(ip string) (string, error) {
 		}
 		// Public and IPv6 addresses are unique across live instances, so only private
 		// addresses (unique per VPC, not per subnet) are scoped to the VPC.
-		if filterName == "private-ip-address" && c.infra != nil && c.infra.Aws.Subnets != "" {
-			vpcID, vpcErr := c.vpcIDOfSubnet(c.infra.Aws.Subnets)
+		if filterName == "private-ip-address" {
+			vpcID, vpcErr := c.scopeVPCID()
 			if vpcErr != nil {
 				return "", vpcErr
 			}
-			filters = append(filters, &ec2.Filter{
-				Name:   aws.String("vpc-id"),
-				Values: aws.StringSlice([]string{vpcID}),
-			})
+			if vpcID != "" {
+				filters = append(filters, &ec2.Filter{
+					Name:   aws.String("vpc-id"),
+					Values: aws.StringSlice([]string{vpcID}),
+				})
+			}
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), describeTimeout)
@@ -582,6 +584,21 @@ func (c Client) InstanceIDByIP(ip string) (string, error) {
 	}
 
 	return "", resources.ReturnLogError("ip %s matches multiple live instances: %v\n", ip, ids)
+}
+
+// scopeVPCID prefers the configured VPC, avoiding ec2:DescribeSubnets, and falls back to the subnet's VPC.
+func (c Client) scopeVPCID() (string, error) {
+	if c.infra == nil {
+		return "", nil
+	}
+	if c.infra.Aws.VPCID != "" {
+		return c.infra.Aws.VPCID, nil
+	}
+	if c.infra.Aws.Subnets == "" {
+		return "", nil
+	}
+
+	return c.vpcIDOfSubnet(c.infra.Aws.Subnets)
 }
 
 // vpcIDOfSubnet resolves the VPC so private IPs are checked across all its subnets.
