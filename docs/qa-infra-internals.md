@@ -159,7 +159,8 @@ before any resource is created. The `dualstack`/`ipv6` modules need OpenTofu >= 
 `vars.tfvars` must point at a **dual-stack** VPC, subnet and security group (the legacy
 docs used us-west-1). Optionally set `aws_bastion_subnet`, which defaults to `aws_subnet`.
 Don't put `enable_ipv6`, `enable_public_ip` or `no_of_bastion_nodes` in tfvars: DTF sets
-them for the mode.
+them for the mode. For IPv6-first dual-stack, set `kube_api_host_ipv6 = true` in tfvars so
+nodes join over the master's IPv6 (ipv6only always uses IPv6).
 
 ```bash
 # dual-stack

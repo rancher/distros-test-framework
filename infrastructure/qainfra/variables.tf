@@ -186,3 +186,9 @@ variable "aws_bastion_subnet" {
   type        = string
   default     = ""
 }
+
+variable "kube_api_host_ipv6" {
+  description = "Dualstack/ipv6only: use the master's IPv6 as kube_api_host (IPv6-first dual-stack). IPv6-only runs always use IPv6."
+  type        = bool
+  default     = false
+}

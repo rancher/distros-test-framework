@@ -70,7 +70,7 @@ func TestInjectNetworkModuleArgsOnTemplate(t *testing.T) {
 		}
 		for _, want := range []string{
 			"enable_ipv6         = true", "enable_public_ip    = " + publicIP,
-			"no_of_bastion_nodes = 1", "var.aws_bastion_subnet",
+			"no_of_bastion_nodes = 1", "var.aws_bastion_subnet", "var.kube_api_host_ipv6",
 		} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s main.tf missing %q", env, want)

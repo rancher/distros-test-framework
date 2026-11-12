@@ -59,7 +59,8 @@ func injectNetworkModuleArgs(mainTf, env string) string {
 	args := fmt.Sprintf("enable_ipv6         = true\n"+
 		"  enable_public_ip    = %t\n"+
 		"  no_of_bastion_nodes = 1\n"+
-		"  aws_bastion_subnet  = var.aws_bastion_subnet != \"\" ? var.aws_bastion_subnet : var.aws_subnet",
+		"  aws_bastion_subnet  = var.aws_bastion_subnet != \"\" ? var.aws_bastion_subnet : var.aws_subnet\n"+
+		"  kube_api_host_ipv6  = var.kube_api_host_ipv6",
 		env == envDualstack)
 
 	return strings.ReplaceAll(mainTf, airgapModuleMarker, args)
