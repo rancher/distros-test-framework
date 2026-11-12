@@ -9,6 +9,7 @@ exec > >(tee -a get_artifacts.log) 2>&1
 
 # Usage: ./get_artifacts.sh "k3s" "v1.31.0+k3s1"
 # Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "linux" "amd64" "https://registry.example.com" "server_flags" "tar.gz"
+# Usage: ./get_artifacts.sh "rke2" "v1.31.0+rke2r1" "windows" "amd64" "" "" "tar.gz" "Microsoft Windows Server 2025 Datacenter"
 
 product=${1}
 version=${2}
@@ -17,6 +18,7 @@ arch=${4}
 registry_url=${5}
 server_flags=${6}
 tarball_type=${7}
+windows_os_version=${8}
 k3s_binary=$product
 
 validate_args() {
@@ -281,11 +283,21 @@ get_windows_assets() {
   download_retry wget $url/rke2.windows-amd64.tar.gz
   download_retry wget -O rke2-install.ps1 https://raw.githubusercontent.com/rancher/rke2/master/install.ps1
   if [ -n "$tarball_type" ]; then
-    download_retry wget $url/rke2-windows-ltsc2022-amd64-images.$tarball_type
+    echo "Download Windows assets for: $windows_os_version"
+    local image_tag
+    case "$windows_os_version" in
+      *2022*) image_tag="ltsc2022" ;;
+      *2025*) image_tag="2025" ;;
+      *2019*) image_tag="1809" ;;
+      *)
+        echo "ERROR: Unsupported or empty Windows OS version: '$windows_os_version'"
+        return 1
+        ;;
+    esac
+    download_retry wget $url/rke2-windows-$image_tag-amd64-images.$tarball_type
   fi
   echo "Verifying Windows artifact checksums..."
   verify_checksums "sha256sum-amd64.txt"
-  # TODO: Add logic for Win 2019 - rke2-windows-1809-amd64-images.$tarball_type
 }
 
 save_to_directory() {

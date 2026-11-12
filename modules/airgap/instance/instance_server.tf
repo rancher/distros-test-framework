@@ -1,3 +1,16 @@
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
+
+locals {
+  # cidr_block is only the primary CIDR; the bastion may sit in a secondary one.
+  ssh_allowed_cidrs = join(",", distinct(concat(
+    [data.aws_vpc.selected.cidr_block],
+    data.aws_vpc.selected.cidr_block_associations[*].cidr_block,
+    data.aws_vpc.selected.ipv6_cidr_block_associations[*].ipv6_cidr_block,
+  )))
+}
+
 resource "aws_instance" "master" {
   depends_on = [ null_resource.prepare_bastion ]
 
@@ -77,6 +90,9 @@ resource "aws_instance" "windows_worker" {
   vpc_security_group_ids = [var.sg_id]
   key_name               = var.key_name
   get_password_data      = true
+  user_data              = templatefile("${path.module}/windows_user_data.ps1.tpl", {
+    ssh_allowed_cidrs = local.ssh_allowed_cidrs
+  })
   tags = {
     Name                 = "${var.resource_name}-${local.resource_tag}-windows-worker${count.index + 1}"
     Team                 = local.resource_tag

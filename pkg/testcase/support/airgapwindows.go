@@ -3,6 +3,7 @@ package support
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -24,9 +25,7 @@ func InstallOnAirgapAgentsWindows(cluster *shared.Cluster, airgapMethod string) 
 
 	for idx, agentIP := range cluster.WinAgentIPs {
 		shared.LogLevel("info", "Install %v on Windows agent-%v...", cluster.Config.Product, idx+1)
-		cmd := fmt.Sprintf(
-			`powershell .\windows_install.ps1 "%v" "%v" "%v" "%v" "%v"`,
-			serverIP, token, agentIP, airgapMethod, agentFlags)
+		cmd := windowsInstallCmd(serverIP, agentIP, airgapMethod, agentFlags)
 		_, err := CmdForPrivateNode(cluster, cmd, agentIP)
 		Expect(err).To(BeNil(), err)
 	}
@@ -61,8 +60,20 @@ func ConfigureRegistryWindows(cluster *shared.Cluster, flags *customflag.FlagCon
 	return nil
 }
 
+// windowsInstallCmd omits empty agentFlags because a trailing "" breaks quote parsing on Windows 2019.
+func windowsInstallCmd(serverIP, agentIP, airgapMethod, agentFlags string) string {
+	cmd := fmt.Sprintf(`powershell .\windows_install.ps1 "%v" "%v" "%v" "%v"`, serverIP, token, agentIP, airgapMethod)
+	if agentFlags != "" {
+		cmd += fmt.Sprintf(` "%v"`, agentFlags)
+	}
+
+	return cmd
+}
+
 // CopyAssetsOnNodesWindows copies all the assets from bastion to Windows nodes.
 func CopyAssetsOnNodesWindows(cluster *shared.Cluster, airgapMethod string) error {
+	WaitForWindowsNodes(cluster)
+
 	errChan := make(chan error, len(cluster.WinAgentIPs))
 	var wg sync.WaitGroup
 
@@ -179,4 +190,64 @@ func HasWindowsAgent(cluster *shared.Cluster) bool {
 		return true
 	}
 	return false
+}
+
+// WaitForWindowsNodes waits until sshd answers on every Windows node, which only happens after the user data reboot.
+func WaitForWindowsNodes(cluster *shared.Cluster) {
+	Expect(cluster.WinAgentIPs).NotTo(BeEmpty(), "no windows agent IPs found")
+
+	for _, ip := range cluster.WinAgentIPs {
+		Eventually(func(g Gomega) {
+			_, err := windowsOSCaption(cluster, ip)
+			g.Expect(err).NotTo(HaveOccurred(), "windows node %v ssh not ready", ip)
+		}, "15m", "20s").Should(Succeed(), "windows node %v did not become ready", ip)
+	}
+}
+
+func GetWindowsOSCaption(cluster *shared.Cluster) string {
+	Expect(cluster.WinAgentIPs).NotTo(BeEmpty(), "no windows agent IPs found")
+
+	var caption string
+	Eventually(func(g Gomega) {
+		var err error
+		caption, err = windowsOSCaption(cluster, cluster.WinAgentIPs[0])
+		g.Expect(err).NotTo(HaveOccurred(), "could not get windows os caption")
+	}, "15m", "20s").Should(Succeed(), "failed to get windows os caption")
+	shared.LogLevel("info", "Windows OS caption: %v", caption)
+
+	return caption
+}
+
+func windowsOSCaption(cluster *shared.Cluster, ip string) (string, error) {
+	// RunCommandOnNode returns stderr instead of stdout when it is non-empty, so mute ssh warnings.
+	// Quotes are stripped on the remote side, so avoid them. Progress CLIXML on stderr would replace the caption.
+	cmd := fmt.Sprintf(
+		`sudo chmod 400 /tmp/%v.pem && %v -o LogLevel=ERROR -o ConnectTimeout=10 Administrator@%v `+
+			`'$ProgressPreference=[Management.Automation.ActionPreference]::SilentlyContinue; `+
+			`(Get-CimInstance Win32_OperatingSystem).Caption'`,
+		cluster.Aws.KeyName, ShCmdPrefix("ssh", cluster.Aws.KeyName), ip)
+
+	res, err := shared.RunCommandOnNode(cmd, cluster.BastionConfig.PublicIPv4Addr)
+	if err != nil {
+		return "", err
+	}
+	caption := parseWindowsCaption(res)
+	if caption == "" {
+		return "", fmt.Errorf("could not find Windows caption in output: %v", res)
+	}
+
+	return caption, nil
+}
+
+// windowsCaptionRe allows only shell-safe characters because the caption reaches a bastion shell command.
+var windowsCaptionRe = regexp.MustCompile(`^Microsoft Windows [A-Za-z0-9 .()-]+$`)
+
+func parseWindowsCaption(out string) (caption string) {
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); windowsCaptionRe.MatchString(line) {
+			caption = line
+		}
+	}
+
+	return caption
 }
