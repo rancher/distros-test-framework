@@ -297,10 +297,12 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 		return "", ReturnLogError("cmd should not be empty")
 	}
 
-	conn, err := getOrDialSSHContext(ctx, ip+":22")
+	// A dedicated client, never the pooled one: closing it on cancel must not abort other callers.
+	conn, err := configureSSHContext(ctx, ip+":22")
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
+	defer conn.Close()
 
 	session, err := newSessionContext(ctx, conn)
 	if err != nil {
@@ -326,21 +328,12 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 	case <-ctx.Done():
 		_ = session.Signal(ssh.SIGKILL)
 		_ = session.Close()
-		// A blackholed peer never acks the session close, so drop the connection to unblock Run.
-		dropPooledConn(ip+":22", conn)
+		// A blackholed peer never acks the session close, so close the client to unblock Run.
+		_ = conn.Close()
 		<-done
 
 		return "", fmt.Errorf("command %s canceled on %s: %w", cmd, ip, ctx.Err())
 	}
-}
-
-func dropPooledConn(host string, conn *ssh.Client) {
-	_ = conn.Close()
-	connPool.Lock()
-	if connPool.connClient[host] == conn {
-		delete(connPool.connClient, host)
-	}
-	connPool.Unlock()
 }
 
 // newSessionContext closes conn when ctx ends, since NewSession cannot be canceled otherwise.
