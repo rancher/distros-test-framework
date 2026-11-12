@@ -193,11 +193,12 @@ func DeleteNode(ip string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer cancel()
 
-	_, delErr := RunHostArgsContext(ctx, "kubectl", "delete", "node", name,
+	res, delErr := RunHostArgsContext(ctx, "kubectl", "delete", "node", name,
 		"--wait=true", "--timeout=60s", "--kubeconfig="+KubeConfigFile)
 	if delErr != nil {
 		return fmt.Errorf("delete node %s (%s): %w", name, ip, delErr)
 	}
+	LogLevel("info", "%s", res)
 
 	return nil
 }
@@ -312,4 +313,86 @@ func CheckNodeCPUThreshold(maxCPUPercent int, output string) ([]string, error) {
 	}
 
 	return overThreshold, nil
+}
+
+const (
+	nodeGoneTimeout = 2 * time.Minute
+	nodeGoneCall    = 30 * time.Second
+	nodeGonePoll    = 5 * time.Second
+	nodeGoneStable  = 3
+)
+
+// DeleteNodeByName deletes the node and confirms it stays gone, re-deleting if it re-registers.
+func DeleteNodeByName(name string) error {
+	return DeleteNodeByNameIf(name, nil)
+}
+
+// DeleteNodeByNameIf is DeleteNodeByName, but mayDelete must return true immediately before every
+// delete. When it returns false the loop stops and leaves the Node alone; nil always allows.
+func DeleteNodeByNameIf(name string, mayDelete func() bool) error {
+	return deleteNodeUntilGone(
+		name, RunHostArgsContext, nodeGoneTimeout, nodeGoneCall, nodeGonePoll, nodeGoneStable, mayDelete)
+}
+
+type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
+
+// deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
+// Each kubectl call is bounded by perCall and by the time left in timeout.
+func deleteNodeUntilGone(
+	name string,
+	run hostArgsRunner,
+	timeout, perCall, interval time.Duration,
+	stable int,
+	mayDelete func() bool,
+) error {
+	if name == "" {
+		return ReturnLogError("must send a node name")
+	}
+
+	deadline := time.Now().Add(timeout)
+	kubectl := func(args ...string) (string, error) {
+		budget := min(time.Until(deadline), perCall)
+		if budget <= 0 {
+			return "", context.DeadlineExceeded
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		defer cancel()
+
+		return run(ctx, "kubectl", append(args, "--kubeconfig="+KubeConfigFile)...)
+	}
+
+	absent := 0
+	for {
+		if absent == 0 {
+			if mayDelete != nil && !mayDelete() {
+				LogLevel("warn", "not deleting node %s: ownership by the old instance is not confirmed", name)
+
+				return nil
+			}
+			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
+				LogLevel("warn", "delete node %s failed: %v", name, err)
+			} else {
+				LogLevel("info", "%s", res)
+			}
+		}
+
+		out, err := kubectl("get", "node", name, "--ignore-not-found", "-o", "name")
+		switch {
+		case err != nil:
+			absent = 0
+		case strings.TrimSpace(out) == "":
+			absent++
+			if absent >= stable {
+				return nil
+			}
+		default:
+			LogLevel("warn", "node %s still present or re-registered, deleting again", name)
+			absent = 0
+		}
+
+		if time.Now().After(deadline) {
+			return ReturnLogError("node %s not removed from the cluster within %s\n", name, timeout)
+		}
+		time.Sleep(interval)
+	}
 }

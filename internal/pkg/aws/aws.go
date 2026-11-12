@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -15,7 +16,7 @@ type Client struct {
 	infra      *driver.Cluster
 	sshKeyName string
 
-	ec2 *ec2.EC2
+	ec2 ec2iface.EC2API
 	s3  *s3.S3
 }
 
