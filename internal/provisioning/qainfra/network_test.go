@@ -194,3 +194,30 @@ func TestNodeExternalIPPatch(t *testing.T) {
 		t.Errorf("dual-stack must advertise both families: %q", got)
 	}
 }
+
+func TestBuildAnsibleArgsPerRoleFlags(t *testing.T) {
+	for _, module := range []string{dualstackModule, ipv6OnlyModule, ""} {
+		cfg := airgapTestConfig(t, module)
+		cfg.Product = "rke2"
+		cfg.Cluster.Config.ServerFlags = `cni: calico\nkubelet-arg:\n  - node-ip=0.0.0.0`
+		cfg.Cluster.Config.WorkerFlags = `kubelet-arg:\n  - node-ip=0.0.0.0`
+		args, err := buildAnsibleArgs(cfg, "p.yml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		joined := strings.Join(args, " ")
+		if module == "" {
+			if !strings.Contains(joined, "rke2_additional_config") {
+				t.Errorf("default mode must keep rke2_additional_config: %s", joined)
+			}
+			continue
+		}
+		if strings.Contains(joined, "rke2_additional_config") {
+			t.Errorf("%s: rke2_additional_config would override worker_flags on agents", module)
+		}
+		want := `{"server_flags":"cni: calico\nkubelet-arg:\n  - node-ip=0.0.0.0","worker_flags":"kubelet-arg:\n  - node-ip=0.0.0.0"}`
+		if !strings.Contains(joined, want) {
+			t.Errorf("%s: want %s in args, got %s", module, want, joined)
+		}
+	}
+}

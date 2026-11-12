@@ -324,14 +324,23 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 	}
 
 	serverFlags := config.Cluster.Config.ServerFlags
-	args = addServerFlags(args, serverFlags)
-	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
+	// Dualstack/ipv6 playbooks apply server_flags to servers and worker_flags to agents;
+	// rke2_additional_config would override both on every node, so it is not sent there.
+	perRoleFlags := networkEnv(config.Module) != ""
+	if perRoleFlags {
+		args = addRoleFlags(args, serverFlags, config.Cluster.Config.WorkerFlags)
+	} else {
+		args = addServerFlags(args, serverFlags)
+		args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
+	}
 	args = addChannel(args, config.Cluster.Config.Channel)
 
 	if strings.Contains(config.Product, "rke2") {
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
-		args = addRKE2AdditionalConfig(args, serverFlags)
+		if !perRoleFlags {
+			args = addRKE2AdditionalConfig(args, serverFlags)
+		}
 		args = addOptionalFiles(args)
 	}
 
@@ -469,6 +478,28 @@ func addServerFlags(args []string, serverFlags string) []string {
 	args = append(args, "--extra-vars", fmt.Sprintf("server_flags=%q", serverFlagsVal))
 
 	return args
+}
+
+// addRoleFlags JSON-wraps server_flags/worker_flags so multi-line YAML (lists, templates)
+// reaches the playbook intact; the playbook parses each with from_yaml per node role.
+func addRoleFlags(args []string, serverFlags, workerFlags string) []string {
+	flags := map[string]string{}
+	if v := resources.NormalizeString(serverFlags); v != "" {
+		flags["server_flags"] = v
+	}
+	if v := resources.NormalizeString(workerFlags); v != "" {
+		flags["worker_flags"] = v
+	}
+	if len(flags) == 0 {
+		return args
+	}
+	jsonBytes, err := json.Marshal(flags)
+	if err != nil {
+		resources.LogLevel("warn", "failed to marshal server/worker flags (%v); flags will NOT be applied", err)
+		return args
+	}
+
+	return append(args, "--extra-vars", string(jsonBytes))
 }
 
 func addWorkerFlags(args []string, workerFlags string) []string {

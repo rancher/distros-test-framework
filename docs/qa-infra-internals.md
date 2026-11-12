@@ -112,7 +112,9 @@ does it only on qainfra, because on legacy an empty module means the product's o
 7. `executeAnsiblePlaybook`: writes `vars.yaml` (version, kubeconfig, cni) and runs the
    playbook with `kubernetes_version`, `server_flags`, `worker_flags`, `channel`,
    `install_method`, `cni` and `rke2_additional_config` (the parsed `SERVER_FLAGS`, which
-   wins over the playbook's own `server_flags`) plus `optional_files`.
+   wins over the playbook's own `server_flags`) plus `optional_files`. Dualstack/ipv6 runs
+   skip `rke2_additional_config` and send `server_flags`/`worker_flags` as JSON, so the
+   playbook applies `SERVER_FLAGS` to servers and `WORKER_FLAGS` to agents as full YAML.
 8. `stageBastionKubeconfig` (dualstack/ipv6 only): `cp ~/.kube/config /tmp/rke2_kubeconf.yaml`
    on the bastion. That's the path `GetNodesViaBastion`, `GetPodsViaBastion` and
    `LogClusterInfoUsingBastion` read.
@@ -166,9 +168,9 @@ nodes join over the master's IPv6 (ipv6only always uses IPv6).
 # dual-stack
 TEST_DIR=dualstack
 SERVER_FLAGS="cluster-cidr: 10.42.0.0/16,2001:cafe:42::/56\nservice-cidr: 10.43.0.0/16,2001:cafe:43::/112"
-# qainfra turns SERVER_FLAGS into flat `key: value` pairs, so YAML lists (legacy
-# `kubelet-arg:\n - node-ip=0.0.0.0`) do not survive. To pin node IPs, use a per-node template:
-#   node-ip: "{{ ansible_default_ipv4.address }},{{ ansible_host_ipv6 }}"
+WORKER_FLAGS="kubelet-arg:\n  - node-ip=0.0.0.0"
+# SERVER_FLAGS go to etcd/cp nodes and WORKER_FLAGS to agents, parsed as YAML (lists work).
+# Per-node templates work too: node-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}
 
 # IPv6 only (ENV_MODULE=ipv6only is set by the suite)
 TEST_DIR=ipv6only
