@@ -33,6 +33,9 @@ type kataMeasurement struct {
 
 // Performance implements KATA-15; completeness is required, performance thresholds are not imposed.
 func (s *KataRun) Performance(ctx context.Context) error {
+	// Last spec of the suite: show the final cluster even when a sample fails or ctx is canceled.
+	defer s.clusterState(context.WithoutCancel(ctx), "end of KATA-15")
+
 	for _, pod := range s.pods {
 		if err := s.deletePod(ctx, pod); err != nil {
 			return err

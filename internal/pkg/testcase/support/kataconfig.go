@@ -275,6 +275,25 @@ func (s *KataRun) kubectl(ctx context.Context, args ...string) (string, error) {
 	return s.run(ctx, "kubectl", append([]string{"--kubeconfig", s.kubeconfig, "--request-timeout=30s"}, args...)...)
 }
 
+// clusterState logs what kubectl reports for the nodes, pods and Kata objects at one step of the run.
+func (s *KataRun) clusterState(ctx context.Context, step string) {
+	for _, args := range [][]string{
+		{"get", "nodes", "-o", "wide"},
+		{"get", "pods", "-A", "-o", "wide"},
+		{"get", "daemonsets", "-A"},
+		{"get", "runtimeclass"},
+	} {
+		output, err := s.kubectl(ctx, args...)
+		if err != nil {
+			resources.LogLevel("warn", "Kata: cluster state (%s): kubectl %s failed: %v", step, strings.Join(args, " "), err)
+
+			continue
+		}
+
+		resources.LogLevel("info", "Kata: cluster state (%s)\n$ kubectl %s\n%s", step, strings.Join(args, " "), output)
+	}
+}
+
 func (s *KataRun) node(ctx context.Context, ip string, args ...string) (string, error) {
 	quoted := make([]string, len(args))
 	for i, arg := range args {

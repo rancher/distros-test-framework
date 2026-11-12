@@ -235,6 +235,7 @@ func (s *KataRun) Restart(ctx context.Context) error {
 		return fmt.Errorf("recover preexisting workloads after rke2-agent restart: %w", err)
 	}
 	logKata("all %d existing pods are Ready again after the restart", len(s.pods))
+	s.clusterState(ctx, "after the rke2-agent restart")
 
 	if chartErr := pollKata(ctx, 5*time.Minute, s.chartReady); chartErr != nil {
 		return fmt.Errorf("recover Kata installer after rke2-agent restart: %w", chartErr)
