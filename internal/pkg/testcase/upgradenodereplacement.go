@@ -695,12 +695,7 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 
 	// Ownership is re-read before every delete; an empty owner is indeterminate pre-termination.
 	if name != "" && currentID == expectedID {
-		ownedByExpected := func() bool {
-			id, err := r.resolveInstanceID(ip)
-
-			return err == nil && id == expectedID
-		}
-		if err := r.deleteNode(name, ownedByExpected); err != nil {
+		if err := r.deleteNode(name, r.instanceIs(ip, expectedID)); err != nil {
 			return err
 		}
 		resources.LogLevel("debug", "Node %s (%s) delete step finished\n", name, ip)
@@ -717,13 +712,16 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 
 	// A final kubelet sync can recreate the Node just before termination. Delete it only
 	// while no live instance holds the ip, so a replacement reusing the name is never hit.
-	noLiveOwner := func() bool {
+	return r.deleteNode(name, r.instanceIs(ip, ""))
+}
+
+// instanceIs reports whether the live instance on ip is want ("" = none), re-read on every call.
+func (r nodeRemoval) instanceIs(ip, want string) func() bool {
+	return func() bool {
 		id, err := r.resolveInstanceID(ip)
 
-		return err == nil && id == ""
+		return err == nil && id == want
 	}
-
-	return r.deleteNode(name, noLiveOwner)
 }
 
 // ensureAPINotOnNode fails when kubectl targets the node being removed.

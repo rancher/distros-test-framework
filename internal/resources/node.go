@@ -336,6 +336,17 @@ func DeleteNodeByNameIf(name string, mayDelete func() bool) error {
 
 type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
 
+// deleteNodeOnce issues one delete and only logs a failure: the caller's poll decides whether the node is gone.
+func deleteNodeOnce(kubectl func(args ...string) (string, error), name string) {
+	res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false")
+	if err != nil {
+		LogLevel("warn", "delete node %s failed: %v", name, err)
+
+		return
+	}
+	LogLevel("info", "%s", res)
+}
+
 // deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
 // Each kubectl call is bounded by perCall and by the time left in timeout.
 func deleteNodeUntilGone(
@@ -369,11 +380,7 @@ func deleteNodeUntilGone(
 
 				return nil
 			}
-			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
-				LogLevel("warn", "delete node %s failed: %v", name, err)
-			} else {
-				LogLevel("info", "%s", res)
-			}
+			deleteNodeOnce(kubectl, name)
 		}
 
 		out, err := kubectl("get", "node", name, "--ignore-not-found", "-o", "name")
