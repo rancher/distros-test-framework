@@ -24,7 +24,8 @@ do
 
             -d: debug. If flag is used, debug mode is ON and prints the curl commands executed.
             -v: version to test. Ex: v1.31.6-rc1+rke2r1,v1.31.6-rc1+k3s1,v1.31.5+rke2r1
-            -l: LTS version to test. Ex: v1.30.14-rc6+rke2r3
+            -l: Prime-only/LTS RKE2 version to test (index, registry and RPMs). Ex: v1.32.13-rc1+rke2r3
+            LTS_RPM_TARGETS: comma-separated RPM targets; default slemicro/x86_64.
             -p: page size for curl commands to fetch data from docker hub or github. Default is 200.
             -h: help - usage is displayed
             "
@@ -35,7 +36,7 @@ done
 
 # Set defaults if not provided
 if [ -z "${INPUT}" ]; then
-    echo "Please provide the version to test using -v option."
+    echo "Provide public versions with -v or Prime-only/LTS RKE2 versions with -l."
     exit 1
 fi
 if [ -z "${DEBUG}" ]; then
@@ -45,19 +46,14 @@ if [ -z "${PAGE_SIZE}" ]; then
     PAGE_SIZE=200
 fi
 
-SEED=$(date +%s)
-RANDOM_INT=$(awk -v seed="${SEED}" 'BEGIN { srand(seed); print int(rand() * 100) }')
-FAILURE_FILE="failure_results_${RANDOM_INT}"
-trap 'rm -f \
-  "${FAILURE_FILE}" \
-  "sys_agent_installers_${RANDOM_INT}" \
-  "upgrade_images_${RANDOM_INT}" \
-  "releases_${RANDOM_INT}" \
-  "rke2_pkg_${RANDOM_INT}" \
-  "sys_agent_${RANDOM_INT}" \
-  "upgrade_${RANDOM_INT}" \
-  "rke2_runtime_${RANDOM_INT}" \
-  "lts_output_${RANDOM_INT}"' EXIT
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd) || exit 1
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/release-checks.XXXXXX") || exit 1
+trap 'rm -rf "$WORK_DIR"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cd "$WORK_DIR" || exit 1
+FAILURE_FILE="failure_results"
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then
@@ -79,7 +75,7 @@ verify_count () {
 }
 
 verify_system_agent_installers () {
-    SAI_OUTPUT_FILE="sys_agent_installers_${RANDOM_INT}"
+    SAI_OUTPUT_FILE="sys_agent_installers"
     SYSTEM_AGENT_INSTALLER_URL="https://registry.hub.docker.com/v2/repositories/rancher/system-agent-installer-${PRODUCT}/tags?page_size=${PAGE_SIZE}"
     
     printf '\n==== VERIFY SYSTEM AGENT INSTALLER FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
@@ -111,7 +107,7 @@ verify_system_agent_installers () {
 }
 
 verify_upgrade_images () {
-    UPG_OUTPUT_FILE="upgrade_images_${RANDOM_INT}"
+    UPG_OUTPUT_FILE="upgrade_images"
     UPGRADE_IMAGES_URL="https://registry.hub.docker.com/v2/repositories/rancher/${PRODUCT}-upgrade/tags?page_size=${PAGE_SIZE}"
     
     printf '\n==== VERIFY UPGRADE IMAGES FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
@@ -131,7 +127,7 @@ verify_upgrade_images () {
 }
 
 verify_releases () {
-    RELEASES_FILE="releases_${RANDOM_INT}"
+    RELEASES_FILE="releases"
     printf '\n==== VERIFY RELEASES FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
     if [ "${PRODUCT}" = "rke2" ]; then
@@ -199,7 +195,7 @@ verify_asset_count_rke2_packaging () {
 }
 
 verify_rke2_packaging () {
-    RKE2_PKG_FILE="rke2_pkg_${RANDOM_INT}"
+    RKE2_PKG_FILE="rke2_pkg"
     
     printf '\n==== SELINUX RKE2 PACKAGING CHECK For Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
@@ -218,8 +214,8 @@ verify_rke2_packaging () {
         CHANNEL_COUNT=$(grep -c "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
     else
-        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -v \"rc\" | wc -l"
-        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc" | wc -l)
+        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -vc \"rc\""
+        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -vc "rc")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc")
     fi
 
@@ -237,57 +233,48 @@ set_url() {
     fi
 }
 
-verify_prime_registry () {
-    SYS_AGENT_OUTFILE="sys_agent_${RANDOM_INT}"
-    UPGRADE_OUTFILE="upgrade_${RANDOM_INT}"
-    RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM_INT}"
-
-    printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
-
-    set_url
-    if [ "${PRODUCT}" = "rke2" ]; then
-        RKE2_RUNTIME_URL="${PRIME_URL}/rke2-runtime"
-        
-        if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${RKE2_RUNTIME_OUTFILE}"
-        else
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | grep -v rc | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v rc | tee -a "${RKE2_RUNTIME_OUTFILE}"
-        fi
-    
-        RKE2_RUNTIME_COUNT=$(wc -l < "${RKE2_RUNTIME_OUTFILE}")
-        verify_count "${RKE2_RUNTIME_COUNT}" "1" "RKE2 Runtime(in prime registry)"
+verify_registry_tags () {
+    REGISTRY_REPOSITORY="$1"
+    REGISTRY_DESCRIPTION="$2"
+    REGISTRY_URL="${PRIME_URL}/${REGISTRY_REPOSITORY}"
+    debug_log "skopeo --command-timeout 60s list-tags ${REGISTRY_URL}"
+    if ! skopeo --command-timeout 60s list-tags "$REGISTRY_URL" > registry_tags.json; then
+        echo "FAIL: ${VERSION}: cannot list ${REGISTRY_URL}." | tee -a "$FAILURE_FILE"
+        return
     fi
 
-    SYS_AGENT_INSTALLER_URL="${PRIME_URL}/system-agent-installer-${PRODUCT}"
-    debug_log "skopeo list-tags ${SYS_AGENT_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${SYS_AGENT_OUTFILE}"
-    skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
-    
-    SYS_AGENT_COUNT=$(wc -l < "${SYS_AGENT_OUTFILE}")
-    verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
-
-    UPGRADE_INSTALLER_URL="${PRIME_URL}/${PRODUCT}-upgrade"    
-    debug_log "skopeo list-tags ${UPGRADE_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${UPGRADE_OUTFILE}"
-    skopeo list-tags "${UPGRADE_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${UPGRADE_OUTFILE}"
-    
-    UPG_COUNT=$(wc -l < "${UPGRADE_OUTFILE}")
-    verify_count "${UPG_COUNT}" "1" "${PRODUCT}-upgrade (in prime registry)"
-
-    rm -rf "${UPGRADE_OUTFILE}"
-    rm -rf "${SYS_AGENT_OUTFILE}"
-    rm -rf "${RKE2_RUNTIME_OUTFILE}"
+    if ! jq -r --arg version "${VERSION_PREFIX}-${VERSION_SUFFIX}" '
+      .Tags[] | select(. == $version or startswith($version + "-"))
+    ' registry_tags.json > registry_matches.txt; then
+        echo "FAIL: ${VERSION}: invalid tag response from ${REGISTRY_URL}." | tee -a "$FAILURE_FILE"
+        return
+    fi
+    cat registry_matches.txt
+    REGISTRY_COUNT=$(wc -l < registry_matches.txt)
+    verify_count "$REGISTRY_COUNT" 1 "$REGISTRY_DESCRIPTION"
 }
-verify_lts () {
-    LTS_OUT_FILE="lts_output_${RANDOM_INT}"
-    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-        LTS_URL="https://prime.ribs.rancher.io/index-prerelease.html"
-    else
-        LTS_URL="https://prime.ribs.rancher.io"
+
+verify_prime_registry () {
+    printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version: %s ====\n' "$PRODUCT" "$VERSION"
+    set_url
+    if [ "$PRODUCT" = rke2 ]; then
+        verify_registry_tags rke2-runtime "RKE2 Runtime(in prime registry)"
     fi
-    curl "${LTS_URL}" > "${LTS_OUT_FILE}"
-    LTS_COUNT=$(grep -cE "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${LTS_OUT_FILE}")
-    verify_count "${LTS_COUNT}" "76" "LTS count check against Prime registry"
+    verify_registry_tags "system-agent-installer-${PRODUCT}" "System Agent Installer for ${PRODUCT} (in prime registry)"
+    verify_registry_tags "${PRODUCT}-upgrade" "${PRODUCT}-upgrade (in prime registry)"
+}
+
+verify_lts () {
+    if [ "$DEBUG" = true ]; then
+        set -- --debug
+    else
+        set --
+    fi
+    if ! python3 "$SCRIPT_DIR/release_checks_lts.py" "$VERSION" \
+        --rpm-targets "${LTS_RPM_TARGETS:-slemicro/x86_64}" "$@"; then
+        echo "FAIL: ${VERSION}: LTS artifact/index or RPM verification failed." | tee -a "$FAILURE_FILE"
+    fi
+    verify_prime_registry
 }
 
 # Main script execution starts here
@@ -327,7 +314,7 @@ do
     printf "===================== DONE ==========================\n"
 done
 
-if [ -f $FAILURE_FILE ]; then
+if [ -f "$FAILURE_FILE" ]; then
     printf "==========================================================================
                         FAILURE SUMMARY 
 ==========================================================================\n"
