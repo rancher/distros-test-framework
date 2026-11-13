@@ -135,9 +135,6 @@ test-kata:
 	@go test -timeout=180m -v -count=1 ./entrypoint/kata/... -destroy "${DESTROY}" --ginkgo.timeout=175m
 
 #========================= TestCode Static Quality Check =========================#
-release-checks-tests:
-	@python3 -B -m unittest discover -s scripts -p 'test_release_checks*.py' -v
-
 pre-commit: go-check unit-tests
 
 # Unit tests only — entrypoint suites are build-tagged e2e and need real infra.

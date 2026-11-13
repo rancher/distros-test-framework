@@ -1,6 +1,5 @@
 .ssh/
 .DS_Store
-__pycache__/
 .vscode*
 .env
 .qase.env
