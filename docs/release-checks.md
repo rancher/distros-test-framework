@@ -30,15 +30,31 @@ artifacts. The release suffix alone does not determine whether a release is LTS.
   RPM and verify its size and SHA256. Also verify the common repository and its most
   recently built `rke2-selinux` artifact.
 
-RPM verification is proven for RC publications only, using
-`rpm-testing.rancher.io/rke2/testing`. Versioned Prime repository paths end in
-`/prime`; common SELinux repositories do not.
+RPM repositories are discovered during each run from these known locations:
 
-**GA Prime RPM coverage is not confirmed.** The script currently attempts
-`rpm.rancher.io/rke2/latest/<minor>/<target>/prime/`, but the `1.32/slemicro/x86_64`
-repository returned HTTP 404 on 2026-11-13, and `-l v1.32.13+rke2r2` fails there.
-The GA repository location must be confirmed with the publisher before treating
-this check as GA validation; that 404 alone does not establish a release defect.
+- RC: `rpm-testing.rancher.io/rke2/testing/<minor>/<target>/`.
+- GA: `rpm.rancher.io/rke2/latest/<minor>/<target>/`, then the corresponding
+  `stable` channel. GA checks never fall back to testing artifacts.
+
+For each channel, check the `/prime/` layout first, then the ordinary repository.
+Verify repository signatures and primary metadata before selecting a repository
+containing the exact requested RPM version and architecture. A 200 response or a
+nearby version is insufficient. A repository containing only some of the required
+RPMs fails validation; it cannot be bypassed by falling back to another repository.
+Common SELinux repositories use the selected channel and do not have `/prime`.
+
+Only HTTP 404 or verified metadata without the requested version allows trying
+the next location. Network errors, HTTP 403/5xx, invalid signatures and corrupt
+metadata fail. If no candidate contains the version, report **NOT VERIFIED** and
+exit nonzero, preserving the other artifact/registry results. Absence alone does
+not establish whether RPM publication was expected or whether the release is
+defective; confirm that with the publisher. The script cannot discover arbitrary
+new locations that have not been added to its known candidates.
+
+On 2026-11-13, the RC `v1.32.13-rc1+rke2r3` passed full RPM verification.
+For GA `v1.32.13+rke2r2`, both `slemicro/x86_64/prime/` paths returned 404;
+the ordinary `latest` and `stable` signed repositories contained `rke2r1`, not
+the requested `rke2r2`. GA RPM coverage for that release remains unverified.
 
 The default RPM target is **`slemicro/x86_64`**, not every supported platform.
 Set workflow input `rke2_lts_rpm_targets`, or locally:

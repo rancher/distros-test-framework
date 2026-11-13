@@ -367,11 +367,27 @@ lts_verify_index () (
     echo "PASS: $VERSION: $(wc -l < lts/artifacts) indexed artifacts; amd64/arm64 manifests match (tarball payloads not downloaded)."
 )
 
+lts_repository_index () {
+    debug_log "GET $1"
+    status=$(curl --silent --show-error --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 150 \
+        --write-out '%{http_code}' --output "$2" "$1") || {
+        echo "FAIL: repository request $1" >&2
+        return 1
+    }
+
+    case "$status" in
+        200) return 0 ;;
+        404) echo "Repository not found (HTTP 404): $1" >&2; return 2 ;;
+        *) echo "FAIL: repository request $1 (HTTP $status)" >&2; return 1 ;;
+    esac
+}
+
 lts_repository () (
     base=$1
     directory=$2
     mkdir -p "$directory" || return 1
-    lts_download "${base}repodata/repomd.xml" "$directory/repomd.xml" || return 1
+    lts_repository_index "${base}repodata/repomd.xml" "$directory/repomd.xml" || return $?
     lts_download "${base}repodata/repomd.xml.asc" "$directory/repomd.xml.asc" || return 1
     gpgv --homedir "$WORK_DIR/lts" --keyring "$WORK_DIR/lts/keyring.gpg" \
         "$directory/repomd.xml.asc" "$directory/repomd.xml" || return 1
@@ -412,6 +428,35 @@ lts_rpm () (
     echo "PASS: RPM size/SHA256: $url"
 )
 
+lts_select_repository () {
+    repo_arch=${1##*/}
+
+    # Return base/channel to the caller so the common repository uses the same channel.
+    for channel in $channels; do
+        for suffix in prime/ ''; do
+            base="$host/rke2/$channel/$minor/$1/$suffix"
+            if lts_repository "$base" lts/repo; then
+                package="/*[local-name()='metadata']/*[local-name()='package'][(*[local-name()='name']='rke2-agent' or *[local-name()='name']='rke2-common' or *[local-name()='name']='rke2-server') and *[local-name()='arch']='$repo_arch' and *[local-name()='version']/@ver='$rpm_version']"
+                count=$(xmllint --nonet --xpath "count($package)" lts/repo/primary.xml) || return 1
+                if [ "$count" != 0 ]; then
+                    # Select partial matches too: missing companion RPMs must fail, not fall back.
+                    return 0
+                fi
+
+                echo "Version $VERSION ($repo_arch) not present in $base" >&2
+            else
+                result=$?
+                if [ "$result" -ne 2 ]; then
+                    return 1
+                fi
+            fi
+        done
+    done
+
+    echo "NOT VERIFIED: RPMs for $VERSION ($1) were not found in the checked repositories. This does not establish whether publication is expected." >&2
+    return 1
+}
+
 verify_lts_artifacts () (
     printf '%s\n' "$VERSION" | grep -Eq '^v1\.[0-9]+\.[0-9]+(-rc[0-9]+)?\+rke2r[0-9]+$' || {
         echo "Invalid RKE2 LTS release tag: $VERSION" >&2
@@ -431,12 +476,12 @@ verify_lts_artifacts () (
     done
 
     host=https://rpm.rancher.io
-    channel=latest
+    channels='latest stable'
     index=https://prime.ribs.rancher.io/
     case "$VERSION" in
         *-rc*)
             host=https://rpm-testing.rancher.io
-            channel=testing
+            channels=testing
             index=https://prime.ribs.rancher.io/index-prerelease.html
             ;;
     esac
@@ -452,13 +497,12 @@ verify_lts_artifacts () (
     while IFS= read -r target; do
         distro=${target%/*}
         arch=${target##*/}
-        base="$host/rke2/$channel/$minor/$target/prime/"
-        lts_repository "$base" lts/repo || return 1
+        lts_select_repository "$target" || return 1
         for name in rke2-agent rke2-common rke2-server; do
             package="/*[local-name()='metadata']/*[local-name()='package'][*[local-name()='name']='$name' and *[local-name()='arch']='$arch' and *[local-name()='version']/@ver='$rpm_version']"
             lts_rpm "$base" lts/repo "$package" || return 1
         done
-        if grep -Fxq "$distro" lts/common-checked; then
+        if grep -Fxq "$channel/$distro" lts/common-checked; then
             continue
         fi
         common="$host/rke2/$channel/common/$distro/noarch/"
@@ -467,7 +511,7 @@ verify_lts_artifacts () (
         # Select the newest-built policy; dependency solving requires an install test.
         latest="(${policies}[not(*[local-name()='time']/@build < $policies/*[local-name()='time']/@build)])[1]"
         lts_rpm "$common" lts/common "$latest" || return 1
-        printf '%s\n' "$distro" >> lts/common-checked
+        printf '%s\n' "$channel/$distro" >> lts/common-checked
     done < lts/targets
     echo "PASS: requested LTS artifact checks. Installation and tarball payload integrity were not tested."
 )
