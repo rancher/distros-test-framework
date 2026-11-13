@@ -37,10 +37,12 @@ RPM repositories are discovered during each run from these known locations:
   `stable` channel. GA checks never fall back to testing artifacts.
 
 For each channel, check the `/prime/` layout first, then the ordinary repository.
-Verify repository signatures and primary metadata before selecting a repository
-containing the exact requested RPM version and architecture. A 200 response or a
-nearby version is insufficient. A repository containing only some of the required
-RPMs fails validation; it cannot be bypassed by falling back to another repository.
+Verify repository signatures and primary metadata, including the `metadata` root
+in the `http://linux.duke.edu/metadata/common` namespace, before selecting a
+repository containing the exact requested RPM version and architecture. A 200
+response or a nearby version is insufficient. A repository containing only some
+of the required RPMs fails validation; it cannot be bypassed by falling back to
+another repository.
 Common SELinux repositories use the selected channel and do not have `/prime`.
 
 Only HTTP 404 or verified metadata without the requested version allows trying
