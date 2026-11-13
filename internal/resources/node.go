@@ -158,7 +158,7 @@ func processNodeArgs(nodeArgs string) (nodeArgsMapSlice []map[string]string) {
 	return nodeArgsMapSlice
 }
 
-// DeleteNode deletes a node from the cluster filtering the name out by the IP.
+// DeleteNode deletes a node by IP and waits for its removal. The kubelet must already be stopped.
 func DeleteNode(ip string) error {
 	if ip == "" {
 		return ReturnLogError("must send a ip: %s\n", ip)
@@ -169,16 +169,15 @@ func DeleteNode(ip string) error {
 		return ReturnLogError("failed to get node name by ip: %w\n", err)
 	}
 
-	res, delErr := RunCommandHost("kubectl delete node " + name + " --wait=false  --kubeconfig=" + KubeConfigFile)
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+
+	res, delErr := RunHostArgsContext(ctx, "kubectl", "delete", "node", name,
+		"--wait=true", "--timeout=60s", "--kubeconfig="+KubeConfigFile)
 	if delErr != nil {
-		return ReturnLogError("failed to delete node: %w\n", delErr)
+		return fmt.Errorf("delete node %s (%s): %w", name, ip, delErr)
 	}
 	LogLevel("info", "%s", res)
-
-	// delay not meant to wait if node is deleted.
-	// but rather to give time for the node to be removed from the cluster.
-	delay := time.After(20 * time.Second)
-	<-delay
 
 	return nil
 }
@@ -316,6 +315,17 @@ func DeleteNodeByNameIf(name string, mayDelete func() bool) error {
 
 type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
 
+// deleteNodeOnce issues one delete and only logs a failure: the caller's poll decides whether the node is gone.
+func deleteNodeOnce(kubectl func(args ...string) (string, error), name string) {
+	res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false")
+	if err != nil {
+		LogLevel("warn", "delete node %s failed: %v", name, err)
+
+		return
+	}
+	LogLevel("info", "%s", res)
+}
+
 // deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
 // Each kubectl call is bounded by perCall and by the time left in timeout.
 func deleteNodeUntilGone(
@@ -349,11 +359,7 @@ func deleteNodeUntilGone(
 
 				return nil
 			}
-			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
-				LogLevel("warn", "delete node %s failed: %v", name, err)
-			} else {
-				LogLevel("info", "%s", res)
-			}
+			deleteNodeOnce(kubectl, name)
 		}
 
 		out, err := kubectl("get", "node", name, "--ignore-not-found", "-o", "name")

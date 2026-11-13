@@ -49,6 +49,8 @@ module "cluster_nodes" {
   airgap_setup        = var.airgap_setup
   proxy_setup         = var.proxy_setup
   nodes               = var.nodes
+  # Added only for opted-in runs, so older qa-infra refs reject the request explicitly.
+  # __NESTED_VIRTUALIZATION_MODULE_ARGS__
   # Airgap-only arguments (bastion, run_id, qa_infra_sha, arch) are injected here by
   # opentofu.go so connected runs stay compatible with qa-infra refs that predate them.
   # __AIRGAP_MODULE_ARGS__

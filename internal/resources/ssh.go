@@ -330,7 +330,7 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 		_ = session.Close()
 		// A blackholed peer never acks the session close, so close the client to unblock Run.
 		_ = conn.Close()
-		<-done
+		LogLevel("debug", "session on %s ended after cancel: %v", ip, <-done)
 
 		return "", fmt.Errorf("command %s canceled on %s: %w", cmd, ip, ctx.Err())
 	}

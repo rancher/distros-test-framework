@@ -97,13 +97,14 @@ func copyFileViaSSH(localPath, remotePath, ip string) error {
 // airgap jobs ship files to ~/ and quoting the tilde would break expansion.
 func shellPath(value string) string {
 	if strings.HasPrefix(value, "~/") {
-		return `"$HOME"/` + shellQuote(value[2:])
+		return `"$HOME"/` + ShellQuote(value[2:])
 	}
 
-	return shellQuote(value)
+	return ShellQuote(value)
 }
 
-func shellQuote(value string) string {
+// ShellQuote quotes a value as one literal argument for POSIX sh.
+func ShellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
 

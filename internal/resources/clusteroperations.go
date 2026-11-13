@@ -342,7 +342,6 @@ func ExtractKubeImageVersion() string {
 }
 
 // InstallProduct installs the product on the server node only.
-// TODO: add support for installing on all nodes with all necessary flags.
 func InstallProduct(cluster *driver.Cluster, publicIP, version string) error {
 	err := setConfigFile(cluster, publicIP)
 	if err != nil {
@@ -369,7 +368,6 @@ func InstallProduct(cluster *driver.Cluster, publicIP, version string) error {
 
 // writeRestoreConfigFile builds the local /tmp/config.yaml with node-external-ip,
 // the server flags, and secrets-encryption when the cluster is CIS-hardened.
-// Returns the path of the written temp file.
 func writeRestoreConfigFile(publicIP string) (string, error) {
 	serverFlags := os.Getenv("SERVER_FLAGS")
 	if serverFlags == "" {
@@ -399,11 +397,7 @@ func writeRestoreConfigFile(publicIP string) (string, error) {
 	}
 
 	// The qainfra ansible template enables CIS hardening (including
-	// secrets-encryption) whenever server flags contain
-	// protect-kernel-defaults. A snapshot taken from such a cluster holds
-	// encrypted secrets, so a server restoring it must also enable
-	// secrets-encryption or the apiserver never goes healthy
-	// ("identity transformer tried to read encrypted data").
+	// secrets-encryption) whenever server flags contain protect-kernel-defaults.
 	hardened := strings.Contains(serverFlags, "protect-kernel-defaults")
 	if hardened && !strings.Contains(serverFlags, "secrets-encryption") {
 		if _, err := fmt.Fprintf(tempFile, "secrets-encryption: true\n"); err != nil {
