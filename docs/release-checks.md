@@ -30,9 +30,15 @@ artifacts. The release suffix alone does not determine whether a release is LTS.
   RPM and verify its size and SHA256. Also verify the common repository and its most
   recently built `rke2-selinux` artifact.
 
-RCs use `rpm-testing.rancher.io/rke2/testing`; GA uses
-`rpm.rancher.io/rke2/latest`. Versioned Prime repository paths end in `/prime`;
-common SELinux repositories do not.
+RPM verification is proven for RC publications only, using
+`rpm-testing.rancher.io/rke2/testing`. Versioned Prime repository paths end in
+`/prime`; common SELinux repositories do not.
+
+**GA Prime RPM coverage is not confirmed.** The script currently attempts
+`rpm.rancher.io/rke2/latest/<minor>/<target>/prime/`, but the `1.32/slemicro/x86_64`
+repository returned HTTP 404 on 2026-11-13, and `-l v1.32.13+rke2r2` fails there.
+The GA repository location must be confirmed with the publisher before treating
+this check as GA validation; that 404 alone does not establish a release defect.
 
 The default RPM target is **`slemicro/x86_64`**, not every supported platform.
 Set workflow input `rke2_lts_rpm_targets`, or locally:
