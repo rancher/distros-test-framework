@@ -79,7 +79,7 @@ func TestInjectNetworkModuleArgsOnTemplate(t *testing.T) {
 	}
 }
 
-const networkNodesJSON = `{"type":"cluster_nodes","metadata":{"kube_api_host":"2600::10","fqdn":"x.qa.rancher.space",
+const networkNodesJSON = `{"type":"cluster_nodes","metadata":{"kube_api_host":"2600::10","fqdn":"x.example.com",
 "ssh_user":"ubuntu","bastion_ip":"3.3.3.3","bastion_dns":"ec2-3.compute"},
 "nodes":[{"name":"master","roles":["etcd","cp","worker"],"public_ip":"1.1.1.1","private_ip":"10.0.0.1","ipv6":"2600::10"},
 {"name":"worker-0","roles":["worker"],"public_ip":"","private_ip":"10.0.0.2","ipv6":"2600::11"}]}`

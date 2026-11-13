@@ -188,9 +188,7 @@ ARCH=amd64                                                 # amd64 | arm64
 # from the server_flags / worker_flags lines in TFVARS.
 # Details: docs/qa-infra-internals.md#5-dual-stack-and-ipv6-only-on-qainfra
 ENV_PRODUCT=rke2
-QA_INFRA_REPO=github.com/aganesh-suse/qa-infra-automation   # until #184 merges; then omit (rancher repo)
-QA_INFRA_REF=dualstack                                      # until #184 merges; then main
-SSH_USER=ubuntu                                             # must match the AMI (us-west-1 ami-0d53d72369335a9d6 = Ubuntu 24.04)
+SSH_USER=ubuntu                                             # must match the AMI's OS user
 NODE_OS=ubuntu
 SPLIT_ROLES=true
 ETCD_ONLY_NODES=1
@@ -203,7 +201,7 @@ NO_OF_WORKER_NODES=1
 TEST_DIR=dualstack
 SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\nservice-cidr: 10.43.0.0/16,2001:cafe:43:0::/112\nkubelet-arg:\n  - node-ip=0.0.0.0"
 WORKER_FLAGS="kubelet-arg:\n  - node-ip=0.0.0.0"
-# vars.tfvars: aws_subnet = "subnet-0c45b525ec7d12d3f", aws_security_group = ["sg-064002d7871b1789c"],
+# vars.tfvars: dual-stack aws_vpc / aws_subnet / aws_security_group,
 #              kube_api_host_ipv6 = false (default)
 ```
 
@@ -212,7 +210,7 @@ WORKER_FLAGS="kubelet-arg:\n  - node-ip=0.0.0.0"
 TEST_DIR=dualstack
 SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 2001:cafe:42:0::/56,10.42.0.0/16\nservice-cidr: 2001:cafe:43:0::/112,10.43.0.0/16\nnode-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}"
 WORKER_FLAGS="node-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}"
-# vars.tfvars: aws_subnet = "subnet-0c45b525ec7d12d3f", aws_security_group = ["sg-064002d7871b1789c"],
+# vars.tfvars: dual-stack aws_vpc / aws_subnet / aws_security_group,
 #              kube_api_host_ipv6 = true   (nodes join the master over IPv6)
 # node-ip uses the node's own IPv4 (ansible_default_ipv4), not ansible_host (the public IPv4).
 ```
@@ -222,8 +220,8 @@ WORKER_FLAGS="node-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }
 TEST_DIR=ipv6only
 SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 2001:cafe:42:0::/56\nservice-cidr: 2001:cafe:43:0::/112\ndisable-network-policy: true"
 WORKER_FLAGS=                                               # empty: agents get no extra flags
-# vars.tfvars: aws_subnet = "subnet-007c2b873ef9a722e" (IPv6-only), aws_security_group = ["sg-0779a6ad1be617271"],
-#              aws_bastion_subnet = "subnet-0c45b525ec7d12d3f" (the bastion needs a dual-stack subnet)
+# vars.tfvars: IPv6-only aws_subnet and aws_security_group,
+#              aws_bastion_subnet = <a dual-stack subnet> (the bastion needs IPv4 + IPv6)
 # Nodes are reached through the bastion; the suite skips its legacy install step and
 # runs node/pod checks on the bastion.
 ```
@@ -240,7 +238,7 @@ EXTERNAL_DB_VERSION=18.3
 DB_GROUP_NAME=default.postgres18
 EXTERNAL_DB_NODE_TYPE=db.t3.medium
 DB_USERNAME=adminuser
-DB_PASSWORD=admin1234
+DB_PASSWORD=<db-password>
 ```
 
 ```bash
@@ -268,14 +266,14 @@ OPTIONAL_FILES=/etc/rancher/rke2/custom-psa.yaml,https://gist.githubusercontent.
 user_id             = "distros-qa-"
 aws_hostname_prefix  = "distros-qa-"
 
-aws_region          = "us-east-2"
-aws_route53_zone    =  "qa.rancher.space"
-aws_security_group  = "sg-08e8243a8cfbea8a0"
-aws_vpc             =  "vpc-bfccf4d7"
+aws_region          = "<aws-region>"
+aws_route53_zone    = "<route53-zone>"
+aws_security_group  = ["<security-group-id>"]
+aws_vpc             = "<vpc-id>"
 aws_volume_size     = "50"
-aws_subnet          = "subnet-ee8cac86"
+aws_subnet          = "<subnet-id>"
 aws_volume_type     = "gp3"
-aws_ami             = "ami-01de4781572fa1285"
+aws_ami             = "<ami-id>"
 instance_type       = "t3.xlarge"
 aws_ssh_user        = "ec2-user"
 
@@ -325,8 +323,8 @@ The framework then:
 
    ```ini
    [all]
-   master ansible_host=3.128.18.246
-   worker-0 ansible_host=3.144.221.160
+   master ansible_host=<master-public-ip>
+   worker-0 ansible_host=<worker-public-ip>
 
    [all:vars]
    ansible_ssh_private_key_file=/path/to/aws_key.pem
