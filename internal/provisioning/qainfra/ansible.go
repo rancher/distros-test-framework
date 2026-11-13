@@ -92,7 +92,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	}
 
 	patch := "\n# Injected by distros-test-framework: surface AWS public IP via kubelet.\n" +
-		nodeExternalIPPatch(networkEnv(config.Module)) + "\n"
+		nodeExternalIPPatch(networkEnv(config.Module), ipv6FirstCIDR(config.Cluster.Config.ServerFlags)) + "\n"
 
 	f, err := os.OpenFile(templatePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {

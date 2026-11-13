@@ -187,11 +187,28 @@ func TestNodeAddressIPv6Only(t *testing.T) {
 }
 
 func TestNodeExternalIPPatch(t *testing.T) {
-	if got := nodeExternalIPPatch(""); got != "node-external-ip: {{ ansible_host }}" {
+	if got := nodeExternalIPPatch("", false); got != "node-external-ip: {{ ansible_host }}" {
 		t.Errorf("default patch changed: %q", got)
 	}
-	if got := nodeExternalIPPatch(envDualstack); !strings.Contains(got, "{{ ansible_host }},{{ ansible_host_ipv6 }}") {
-		t.Errorf("dual-stack must advertise both families: %q", got)
+	if got := nodeExternalIPPatch(envDualstack, false); !strings.Contains(got, "{{ ansible_host }},{{ ansible_host_ipv6 }}") {
+		t.Errorf("IPv4-first dual-stack must advertise IPv4 first: %q", got)
+	}
+	if got := nodeExternalIPPatch(envDualstack, true); !strings.Contains(got, "{{ ansible_host_ipv6 }},{{ ansible_host }}") {
+		t.Errorf("IPv6-first dual-stack must advertise IPv6 first: %q", got)
+	}
+}
+
+func TestIPv6FirstCIDR(t *testing.T) {
+	for flags, want := range map[string]bool{
+		`cni: calico\ncluster-cidr: 2001:cafe:42:0::/56,10.42.0.0/16`: true,
+		`cluster-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\ncni: calico`: false,
+		`cluster-cidr: 2001:cafe:42:0::/56`:                           true,
+		`cni: calico`:                                                 false,
+		``:                                                            false,
+	} {
+		if got := ipv6FirstCIDR(flags); got != want {
+			t.Errorf("ipv6FirstCIDR(%q) = %t, want %t", flags, got, want)
+		}
 	}
 }
 

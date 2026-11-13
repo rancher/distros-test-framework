@@ -102,7 +102,9 @@ does it only on qainfra, because on legacy an empty module means the product's o
    - sparse-checks-out qa-infra at the same SHA.
    - appends `node-external-ip` to `rke2_config/templates/config.yaml.j2`. The value is
      `{{ ansible_host }}` by default, `{{ ansible_host }},{{ ansible_host_ipv6 }}` for
-     dualstack and `{{ ansible_host_ipv6 }}` for ipv6. The dual-stack NodePort test curls
+     dualstack (IPv6 first when `SERVER_FLAGS`' `cluster-cidr` starts with IPv6, because the
+     apiserver advertises the first address and it must match the primary service-cidr
+     family) and `{{ ansible_host_ipv6 }}` for ipv6. The dual-stack NodePort test curls
      every external IP.
    - installs `cloud.terraform` and exports the `TF_*`/`ANSIBLE_*` env.
    - writes a **static** `inventory.yml` (inventory.go). The dualstack/ipv6 inventory

@@ -131,9 +131,15 @@ func buildNetworkInventory(data *clusterNodesJSON, env, sshUser, keyPath string)
 
 // nodeExternalIPPatch is the config.yaml line that makes kubelet advertise the
 // node's reachable address(es); dual-stack tests curl both families.
-func nodeExternalIPPatch(env string) string {
+// Dual-stack order follows cluster-cidr: rke2 advertises the apiserver on the first
+// node-external-ip, and kube-apiserver rejects an advertise address whose family differs
+// from the primary service-cidr (IPv6-first runs never come up otherwise).
+func nodeExternalIPPatch(env string, ipv6First bool) string {
 	switch env {
 	case envDualstack:
+		if ipv6First {
+			return `node-external-ip: "{{ ansible_host_ipv6 }},{{ ansible_host }}"`
+		}
 		return `node-external-ip: "{{ ansible_host }},{{ ansible_host_ipv6 }}"`
 	case envIPv6:
 		return `node-external-ip: "{{ ansible_host_ipv6 }}"`
@@ -159,4 +165,17 @@ func stageBastionKubeconfig(config *driver.InfraConfig) error {
 	resources.LogLevel("info", "Bastion kubeconfig staged at /tmp/%s_kubeconf.yaml", config.Product)
 
 	return nil
+}
+
+// ipv6FirstCIDR reports whether SERVER_FLAGS' cluster-cidr lists an IPv6 range first.
+func ipv6FirstCIDR(serverFlags string) bool {
+	for _, line := range strings.Split(resources.NormalizeString(serverFlags), "\n") {
+		key, val, ok := strings.Cut(strings.TrimSpace(line), ":")
+		if ok && strings.TrimSpace(key) == "cluster-cidr" {
+			first, _, _ := strings.Cut(val, ",")
+			return strings.Contains(first, ":")
+		}
+	}
+
+	return false
 }
