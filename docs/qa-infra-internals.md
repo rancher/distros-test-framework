@@ -113,8 +113,8 @@ does it only on qainfra, because on legacy an empty module means the product's o
    playbook with `kubernetes_version`, `server_flags`, `worker_flags`, `channel`,
    `install_method`, `cni` and `rke2_additional_config` (the parsed `SERVER_FLAGS`, which
    wins over the playbook's own `server_flags`) plus `optional_files`. Dualstack/ipv6 runs
-   skip `rke2_additional_config` and send `server_flags`/`worker_flags` as JSON, so the
-   playbook applies `SERVER_FLAGS` to servers and `WORKER_FLAGS` to agents as full YAML.
+   skip `rke2_additional_config` (as #360 does for every run), so the playbook applies
+   `server_flags` to servers and `worker_flags` to agents, each parsed as full YAML.
 8. `stageBastionKubeconfig` (dualstack/ipv6 only): `cp ~/.kube/config /tmp/rke2_kubeconf.yaml`
    on the bastion. That's the path `GetNodesViaBastion`, `GetPodsViaBastion` and
    `LogClusterInfoUsingBastion` read.
