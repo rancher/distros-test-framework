@@ -46,7 +46,6 @@ if [ -z "${PAGE_SIZE}" ]; then
     PAGE_SIZE=200
 fi
 
-SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd) || exit 1
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/release-checks.XXXXXX") || exit 1
 trap 'rm -rf "$WORK_DIR"' EXIT
 trap 'exit 129' HUP
@@ -264,14 +263,217 @@ verify_prime_registry () {
     verify_registry_tags "${PRODUCT}-upgrade" "${PRODUCT}-upgrade (in prime registry)"
 }
 
-verify_lts () {
-    if [ "$DEBUG" = true ]; then
-        set -- --debug
-    else
-        set --
+lts_download () {
+    debug_log "GET $1"
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 150 --output "$2" "$1" || {
+        echo "FAIL: download $1" >&2
+        return 1
+    }
+}
+
+lts_child_url () {
+    case "$2" in
+        ''|/*|*[!a-zA-Z0-9._~+/-]*)
+            echo "Invalid repository location: $2" >&2
+            return 1
+            ;;
+    esac
+    case "/$2/" in
+        *'/../'*|*'/./'*|*'//'*)
+            echo "Invalid repository location: $2" >&2
+            return 1
+            ;;
+    esac
+    printf '%s%s\n' "$1" "$2"
+}
+
+lts_verify_file () (
+    printf '%s\n' "$2" | LC_ALL=C grep -Eq '^[[:xdigit:]]{64}$' || {
+        echo "Missing or invalid SHA256 for $1" >&2
+        return 1
+    }
+    printf '%s\n' "$3" | grep -Eq '^[0-9]+$' || return 1
+    size=$(wc -c < "$1") || return 1
+    if [ "$size" -ne "$3" ]; then
+        echo "Size mismatch: $1" >&2
+        return 1
     fi
-    if ! python3 "$SCRIPT_DIR/release_checks_lts.py" "$VERSION" \
-        --rpm-targets "${LTS_RPM_TARGETS:-slemicro/x86_64}" "$@"; then
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest=$(sha256sum "$1") || return 1
+    else
+        digest=$(shasum -a 256 "$1") || return 1
+    fi
+    expected=$(printf '%s' "$2" | tr 'A-F' 'a-f')
+    if [ "${digest%% *}" != "$expected" ]; then
+        echo "SHA256 mismatch: $1" >&2
+        return 1
+    fi
+)
+
+lts_verify_index () (
+    base="https://prime.ribs.rancher.io/rke2/$(printf '%s' "$VERSION" | sed 's/+/%2B/')/"
+    raw_base="https://prime.ribs.rancher.io/rke2/$VERSION/"
+    lower_base=$(printf '%s' "$base" | sed 's/%2B/%2b/')
+    lts_download "$1" lts/index.html || return 1
+    xmllint --html --recover --nonet --xpath \
+        "//a[starts-with(@href, '$base') or starts-with(@href, '$raw_base') or starts-with(@href, '$lower_base')]/@href" \
+        lts/index.html > lts/links 2>/dev/null || {
+        echo "Missing artifact links for $VERSION" >&2
+        return 1
+    }
+    tr '"' '\n' < lts/links | sed 's/%2[bB]/+/g' | awk -v prefix="$raw_base" '
+        index($0, prefix) == 1 {
+            name = substr($0, length(prefix) + 1)
+            if (name ~ /^[[:alnum:]_.+-]+$/) print name
+        }
+    ' | sort -u > lts/artifacts
+
+    for arch in amd64 arm64; do
+        manifest="sha256sum-$arch.txt"
+        if ! grep -Fxq "$manifest" lts/artifacts; then
+            echo "Missing $manifest" >&2
+            return 1
+        fi
+        lts_download "$base$manifest" "lts/$manifest" || return 1
+        LC_ALL=C awk '
+            NF != 2 || length($1) != 64 || $1 ~ /[^[:xdigit:]]/ { exit 1 }
+            {
+                name = $2
+                sub(/^\*/, "", name)
+                if (name !~ /^[[:alnum:]_.+-]+$/ || seen[name]++) exit 1
+                print name
+                count++
+            }
+            END { if (!count) exit 1 }
+        ' "lts/$manifest" > lts/manifest-files || {
+            echo "Invalid or empty $manifest" >&2
+            return 1
+        }
+        for required in "rke2.linux-$arch" "rke2.linux-$arch.tar.gz" "rke2-images.linux-$arch.tar.zst"; do
+            if ! grep -Fxq "$required" lts/manifest-files; then
+                echo "Missing $required in $manifest" >&2
+                return 1
+            fi
+        done
+        while IFS= read -r name; do
+            if ! grep -Fxq "$name" lts/artifacts; then
+                echo "Not indexed: $name" >&2
+                return 1
+            fi
+        done < lts/manifest-files
+    done
+    echo "PASS: $VERSION: $(wc -l < lts/artifacts) indexed artifacts; amd64/arm64 manifests match (tarball payloads not downloaded)."
+)
+
+lts_repository () (
+    base=$1
+    directory=$2
+    mkdir -p "$directory" || return 1
+    lts_download "${base}repodata/repomd.xml" "$directory/repomd.xml" || return 1
+    lts_download "${base}repodata/repomd.xml.asc" "$directory/repomd.xml.asc" || return 1
+    gpgv --homedir "$WORK_DIR/lts" --keyring "$WORK_DIR/lts/keyring.gpg" \
+        "$directory/repomd.xml.asc" "$directory/repomd.xml" || return 1
+
+    primary="/*[local-name()='repomd']/*[local-name()='data'][@type='primary']"
+    count=$(xmllint --nonet --xpath "count($primary)" "$directory/repomd.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Expected one primary metadata entry: $base" >&2
+        return 1
+    fi
+    location=$(xmllint --nonet --xpath "string($primary/*[local-name()='location']/@href)" "$directory/repomd.xml") || return 1
+    checksum=$(xmllint --nonet --xpath "string($primary/*[local-name()='checksum'][@type='sha256'])" "$directory/repomd.xml") || return 1
+    size=$(xmllint --nonet --xpath "string($primary/*[local-name()='size'])" "$directory/repomd.xml") || return 1
+    url=$(lts_child_url "$base" "$location") || return 1
+    lts_download "$url" "$directory/primary.xml.gz" || return 1
+    lts_verify_file "$directory/primary.xml.gz" "$checksum" "$size" || return 1
+    gzip -dc "$directory/primary.xml.gz" > "$directory/primary.xml" || return 1
+    xmllint --nonet --noout "$directory/primary.xml" || return 1
+    echo "PASS: signed repository and primary metadata: $base"
+)
+
+lts_rpm () (
+    base=$1
+    directory=$2
+    package=$3
+    count=$(xmllint --nonet --xpath "count($package)" "$directory/primary.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Expected one matching RPM in $base: $package (found $count)" >&2
+        return 1
+    fi
+    location=$(xmllint --nonet --xpath "string($package/*[local-name()='location']/@href)" "$directory/primary.xml") || return 1
+    checksum=$(xmllint --nonet --xpath "string($package/*[local-name()='checksum'][@type='sha256'])" "$directory/primary.xml") || return 1
+    size=$(xmllint --nonet --xpath "string($package/*[local-name()='size']/@package)" "$directory/primary.xml") || return 1
+    url=$(lts_child_url "$base" "$location") || return 1
+    lts_download "$url" "$directory/package.rpm" || return 1
+    lts_verify_file "$directory/package.rpm" "$checksum" "$size" || return 1
+    rm -f "$directory/package.rpm" || return 1
+    echo "PASS: RPM size/SHA256: $url"
+)
+
+verify_lts_artifacts () (
+    printf '%s\n' "$VERSION" | grep -Eq '^v1\.[0-9]+\.[0-9]+(-rc[0-9]+)?\+rke2r[0-9]+$' || {
+        echo "Invalid RKE2 LTS release tag: $VERSION" >&2
+        return 1
+    }
+    targets=${LTS_RPM_TARGETS:-slemicro/x86_64}
+    target_pattern='(slemicro|microos|centos/(7|8|9|10))/(x86_64|aarch64)'
+    printf '%s\n' "$targets" | grep -Eq "^$target_pattern(,$target_pattern)*$" || {
+        echo "Invalid LTS_RPM_TARGETS: $targets" >&2
+        return 1
+    }
+    for tool in curl xmllint gpg gpgv gzip; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "Missing dependency: $tool" >&2
+            return 1
+        fi
+    done
+
+    host=https://rpm.rancher.io
+    channel=latest
+    index=https://prime.ribs.rancher.io/
+    case "$VERSION" in
+        *-rc*)
+            host=https://rpm-testing.rancher.io
+            channel=testing
+            index=https://prime.ribs.rancher.io/index-prerelease.html
+            ;;
+    esac
+    minor=$(printf '%s' "${VERSION#v}" | cut -d. -f1,2)
+    rpm_version=$(printf '%s' "${VERSION#v}" | tr '+-' '~~')
+    mkdir -m 700 -p lts || return 1
+    lts_verify_index "$index" || return 1
+    lts_download "$host/public.key" lts/public.key || return 1
+    gpg --homedir "$WORK_DIR/lts" --batch --yes --dearmor --output lts/keyring.gpg lts/public.key || return 1
+    printf '%s\n' "$targets" | tr ',' '\n' | sort -u > lts/targets
+    : > lts/common-checked
+
+    while IFS= read -r target; do
+        distro=${target%/*}
+        arch=${target##*/}
+        base="$host/rke2/$channel/$minor/$target/prime/"
+        lts_repository "$base" lts/repo || return 1
+        for name in rke2-agent rke2-common rke2-server; do
+            package="/*[local-name()='metadata']/*[local-name()='package'][*[local-name()='name']='$name' and *[local-name()='arch']='$arch' and *[local-name()='version']/@ver='$rpm_version']"
+            lts_rpm "$base" lts/repo "$package" || return 1
+        done
+        if grep -Fxq "$distro" lts/common-checked; then
+            continue
+        fi
+        common="$host/rke2/$channel/common/$distro/noarch/"
+        lts_repository "$common" lts/common || return 1
+        policies="/*[local-name()='metadata']/*[local-name()='package'][*[local-name()='name']='rke2-selinux' and *[local-name()='arch']='noarch']"
+        # Select the newest-built policy; dependency solving requires an install test.
+        latest="(${policies}[not(*[local-name()='time']/@build < $policies/*[local-name()='time']/@build)])[1]"
+        lts_rpm "$common" lts/common "$latest" || return 1
+        printf '%s\n' "$distro" >> lts/common-checked
+    done < lts/targets
+    echo "PASS: requested LTS artifact checks. Installation and tarball payload integrity were not tested."
+)
+
+verify_lts () {
+    if ! verify_lts_artifacts; then
         echo "FAIL: ${VERSION}: LTS artifact/index or RPM verification failed." | tee -a "$FAILURE_FILE"
     fi
     verify_prime_registry

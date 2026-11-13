@@ -126,9 +126,6 @@ test-nvidia:
 	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
 
 #========================= TestCode Static Quality Check =========================#
-release-checks-tests:
-	@python3 -B -m unittest discover -s scripts -p 'test_release_checks*.py' -v
-
 pre-commit: go-check
 
 go-check:

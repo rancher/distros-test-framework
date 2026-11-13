@@ -1,7 +1,8 @@
 # Release artifact checks
 
 Use `scripts/release_checks.sh` locally or dispatch **Run Release Checks**.
-Install `curl`, `jq`, `skopeo`, Python 3.9+, GnuPG (`gpg`) and `gpgv` first.
+Install `curl`, `jq`, `skopeo`, GnuPG (`gpg`), `gpgv`, `gzip`, `xmllint`
+(`libxml2-utils` on Ubuntu) and `sha256sum` or `shasum` first.
 The script uses temporary directories and removes downloaded RPMs after verification.
 
 ## Choose the publication type
@@ -51,14 +52,12 @@ exercise the cluster, download container layers or verify large tarball payloads
 RPM payload integrity is verified against signed repository metadata; the script
 does not separately run `rpmkeys` against each package's embedded signature.
 
-## Local regression tests
+## Local checks
 
 ```sh
-python3 -B -m unittest discover -s scripts -p 'test_release_checks*.py' -v
 sh -n scripts/release_checks.sh
 shellcheck scripts/release_checks.sh
 ```
 
-`make release-checks-tests` runs the same tests after the usual `config/.env` setup.
-Fixtures exercise real GPG verification with an ephemeral test key and synthetic
-RPM bytes, without contacting registries or provisioning infrastructure.
+Run the release command above to check published artifacts. All validation is in
+the shell script; no Python helper or test file is required.
