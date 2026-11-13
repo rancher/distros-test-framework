@@ -405,7 +405,14 @@ lts_repository () (
     lts_download "$url" "$directory/primary.xml.gz" || return 1
     lts_verify_file "$directory/primary.xml.gz" "$checksum" "$size" || return 1
     gzip -dc "$directory/primary.xml.gz" > "$directory/primary.xml" || return 1
-    xmllint --nonet --noout "$directory/primary.xml" || return 1
+
+    primary_root="/*[local-name()='metadata' and namespace-uri()='http://linux.duke.edu/metadata/common']"
+    count=$(xmllint --nonet --xpath "count($primary_root)" "$directory/primary.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Invalid primary metadata root or namespace: $url (expected metadata in http://linux.duke.edu/metadata/common)" >&2
+        return 1
+    fi
+
     echo "PASS: signed repository and primary metadata: $base"
 )
 
