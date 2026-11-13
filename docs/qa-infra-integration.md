@@ -181,8 +181,56 @@ ARCH=amd64                                                 # amd64 | arm64
 # dualstack / ipv6only  (TEST_DIR=dualstack | ipv6only; rke2 + aws only)
 # Needs a qa-infra ref with the dualstack/ipv6 modules (rancher/qa-infra-automation#184) and a
 # dual-stack VPC/subnet/SG in vars.tfvars; optional aws_bastion_subnet (defaults to aws_subnet).
+# The suite sets ENV_MODULE (dualstack | ipv6only) itself, and DTF sets enable_ipv6,
+# enable_public_ip and no_of_bastion_nodes=1 for the mode. Don't set them yourself.
+# SERVER_FLAGS go to etcd/cp nodes and WORKER_FLAGS to agents. Both are parsed as YAML, so
+# lists (kubelet-arg) and per-node templates ({{ ansible_host_ipv6 }}) work. Jenkins reads them
+# from the server_flags / worker_flags lines in TFVARS.
 # Details: docs/qa-infra-internals.md#5-dual-stack-and-ipv6-only-on-qainfra
+ENV_PRODUCT=rke2
+QA_INFRA_REPO=github.com/aganesh-suse/qa-infra-automation   # until #184 merges; then omit (rancher repo)
+QA_INFRA_REF=dualstack                                      # until #184 merges; then main
+SSH_USER=ubuntu                                             # must match the AMI (us-west-1 ami-0d53d72369335a9d6 = Ubuntu 24.04)
+NODE_OS=ubuntu
+SPLIT_ROLES=true
+ETCD_ONLY_NODES=1
+CP_ONLY_NODES=1
+NO_OF_WORKER_NODES=1
 ```
+
+```bash
+# 1. Dual-stack, IPv4 first  (Jenkins job rke2_dual_stack_qainfra)
+TEST_DIR=dualstack
+SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\nservice-cidr: 10.43.0.0/16,2001:cafe:43:0::/112\nkubelet-arg:\n  - node-ip=0.0.0.0"
+WORKER_FLAGS="kubelet-arg:\n  - node-ip=0.0.0.0"
+# vars.tfvars: aws_subnet = "subnet-0c45b525ec7d12d3f", aws_security_group = ["sg-064002d7871b1789c"],
+#              kube_api_host_ipv6 = false (default)
+```
+
+```bash
+# 2. Dual-stack, IPv6 first  (Jenkins job rke2_dual_stack_ipv6_qainfra)
+TEST_DIR=dualstack
+SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 2001:cafe:42:0::/56,10.42.0.0/16\nservice-cidr: 2001:cafe:43:0::/112,10.43.0.0/16\nnode-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}"
+WORKER_FLAGS="node-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}"
+# vars.tfvars: aws_subnet = "subnet-0c45b525ec7d12d3f", aws_security_group = ["sg-064002d7871b1789c"],
+#              kube_api_host_ipv6 = true   (nodes join the master over IPv6)
+# node-ip uses the node's own IPv4 (ansible_default_ipv4), not ansible_host (the public IPv4).
+```
+
+```bash
+# 3. IPv6 only  (Jenkins job rke2_ipv6_only_qainfra)
+TEST_DIR=ipv6only
+SERVER_FLAGS="cni: calico\ningress-controller: traefik\ncluster-cidr: 2001:cafe:42:0::/56\nservice-cidr: 2001:cafe:43:0::/112\ndisable-network-policy: true"
+WORKER_FLAGS=                                               # empty: agents get no extra flags
+# vars.tfvars: aws_subnet = "subnet-007c2b873ef9a722e" (IPv6-only), aws_security_group = ["sg-0779a6ad1be617271"],
+#              aws_bastion_subnet = "subnet-0c45b525ec7d12d3f" (the bastion needs a dual-stack subnet)
+# Nodes are reached through the bastion; the suite skips its legacy install step and
+# runs node/pod checks on the bastion.
+```
+
+Jenkins parameters map onto these vars: `TEST_DIRECTORY` → `TEST_DIR`, `HOSTNAME_PREFIX` →
+`RESOURCE_NAME`, and `server_flags`/`worker_flags` in `TFVARS` → `SERVER_FLAGS`/`WORKER_FLAGS`.
+The `TFVARS` text is written to `infrastructure/qainfra/vars.tfvars` as-is.
 
 ```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used
