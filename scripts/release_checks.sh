@@ -20,7 +20,7 @@ do
             echo "
         Usage: 
             
-            $(basename "$0") [-v <version_comma_separated> ] [-p <page_size_integer_value> ] [-d]
+            $(basename "$0") [-v <version_comma_separated> ] [-l <version_comma_separated> ] [-p <page_size_integer_value> ] [-d]
 
             -d: debug. If flag is used, debug mode is ON and prints the curl commands executed.
             -v: version to test. Ex: v1.31.6-rc1+rke2r1,v1.31.6-rc1+k3s1,v1.31.5+rke2r1
@@ -473,8 +473,11 @@ verify_lts_artifacts () (
 )
 
 verify_lts () {
-    if ! verify_lts_artifacts; then
+    if verify_lts_artifacts 2> "$WORK_DIR/lts-errors"; then
+        cat "$WORK_DIR/lts-errors" >&2
+    else
         echo "FAIL: ${VERSION}: LTS artifact/index or RPM verification failed." | tee -a "$FAILURE_FILE"
+        tee -a "$FAILURE_FILE" < "$WORK_DIR/lts-errors" >&2
     fi
     verify_prime_registry
 }
