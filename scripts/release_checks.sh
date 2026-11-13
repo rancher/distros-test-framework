@@ -20,11 +20,12 @@ do
             echo "
         Usage: 
             
-            $(basename "$0") [-v <version_comma_separated> ] [-p <page_size_integer_value> ] [-d]
+            $(basename "$0") [-v <version_comma_separated> ] [-l <version_comma_separated> ] [-p <page_size_integer_value> ] [-d]
 
             -d: debug. If flag is used, debug mode is ON and prints the curl commands executed.
             -v: version to test. Ex: v1.31.6-rc1+rke2r1,v1.31.6-rc1+k3s1,v1.31.5+rke2r1
-            -l: LTS version to test. Ex: v1.30.14-rc6+rke2r3
+            -l: Prime-only/LTS RKE2 version to test (index, registry and RPMs). Ex: v1.32.13-rc1+rke2r3
+            LTS_RPM_TARGETS: comma-separated RPM targets; default slemicro/x86_64.
             -p: page size for curl commands to fetch data from docker hub or github. Default is 200.
             -h: help - usage is displayed
             "
@@ -35,7 +36,7 @@ done
 
 # Set defaults if not provided
 if [ -z "${INPUT}" ]; then
-    echo "Please provide the version to test using -v option."
+    echo "Provide public versions with -v or Prime-only/LTS RKE2 versions with -l."
     exit 1
 fi
 if [ -z "${DEBUG}" ]; then
@@ -45,19 +46,13 @@ if [ -z "${PAGE_SIZE}" ]; then
     PAGE_SIZE=200
 fi
 
-SEED=$(date +%s)
-RANDOM_INT=$(awk -v seed="${SEED}" 'BEGIN { srand(seed); print int(rand() * 100) }')
-FAILURE_FILE="failure_results_${RANDOM_INT}"
-trap 'rm -f \
-  "${FAILURE_FILE}" \
-  "sys_agent_installers_${RANDOM_INT}" \
-  "upgrade_images_${RANDOM_INT}" \
-  "releases_${RANDOM_INT}" \
-  "rke2_pkg_${RANDOM_INT}" \
-  "sys_agent_${RANDOM_INT}" \
-  "upgrade_${RANDOM_INT}" \
-  "rke2_runtime_${RANDOM_INT}" \
-  "lts_output_${RANDOM_INT}"' EXIT
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/release-checks.XXXXXX") || exit 1
+trap 'rm -rf "$WORK_DIR"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cd "$WORK_DIR" || exit 1
+FAILURE_FILE="failure_results"
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then
@@ -79,7 +74,7 @@ verify_count () {
 }
 
 verify_system_agent_installers () {
-    SAI_OUTPUT_FILE="sys_agent_installers_${RANDOM_INT}"
+    SAI_OUTPUT_FILE="sys_agent_installers"
     SYSTEM_AGENT_INSTALLER_URL="https://registry.hub.docker.com/v2/repositories/rancher/system-agent-installer-${PRODUCT}/tags?page_size=${PAGE_SIZE}"
     
     printf '\n==== VERIFY SYSTEM AGENT INSTALLER FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
@@ -111,7 +106,7 @@ verify_system_agent_installers () {
 }
 
 verify_upgrade_images () {
-    UPG_OUTPUT_FILE="upgrade_images_${RANDOM_INT}"
+    UPG_OUTPUT_FILE="upgrade_images"
     UPGRADE_IMAGES_URL="https://registry.hub.docker.com/v2/repositories/rancher/${PRODUCT}-upgrade/tags?page_size=${PAGE_SIZE}"
     
     printf '\n==== VERIFY UPGRADE IMAGES FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
@@ -131,7 +126,7 @@ verify_upgrade_images () {
 }
 
 verify_releases () {
-    RELEASES_FILE="releases_${RANDOM_INT}"
+    RELEASES_FILE="releases"
     printf '\n==== VERIFY RELEASES FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
     if [ "${PRODUCT}" = "rke2" ]; then
@@ -199,7 +194,7 @@ verify_asset_count_rke2_packaging () {
 }
 
 verify_rke2_packaging () {
-    RKE2_PKG_FILE="rke2_pkg_${RANDOM_INT}"
+    RKE2_PKG_FILE="rke2_pkg"
     
     printf '\n==== SELINUX RKE2 PACKAGING CHECK For Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
 
@@ -218,8 +213,8 @@ verify_rke2_packaging () {
         CHANNEL_COUNT=$(grep -c "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
     else
-        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -v \"rc\" | wc -l"
-        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc" | wc -l)
+        debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -vc \"rc\""
+        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -vc "rc")
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc")
     fi
 
@@ -237,57 +232,305 @@ set_url() {
     fi
 }
 
-verify_prime_registry () {
-    SYS_AGENT_OUTFILE="sys_agent_${RANDOM_INT}"
-    UPGRADE_OUTFILE="upgrade_${RANDOM_INT}"
-    RKE2_RUNTIME_OUTFILE="rke2_runtime_${RANDOM_INT}"
-
-    printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version Prefix: %s Version Suffix: %s: ====\n' "${PRODUCT}" "${VERSION_PREFIX}" "${VERSION_SUFFIX}"
-
-    set_url
-    if [ "${PRODUCT}" = "rke2" ]; then
-        RKE2_RUNTIME_URL="${PRIME_URL}/rke2-runtime"
-        
-        if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${RKE2_RUNTIME_OUTFILE}"
-        else
-            debug_log "skopeo list-tags ${RKE2_RUNTIME_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | grep -v rc | tee -a ${RKE2_RUNTIME_OUTFILE}"
-            skopeo list-tags "${RKE2_RUNTIME_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | grep -v rc | tee -a "${RKE2_RUNTIME_OUTFILE}"
-        fi
-    
-        RKE2_RUNTIME_COUNT=$(wc -l < "${RKE2_RUNTIME_OUTFILE}")
-        verify_count "${RKE2_RUNTIME_COUNT}" "1" "RKE2 Runtime(in prime registry)"
+verify_registry_tags () {
+    REGISTRY_REPOSITORY="$1"
+    REGISTRY_DESCRIPTION="$2"
+    REGISTRY_URL="${PRIME_URL}/${REGISTRY_REPOSITORY}"
+    debug_log "skopeo --command-timeout 60s list-tags ${REGISTRY_URL}"
+    if ! skopeo --command-timeout 60s list-tags "$REGISTRY_URL" > registry_tags.json; then
+        echo "FAIL: ${VERSION}: cannot list ${REGISTRY_URL}." | tee -a "$FAILURE_FILE"
+        return
     fi
 
-    SYS_AGENT_INSTALLER_URL="${PRIME_URL}/system-agent-installer-${PRODUCT}"
-    debug_log "skopeo list-tags ${SYS_AGENT_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${SYS_AGENT_OUTFILE}"
-    skopeo list-tags "${SYS_AGENT_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${SYS_AGENT_OUTFILE}"
-    
-    SYS_AGENT_COUNT=$(wc -l < "${SYS_AGENT_OUTFILE}")
-    verify_count "${SYS_AGENT_COUNT}" "1" "System Agent Installer for ${PRODUCT} (in prime registry)"
-
-    UPGRADE_INSTALLER_URL="${PRIME_URL}/${PRODUCT}-upgrade"    
-    debug_log "skopeo list-tags ${UPGRADE_INSTALLER_URL} | grep ${VERSION_PREFIX} | grep ${VERSION_SUFFIX} | tee -a ${UPGRADE_OUTFILE}"
-    skopeo list-tags "${UPGRADE_INSTALLER_URL}" | grep "${VERSION_PREFIX}" | grep "${VERSION_SUFFIX}" | tee -a "${UPGRADE_OUTFILE}"
-    
-    UPG_COUNT=$(wc -l < "${UPGRADE_OUTFILE}")
-    verify_count "${UPG_COUNT}" "1" "${PRODUCT}-upgrade (in prime registry)"
-
-    rm -rf "${UPGRADE_OUTFILE}"
-    rm -rf "${SYS_AGENT_OUTFILE}"
-    rm -rf "${RKE2_RUNTIME_OUTFILE}"
+    if ! jq -r --arg version "${VERSION_PREFIX}-${VERSION_SUFFIX}" '
+      .Tags[] | select(. == $version or startswith($version + "-"))
+    ' registry_tags.json > registry_matches.txt; then
+        echo "FAIL: ${VERSION}: invalid tag response from ${REGISTRY_URL}." | tee -a "$FAILURE_FILE"
+        return
+    fi
+    cat registry_matches.txt
+    REGISTRY_COUNT=$(wc -l < registry_matches.txt)
+    verify_count "$REGISTRY_COUNT" 1 "$REGISTRY_DESCRIPTION"
 }
-verify_lts () {
-    LTS_OUT_FILE="lts_output_${RANDOM_INT}"
-    if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-        LTS_URL="https://prime.ribs.rancher.io/index-prerelease.html"
-    else
-        LTS_URL="https://prime.ribs.rancher.io"
+
+verify_prime_registry () {
+    printf '\n==== VERIFY PRIME REGISTRY FOR Product: %s Version: %s ====\n' "$PRODUCT" "$VERSION"
+    set_url
+    if [ "$PRODUCT" = rke2 ]; then
+        verify_registry_tags rke2-runtime "RKE2 Runtime(in prime registry)"
     fi
-    curl "${LTS_URL}" > "${LTS_OUT_FILE}"
-    LTS_COUNT=$(grep -cE "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${LTS_OUT_FILE}")
-    verify_count "${LTS_COUNT}" "76" "LTS count check against Prime registry"
+    verify_registry_tags "system-agent-installer-${PRODUCT}" "System Agent Installer for ${PRODUCT} (in prime registry)"
+    verify_registry_tags "${PRODUCT}-upgrade" "${PRODUCT}-upgrade (in prime registry)"
+}
+
+lts_download () {
+    debug_log "GET $1"
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 150 --output "$2" "$1" || {
+        echo "FAIL: download $1" >&2
+        return 1
+    }
+}
+
+lts_child_url () {
+    case "$2" in
+        ''|/*|*[!a-zA-Z0-9._~+/-]*)
+            echo "Invalid repository location: $2" >&2
+            return 1
+            ;;
+    esac
+    case "/$2/" in
+        *'/../'*|*'/./'*|*'//'*)
+            echo "Invalid repository location: $2" >&2
+            return 1
+            ;;
+    esac
+    printf '%s%s\n' "$1" "$2"
+}
+
+lts_verify_file () (
+    printf '%s\n' "$2" | LC_ALL=C grep -Eq '^[[:xdigit:]]{64}$' || {
+        echo "Missing or invalid SHA256 for $1" >&2
+        return 1
+    }
+    printf '%s\n' "$3" | grep -Eq '^[0-9]+$' || return 1
+    size=$(wc -c < "$1") || return 1
+    if [ "$size" -ne "$3" ]; then
+        echo "Size mismatch: $1" >&2
+        return 1
+    fi
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest=$(sha256sum "$1") || return 1
+    else
+        digest=$(shasum -a 256 "$1") || return 1
+    fi
+    expected=$(printf '%s' "$2" | tr 'A-F' 'a-f')
+    if [ "${digest%% *}" != "$expected" ]; then
+        echo "SHA256 mismatch: $1" >&2
+        return 1
+    fi
+)
+
+lts_verify_index () (
+    base="https://prime.ribs.rancher.io/rke2/$(printf '%s' "$VERSION" | sed 's/+/%2B/')/"
+    raw_base="https://prime.ribs.rancher.io/rke2/$VERSION/"
+    lower_base=$(printf '%s' "$base" | sed 's/%2B/%2b/')
+    lts_download "$1" lts/index.html || return 1
+    xmllint --html --recover --nonet --xpath \
+        "//a[starts-with(@href, '$base') or starts-with(@href, '$raw_base') or starts-with(@href, '$lower_base')]/@href" \
+        lts/index.html > lts/links 2>/dev/null || {
+        echo "Missing artifact links for $VERSION" >&2
+        return 1
+    }
+    tr '"' '\n' < lts/links | sed 's/%2[bB]/+/g' | awk -v prefix="$raw_base" '
+        index($0, prefix) == 1 {
+            name = substr($0, length(prefix) + 1)
+            if (name ~ /^[[:alnum:]_.+-]+$/) print name
+        }
+    ' | sort -u > lts/artifacts
+
+    for arch in amd64 arm64; do
+        manifest="sha256sum-$arch.txt"
+        if ! grep -Fxq "$manifest" lts/artifacts; then
+            echo "Missing $manifest" >&2
+            return 1
+        fi
+        lts_download "$base$manifest" "lts/$manifest" || return 1
+        LC_ALL=C awk '
+            NF != 2 || length($1) != 64 || $1 ~ /[^[:xdigit:]]/ { exit 1 }
+            {
+                name = $2
+                sub(/^\*/, "", name)
+                if (name !~ /^[[:alnum:]_.+-]+$/ || seen[name]++) exit 1
+                print name
+                count++
+            }
+            END { if (!count) exit 1 }
+        ' "lts/$manifest" > lts/manifest-files || {
+            echo "Invalid or empty $manifest" >&2
+            return 1
+        }
+        for required in "rke2.linux-$arch" "rke2.linux-$arch.tar.gz" "rke2-images.linux-$arch.tar.zst"; do
+            if ! grep -Fxq "$required" lts/manifest-files; then
+                echo "Missing $required in $manifest" >&2
+                return 1
+            fi
+        done
+        while IFS= read -r name; do
+            if ! grep -Fxq "$name" lts/artifacts; then
+                echo "Not indexed: $name" >&2
+                return 1
+            fi
+        done < lts/manifest-files
+    done
+    echo "PASS: $VERSION: $(wc -l < lts/artifacts) indexed artifacts; amd64/arm64 manifests match (tarball payloads not downloaded)."
+)
+
+lts_repository_index () {
+    debug_log "GET $1"
+    status=$(curl --silent --show-error --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 150 \
+        --write-out '%{http_code}' --output "$2" "$1") || {
+        echo "FAIL: repository request $1" >&2
+        return 1
+    }
+
+    case "$status" in
+        200) return 0 ;;
+        404) echo "Repository not found (HTTP 404): $1" >&2; return 2 ;;
+        *) echo "FAIL: repository request $1 (HTTP $status)" >&2; return 1 ;;
+    esac
+}
+
+lts_repository () (
+    base=$1
+    directory=$2
+    mkdir -p "$directory" || return 1
+    lts_repository_index "${base}repodata/repomd.xml" "$directory/repomd.xml" || return $?
+    lts_download "${base}repodata/repomd.xml.asc" "$directory/repomd.xml.asc" || return 1
+    gpgv --homedir "$WORK_DIR/lts" --keyring "$WORK_DIR/lts/keyring.gpg" \
+        "$directory/repomd.xml.asc" "$directory/repomd.xml" || return 1
+
+    primary="/*[local-name()='repomd']/*[local-name()='data'][@type='primary']"
+    count=$(xmllint --nonet --xpath "count($primary)" "$directory/repomd.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Expected one primary metadata entry: $base" >&2
+        return 1
+    fi
+    location=$(xmllint --nonet --xpath "string($primary/*[local-name()='location']/@href)" "$directory/repomd.xml") || return 1
+    checksum=$(xmllint --nonet --xpath "string($primary/*[local-name()='checksum'][@type='sha256'])" "$directory/repomd.xml") || return 1
+    size=$(xmllint --nonet --xpath "string($primary/*[local-name()='size'])" "$directory/repomd.xml") || return 1
+    url=$(lts_child_url "$base" "$location") || return 1
+    lts_download "$url" "$directory/primary.xml.gz" || return 1
+    lts_verify_file "$directory/primary.xml.gz" "$checksum" "$size" || return 1
+    gzip -dc "$directory/primary.xml.gz" > "$directory/primary.xml" || return 1
+
+    primary_root="/*[local-name()='metadata' and namespace-uri()='http://linux.duke.edu/metadata/common']"
+    count=$(xmllint --nonet --xpath "count($primary_root)" "$directory/primary.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Invalid primary metadata root or namespace: $url (expected metadata in http://linux.duke.edu/metadata/common)" >&2
+        return 1
+    fi
+
+    echo "PASS: signed repository and primary metadata: $base"
+)
+
+lts_rpm () (
+    base=$1
+    directory=$2
+    package=$3
+    count=$(xmllint --nonet --xpath "count($package)" "$directory/primary.xml") || return 1
+    if [ "$count" != 1 ]; then
+        echo "Expected one matching RPM in $base: $package (found $count)" >&2
+        return 1
+    fi
+    location=$(xmllint --nonet --xpath "string($package/*[local-name()='location']/@href)" "$directory/primary.xml") || return 1
+    checksum=$(xmllint --nonet --xpath "string($package/*[local-name()='checksum'][@type='sha256'])" "$directory/primary.xml") || return 1
+    size=$(xmllint --nonet --xpath "string($package/*[local-name()='size']/@package)" "$directory/primary.xml") || return 1
+    url=$(lts_child_url "$base" "$location") || return 1
+    lts_download "$url" "$directory/package.rpm" || return 1
+    lts_verify_file "$directory/package.rpm" "$checksum" "$size" || return 1
+    rm -f "$directory/package.rpm" || return 1
+    echo "PASS: RPM size/SHA256: $url"
+)
+
+lts_select_repository () {
+    repo_arch=${1##*/}
+
+    # Return base/channel to the caller so the common repository uses the same channel.
+    for channel in $channels; do
+        for suffix in prime/ ''; do
+            base="$host/rke2/$channel/$minor/$1/$suffix"
+            if lts_repository "$base" lts/repo; then
+                package="/*[local-name()='metadata']/*[local-name()='package'][(*[local-name()='name']='rke2-agent' or *[local-name()='name']='rke2-common' or *[local-name()='name']='rke2-server') and *[local-name()='arch']='$repo_arch' and *[local-name()='version']/@ver='$rpm_version']"
+                count=$(xmllint --nonet --xpath "count($package)" lts/repo/primary.xml) || return 1
+                if [ "$count" != 0 ]; then
+                    # Select partial matches too: missing companion RPMs must fail, not fall back.
+                    return 0
+                fi
+
+                echo "Version $VERSION ($repo_arch) not present in $base" >&2
+            else
+                result=$?
+                if [ "$result" -ne 2 ]; then
+                    return 1
+                fi
+            fi
+        done
+    done
+
+    echo "NOT VERIFIED: RPMs for $VERSION ($1) were not found in the checked repositories. This does not establish whether publication is expected." >&2
+    return 1
+}
+
+verify_lts_artifacts () (
+    printf '%s\n' "$VERSION" | grep -Eq '^v1\.[0-9]+\.[0-9]+(-rc[0-9]+)?\+rke2r[0-9]+$' || {
+        echo "Invalid RKE2 LTS release tag: $VERSION" >&2
+        return 1
+    }
+    targets=${LTS_RPM_TARGETS:-slemicro/x86_64}
+    target_pattern='(slemicro|microos|centos/(7|8|9|10))/(x86_64|aarch64)'
+    printf '%s\n' "$targets" | grep -Eq "^$target_pattern(,$target_pattern)*$" || {
+        echo "Invalid LTS_RPM_TARGETS: $targets" >&2
+        return 1
+    }
+    for tool in curl xmllint gpg gpgv gzip; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "Missing dependency: $tool" >&2
+            return 1
+        fi
+    done
+
+    host=https://rpm.rancher.io
+    channels='latest stable'
+    index=https://prime.ribs.rancher.io/
+    case "$VERSION" in
+        *-rc*)
+            host=https://rpm-testing.rancher.io
+            channels=testing
+            index=https://prime.ribs.rancher.io/index-prerelease.html
+            ;;
+    esac
+    minor=$(printf '%s' "${VERSION#v}" | cut -d. -f1,2)
+    rpm_version=$(printf '%s' "${VERSION#v}" | tr '+-' '~~')
+    mkdir -m 700 -p lts || return 1
+    lts_verify_index "$index" || return 1
+    lts_download "$host/public.key" lts/public.key || return 1
+    gpg --homedir "$WORK_DIR/lts" --batch --yes --dearmor --output lts/keyring.gpg lts/public.key || return 1
+    printf '%s\n' "$targets" | tr ',' '\n' | sort -u > lts/targets
+    : > lts/common-checked
+
+    while IFS= read -r target; do
+        distro=${target%/*}
+        arch=${target##*/}
+        lts_select_repository "$target" || return 1
+        for name in rke2-agent rke2-common rke2-server; do
+            package="/*[local-name()='metadata']/*[local-name()='package'][*[local-name()='name']='$name' and *[local-name()='arch']='$arch' and *[local-name()='version']/@ver='$rpm_version']"
+            lts_rpm "$base" lts/repo "$package" || return 1
+        done
+        if grep -Fxq "$channel/$distro" lts/common-checked; then
+            continue
+        fi
+        common="$host/rke2/$channel/common/$distro/noarch/"
+        lts_repository "$common" lts/common || return 1
+        policies="/*[local-name()='metadata']/*[local-name()='package'][*[local-name()='name']='rke2-selinux' and *[local-name()='arch']='noarch']"
+        # Select the newest-built policy; dependency solving requires an install test.
+        latest="(${policies}[not(*[local-name()='time']/@build < $policies/*[local-name()='time']/@build)])[1]"
+        lts_rpm "$common" lts/common "$latest" || return 1
+        printf '%s\n' "$channel/$distro" >> lts/common-checked
+    done < lts/targets
+    echo "PASS: requested LTS artifact checks. Installation and tarball payload integrity were not tested."
+)
+
+verify_lts () {
+    if verify_lts_artifacts 2> "$WORK_DIR/lts-errors"; then
+        cat "$WORK_DIR/lts-errors" >&2
+    else
+        echo "FAIL: ${VERSION}: LTS artifact/index or RPM verification failed." | tee -a "$FAILURE_FILE"
+        tee -a "$FAILURE_FILE" < "$WORK_DIR/lts-errors" >&2
+    fi
+    verify_prime_registry
 }
 
 # Main script execution starts here
@@ -327,7 +570,7 @@ do
     printf "===================== DONE ==========================\n"
 done
 
-if [ -f $FAILURE_FILE ]; then
+if [ -f "$FAILURE_FILE" ]; then
     printf "==========================================================================
                         FAILURE SUMMARY 
 ==========================================================================\n"
