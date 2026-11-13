@@ -10,14 +10,18 @@ on:
         required: false
       rke2_versions:
         description: |
-          'Provide the list of rke2 versions (comma separated)
+          'Public RKE2 releases (comma separated). Use rke2_lts_versions for Prime-only/LTS releases.
           Ex: v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1'
         required: false
       rke2_lts_versions:
         description: |
-          'Provide the list of rke2 lts versions to test prime registry (comma separated)
-          Ex: v1.30.14-rc1+rke2r3'
+          'Prime-only/LTS RKE2 releases: artifact index, Prime images and signed RPM repositories.
+          Ex: v1.32.13-rc1+rke2r3'
         required: false
+      rke2_lts_rpm_targets:
+        description: 'LTS RPM distro/arch targets (comma separated); e.g. slemicro/x86_64,centos/9/aarch64'
+        required: false
+        default: 'slemicro/x86_64'
       page_size:
         description: 'Page size for API queries'
         required: false
@@ -29,13 +33,17 @@ permissions:
 jobs:
   run-script-job:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Update and install necessary packages
-        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
+        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo python3 gnupg gpgv
+
+      - name: Test release checks locally
+        run: python3 -m unittest discover -s scripts -p 'test_release_checks*.py' -v
 
       - name: Change permissions and make script executable (if needed)
         working-directory: ./scripts
@@ -45,7 +53,10 @@ jobs:
         working-directory: ./scripts
         id: k3s_verify
         if: ${{ github.event.inputs.k3s_versions != '' }}
-        run: ./release_checks.sh -v "${{ github.event.inputs.k3s_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        env:
+          VERSIONS: ${{ github.event.inputs.k3s_versions }}
+          PAGE_SIZE: ${{ github.event.inputs.page_size }}
+        run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
 
@@ -53,7 +64,10 @@ jobs:
         working-directory: ./scripts
         id: rke2_verify
         if: ${{ github.event.inputs.rke2_versions != '' }}
-        run: ./release_checks.sh -v "${{ github.event.inputs.rke2_versions }}"  -d -p "${{ github.event.inputs.page_size }}"
+        env:
+          VERSIONS: ${{ github.event.inputs.rke2_versions }}
+          PAGE_SIZE: ${{ github.event.inputs.page_size }}
+        run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
 
@@ -61,7 +75,11 @@ jobs:
         working-directory: ./scripts
         id: rke2_lts_verify
         if: ${{ github.event.inputs.rke2_lts_versions != '' }}
-        run: ./release_checks.sh -l "${{ github.event.inputs.rke2_lts_versions }}"  -d
+        env:
+          VERSIONS: ${{ github.event.inputs.rke2_lts_versions }}
+          LTS_RPM_TARGETS: ${{ github.event.inputs.rke2_lts_rpm_targets }}
+        run: ./release_checks.sh -l "$VERSIONS" -d
+        continue-on-error: true
         shell: sh
 
       - name: Check for previous failures
