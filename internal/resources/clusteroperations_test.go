@@ -49,3 +49,20 @@ func TestServerHostFromKubeconfig(t *testing.T) {
 		})
 	}
 }
+
+func TestSSHTargetIP(t *testing.T) {
+	cases := map[string]struct {
+		ips  []string
+		want string
+	}{
+		"ipv6 first picks ipv4": {[]string{"2600::1", "54.1.2.3", "2600::2", "54.1.2.4"}, "54.1.2.3"},
+		"ipv4 first":            {[]string{"54.1.2.3", "2600::1"}, "54.1.2.3"},
+		"ipv6 only falls back":  {[]string{"2600::1", "2600::2"}, "2600::1"},
+		"empty":                 {nil, ""},
+	}
+	for name, tc := range cases {
+		if got := SSHTargetIP(tc.ips); got != tc.want {
+			t.Errorf("%s: SSHTargetIP(%v) = %q, want %q", name, tc.ips, got, tc.want)
+		}
+	}
+}

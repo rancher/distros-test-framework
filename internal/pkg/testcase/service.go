@@ -136,7 +136,7 @@ func testServiceClusterIPs(td testData) {
 		if strings.Contains(clusterIP, ":") {
 			clusterIP = resources.EncloseSqBraces(clusterIP)
 		}
-		err := assert.ValidateOnNode(nodeExternalIPs[0],
+		err := assert.ValidateOnNode(resources.SSHTargetIP(nodeExternalIPs),
 			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
 		Expect(err).NotTo(HaveOccurred())
 	}
