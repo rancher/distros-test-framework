@@ -181,6 +181,21 @@ func FetchNodeExternalIPs() ([]string, error) {
 	return strings.Split(nodeExternalIP, " "), nil
 }
 
+// SSHTargetIP picks the address to SSH into from FetchNodeExternalIPs: the first
+// IPv4, since the test runner may have no IPv6 route (IPv6-first nodes list IPv6 first).
+func SSHTargetIP(ips []string) string {
+	for _, ip := range ips {
+		if !strings.Contains(ip, ":") {
+			return ip
+		}
+	}
+	if len(ips) == 0 {
+		return ""
+	}
+
+	return ips[0]
+}
+
 // InstallSonobuoy Executes scripts/install_sonobuoy.sh script.
 // action	required install or cleanup sonobuoy plugin for mixed OS cluster.
 // version	optional sonobouy version to be installed.

@@ -92,7 +92,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	}
 
 	patch := "\n# Injected by distros-test-framework: surface AWS public IP via kubelet.\n" +
-		"node-external-ip: {{ ansible_host }}\n"
+		nodeExternalIPPatch(networkEnv(config.Module), ipv6FirstCIDR(config.Cluster.Config.ServerFlags)) + "\n"
 
 	f, err := os.OpenFile(templatePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -251,7 +251,8 @@ func ensureSSHAnsibleConfig(config *driver.InfraConfig) error {
 }
 
 func executeAnsiblePlaybook(config *driver.InfraConfig) error {
-	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup)
+	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup,
+		networkEnv(config.Module))
 	if playbookNameErr != nil {
 		return fmt.Errorf("failed to get playbook name: %w", playbookNameErr)
 	}
@@ -292,9 +293,12 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 	return nil
 }
 
-func getPlaybookPath(product string, airgap bool) (string, error) {
+func getPlaybookPath(product string, airgap bool, networkEnv string) (string, error) {
 	if airgap {
 		return airgapPlaybook, nil
+	}
+	if networkEnv != "" {
+		return fmt.Sprintf("%s-playbook-%s.yml", strings.ToLower(product), networkEnv), nil
 	}
 	switch strings.ToLower(product) {
 	case "k3s":
@@ -322,12 +326,17 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 	serverFlags := config.Cluster.Config.ServerFlags
 	args = addServerFlags(args, serverFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
+	// The playbook selects server_flags/worker_flags per node role; rke2_additional_config
+	// bypasses that on every node, so dualstack/ipv6 runs skip it (as #360 does for all runs).
+	perRoleFlags := networkEnv(config.Module) != ""
 	args = addChannel(args, config.Cluster.Config.Channel)
 
 	if strings.Contains(config.Product, "rke2") {
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
-		args = addRKE2AdditionalConfig(args, serverFlags)
+		if !perRoleFlags {
+			args = addRKE2AdditionalConfig(args, serverFlags)
+		}
 		args = addOptionalFiles(args)
 	}
 

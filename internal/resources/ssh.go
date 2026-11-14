@@ -266,7 +266,7 @@ func resolveSSHConfig() (user, path string) {
 // RunCommandOnNodeWithStdin runs a command on the node streaming stdin over
 // the established connection — no shell-encoded payloads or size limits.
 func RunCommandOnNodeWithStdin(cmd, ip string, stdin io.Reader) (string, error) {
-	conn, err := getOrDialSSH(ip + ":22")
+	conn, err := getOrDialSSH(net.JoinHostPort(ip, "22"))
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
