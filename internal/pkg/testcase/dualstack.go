@@ -94,12 +94,22 @@ func TestIPFamiliesDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 	err := resources.ManageWorkload("apply", "dualstack-multi.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
+	// Dual-stack services list the cluster's primary family first; the built-in
+	// kubernetes service carries it (IPv6 on IPv6-first clusters).
+	primary, famErr := resources.RunCommandHost("kubectl get svc kubernetes -n default " +
+		"-o jsonpath='{.spec.ipFamilies[0]}' --kubeconfig=" + resources.KubeConfigFile)
+	Expect(famErr).NotTo(HaveOccurred(), famErr)
+	dualFamilies := `"IPv4","IPv6"`
+	if strings.TrimSpace(primary) == "IPv6" {
+		dualFamilies = `"IPv6","IPv4"`
+	}
+
 	services := []string{"v4", "v6", "require-dual", "prefer-dual"}
 	expectedIPFamily := []string{
 		`"ipFamilies":["IPv4"],"ipFamilyPolicy":"SingleStack"`,
 		`"ipFamilies":["IPv6"],"ipFamilyPolicy":"SingleStack"`,
-		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"RequireDualStack"`,
-		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"PreferDualStack"`,
+		`"ipFamilies":[` + dualFamilies + `],"ipFamilyPolicy":"RequireDualStack"`,
+		`"ipFamilies":[` + dualFamilies + `],"ipFamilyPolicy":"PreferDualStack"`,
 	}
 	td := testData{
 		Namespace: "default",
