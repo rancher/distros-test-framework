@@ -87,7 +87,10 @@ func TestClusterIPsInCIDRRange(cluster *driver.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestIPFamiliesDualStack(deleteWorkload bool) {
+// TestIPFamiliesDualStack SSHes to the first server's provisioned address, not a node
+// ExternalIP: IPv6-first nodes may report only IPv6 external IPs, unreachable from the runner.
+func TestIPFamiliesDualStack(cluster *driver.Cluster, deleteWorkload bool) {
+	Expect(cluster.ServerIPs).NotTo(BeEmpty(), "no server IPs recorded for the cluster")
 	err := resources.ManageWorkload("apply", "dualstack-multi.yaml")
 	Expect(err).NotTo(HaveOccurred())
 
@@ -110,7 +113,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	for i, svc := range services {
 		td.SVC = "my-service-"
 		td.SVC += svc
-		testServiceClusterIPs(td)
+		testServiceClusterIPs(td, cluster.ServerIPs[0])
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
 			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + resources.KubeConfigFile

@@ -125,18 +125,17 @@ func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
 	}
 }
 
-func testServiceClusterIPs(td testData) {
+// testServiceClusterIPs curls each cluster IP from sshIP, a node address the runner can reach.
+func testServiceClusterIPs(td testData, sshIP string) {
 	clusterIPs, port, err := resources.FetchClusterIPs(td.Namespace, td.SVC)
 	clusterIPSlice := strings.Split(clusterIPs, " ")
 	Expect(err).NotTo(HaveOccurred())
-	nodeExternalIPs, ipsErr := resources.FetchNodeExternalIPs()
-	Expect(ipsErr).NotTo(HaveOccurred(), "failed to fetch node external IPs")
 
 	for _, clusterIP := range clusterIPSlice {
 		if strings.Contains(clusterIP, ":") {
 			clusterIP = resources.EncloseSqBraces(clusterIP)
 		}
-		err := assert.ValidateOnNode(resources.SSHTargetIP(nodeExternalIPs),
+		err := assert.ValidateOnNode(sshIP,
 			"curl -sL --insecure http://"+clusterIP+":"+port, td.Expected)
 		Expect(err).NotTo(HaveOccurred())
 	}
