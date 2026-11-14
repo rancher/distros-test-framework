@@ -15,6 +15,7 @@ linters:
     - perfsprint
     - usestdlibvars
     - whitespace
+    - typecheck
 
 linters-settings:
   funlen:
