@@ -91,9 +91,9 @@ func TestBuildStaticInventoryYAML(t *testing.T) {
 				KubeAPIHost string `yaml:"kube_api_host"`
 			} `yaml:"vars"`
 			Hosts map[string]struct {
-				AnsibleHost  string   `yaml:"ansible_host"`
-				NodeRoles    []string `yaml:"node_roles"`
-				NodeType string   `yaml:"node_type"`
+				AnsibleHost string   `yaml:"ansible_host"`
+				NodeRoles   []string `yaml:"node_roles"`
+				NodeType    string   `yaml:"rke2_node_role"`
 			} `yaml:"hosts"`
 			Children map[string]struct {
 				Hosts map[string]struct {
@@ -118,7 +118,7 @@ func TestBuildStaticInventoryYAML(t *testing.T) {
 		t.Errorf("cp-worker-0 host entry wrong: %+v", h)
 	}
 	if h := inv.All.Hosts["worker-0"]; h.NodeType != "agent" {
-		t.Errorf("worker-0 node_type = %q, want agent", h.NodeType)
+		t.Errorf("worker-0 rke2_node_role = %q, want agent", h.NodeType)
 	}
 
 	groupOf := map[string]string{}
@@ -174,7 +174,7 @@ func TestBuildStaticInventoryYAMLMixedOS(t *testing.T) {
 			Hosts map[string]struct {
 				AnsibleHost       string   `yaml:"ansible_host"`
 				NodeRoles         []string `yaml:"node_roles"`
-				NodeType          string   `yaml:"node_type"`
+				NodeType          string   `yaml:"rke2_node_role"`
 				NodeOS            string   `yaml:"node_os"`
 				AnsibleUser       string   `yaml:"ansible_user"`
 				AnsibleConnection string   `yaml:"ansible_connection"`
