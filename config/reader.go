@@ -233,6 +233,16 @@ func isSupported(s string, list []string) bool {
 	return slices.Contains(list, s)
 }
 
+// unquoteValue drops one surrounding quote pair and decodes \" so a flag ending
+// in a quoted value (node-ip: "{{ ... }}") keeps its closing quote.
+func unquoteValue(v string) string {
+	if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
+		v = v[1 : len(v)-1]
+	}
+
+	return strings.ReplaceAll(v, `\"`, `"`)
+}
+
 func setEnv(fullPath string) error {
 	file, err := os.Open(fullPath)
 	if err != nil {
@@ -251,7 +261,7 @@ func setEnv(fullPath string) error {
 
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		err = os.Setenv(strings.Trim(key, "\""), strings.Trim(value, "\""))
+		err = os.Setenv(strings.Trim(key, "\""), unquoteValue(value))
 		if err != nil {
 			log.Errorf("failed to set environment variables: %v\n", err)
 			return err
