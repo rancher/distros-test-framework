@@ -13,7 +13,7 @@ import (
 )
 
 // Dual-stack and IPv6-only runs use qa-infra's tofu/aws/modules/<env> and
-// ansible/rke2/<env> instead of cluster_nodes and ansible/<product>/default.
+// ansible/<product>/<env> instead of cluster_nodes and ansible/<product>/default.
 const (
 	dualstackModule = "dualstack"
 	ipv6OnlyModule  = "ipv6only"
@@ -130,6 +130,18 @@ func nodeExternalIPPatch(env string, ipv6First bool) string {
 	default:
 		return "node-external-ip: {{ ansible_host }}"
 	}
+}
+
+// k3sExternalIPBlock is k3s_install's node-external-ip list, which only carries public_ip (ansible_host).
+const k3sExternalIPBlock = "node-external-ip:\n  - \"{{ public_ip }}\""
+
+// patchK3sExternalIP makes k3s dualstack/ipv6 nodes advertise the same families, in the same order, as rke2.
+func patchK3sExternalIP(tmpl, env string, ipv6First bool) (string, bool) {
+	if env == "" || !strings.Contains(tmpl, k3sExternalIPBlock) {
+		return tmpl, false
+	}
+
+	return strings.Replace(tmpl, k3sExternalIPBlock, nodeExternalIPPatch(env, ipv6First), 1), true
 }
 
 // stageBastionKubeconfig puts the playbook's bastion kubeconfig where the

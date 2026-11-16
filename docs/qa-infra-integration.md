@@ -178,9 +178,9 @@ ARCH=amd64                                                 # amd64 | arm64
 ```
 
 ```bash
-# dualstack / ipv6only  (TEST_DIR=dualstack | ipv6only; rke2 + aws only)
-# Needs a qa-infra ref with the dualstack/ipv6 modules (rancher/qa-infra-automation#184) and a
-# dual-stack VPC/subnet/SG in vars.tfvars; optional aws_bastion_subnet (defaults to aws_subnet).
+# dualstack / ipv6only  (TEST_DIR=dualstack | ipv6only; rke2 or k3s, aws only)
+# Needs a qa-infra ref with the dualstack/ipv6 modules (rancher/qa-infra-automation#184,
+# plus #266 for k3s) and a dual-stack VPC/subnet/SG in vars.tfvars; optional aws_bastion_subnet (defaults to aws_subnet).
 # The suite sets ENV_MODULE (dualstack | ipv6only) itself, and DTF sets enable_ipv6,
 # enable_public_ip and no_of_bastion_nodes=1 for the mode. Don't set them yourself.
 # SERVER_FLAGS go to etcd/cp nodes and WORKER_FLAGS to agents. Both are parsed as YAML, so
@@ -224,6 +224,18 @@ WORKER_FLAGS=                                               # empty: agents get 
 #              aws_bastion_subnet = <a dual-stack subnet> (the bastion needs IPv4 + IPv6)
 # Nodes are reached through the bastion; the suite skips its legacy install step and
 # runs node/pod checks on the bastion.
+```
+
+```bash
+# k3s (ENV_PRODUCT=k3s, INSTALL_VERSION=v1.34.2+k3s1); same vars.tfvars as the rke2 cases.
+# 4. Dual-stack, IPv4 first (swap both CIDR orders and node-ip for IPv6 first)
+TEST_DIR=dualstack
+SERVER_FLAGS="cluster-cidr: 10.42.0.0/16,2001:cafe:42::/56\nservice-cidr: 10.43.0.0/16,2001:cafe:43::/112\nflannel-ipv6-masq: true\nnode-ip: {{ ansible_default_ipv4.address }},{{ ansible_host_ipv6 }}"
+WORKER_FLAGS="node-ip: {{ ansible_default_ipv4.address }},{{ ansible_host_ipv6 }}"
+# 5. IPv6 only
+TEST_DIR=ipv6only
+SERVER_FLAGS="cluster-cidr: 2001:cafe:42::/56\nservice-cidr: 2001:cafe:43::/112\nflannel-ipv6-masq: true\nnode-ip: {{ ansible_host_ipv6 }}"
+WORKER_FLAGS="node-ip: {{ ansible_host_ipv6 }}"
 ```
 
 Jenkins parameters map onto these vars: `TEST_DIRECTORY` → `TEST_DIR`, `HOSTNAME_PREFIX` →

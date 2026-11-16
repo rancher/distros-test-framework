@@ -53,7 +53,8 @@ make all       ...                                       # infra-up + cluster (+
 - **IPv6 handling in roles.** `rke2_config` brackets IPv6 literals in `server:` join URLs.
   The playbooks bracket the kubeconfig server address. Inventories built for IPv6 use
   `ssh -W "[%h]:%p"` through the bastion.
-- **k3s**: there is no `ansible/k3s/{dualstack,ipv6}` yet, and the Makefile rejects that combination.
+- **k3s** (rancher/qa-infra-automation#266): `ansible/k3s/dualstack/k3s-playbook-dualstack.yml`
+  and `ansible/k3s/ipv6/k3s-playbook-ipv6.yml` follow the same bastion and kubeconfig flow.
 
 ## 3. DTF driving qa-infra
 
@@ -68,8 +69,8 @@ selects the qa-infra mode:
 |---|---|---|
 | empty (default) | `cluster_nodes` | `ansible/<product>/default/<product>-playbook.yml` |
 | `airgap` | `cluster_nodes` with `airgap_setup=true` and a bastion | `ansible/airgap/airgap-playbook.yml` |
-| `dualstack` | `dualstack` | `ansible/rke2/dualstack/rke2-playbook-dualstack.yml` |
-| `ipv6only` | `ipv6` | `ansible/rke2/ipv6/rke2-playbook-ipv6.yml` |
+| `dualstack` | `dualstack` | `ansible/<product>/dualstack/<product>-playbook-dualstack.yml` |
+| `ipv6only` | `ipv6` | `ansible/<product>/ipv6/<product>-playbook-ipv6.yml` |
 
 The airgap, ipv6only and dualstack suites set `cfg.Module` themselves. The dualstack suite
 does it only on qainfra, because on legacy an empty module means the product's own Terraform dir.
@@ -110,6 +111,8 @@ ipv6only support only rke2 on AWS; the suites exit early for other products.
      apiserver advertises the first address and it must match the primary service-cidr
      family) and `{{ ansible_host_ipv6 }}` for ipv6. The dual-stack NodePort test curls
      every external IP.
+   - k3s dualstack/ipv6 only: rewrites `k3s_install`'s `node-external-ip` list (`public_ip`)
+     to the same value, because k3s advertises the apiserver on it the same way.
    - installs `cloud.terraform` and exports the `TF_*`/`ANSIBLE_*` env.
    - writes a **static** `inventory.yml` (inventory.go). The dualstack/ipv6 inventory
      (network.go) adds `ansible_host_ipv6` and a `bastion` group. IPv6-only nodes get a
@@ -121,7 +124,7 @@ ipv6only support only rke2 on AWS; the suites exit early for other products.
    wins over the playbook's own `server_flags`) plus `optional_files`. Dualstack/ipv6 runs
    skip `rke2_additional_config` (as #360 does for every run), so the playbook applies
    `server_flags` to servers and `worker_flags` to agents, each parsed as full YAML.
-8. `stageBastionKubeconfig` (dualstack/ipv6 only): `cp ~/.kube/config /tmp/rke2_kubeconf.yaml`
+8. `stageBastionKubeconfig` (dualstack/ipv6 only): `cp ~/.kube/config /tmp/<product>_kubeconf.yaml`
    on the bastion. That's the path `GetNodesViaBastion`, `GetPodsViaBastion` and
    `LogClusterInfoUsingBastion` read.
 9. `addTofuOutputsToConfig` and `collectAirgapFacts`: record the FQDN and kube_api_host,
@@ -159,8 +162,8 @@ make test-run        # or: go test -timeout=60m -v -count=1 ./entrypoint/validat
 
 ## 5. Dual-stack and IPv6-only on qainfra
 
-Requires a qa-infra ref with PR #184 (rancher/qa-infra-automation#184).
-Only `ENV_PRODUCT=rke2` and `QA_INFRA_PROVIDER=aws` are accepted; anything else fails
+Requires a qa-infra ref with PR #184 (rancher/qa-infra-automation#184), plus #266 for k3s.
+Only `ENV_PRODUCT=rke2|k3s` and `QA_INFRA_PROVIDER=aws` are accepted; anything else fails
 before any resource is created. The `dualstack`/`ipv6` modules need OpenTofu >= 1.9.
 
 `vars.tfvars` must point at a **dual-stack** VPC, subnet and security group. Optionally set `aws_bastion_subnet`, which defaults to `aws_subnet`.
@@ -187,8 +190,8 @@ What the suites do on qainfra:
   over both families; cluster IPs are checked against the `cluster-cidr`/`service-cidr`
   read from the server node's args.
 - `ipv6only`: the legacy "Install product on ipv6 only nodes" spec is **skipped**, because
-  Ansible already installed RKE2. Node and pod checks run through the bastion against
-  `/tmp/rke2_kubeconf.yaml`.
+  Ansible already installed the product. Node and pod checks run through the bastion against
+  `/tmp/<product>_kubeconf.yaml`.
 
 IPv6-only nodes resolve IPv4-only endpoints (`get.rke2.io`, image registries) through
 the module's DNS64 default (`ipv6_dns64_resolvers`, the public nat64.net service).

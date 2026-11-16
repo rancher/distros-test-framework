@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 )
 
 func TestNetworkEnv(t *testing.T) {
@@ -20,6 +22,32 @@ func TestNetworkEnv(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
+=======
+func TestValidateNetworkEnv(t *testing.T) {
+	if err := validateNetworkEnv("rke2", "aws", envIPv6); err != nil {
+		t.Errorf("rke2/aws ipv6 must be accepted: %v", err)
+	}
+	if err := validateNetworkEnv("k3s", "aws", ""); err != nil {
+		t.Errorf("non-network modules must be untouched: %v", err)
+	}
+	for _, env := range []string{envDualstack, envIPv6} {
+		if err := validateNetworkEnv("k3s", "aws", env); err != nil {
+			t.Errorf("k3s/aws %s must be accepted (qa-infra ansible/k3s/%s): %v", env, env, err)
+		}
+	}
+	if err := validateNetworkEnv("rancher", "aws", envDualstack); err == nil {
+		t.Error("products without a qa-infra dualstack playbook must be rejected")
+	}
+	if err := validateNetworkEnv("k3s", "vsphere", envIPv6); err == nil {
+		t.Error("k3s on a non-aws provider must be rejected")
+	}
+	if err := validateNetworkEnv("rke2", "vsphere", envDualstack); err == nil {
+		t.Error("non-aws provider must be rejected: the module only exists under tofu/aws")
+	}
+}
+
+>>>>>>> 11ed827 (Support k3s dualstack and ipv6only on the qainfra provisioner)
 func TestPlaybookAndAnsiblePathForNetworkEnv(t *testing.T) {
 	if got, _ := getPlaybookPath("rke2", false, envIPv6); got != "rke2-playbook-ipv6.yml" {
 		t.Errorf("ipv6 playbook = %q", got)
@@ -32,6 +60,18 @@ func TestPlaybookAndAnsiblePathForNetworkEnv(t *testing.T) {
 	}
 	if got, _ := getAnsiblePath("rke2", false, ""); got != "ansible/rke2/default" {
 		t.Errorf("default ansible path changed: %q", got)
+	}
+	if got, _ := getPlaybookPath("k3s", false, envDualstack); got != "k3s-playbook-dualstack.yml" {
+		t.Errorf("k3s dualstack playbook = %q", got)
+	}
+	if got, _ := getPlaybookPath("k3s", false, envIPv6); got != "k3s-playbook-ipv6.yml" {
+		t.Errorf("k3s ipv6 playbook = %q", got)
+	}
+	if got, _ := getAnsiblePath("k3s", false, envIPv6); got != "ansible/k3s/ipv6" {
+		t.Errorf("k3s ipv6 ansible path = %q", got)
+	}
+	if got, _ := getPlaybookPath("k3s", false, ""); got != "k3s-playbook.yml" {
+		t.Errorf("k3s default playbook changed: %q", got)
 	}
 }
 
@@ -231,6 +271,7 @@ func TestBuildAnsibleArgsPerRoleFlags(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
 func TestBuildNetworkInventoryQuotesKeyPath(t *testing.T) {
 	data, err := parseClusterNodesJSON([]byte(networkNodesJSON))
 	if err != nil {
@@ -258,4 +299,88 @@ func TestInjectNetworkModuleArgsLineEndings(t *testing.T) {
 			t.Errorf("not stripped from %q: %q", tf, got)
 		}
 	}
+=======
+// k3sTemplateTail mirrors the node-external-ip block in qa-infra's roles/k3s_install/templates/k3s-config.yaml.j2.
+const k3sTemplateTail = `{% if public_ip is defined and public_ip | trim != '' and (k3s_node_external_ip | default(true)) %}
+node-external-ip:
+  - "{{ public_ip }}"
+{% endif %}
+tls-san:
+  - "{{ public_ip | default('127.0.0.1') }}"
+`
+
+func TestPatchK3sExternalIP(t *testing.T) {
+	cases := []struct {
+		env       string
+		ipv6First bool
+		want      string
+	}{
+		{envDualstack, false, `node-external-ip: "{{ ansible_host }},{{ ansible_host_ipv6 }}"`},
+		{envDualstack, true, `node-external-ip: "{{ ansible_host_ipv6 }},{{ ansible_host }}"`},
+		{envIPv6, false, `node-external-ip: "{{ ansible_host_ipv6 }}"`},
+	}
+	for _, c := range cases {
+		got, ok := patchK3sExternalIP(k3sTemplateTail, c.env, c.ipv6First)
+		if !ok || !strings.Contains(got, c.want) || strings.Contains(got, `  - "{{ public_ip }}"`+"\n{% endif %}") {
+			t.Errorf("%s ipv6First=%t: ok=%t\n%s", c.env, c.ipv6First, ok, got)
+		}
+		// tls-san still uses public_ip; only the node-external-ip list is rewritten.
+		if !strings.Contains(got, `tls-san:`+"\n"+`  - "{{ public_ip | default('127.0.0.1') }}"`) {
+			t.Errorf("%s: tls-san must be untouched:\n%s", c.env, got)
+		}
+	}
+	if got, ok := patchK3sExternalIP(k3sTemplateTail, "", false); ok || got != k3sTemplateTail {
+		t.Error("default k3s runs must keep the template unchanged")
+	}
+	if _, ok := patchK3sExternalIP("node-external-ip: x\n", envDualstack, false); ok {
+		t.Error("a missing anchor must be reported, not silently patched")
+	}
+}
+
+func TestPatchK3sConfigTemplate(t *testing.T) {
+	write := func(t *testing.T) (*driver.InfraConfig, string) {
+		t.Helper()
+		cfg := &driver.InfraConfig{
+			Product: "k3s", Module: dualstackModule,
+			Cluster:          &driver.Cluster{},
+			InfraProvisioner: &driver.InfraProvisionerConfig{TempDir: t.TempDir()},
+		}
+		cfg.Cluster.Config.ServerFlags = "cluster-cidr: 2001:cafe:42::/56,10.42.0.0/16"
+		path := filepath.Join(cfg.InfraProvisioner.TempDir, "ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(k3sTemplateTail), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		return cfg, path
+	}
+
+	cfg, path := write(t)
+	if err := patchK3sConfigTemplate(cfg); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path)
+	if !strings.Contains(string(got), `node-external-ip: "{{ ansible_host_ipv6 }},{{ ansible_host }}"`) {
+		t.Errorf("IPv6-first k3s dualstack template not patched:\n%s", got)
+	}
+
+	for _, c := range []struct{ product, module string }{{"rke2", dualstackModule}, {"k3s", ""}} {
+		cfg, path := write(t)
+		cfg.Product, cfg.Module = c.product, c.module
+		if err := patchK3sConfigTemplate(cfg); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := os.ReadFile(path); string(got) != k3sTemplateTail {
+			t.Errorf("%s/%q must not touch the k3s template", c.product, c.module)
+		}
+	}
+
+	cfg, path = write(t)
+	_ = os.Remove(path)
+	if err := patchK3sConfigTemplate(cfg); err == nil {
+		t.Error("a missing k3s template on a dualstack run must fail")
+	}
+>>>>>>> 11ed827 (Support k3s dualstack and ipv6only on the qainfra provisioner)
 }

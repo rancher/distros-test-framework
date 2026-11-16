@@ -26,6 +26,9 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 		if err := patchRKE2ConfigTemplate(config); err != nil {
 			return fmt.Errorf("failed to patch rke2_config template: %w", err)
 		}
+		if err := patchK3sConfigTemplate(config); err != nil {
+			return fmt.Errorf("failed to patch k3s_install template: %w", err)
+		}
 	}
 
 	if err := installAnsibleCollection(config.InfraProvisioner.TempDir); err != nil {
@@ -105,6 +108,34 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 
 	resources.LogLevel("info",
 		"Patched rke2_config template to advertise node-external-ip from ansible_host")
+
+	return nil
+}
+
+// patchK3sConfigTemplate rewrites k3s_install's node-external-ip for k3s dualstack/ipv6 runs.
+func patchK3sConfigTemplate(config *driver.InfraConfig) error {
+	env := networkEnv(config.Module)
+	if !strings.EqualFold(config.Product, "k3s") || env == "" {
+		return nil
+	}
+	templatePath := filepath.Join(config.InfraProvisioner.TempDir,
+		"ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
+	tmpl, err := os.ReadFile(templatePath)
+	if err != nil {
+		return fmt.Errorf("read k3s template: %w", err)
+	}
+	patched, ok := patchK3sExternalIP(string(tmpl), env, ipv6FirstCIDR(config.Cluster.Config.ServerFlags))
+	if !ok {
+		// Keep provisioning; tests that curl node external IPs will report the gap.
+		resources.LogLevel("warn", "node-external-ip block not found in %s; k3s %s nodes keep "+
+			"advertising only ansible_host", templatePath, env)
+
+		return nil
+	}
+	if err := os.WriteFile(templatePath, []byte(patched), 0o644); err != nil {
+		return fmt.Errorf("write k3s template: %w", err)
+	}
+	resources.LogLevel("info", "Patched k3s_install template to advertise %s node-external-ip", env)
 
 	return nil
 }
