@@ -53,6 +53,7 @@ jobs:
         env:
           VERSIONS: ${{ github.event.inputs.k3s_versions }}
           PAGE_SIZE: ${{ github.event.inputs.page_size }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
@@ -64,6 +65,7 @@ jobs:
         env:
           VERSIONS: ${{ github.event.inputs.rke2_versions }}
           PAGE_SIZE: ${{ github.event.inputs.page_size }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
@@ -75,6 +77,8 @@ jobs:
         env:
           VERSIONS: ${{ github.event.inputs.rke2_lts_versions }}
           LTS_RPM_TARGETS: ${{ github.event.inputs.rke2_lts_rpm_targets }}
+          LTS_ARTIFACT_BASE_URL: ${{ secrets.LTS_ARTIFACT_BASE_URL }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -l "$VERSIONS" -d
         continue-on-error: true
         shell: sh

@@ -26,6 +26,8 @@ do
             -v: version to test. Ex: v1.31.6-rc1+rke2r1,v1.31.6-rc1+k3s1,v1.31.5+rke2r1
             -l: Prime-only/LTS RKE2 version to test (index, registry and RPMs). Ex: v1.32.13-rc1+rke2r3
             LTS_RPM_TARGETS: comma-separated RPM targets; default slemicro/x86_64.
+            LTS_ARTIFACT_BASE_URL: private HTTPS artifact root; required for -l.
+            PRIME_RC_REGISTRY: private docker:// registry/namespace; required for RCs.
             -p: page size for curl commands to fetch data from docker hub or github. Default is 200.
             -h: help - usage is displayed
             "
@@ -53,6 +55,47 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 cd "$WORK_DIR" || exit 1
 FAILURE_FILE="failure_results"
+export LTS_ARTIFACT_BASE_URL PRIME_RC_REGISTRY
+
+redact_output () {
+    awk '
+        function replace_literal(text, value, replacement, pos, result) {
+            if (value == "") return text
+            while ((pos = index(text, value)) != 0) {
+                result = result substr(text, 1, pos - 1) replacement
+                text = substr(text, pos + length(value))
+            }
+            return result text
+        }
+        BEGIN {
+            urls[1] = ENVIRON["LTS_ARTIFACT_BASE_URL"]
+            urls[2] = ENVIRON["PRIME_RC_REGISTRY"]
+            labels[1] = "<REDACTED_PRIME_ARTIFACT_URL>"
+            labels[2] = "<REDACTED_REGISTRY>"
+            for (i = 1; i <= 2; i++) {
+                sub(/\/+$/, "", urls[i])
+                hosts[i] = urls[i]
+                sub(/^[a-z]+:\/\//, "", hosts[i])
+                sub(/[:\/].*$/, "", hosts[i])
+            }
+        }
+        {
+            line = $0
+            for (i = 1; i <= 2; i++) line = replace_literal(line, urls[i], labels[i])
+            for (i = 1; i <= 2; i++) line = replace_literal(line, hosts[i], labels[i])
+            print line
+            fflush()
+        }
+    '
+}
+
+require_endpoint () {
+    if [ "$(printf '%s' "$2" | tr -d '\r\n')" != "$2" ] ||
+        ! printf '%s\n' "$2" | LC_ALL=C grep -Eq "^$3://[a-zA-Z0-9][a-zA-Z0-9.:-]*(/[a-zA-Z0-9._~+/-]*)?$"; then
+        echo "FAIL: configure $1 as a $3:// endpoint without credentials, query or fragment." >&2
+        return 1
+    fi
+}
 
 debug_log () {
     if [ "${DEBUG}" = true ]; then
@@ -226,7 +269,7 @@ verify_rke2_packaging () {
 
 set_url() { 
     if echo "${VERSION_PREFIX}" | grep -q "rc"; then
-        PRIME_URL="docker://stgregistry.suse.com/rancher" 
+        PRIME_URL="${PRIME_RC_REGISTRY%/}"
     else 
         PRIME_URL="docker://registry.rancher.com/rancher" 
     fi
@@ -313,8 +356,8 @@ lts_verify_file () (
 )
 
 lts_verify_index () (
-    base="https://prime.ribs.rancher.io/rke2/$(printf '%s' "$VERSION" | sed 's/+/%2B/')/"
-    raw_base="https://prime.ribs.rancher.io/rke2/$VERSION/"
+    base="${LTS_ARTIFACT_BASE_URL%/}/rke2/$(printf '%s' "$VERSION" | sed 's/+/%2B/')/"
+    raw_base="${LTS_ARTIFACT_BASE_URL%/}/rke2/$VERSION/"
     lower_base=$(printf '%s' "$base" | sed 's/%2B/%2b/')
     lts_download "$1" lts/index.html || return 1
     xmllint --html --recover --nonet --xpath \
@@ -484,12 +527,12 @@ verify_lts_artifacts () (
 
     host=https://rpm.rancher.io
     channels='latest stable'
-    index=https://prime.ribs.rancher.io/
+    index="${LTS_ARTIFACT_BASE_URL%/}/"
     case "$VERSION" in
         *-rc*)
             host=https://rpm-testing.rancher.io
             channels=testing
-            index=https://prime.ribs.rancher.io/index-prerelease.html
+            index="${LTS_ARTIFACT_BASE_URL%/}/index-prerelease.html"
             ;;
     esac
     minor=$(printf '%s' "${VERSION#v}" | cut -d. -f1,2)
@@ -534,51 +577,72 @@ verify_lts () {
 }
 
 # Main script execution starts here
-VERSIONS=$(echo "${INPUT}" | tr "," "\n")
-for VERSION in $VERSIONS
-do
-    printf "==========================================================================
-        TESTING VERSION: %s 
-==========================================================================\n" "${VERSION}"
-    if echo "${VERSION}" | grep -q "rke2"; then
-        PRODUCT="rke2"
-    else
-        PRODUCT="k3s"
-    fi
-
-    VERSION_PREFIX=$(echo "${VERSION}" | cut -d+ -f1)
-    VERSION_SUFFIX=$(echo "${VERSION}" | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
-    
-    echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
-
-    if [ "${LTS}" = "false" ]; then
-        verify_system_agent_installers
-        verify_upgrade_images
-        verify_releases
-        if [ "${PRODUCT}" = "rke2" ]; then
-            verify_rke2_packaging
-            verify_release_asset_count_rke2
-            verify_asset_count_rke2_packaging
+run_checks () (
+    VERSIONS=$(echo "${INPUT}" | tr "," "\n")
+    for VERSION in $VERSIONS
+    do
+        printf "==========================================================================
+            TESTING VERSION: %s
+    ==========================================================================\n" "${VERSION}"
+        if echo "${VERSION}" | grep -q "rke2"; then
+            PRODUCT="rke2"
         else
-            verify_release_asset_count_k3s
+            PRODUCT="k3s"
         fi
-        verify_prime_registry
-    else
-        verify_lts
+
+        VERSION_PREFIX=$(echo "${VERSION}" | cut -d+ -f1)
+        VERSION_SUFFIX=$(echo "${VERSION}" | cut -d+ -f2) # Values will be rke2r1/rke2r2/k3s1/k3s2
+    
+        echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
+
+        if [ "${LTS}" = "true" ]; then
+            require_endpoint LTS_ARTIFACT_BASE_URL "${LTS_ARTIFACT_BASE_URL}" https || exit 1
+        fi
+        case "$VERSION_PREFIX" in
+            *rc*) require_endpoint PRIME_RC_REGISTRY "${PRIME_RC_REGISTRY}" docker || exit 1 ;;
+        esac
+
+        if [ "${LTS}" = "false" ]; then
+            verify_system_agent_installers
+            verify_upgrade_images
+            verify_releases
+            if [ "${PRODUCT}" = "rke2" ]; then
+                verify_rke2_packaging
+                verify_release_asset_count_rke2
+                verify_asset_count_rke2_packaging
+            else
+                verify_release_asset_count_k3s
+            fi
+            verify_prime_registry
+        else
+            verify_lts
+        fi
+
+        printf "===================== DONE ==========================\n"
+    done
+
+    if [ -f "$FAILURE_FILE" ]; then
+        printf "==========================================================================
+                            FAILURE SUMMARY
+    ==========================================================================\n"
+        cat "${FAILURE_FILE}"
+        printf "===================== DONE ==========================\n"
+        echo "Found failures. Exiting with status 1"
+        rm -rf "${FAILURE_FILE}"
+        exit 1
     fi
 
-    printf "===================== DONE ==========================\n"
-done
-
-if [ -f "$FAILURE_FILE" ]; then
-    printf "==========================================================================
-                        FAILURE SUMMARY 
-==========================================================================\n"
-    cat "${FAILURE_FILE}"
-    printf "===================== DONE ==========================\n"
-    echo "Found failures. Exiting with status 1"
     rm -rf "${FAILURE_FILE}"
+)
+
+# Keep tool diagnostics behind the redactor without losing the checks exit status.
+{
+    run_checks
+    printf '%s\n' "$?" > "$WORK_DIR/status"
+} 2>&1 | redact_output || exit 1
+
+if [ ! -s "$WORK_DIR/status" ]; then
+    echo "FAIL: release checks ended without a status."
     exit 1
 fi
-
-rm -rf "${FAILURE_FILE}"
+exit "$(cat "$WORK_DIR/status")"
