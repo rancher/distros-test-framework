@@ -148,6 +148,10 @@ func setOrAppendTFVarRaw(tfvarsPath, key, value string) error {
 
 // prepareTerraformFiles copies and updates terraform configuration files.
 func prepareTerraformFiles(config *driver.InfraConfig) error {
+	if err := validateWindowsCNI(config); err != nil {
+		return err
+	}
+
 	if err := copyTerraformFiles(config); err != nil {
 		return fmt.Errorf("failed to copy terraform files: %w", err)
 	}

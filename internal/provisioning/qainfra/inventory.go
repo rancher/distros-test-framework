@@ -173,7 +173,7 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 	return assigned
 }
 
-// nodeRole returns the node_type value for a node.
+// nodeRole returns the rke2_node_role value for a node.
 func nodeRole(n *clusterNode, assigned map[string]string) string {
 	switch {
 	case assigned[n.Name] == "master":
@@ -221,7 +221,7 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 		writeLine(b, "    ", n.Name, ":")
 		writeLine(b, "      ansible_host: ", yamlQuote(n.PublicIP))
 		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
-		writeLine(b, "      node_type: ", yamlQuote(nodeRole(n, assigned)))
+		writeLine(b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
 		if isWindowsNode(n) {
 			sshUser := n.SSHUser
 			if sshUser == "" {
@@ -334,6 +334,31 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 	}
 	if err := os.WriteFile(config.InfraProvisioner.Inventory.Path, []byte(yaml), 0o644); err != nil {
 		return fmt.Errorf("write inventory: %w", err)
+	}
+
+	return nil
+}
+
+// validateWindowsCNI fails before provisioning when Windows agents are requested
+// without a CNI RKE2 supports on Windows (the playbook would only fail after apply).
+func validateWindowsCNI(config *driver.InfraConfig) error {
+	winWorkers, err := envInt("no_of_windows_worker_nodes", 0)
+	if err != nil {
+		return err
+	}
+	if winWorkers == 0 {
+		return nil
+	}
+	if !strings.EqualFold(config.Product, "rke2") {
+		return fmt.Errorf("windows agents are only supported with rke2, got product %q", config.Product)
+	}
+
+	cni, err := effectiveCNI(config.CNI, config.Cluster.Config.ServerFlags)
+	if err != nil {
+		return err
+	}
+	if cni != "calico" && cni != "flannel" {
+		return fmt.Errorf("windows agents need CNI calico or flannel, got %q; set CNI or server_flags cni:", cni)
 	}
 
 	return nil
