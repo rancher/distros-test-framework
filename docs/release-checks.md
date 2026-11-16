@@ -16,6 +16,29 @@ Inputs accept comma-separated versions. Do not put a Prime-only release in
 `rke2_versions`: public Docker Hub/GitHub checks cannot find its Prime-only
 artifacts. The release suffix alone does not determine whether a release is LTS.
 
+## Private endpoint configuration
+
+Configure these Actions secrets in the repository running the workflow (including
+forks), or export the same environment variables locally from private configuration:
+
+| Variable / secret | Required for | Value shape |
+| --- | --- | --- |
+| `LTS_ARTIFACT_BASE_URL` | All `-l` checks | `https://<artifact-host>`; root containing the index and `rke2/` |
+| `PRIME_RC_REGISTRY` | Any RC, with `-v` or `-l` | `docker://<registry-host>/<namespace>` |
+
+Use the endpoints supplied by the release publisher. There are no embedded
+private defaults; missing or invalid configuration fails before checking that
+version. Public GA checks with `-v` need neither setting. Endpoint values must
+not contain credentials, query strings or fragments.
+
+The script masks configured endpoints and their hostnames in combined stdout and
+stderr, including debug commands, tool errors and the failure summary, while
+preserving the validation exit status. Do not run it with shell tracing (`sh -x`)
+or print the environment. Do not copy real endpoints, AMI IDs, IPs or node names
+into public documentation, examples or validation comments; use placeholders.
+Existing commit history and previously published logs are not rewritten by this
+change.
+
 ## LTS coverage
 
 - Match artifact links for the exact release in the Prime index. Fetch both
