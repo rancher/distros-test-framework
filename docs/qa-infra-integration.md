@@ -12,6 +12,26 @@ Promotion is coordinated with Jenkins Job Builder: promote the QA Infra job
 definitions validated on JJB staging before or together with this framework
 branch. Existing JJB main jobs must not consume this Jenkinsfile beforehand.
 
+### Post-release RPM orchestration
+
+`scripts/Jenkinsfile_post_release_captain` calls the product's
+`validate_cluster_rpm_qainfra` and `validate_cluster_arm_rpm_qainfra` jobs for
+each `CHANNELS`/`VERSIONS` combination, with at most four children running at
+once. It forwards `PROVISIONER_MODULE=qainfra`, `QA_INFRA_REF`, `QA_INFRA_REPO`,
+the DTF repository/branch and the managed SSH key name. Each child retains its
+own OS, architecture, TFVARS and test arguments; the captain does not enable
+Prime or replace the child's security configuration.
+
+`INSTALL_MODE=auto` selects the release install mode for `PRODUCT_NAME`;
+commit installs are not supported by these RPM checks. `DRY_RUN=true` checks
+the plan and prints the target jobs without launching builds. Qase reporting
+uses the post-release case mapping when explicitly enabled. PEM parameters
+are not forwarded; child jobs obtain keys from Jenkins Credentials.
+
+The JJB staging captain must use this QA-infra Jenkinsfile, and all four RPM
+child job definitions must declare `QA_INFRA_REPO`. Local orchestration checks:
+`groovy scripts/tests/post_release_captain_test.groovy`.
+
 ## Architecture
 
 ### Flow Diagram
