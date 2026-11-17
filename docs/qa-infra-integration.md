@@ -182,10 +182,9 @@ NVIDIA_VERSION=580.95.05
 # airgap  (TEST_DIR=airgap, MODULE=airgap; Linux only on qainfra)
 TEST_TAG=tarball                                           # tarball | privateregistry | systemdefaultregistry
 TARBALL_TYPE=tar.zst                                       # tarball: tar.zst (fast) | tar.gz
-IMAGE_REGISTRY_URL=https://prime.ribs.rancher.io           # optional: Prime artifacts (<base>/<product>/<version>)
-REGISTRY_USERNAME=...                                      # privateregistry only, OPTIONAL override (default: testuser +
-REGISTRY_PASSWORD=...                                      #   random per-run password; Jenkins credential AIRGAP_REGISTRY_CREDENTIALS);
-                                                           #   never CLI flags or TFVARS
+IMAGE_REGISTRY_URL=https://artifacts.example.invalid           # optional: Prime artifacts (<base>/<product>/<version>)
+REGISTRY_USERNAME=...                                      # both registry methods; optional override of testuser
+REGISTRY_PASSWORD=...                                      # random per-run default; never CLI flags or TFVARS
 BASTION_INSTANCE_TYPE=t3a.medium                           # optional; same arch as the nodes (t4g.large for arm64)
 ARCH=amd64                                                 # amd64 | arm64
 # qainfra provisions private nodes + one bastion with cluster_nodes (airgap_setup=true,
@@ -199,6 +198,11 @@ ARCH=amd64                                                 # amd64 | arm64
 # manual recovery (`sh destroy.sh` with FORCE=1). The registry credentials file is deleted right
 # after the playbook run.
 ```
+
+Both registry methods require authentication in the QA-infra playbook. Use matching DTF and
+QA-infra Airgap revisions: the system-default validator now expects an unauthenticated HTTP 401
+with the OS trust store, then verifies an authenticated image pull. It still requires
+`system-default-registry` and checks the image prefix; it does not rely on source mirrors.
 
 ```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used
