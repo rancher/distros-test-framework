@@ -32,7 +32,7 @@ type flagForwardingCase struct {
 
 func flagForwardingCases() []flagForwardingCase {
 	// Jenkins delivers the TFVARS strings with literal "\n" separators.
-	serverFlags := `prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: stgregistry.suse.com`
+	serverFlags := `prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: registry.example.com`
 	workerFlags := `profile: cis\nselinux: true`
 
 	return []flagForwardingCase{
@@ -41,14 +41,14 @@ func flagForwardingCases() []flagForwardingCase {
 			product:     "rke2",
 			serverFlags: serverFlags,
 			workerFlags: workerFlags,
-			wantServer:  "prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: stgregistry.suse.com",
+			wantServer:  "prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: registry.example.com",
 			wantWorker:  "profile: cis\nselinux: true",
 		},
 		{
 			name:        "rke2 without worker flags does not copy server flags to agents",
 			product:     "rke2",
 			serverFlags: serverFlags,
-			wantServer:  "prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: stgregistry.suse.com",
+			wantServer:  "prime: true\nprofile: cis\nselinux: true\nsystem-default-registry: registry.example.com",
 		},
 		{
 			name:        "k3s forwards both flag sets",
