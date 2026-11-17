@@ -201,6 +201,8 @@ func TestIPv6FirstCIDR(t *testing.T) {
 		{"service-cidr:\n- 2001:cafe:43::/112\n- 10.43.0.0/16\ncni: calico", true},
 		{`service-cidr: 2001:cafe:43::/112,10.43.0.0/16\n` + nodeIPTemplate, true},
 		{nodeIPTemplate + "\nservice-cidr:\n  - 2001:cafe:43::/112", true},
+		{"service-cidr:\n\n  - 2001:cafe:43::/112\n  - 10.43.0.0/16", true},
+		{"service-cidr:\n# primary family first\n  - 2001:cafe:43::/112\ncni: calico", true},
 		{`cni: calico`, false},
 		{``, false},
 	}

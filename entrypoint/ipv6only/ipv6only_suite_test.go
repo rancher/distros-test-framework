@@ -44,8 +44,9 @@ func TestMain(m *testing.M) {
 		cfg.Module = "ipv6only"
 	}
 
-	if cfg.ProvisionerModule == "qainfra" && cfg.Product != "rke2" {
-		resources.LogLevel("error", "qainfra ipv6only supports only rke2, got %q\n", cfg.Product)
+	if cfg.ProvisionerModule == "qainfra" && (cfg.Product != "rke2" || cfg.QAInfraProvider != "aws") {
+		resources.LogLevel("error", "qainfra ipv6only supports only rke2 on aws, got %q on %q\n",
+			cfg.Product, cfg.QAInfraProvider)
 		os.Exit(1)
 	}
 

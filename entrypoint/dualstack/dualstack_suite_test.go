@@ -40,8 +40,9 @@ func TestMain(m *testing.M) {
 		if cfg.Module != "" && cfg.Module != "dualstack" {
 			resources.LogLevel("warn", "ENV_MODULE=%q overridden with dualstack\n", cfg.Module)
 		}
-		if cfg.Product != "rke2" {
-			resources.LogLevel("error", "qainfra dualstack supports only rke2, got %q\n", cfg.Product)
+		if cfg.Product != "rke2" || cfg.QAInfraProvider != "aws" {
+			resources.LogLevel("error", "qainfra dualstack supports only rke2 on aws, got %q on %q\n",
+				cfg.Product, cfg.QAInfraProvider)
 			os.Exit(1)
 		}
 		cfg.Module = "dualstack"
