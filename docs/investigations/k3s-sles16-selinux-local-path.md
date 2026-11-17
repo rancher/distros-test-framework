@@ -40,7 +40,7 @@ ships the affected default helper configuration.
 - Topology: three server nodes plus one worker
 - K3s config: `selinux: true`
 - Jenkins test: manual upgrade with infrastructure preserved
-- Internal build: [mower k3s_manual_upgrade_qainfra #7](https://mower.jenkins.qa.rancher.space/job/distros_qa/job/k3s-tests/job/k3s_manual_upgrade_qainfra/7/)
+- Internal build: mower k3s_manual_upgrade_qainfra #7
 
 Relevant test arguments:
 

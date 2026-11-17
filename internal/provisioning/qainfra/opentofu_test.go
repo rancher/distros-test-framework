@@ -238,7 +238,7 @@ aws_region       = "us-east-2"
 subnets          = "subnet-1ed44d64"
 aws_security_group = ["sg-08e8243a8cfbea8a0", "sg-other"]
 vpc_id           = "vpc-bfccf4d7"
-aws_ami          = "ami-0dcbeb6d585e578d0" # RHEL 10.2
+aws_ami          = "ami-0123456789abcdef0" # RHEL 10.2
 volume_size      = "50"
 ec2_instance_class = "t3.xlarge"
 aws_ssh_user     = "ec2-user"
@@ -254,7 +254,7 @@ aws_ssh_user     = "ec2-user"
 		"subnets":        {cluster.Aws.Subnets, "subnet-1ed44d64"},
 		"sg first item":  {cluster.Aws.SgId, "sg-08e8243a8cfbea8a0"},
 		"vpc":            {cluster.Aws.VPCID, "vpc-bfccf4d7"},
-		"ami (comment)":  {cluster.Aws.EC2.Ami, "ami-0dcbeb6d585e578d0"},
+		"ami (comment)":  {cluster.Aws.EC2.Ami, "ami-0123456789abcdef0"},
 		"volume":         {cluster.Aws.EC2.VolumeSize, "50"},
 		"instance class": {cluster.Aws.EC2.InstanceClass, "t3.xlarge"},
 		"ssh user":       {cluster.SSH.User, "ec2-user"},

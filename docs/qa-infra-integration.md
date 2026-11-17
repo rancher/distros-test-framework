@@ -183,7 +183,7 @@ NVIDIA_VERSION=580.95.05
 # airgap  (TEST_DIR=airgap, MODULE=airgap; Linux only on qainfra)
 TEST_TAG=tarball                                           # tarball | privateregistry | systemdefaultregistry
 TARBALL_TYPE=tar.zst                                       # tarball: tar.zst (fast) | tar.gz
-IMAGE_REGISTRY_URL=https://prime.ribs.rancher.io           # optional: Prime artifacts (<base>/<product>/<version>)
+IMAGE_REGISTRY_URL=<REDACTED_PRIME_ARTIFACT_URL>           # optional: Prime artifacts (<base>/<product>/<version>)
 REGISTRY_USERNAME=...                                      # privateregistry only, OPTIONAL override (default: testuser +
 REGISTRY_PASSWORD=...                                      #   random per-run password; Jenkins credential AIRGAP_REGISTRY_CREDENTIALS);
                                                            #   never CLI flags or TFVARS
@@ -244,7 +244,7 @@ aws_vpc             =  "vpc-bfccf4d7"
 aws_volume_size     = "50"
 aws_subnet          = "subnet-ee8cac86"
 aws_volume_type     = "gp3"
-aws_ami             = "ami-01de4781572fa1285"
+aws_ami             = "<REDACTED_AMI>"
 instance_type       = "t3.xlarge"
 aws_ssh_user        = "ec2-user"
 
