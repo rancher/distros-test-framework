@@ -13,7 +13,7 @@ import (
 
 func TestNetworkEnv(t *testing.T) {
 	for in, want := range map[string]string{
-		"dualstack": envDualstack, " DualStack ": envDualstack, "ipv6only": envIPv6,
+		"dualstack": envDualstack, "DualStack": envDualstack, "\tdualstack\n": envDualstack, "ipv6only": envIPv6,
 		"": "", "airgap": "", "ipv6": "",
 	} {
 		if got := networkEnv(in); got != want {
@@ -181,7 +181,8 @@ func TestBuildNetworkInventoryRejectsMissingAddresses(t *testing.T) {
 func TestNodeAddressIPv6Only(t *testing.T) {
 	n := infraNode{publicIP: "1.1.1.1", privateIP: "10.0.0.1", ipv6: "2600::1"}
 	if n.address(false, true) != "2600::1" || n.address(true, false) != "10.0.0.1" || n.address(false, false) != "1.1.1.1" {
-		t.Errorf("address selection wrong: %q %q %q", n.address(false, true), n.address(true, false), n.address(false, false))
+		t.Errorf("address selection wrong: %q %q %q",
+			n.address(false, true), n.address(true, false), n.address(false, false))
 	}
 }
 
@@ -189,7 +190,8 @@ func TestNodeExternalIPPatch(t *testing.T) {
 	if got := nodeExternalIPPatch("", false); got != "node-external-ip: {{ ansible_host }}" {
 		t.Errorf("default patch changed: %q", got)
 	}
-	if got := nodeExternalIPPatch(envDualstack, false); !strings.Contains(got, "{{ ansible_host }},{{ ansible_host_ipv6 }}") {
+	got := nodeExternalIPPatch(envDualstack, false)
+	if !strings.Contains(got, "{{ ansible_host }},{{ ansible_host_ipv6 }}") {
 		t.Errorf("IPv4-first dual-stack must advertise IPv4 first: %q", got)
 	}
 	if got := nodeExternalIPPatch(envDualstack, true); !strings.Contains(got, "{{ ansible_host_ipv6 }},{{ ansible_host }}") {
@@ -198,18 +200,27 @@ func TestNodeExternalIPPatch(t *testing.T) {
 }
 
 func TestIPv6FirstCIDR(t *testing.T) {
-	for flags, want := range map[string]bool{
-		`cni: calico\nservice-cidr: 2001:cafe:42:0::/56,10.42.0.0/16`: true,
-		`service-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\ncni: calico`: false,
-		`cluster-cidr: 2001:cafe:42::/56,10.42.0.0/16`:                false,
-		`service-cidr: 2001:cafe:43::/112,10.43.0.0/16`:               true,
-		`service-cidr: [10.43.0.0/16, "2001:cafe:43::/112"]`:          false,
-		"service-cidr:\n  - 2001:cafe:43::/112\n  - 10.43.0.0/16":     true,
-		`cni: calico`: false,
-		``:            false,
-	} {
-		if got := ipv6FirstCIDR(flags); got != want {
-			t.Errorf("ipv6FirstCIDR(%q) = %t, want %t", flags, got, want)
+	// The node-ip template is the Jenkins IPv6-first form: unquoted, so not valid YAML on its own.
+	const nodeIPTemplate = `node-ip: {{ ansible_host_ipv6 }},{{ ansible_default_ipv4.address }}`
+	cases := []struct {
+		flags string
+		want  bool
+	}{
+		{`cni: calico\nservice-cidr: 2001:cafe:42:0::/56,10.42.0.0/16`, true},
+		{`service-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\ncni: calico`, false},
+		{`cluster-cidr: 2001:cafe:42::/56,10.42.0.0/16`, false},
+		{`service-cidr: 2001:cafe:43::/112,10.43.0.0/16`, true},
+		{`service-cidr: [10.43.0.0/16, "2001:cafe:43::/112"]`, false},
+		{"service-cidr:\n  - 2001:cafe:43::/112\n  - 10.43.0.0/16", true},
+		{"service-cidr:\n- 2001:cafe:43::/112\n- 10.43.0.0/16\ncni: calico", true},
+		{`service-cidr: 2001:cafe:43::/112,10.43.0.0/16\n` + nodeIPTemplate, true},
+		{nodeIPTemplate + "\nservice-cidr:\n  - 2001:cafe:43::/112", true},
+		{`cni: calico`, false},
+		{``, false},
+	}
+	for _, c := range cases {
+		if got := ipv6FirstCIDR(c.flags); got != c.want {
+			t.Errorf("ipv6FirstCIDR(%q) = %t, want %t", c.flags, got, c.want)
 		}
 	}
 }

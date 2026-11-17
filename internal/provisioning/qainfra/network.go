@@ -164,9 +164,10 @@ func stageBastionKubeconfig(config *driver.InfraConfig) error {
 }
 
 // ipv6FirstCIDR reports whether SERVER_FLAGS' service-cidr lists an IPv6 range first.
+// Only that entry is parsed: unquoted {{ }} templates elsewhere are not valid YAML.
 func ipv6FirstCIDR(serverFlags string) bool {
 	var flags map[string]any
-	if err := yaml.Unmarshal([]byte(resources.NormalizeString(serverFlags)), &flags); err != nil {
+	if err := yaml.Unmarshal([]byte(serviceCIDREntry(serverFlags)), &flags); err != nil {
 		return false
 	}
 	first := ""
@@ -180,4 +181,24 @@ func ipv6FirstCIDR(serverFlags string) bool {
 	}
 
 	return resources.IsIPv6(strings.TrimSpace(first))
+}
+
+// serviceCIDREntry returns the top-level service-cidr key with its indented or "- " continuation lines.
+func serviceCIDREntry(serverFlags string) string {
+	var b strings.Builder
+	in := false
+	for _, line := range strings.Split(resources.NormalizeString(serverFlags), "\n") {
+		cont := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "-")
+		switch {
+		case strings.HasPrefix(line, "service-cidr:"):
+			in = true
+		case !cont:
+			in = false
+		}
+		if in {
+			b.WriteString(line + "\n")
+		}
+	}
+
+	return b.String()
 }
