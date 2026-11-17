@@ -146,3 +146,12 @@ func TestWorkloadsOnLiveNodesConverged(t *testing.T) {
 		t.Fatalf("expected converged, got detail: %s", detail)
 	}
 }
+
+func TestAddressesEqualIPv6Spellings(t *testing.T) {
+	if !addressesEqual("2001:db8:0:0:0:0:0:1", "2001:db8::1") {
+		t.Fatal("equivalent IPv6 spellings must match")
+	}
+	if addressesEqual("10.0.0.1", "10.0.0.10") {
+		t.Fatal("different IPv4 addresses must not match")
+	}
+}
