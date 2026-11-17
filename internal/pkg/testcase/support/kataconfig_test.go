@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -15,7 +16,7 @@ func kataConfigForTest(t *testing.T) *config.Env {
 	t.Helper()
 	for _, key := range []string{
 		"KUBE_CONFIG", "SPLIT_ROLES", "split_roles", "no_of_server_nodes", "no_of_worker_nodes",
-		"INSTALL_MODE", "install_mode", "QA_INFRA_WORKER_NESTED",
+		"INSTALL_MODE", "install_mode", "QA_INFRA_WORKER_NESTED", kataStagingRegistryEnv,
 	} {
 		t.Setenv(key, "")
 	}
@@ -30,7 +31,7 @@ func kataConfigForTest(t *testing.T) *config.Env {
 }
 
 func TestLoadKataConfigSecurityPolicy(t *testing.T) {
-	const staging = kataStagingRegistry
+	const staging = "staging.example.invalid"
 	for _, tc := range []struct {
 		name, nodeOS, version, channel, mode, registry, build, lsm string
 	}{
@@ -48,6 +49,7 @@ func TestLoadKataConfigSecurityPolicy(t *testing.T) {
 			cfg.NodeOS, cfg.InstallVersion, cfg.Channel = tc.nodeOS, tc.version, tc.channel
 			cfg.ServerFlags += "\nsystem-default-registry: " + tc.registry
 			t.Setenv("INSTALL_MODE", tc.mode)
+			t.Setenv(kataStagingRegistryEnv, tc.registry)
 
 			got, err := LoadKataConfig(cfg)
 			if err != nil {
@@ -68,12 +70,56 @@ func TestLoadKataConfigSecurityPolicy(t *testing.T) {
 	}
 }
 
+func TestLoadKataConfigAcceptsExplicitGARegistry(t *testing.T) {
+	cfg := kataConfigForTest(t)
+	cfg.ServerFlags += "\nsystem-default-registry: registry.rancher.com"
+
+	got, err := LoadKataConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Security.BuildType != "ga" || got.Security.Registry != "registry.rancher.com" {
+		t.Errorf("security policy = %+v; want the GA baseline", got.Security)
+	}
+}
+
+type rejectedKataConfig struct {
+	name    string
+	change  func(*config.Env)
+	env     map[string]string
+	wantErr string
+}
+
+// requireKataConfigRejected runs every case and requires LoadKataConfig to refuse it.
+func requireKataConfigRejected(t *testing.T, cases []rejectedKataConfig) {
+	t.Helper()
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := kataConfigForTest(t)
+			if tc.change != nil {
+				tc.change(cfg)
+			}
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+
+			_, err := LoadKataConfig(cfg)
+			if err == nil {
+				t.Fatal("invalid configuration was accepted")
+			}
+			if tc.wantErr != "" && !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q; want it to mention %q", err, tc.wantErr)
+			}
+			if os.Getenv("QA_INFRA_WORKER_NESTED") != "" {
+				t.Error("rejected configuration changed nested virtualization settings")
+			}
+		})
+	}
+}
+
 func TestLoadKataConfigRejectsInvalidInputs(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		change func(*config.Env)
-		env    map[string]string
-	}{
+	requireKataConfigRejected(t, []rejectedKataConfig{
 		{name: "wrong product", change: func(c *config.Env) { c.Product = "k3s" }},
 		{name: "wrong provider", change: func(c *config.Env) { c.QAInfraProvider = "vsphere" }},
 		{name: "wrong architecture", change: func(c *config.Env) { c.Arch = "arm64" }},
@@ -96,24 +142,43 @@ func TestLoadKataConfigRejectsInvalidInputs(t *testing.T) {
 		}},
 		{name: "unsupported snapshotter", change: func(c *config.Env) { c.WorkerFlags += "\nsnapshotter: native" }},
 		{name: "invalid YAML", change: func(c *config.Env) { c.ServerFlags = "selinux: [" }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := kataConfigForTest(t)
-			if tc.change != nil {
-				tc.change(cfg)
-			}
-			for key, value := range tc.env {
-				t.Setenv(key, value)
-			}
+	})
+}
 
-			if _, err := LoadKataConfig(cfg); err == nil {
-				t.Fatal("invalid configuration was accepted")
-			}
-			if os.Getenv("QA_INFRA_WORKER_NESTED") != "" {
-				t.Error("rejected configuration changed nested virtualization settings")
-			}
-		})
-	}
+func TestLoadKataConfigRejectsInvalidStagingRegistry(t *testing.T) {
+	requireKataConfigRejected(t, []rejectedKataConfig{
+		{
+			name: "RC without KATA_STAGING_REGISTRY",
+			change: func(c *config.Env) {
+				c.Channel = "testing"
+				c.ServerFlags += "\nsystem-default-registry: staging.example.invalid"
+			},
+			wantErr: kataStagingRegistryEnv,
+		},
+		{
+			name: "server registry differs from KATA_STAGING_REGISTRY",
+			change: func(c *config.Env) {
+				c.Channel = "testing"
+				c.ServerFlags += "\nsystem-default-registry: other.example.invalid"
+			},
+			env:     map[string]string{kataStagingRegistryEnv: "staging.example.invalid"},
+			wantErr: "registry must match",
+		},
+		{
+			name:    "registry override on a GA build without KATA_STAGING_REGISTRY",
+			change:  func(c *config.Env) { c.ServerFlags += "\nsystem-default-registry: staging.example.invalid" },
+			wantErr: "registry must match",
+		},
+		{
+			name: "KATA_STAGING_REGISTRY with scheme and namespace",
+			change: func(c *config.Env) {
+				c.Channel = "testing"
+				c.ServerFlags += "\nsystem-default-registry: staging.example.invalid"
+			},
+			env:     map[string]string{kataStagingRegistryEnv: "docker://staging.example.invalid/rancher"},
+			wantErr: "bare registry host",
+		},
+	})
 }
 
 func TestPollKataRetriesUntilReady(t *testing.T) {

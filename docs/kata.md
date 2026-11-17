@@ -83,6 +83,7 @@ INSTALL_VERSION=<approved-rke2-version>
 INSTALL_CHANNEL=<approved-channel>
 INSTALL_METHOD=tar
 RESOURCE_NAME=<unique-prefix>
+KATA_STAGING_REGISTRY=<staging-registry-host>   # testing/RC/commit builds only
 ```
 
 `prime: true` is server-only; agents inherit registry selection during bootstrap.
@@ -94,18 +95,23 @@ the server. This initial suite requires kube-proxy (no proxy-free CNI mode).
 Future Track B/C coverage with Cilium kube-proxy replacement needs a different
 approved system-image oracle before that mode can run; do not skip the check.
 
-The suite owns its fixed defaults; there are no Kata image, manifest, config,
-build-type or expected-registry job parameters. It enables worker nested
+The suite owns its fixed defaults; there are no Kata image, manifest, config or
+build-type job parameters. The one expected-registry input is `KATA_STAGING_REGISTRY`,
+supplied by private controller configuration. The suite enables worker nested
 virtualization itself before provisioning.
 
 The existing version, install channel and server configuration select the
-security baseline. Testing/RC/commit builds require the approved staging
-`system-default-registry` on the server; the suite defines its value. A GA release
-on stable/latest without that staging override expects `registry.rancher.com`
-through Prime's automatic selection. An explicit staging override selects the
-staging baseline even for a release-shaped tag. Confirm promotion before choosing
-the GA channel; a version string alone is not evidence of promotion. Workers
-inherit the registry; a conflicting explicit override fails preflight.
+security baseline. Testing/RC/commit builds require `KATA_STAGING_REGISTRY` and
+the same host as `system-default-registry` on the server. The variable holds only
+the host, for example `<staging-registry-host>`, with no scheme or namespace. The
+suite compares the server value with it; `SERVER_FLAGS` alone is never the reference.
+A GA release on stable/latest without that staging override expects
+`registry.rancher.com` through Prime's automatic selection. An explicit override
+equal to `KATA_STAGING_REGISTRY` selects the staging baseline even for a
+release-shaped tag; without the variable, an override that differs from the GA
+registry fails preflight. Confirm promotion before choosing the GA channel; a version string
+alone is not evidence of promotion. Workers inherit the registry; a conflicting
+explicit override fails preflight.
 
 Host enforcement is fixed by the approved homogeneous `NODE_OS` row:
 `rhel10`/`sles16` require SELinux Enforcing and CRI SELinux;

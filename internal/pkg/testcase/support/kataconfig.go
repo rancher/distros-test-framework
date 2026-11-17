@@ -19,8 +19,9 @@ import (
 
 var kataGAVersion = regexp.MustCompile(`^v\d+\.\d+\.\d+\+rke2r\d+$`)
 
-// kataStagingRegistry is the one registry RC, testing and commit builds must use.
-const kataStagingRegistry = "stgregistry.suse.com"
+// kataStagingRegistryEnv carries the approved staging registry host from private configuration,
+// so the host is not committed and a wrong SERVER_FLAGS value cannot define its own reference.
+const kataStagingRegistryEnv = "KATA_STAGING_REGISTRY"
 
 // glibc for functional checks, musl for performance only.
 const (
@@ -119,10 +120,21 @@ func loadKataSecurity(cfg *config.Env) (kataSecurityPolicy, error) {
 	if decodeErr := yaml.Unmarshal([]byte(resources.NormalizeString(cfg.ServerFlags)), &serverConfig); decodeErr != nil {
 		return policy, fmt.Errorf("decode server security configuration: %w", decodeErr)
 	}
-	if policy.Channel == "testing" || !kataGAVersion.MatchString(policy.Version) ||
-		strings.Contains(os.Getenv("INSTALL_MODE")+os.Getenv("install_mode"), "COMMIT") ||
-		serverConfig.Registry == kataStagingRegistry {
-		policy.BuildType, policy.Registry = "staging", kataStagingRegistry
+	stagingRegistry := strings.TrimSpace(os.Getenv(kataStagingRegistryEnv))
+	if strings.ContainsAny(stagingRegistry, "/ \t") {
+		return policy, fmt.Errorf("%s must be a bare registry host without scheme or path", kataStagingRegistryEnv)
+	}
+
+	stagingBuild := policy.Channel == "testing" || !kataGAVersion.MatchString(policy.Version) ||
+		strings.Contains(os.Getenv("INSTALL_MODE")+os.Getenv("install_mode"), "COMMIT")
+	explicitStaging := stagingRegistry != "" && serverConfig.Registry == stagingRegistry
+	if stagingBuild || explicitStaging {
+		if stagingRegistry == "" {
+			return policy, fmt.Errorf("RC, testing and commit builds require %s from private configuration",
+				kataStagingRegistryEnv)
+		}
+
+		policy.BuildType, policy.Registry = "staging", stagingRegistry
 	}
 
 	// Approved homogeneous OS rows, never a fallback when SELinux enforcement is missing.
@@ -160,7 +172,7 @@ func validateKataSecurityFlags(flags string, server bool, policy *kataSecurityPo
 		return values, errors.New("prime is server-only; remove it from worker configuration")
 	}
 	if values.Registry != "" && values.Registry != policy.Registry {
-		return values, fmt.Errorf("registry must match the %s baseline: %s", policy.BuildType, policy.Registry)
+		return values, fmt.Errorf("registry must match the %s baseline registry", policy.BuildType)
 	}
 	if server && policy.BuildType == "staging" && values.Registry != policy.Registry {
 		return values, errors.New("RC/staging requires the approved system-default-registry explicitly on the server")
