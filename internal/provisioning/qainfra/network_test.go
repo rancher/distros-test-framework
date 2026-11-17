@@ -331,7 +331,8 @@ func TestPatchK3sConfigTemplate(t *testing.T) {
 			InfraProvisioner: &driver.InfraProvisionerConfig{TempDir: t.TempDir()},
 		}
 		cfg.Cluster.Config.ServerFlags = "service-cidr: 2001:cafe:43::/112,10.43.0.0/16"
-		path := filepath.Join(cfg.InfraProvisioner.TempDir, "ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
+		path := filepath.Join(cfg.InfraProvisioner.TempDir,
+			"ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
