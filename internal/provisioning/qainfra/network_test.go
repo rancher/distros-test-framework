@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 func TestNetworkEnv(t *testing.T) {
@@ -269,6 +271,23 @@ func TestInjectNetworkModuleArgsLineEndings(t *testing.T) {
 		got := injectNetworkModuleArgs(tf, envDualstack)
 		if strings.Contains(got, "airgap_setup") || strings.Contains(got, "proxy_setup") {
 			t.Errorf("not stripped from %q: %q", tf, got)
+		}
+	}
+}
+
+// Only dualstack/ipv6 runs route IPv6 SSH through the bastion; airgap keeps its own private-node path.
+func TestApplyBastionRegistersSSHJumpForNetworkRuns(t *testing.T) {
+	t.Cleanup(func() { resources.SetSSHBastion("") })
+	data := &clusterNodesJSON{Bastion: &clusterBastion{PublicIP: "203.0.113.5", PublicDNS: "b.example"}}
+	for module, want := range map[string]string{
+		ipv6OnlyModule: "203.0.113.5", dualstackModule: "203.0.113.5", airgapModule: "",
+	} {
+		resources.SetSSHBastion("")
+		if err := applyBastion(airgapTestConfig(t, module), data); err != nil {
+			t.Fatalf("%s: %v", module, err)
+		}
+		if got := resources.SSHBastion(); got != want {
+			t.Errorf("%s: SSH bastion = %q, want %q", module, got, want)
 		}
 	}
 }
