@@ -679,7 +679,18 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 			"assuming it was already deleted, a Node left behind will fail later checks\n", ip, expectedID)
 	}
 
-	name = r.prepareOwnedNode(ip, name, currentID, expectedID)
+	switch currentID {
+	case expectedID:
+		if err := r.stopServices(ip); err != nil {
+			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
+		}
+	case "":
+	default:
+		// The Node resolved from this ip may be the other instance's, so never delete it.
+		resources.LogLevel("warn", "ip %s now belongs to instance %s, not %s; leaving it and its Node untouched\n",
+			ip, currentID, expectedID)
+		name = ""
+	}
 
 	// Ownership is re-read before every delete; an empty owner is indeterminate pre-termination.
 	if name != "" && currentID == expectedID {
@@ -712,26 +723,6 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 	}
 
 	return r.deleteNode(name, noLiveOwner)
-}
-
-// prepareOwnedNode stops services when expectedID still owns ip and returns the Node name
-// that is safe to delete: "" when another instance now holds ip.
-func (r nodeRemoval) prepareOwnedNode(ip, name, currentID, expectedID string) string {
-	switch currentID {
-	case expectedID:
-		if err := r.stopServices(ip); err != nil {
-			resources.LogLevel("warn", "could not stop services on %s, continuing: %v\n", ip, err)
-		}
-	case "":
-	default:
-		// The Node resolved from this ip may be the other instance's, so never delete it.
-		resources.LogLevel("warn", "ip %s now belongs to instance %s, not %s; leaving it and its Node untouched\n",
-			ip, currentID, expectedID)
-
-		return ""
-	}
-
-	return name
 }
 
 // ensureAPINotOnNode fails when kubectl targets the node being removed.
