@@ -200,9 +200,12 @@ func pullThroughRegistry(cluster *driver.Cluster, node, host string) error {
 	return nil
 }
 
+// k3sBinary is absolute because SLES/RHEL sudo secure_path omits /usr/local/bin.
+const k3sBinary = "/usr/local/bin/k3s"
+
 func crictlImagesCmd(product string) string {
 	if product == "k3s" {
-		return "sudo k3s crictl images"
+		return "sudo " + k3sBinary + " crictl images"
 	}
 
 	return "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml images"
@@ -210,7 +213,7 @@ func crictlImagesCmd(product string) string {
 
 func crictlPullCmd(product, image string) string {
 	if product == "k3s" {
-		return "sudo k3s crictl pull " + image
+		return "sudo " + k3sBinary + " crictl pull " + image
 	}
 
 	return "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml pull " + image
