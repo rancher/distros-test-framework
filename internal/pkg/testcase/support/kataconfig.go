@@ -19,6 +19,9 @@ import (
 
 var kataGAVersion = regexp.MustCompile(`^v\d+\.\d+\.\d+\+rke2r\d+$`)
 
+// kataStagingRegistry is the one registry RC, testing and commit builds must use.
+const kataStagingRegistry = "stgregistry.suse.com"
+
 // glibc for functional checks, musl for performance only.
 const (
 	kataTestImage = "docker.io/library/busybox@sha256:66a6306db78bf2dbf3487f293aa8d6990d8e506fdffab9cc43fe422becf886e4"
@@ -118,8 +121,8 @@ func loadKataSecurity(cfg *config.Env) (kataSecurityPolicy, error) {
 	}
 	if policy.Channel == "testing" || !kataGAVersion.MatchString(policy.Version) ||
 		strings.Contains(os.Getenv("INSTALL_MODE")+os.Getenv("install_mode"), "COMMIT") ||
-		serverConfig.Registry == "stgregistry.suse.com" {
-		policy.BuildType, policy.Registry = "staging", "stgregistry.suse.com"
+		serverConfig.Registry == kataStagingRegistry {
+		policy.BuildType, policy.Registry = "staging", kataStagingRegistry
 	}
 
 	// Approved homogeneous OS rows, never a fallback when SELinux enforcement is missing.
@@ -382,6 +385,5 @@ func (s *KataRun) cleanup(ctx context.Context) error {
 		}
 	}
 
-	// Keep the HelmChart on preserved clusters; uninstall is KATA-08, outside this suite.
 	return errors.Join(errs...)
 }

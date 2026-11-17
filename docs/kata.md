@@ -99,8 +99,8 @@ build-type or expected-registry job parameters. It enables worker nested
 virtualization itself before provisioning.
 
 The existing version, install channel and server configuration select the
-security baseline. Testing/RC/commit builds require
-`system-default-registry: stgregistry.suse.com` on the server. A GA release
+security baseline. Testing/RC/commit builds require the approved staging
+`system-default-registry` on the server; the suite defines its value. A GA release
 on stable/latest without that staging override expects `registry.rancher.com`
 through Prime's automatic selection. An explicit staging override selects the
 staging baseline even for a release-shaped tag. Confirm promotion before choosing

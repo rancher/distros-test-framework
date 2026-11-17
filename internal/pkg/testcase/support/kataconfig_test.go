@@ -30,7 +30,7 @@ func kataConfigForTest(t *testing.T) *config.Env {
 }
 
 func TestLoadKataConfigSecurityPolicy(t *testing.T) {
-	const staging = "stgregistry.suse.com"
+	const staging = kataStagingRegistry
 	for _, tc := range []struct {
 		name, nodeOS, version, channel, mode, registry, build, lsm string
 	}{
