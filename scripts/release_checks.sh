@@ -92,7 +92,7 @@ redact_output () {
 require_endpoint () {
     if [ "$(printf '%s' "$2" | tr -d '\r\n')" != "$2" ] ||
         ! printf '%s\n' "$2" | LC_ALL=C grep -Eq "^$3://[a-zA-Z0-9][a-zA-Z0-9.:-]*(/[a-zA-Z0-9._~+/-]*)?$"; then
-        echo "FAIL: configure $1 as a $3:// endpoint without credentials, query or fragment." >&2
+        echo "FAIL: ${VERSION}: configure $1 as a $3:// endpoint without credentials, query or fragment." | tee -a "$FAILURE_FILE" >&2
         return 1
     fi
 }
@@ -596,10 +596,12 @@ run_checks () (
         echo "Version under test: ${VERSION} ; Prefix: ${VERSION_PREFIX} Suffix: ${VERSION_SUFFIX}"
 
         if [ "${LTS}" = "true" ]; then
-            require_endpoint LTS_ARTIFACT_BASE_URL "${LTS_ARTIFACT_BASE_URL}" https || exit 1
+            require_endpoint LTS_ARTIFACT_BASE_URL "${LTS_ARTIFACT_BASE_URL}" https || continue
         fi
         case "$VERSION_PREFIX" in
-            *rc*) require_endpoint PRIME_RC_REGISTRY "${PRIME_RC_REGISTRY}" docker || exit 1 ;;
+            *rc*)
+                require_endpoint PRIME_RC_REGISTRY "${PRIME_RC_REGISTRY}" docker || continue
+                ;;
         esac
 
         if [ "${LTS}" = "false" ]; then

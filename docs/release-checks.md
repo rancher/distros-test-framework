@@ -27,9 +27,10 @@ forks), or export the same environment variables locally from private configurat
 | `PRIME_RC_REGISTRY` | Any RC, with `-v` or `-l` | `docker://<registry-host>/<namespace>` |
 
 Use the endpoints supplied by the release publisher. There are no embedded
-private defaults; missing or invalid configuration fails before checking that
-version. Public GA checks with `-v` need neither setting. Endpoint values must
-not contain credentials, query strings or fragments.
+private defaults; missing or invalid configuration skips that version and records
+its failure in the final summary. Remaining versions are still checked, and any
+failure keeps the exit status nonzero. Public GA checks with `-v` need neither
+setting. Endpoint values must not contain credentials, query strings or fragments.
 
 The script masks configured endpoints and their hostnames in combined stdout and
 stderr, including debug commands, tool errors and the failure summary, while
