@@ -22,32 +22,6 @@ func TestNetworkEnv(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-=======
-func TestValidateNetworkEnv(t *testing.T) {
-	if err := validateNetworkEnv("rke2", "aws", envIPv6); err != nil {
-		t.Errorf("rke2/aws ipv6 must be accepted: %v", err)
-	}
-	if err := validateNetworkEnv("k3s", "aws", ""); err != nil {
-		t.Errorf("non-network modules must be untouched: %v", err)
-	}
-	for _, env := range []string{envDualstack, envIPv6} {
-		if err := validateNetworkEnv("k3s", "aws", env); err != nil {
-			t.Errorf("k3s/aws %s must be accepted (qa-infra ansible/k3s/%s): %v", env, env, err)
-		}
-	}
-	if err := validateNetworkEnv("rancher", "aws", envDualstack); err == nil {
-		t.Error("products without a qa-infra dualstack playbook must be rejected")
-	}
-	if err := validateNetworkEnv("k3s", "vsphere", envIPv6); err == nil {
-		t.Error("k3s on a non-aws provider must be rejected")
-	}
-	if err := validateNetworkEnv("rke2", "vsphere", envDualstack); err == nil {
-		t.Error("non-aws provider must be rejected: the module only exists under tofu/aws")
-	}
-}
-
->>>>>>> 11ed827 (Support k3s dualstack and ipv6only on the qainfra provisioner)
 func TestPlaybookAndAnsiblePathForNetworkEnv(t *testing.T) {
 	if got, _ := getPlaybookPath("rke2", false, envIPv6); got != "rke2-playbook-ipv6.yml" {
 		t.Errorf("ipv6 playbook = %q", got)
@@ -271,7 +245,6 @@ func TestBuildAnsibleArgsPerRoleFlags(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 func TestBuildNetworkInventoryQuotesKeyPath(t *testing.T) {
 	data, err := parseClusterNodesJSON([]byte(networkNodesJSON))
 	if err != nil {
@@ -299,7 +272,8 @@ func TestInjectNetworkModuleArgsLineEndings(t *testing.T) {
 			t.Errorf("not stripped from %q: %q", tf, got)
 		}
 	}
-=======
+}
+
 // k3sTemplateTail mirrors the node-external-ip block in qa-infra's roles/k3s_install/templates/k3s-config.yaml.j2.
 const k3sTemplateTail = `{% if public_ip is defined and public_ip | trim != '' and (k3s_node_external_ip | default(true)) %}
 node-external-ip:
@@ -345,7 +319,7 @@ func TestPatchK3sConfigTemplate(t *testing.T) {
 			Cluster:          &driver.Cluster{},
 			InfraProvisioner: &driver.InfraProvisionerConfig{TempDir: t.TempDir()},
 		}
-		cfg.Cluster.Config.ServerFlags = "cluster-cidr: 2001:cafe:42::/56,10.42.0.0/16"
+		cfg.Cluster.Config.ServerFlags = "service-cidr: 2001:cafe:43::/112,10.43.0.0/16"
 		path := filepath.Join(cfg.InfraProvisioner.TempDir, "ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -382,5 +356,4 @@ func TestPatchK3sConfigTemplate(t *testing.T) {
 	if err := patchK3sConfigTemplate(cfg); err == nil {
 		t.Error("a missing k3s template on a dualstack run must fail")
 	}
->>>>>>> 11ed827 (Support k3s dualstack and ipv6only on the qainfra provisioner)
 }
