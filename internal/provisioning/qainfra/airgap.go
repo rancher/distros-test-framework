@@ -196,7 +196,8 @@ func airgapScenario() (string, customflag.FlagConfig, error) {
 		}
 		customflag.ServiceFlag.AirgapFlag.RegistryUsername = customflag.DefaultRegistryUsername
 		customflag.ServiceFlag.AirgapFlag.RegistryPassword = password
-		flags.AirgapFlag = customflag.ServiceFlag.AirgapFlag
+		flags.AirgapFlag.RegistryUsername = customflag.DefaultRegistryUsername
+		flags.AirgapFlag.RegistryPassword = password
 	}
 
 	return method, flags, nil

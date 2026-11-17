@@ -135,7 +135,8 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 	code, err := CmdForPrivateNode(cluster,
 		fmt.Sprintf("curl -s --max-time 20 -o /dev/null -w %%{http_code} https://%s/v2/", host), node)
 	if err != nil || strings.TrimSpace(code) != "401" {
-		return fmt.Errorf("registry %s must require auth with the OS trust store (want 401): %v %q", host, err, code)
+		return fmt.Errorf("registry %s must require auth with the OS trust store (want 401; needs a QA-infra "+
+			"airgap revision that authenticates this registry): %v %q", host, err, code)
 	}
 
 	images, err := CmdForPrivateNode(cluster, crictlImagesCmd(product), node)

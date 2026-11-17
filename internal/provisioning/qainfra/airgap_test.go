@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -243,9 +244,14 @@ func testAirgapRegistryCredentials(t *testing.T, tag string) {
 	t.Setenv(testTagEnv, tag)
 	customflag.ServiceFlag.AirgapFlag.RegistryUsername = ""
 	customflag.ServiceFlag.AirgapFlag.RegistryPassword = ""
+	customflag.ServiceFlag.AirgapFlag.TarballType = ""
 
-	if _, err := airgapAnsibleArgs(cfg, airgapPlaybook); err != nil {
+	first, err := airgapAnsibleArgs(cfg, airgapPlaybook)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.Contains(first, "tarball_type="+defaultTarballType) {
+		t.Fatalf("the default tarball type must survive credential generation: %v", first)
 	}
 	data, err := os.ReadFile(filepath.Join(cfg.InfraProvisioner.RunDir, airgapSecretsName))
 	if err != nil || !strings.Contains(string(data), customflag.DefaultRegistryUsername) {
