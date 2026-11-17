@@ -158,11 +158,15 @@ node {
                     if (dryRun) {
                       echo "DRY_RUN=true → ${targetAmd} (${jobAmdName})"
                     } else {
-                      build job: targetAmd,
+                      def child = build job: targetAmd,
                         parameters: childParams,
-                        propagate: propagateChildren,
+                        propagate: false,
                         quietPeriod: 0,
                         wait: true
+
+                      if (propagateChildren && child.result != 'SUCCESS') {
+                        error "${targetAmd} #${child.number} finished ${child.result}"
+                      }
                     }
                   }
                 }
@@ -172,11 +176,15 @@ node {
                     if (dryRun) {
                       echo "DRY_RUN=true → ${targetArm} (${jobArmName})"
                     } else {
-                      build job: targetArm,
+                      def child = build job: targetArm,
                         parameters: childParams,
-                        propagate: propagateChildren,
+                        propagate: false,
                         quietPeriod: 0,
                         wait: true
+
+                      if (propagateChildren && child.result != 'SUCCESS') {
+                        error "${targetArm} #${child.number} finished ${child.result}"
+                      }
                     }
                   }
                 }
@@ -184,7 +192,9 @@ node {
             }
             echo "Planned executions: ${jobs.size()}"
             jobs.keySet().toList().collate(4).each { names ->
-              parallel jobs.subMap(names)
+              catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: false) {
+                parallel jobs.subMap(names)
+              }
             }
           } // stage
         } // dir

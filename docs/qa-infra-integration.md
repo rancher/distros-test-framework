@@ -22,6 +22,9 @@ the DTF repository/branch and the managed SSH key name. Each child retains its
 own OS, architecture, TFVARS and test arguments; the captain does not enable
 Prime or replace the child's security configuration.
 
+A failed child marks the captain as failed when `PROPAGATE_CHILD_FAILURES=true`,
+but later batches still run. Cancelling the captain stops the remaining batches.
+
 `INSTALL_MODE=auto` selects the release install mode for `PRODUCT_NAME`;
 commit installs are not supported by these RPM checks. `DRY_RUN=true` checks
 the plan and prints the target jobs without launching builds. Qase reporting
@@ -29,7 +32,8 @@ uses the post-release case mapping when explicitly enabled. PEM parameters
 are not forwarded; child jobs obtain keys from Jenkins Credentials.
 
 The JJB staging captain must use this QA-infra Jenkinsfile, and all four RPM
-child job definitions must declare `QA_INFRA_REPO`.
+child job definitions must declare `QA_INFRA_REPO`. Promote the migration to DTF
+`main` before deploying the captain and children's `main` SCM/`BRANCH` defaults.
 
 ## Architecture
 
