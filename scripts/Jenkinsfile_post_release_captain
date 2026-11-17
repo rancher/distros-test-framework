@@ -1,7 +1,7 @@
 #!groovy
 
 node {
-  def branch  = (env.BRANCH  && env.BRANCH  != 'null' && env.BRANCH.trim())  ? env.BRANCH  : 'qa-infra-RC-1'
+  def branch  = (env.BRANCH  && env.BRANCH  != 'null' && env.BRANCH.trim())  ? env.BRANCH  : 'main'
   def repo    = (env.REPO    && env.REPO    != 'null' && env.REPO.trim())    ? [[url: env.REPO]] : scm.userRemoteConfigs
   def timeout = (env.TIMEOUT && env.TIMEOUT != 'null' && env.TIMEOUT.trim()) ? env.TIMEOUT : '100m'
 
