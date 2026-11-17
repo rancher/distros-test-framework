@@ -59,7 +59,7 @@ func loadQAInfra(i *driver.InfraConfig) (*driver.InfraConfig, error) {
 	stateRoot := runStateRoot()
 	envConfig := addEnvConfig(runDir(stateRoot, runID))
 
-	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product, isAirgap(i))
+	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product, isAirgap(i), networkEnv(i.Module))
 	if ansiblePathErr != nil {
 		return nil, fmt.Errorf("error getting ansible path: %w", ansiblePathErr)
 	}
@@ -146,8 +146,8 @@ func addEnvConfig(runDirPath string) environmentConfig {
 }
 
 // getAnsiblePath returns the ansible path for the given product (the shared
-// airgap playbook dir when airgap is requested).
-func getAnsiblePath(product string, airgap bool) (string, error) {
+// airgap playbook dir when airgap is requested, ansible/rke2/<env> for dualstack/ipv6).
+func getAnsiblePath(product string, airgap bool, networkEnv string) (string, error) {
 	if product == "" {
 		return "", errors.New("product is required")
 	}
@@ -158,6 +158,9 @@ func getAnsiblePath(product string, airgap bool) (string, error) {
 	}
 	if airgap {
 		return airgapAnsiblePath, nil
+	}
+	if networkEnv != "" {
+		return fmt.Sprintf("ansible/%s/%s", product, networkEnv), nil
 	}
 
 	return fmt.Sprintf("ansible/%s/default", product), nil
@@ -414,11 +417,12 @@ func buildClusterConfig(config *driver.InfraConfig) error {
 	}
 
 	airgap := config.InfraProvisioner.AirgapSetup
+	ipv6Only := networkEnv(config.Module) == envIPv6
 	var serverIPs, agentIPs []string
 	for _, node := range nodes {
-		addr := node.address(airgap)
+		addr := node.address(airgap, ipv6Only)
 		if addr == "" {
-			return fmt.Errorf("node %s has no usable address (airgap=%t)", node.name, airgap)
+			return fmt.Errorf("node %s has no usable address (airgap=%t ipv6only=%t)", node.name, airgap, ipv6Only)
 		}
 		if isServerRole(node.role) {
 			serverIPs = append(serverIPs, addr)
@@ -490,12 +494,16 @@ func applyExternalDatastore(config *driver.InfraConfig) {
 	resources.LogLevel("info", "Using external datastore (%s); injected datastore-endpoint into server flags", dbKind)
 }
 
-// applyBastion records the bastion from cluster_nodes_json; airgap requires one.
+// applyBastion records the bastion from cluster_nodes_json; airgap, dualstack and ipv6 require one.
 func applyBastion(config *driver.InfraConfig, data *clusterNodesJSON) error {
 	if data.Bastion == nil {
 		if config.InfraProvisioner.AirgapSetup {
 			return errors.New("airgap run but cluster_nodes_json has no bastion: " +
 				"the qa-infra ref lacks bastion support (schema v2)")
+		}
+		if env := networkEnv(config.Module); env != "" {
+			return fmt.Errorf("%s run but cluster_nodes_json has no bastion_ip: "+
+				"the qa-infra ref lacks the %s module bastion", env, env)
 		}
 
 		return nil
@@ -507,6 +515,10 @@ func applyBastion(config *driver.InfraConfig, data *clusterNodesJSON) error {
 	}
 	config.Cluster.NumBastion = 1
 	resources.LogLevel("info", "Bastion: %s (%s)", data.Bastion.PublicIP, data.Bastion.PublicDNS)
+	if networkEnv(config.Module) != "" {
+		// IPv6 node addresses may be unroutable from the runner; post-provision SSH jumps via the bastion.
+		resources.SetSSHBastion(data.Bastion.PublicIP)
+	}
 
 	return nil
 }

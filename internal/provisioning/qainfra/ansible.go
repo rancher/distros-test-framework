@@ -26,6 +26,9 @@ func setupAnsibleEnvironment(config *driver.InfraConfig) error {
 		if err := patchRKE2ConfigTemplate(config); err != nil {
 			return fmt.Errorf("failed to patch rke2_config template: %w", err)
 		}
+		if err := patchK3sConfigTemplate(config); err != nil {
+			return fmt.Errorf("failed to patch k3s_install template: %w", err)
+		}
 	}
 
 	if err := installAnsibleCollection(config.InfraProvisioner.TempDir); err != nil {
@@ -92,7 +95,7 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	}
 
 	patch := "\n# Injected by distros-test-framework: surface AWS public IP via kubelet.\n" +
-		"node-external-ip: {{ ansible_host }}\n"
+		nodeExternalIPPatch(networkEnv(config.Module), ipv6FirstCIDR(config.Cluster.Config.ServerFlags)) + "\n"
 
 	f, err := os.OpenFile(templatePath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -105,6 +108,34 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 
 	resources.LogLevel("info",
 		"Patched rke2_config template to advertise node-external-ip from ansible_host")
+
+	return nil
+}
+
+// patchK3sConfigTemplate rewrites k3s_install's node-external-ip for k3s dualstack/ipv6 runs.
+func patchK3sConfigTemplate(config *driver.InfraConfig) error {
+	env := networkEnv(config.Module)
+	if !strings.EqualFold(config.Product, "k3s") || env == "" {
+		return nil
+	}
+	templatePath := filepath.Join(config.InfraProvisioner.TempDir,
+		"ansible", "roles", "k3s_install", "templates", "k3s-config.yaml.j2")
+	tmpl, err := os.ReadFile(templatePath)
+	if err != nil {
+		return fmt.Errorf("read k3s template: %w", err)
+	}
+	patched, ok := patchK3sExternalIP(string(tmpl), env, ipv6FirstCIDR(config.Cluster.Config.ServerFlags))
+	if !ok {
+		// Keep provisioning; tests that curl node external IPs will report the gap.
+		resources.LogLevel("warn", "node-external-ip block not found in %s; k3s %s nodes keep "+
+			"advertising only ansible_host", templatePath, env)
+
+		return nil
+	}
+	if err := os.WriteFile(templatePath, []byte(patched), 0o644); err != nil {
+		return fmt.Errorf("write k3s template: %w", err)
+	}
+	resources.LogLevel("info", "Patched k3s_install template to advertise %s node-external-ip", env)
 
 	return nil
 }
@@ -251,7 +282,8 @@ func ensureSSHAnsibleConfig(config *driver.InfraConfig) error {
 }
 
 func executeAnsiblePlaybook(config *driver.InfraConfig) error {
-	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup)
+	playbookPath, playbookNameErr := getPlaybookPath(config.Product, config.InfraProvisioner.AirgapSetup,
+		networkEnv(config.Module))
 	if playbookNameErr != nil {
 		return fmt.Errorf("failed to get playbook name: %w", playbookNameErr)
 	}
@@ -292,9 +324,12 @@ func executeAnsiblePlaybook(config *driver.InfraConfig) error {
 	return nil
 }
 
-func getPlaybookPath(product string, airgap bool) (string, error) {
+func getPlaybookPath(product string, airgap bool, networkEnv string) (string, error) {
 	if airgap {
 		return airgapPlaybook, nil
+	}
+	if networkEnv != "" {
+		return fmt.Sprintf("%s-playbook-%s.yml", strings.ToLower(product), networkEnv), nil
 	}
 	switch strings.ToLower(product) {
 	case "k3s":
@@ -322,12 +357,17 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 	serverFlags := config.Cluster.Config.ServerFlags
 	args = addServerFlags(args, serverFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
+	// The playbook selects server_flags/worker_flags per node role; rke2_additional_config
+	// bypasses that on every node, so dualstack/ipv6 runs skip it (as all other runs do).
+	perRoleFlags := networkEnv(config.Module) != ""
 	args = addChannel(args, config.Cluster.Config.Channel)
 
 	if strings.Contains(config.Product, "rke2") {
 		args = addInstallMethod(args, config.Cluster.Config.InstallMethod)
 		args = addCNI(args, config.CNI)
-		args = addRKE2AdditionalConfig(args, serverFlags)
+		if !perRoleFlags {
+			args = addRKE2AdditionalConfig(args, serverFlags)
+		}
 		args = addOptionalFiles(args)
 	}
 

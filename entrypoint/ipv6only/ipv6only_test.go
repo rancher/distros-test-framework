@@ -16,6 +16,9 @@ var _ = Describe("Test ipv6 only cluster:", Ordered, func() {
 	})
 
 	It("Install product on ipv6 only nodes", func() {
+		if cfg.ProvisionerModule == "qainfra" {
+			Skip("qainfra installs the product with the qa-infra ipv6 playbook")
+		}
 		testcase.TestIPv6Only(cluster, awsClient)
 	})
 

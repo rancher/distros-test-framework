@@ -31,13 +31,14 @@ func productVersion(product string) (string, error) {
 		return "", ipsErr
 	}
 
-	path, findErr := FindPath(product, ips[0])
+	ip := SSHTargetIP(ips)
+	path, findErr := FindPath(product, ip)
 	if findErr != nil {
 		return "", ReturnLogError("failed to find path for product: %s, error: %w\n", product, findErr)
 	}
 
 	cmd := path + " -v"
-	v, err := RunCommandOnNode(cmd, ips[0])
+	v, err := RunCommandOnNode(cmd, ip)
 	if err != nil {
 		return "", ReturnLogError("failed to get version for product: %s, error: %w\n", product, err)
 	}
