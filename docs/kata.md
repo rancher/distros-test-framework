@@ -97,7 +97,7 @@ approved system-image oracle before that mode can run; do not skip the check.
 
 The suite owns its fixed defaults; there are no Kata image, manifest, config or
 build-type job parameters. The one expected-registry input is `KATA_STAGING_REGISTRY`,
-supplied by private controller configuration. The suite enables worker nested
+supplied by the Jenkins job parameter of the same name. The suite enables worker nested
 virtualization itself before provisioning.
 
 The existing version, install channel and server configuration select the

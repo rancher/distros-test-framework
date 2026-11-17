@@ -19,8 +19,8 @@ import (
 
 var kataGAVersion = regexp.MustCompile(`^v\d+\.\d+\.\d+\+rke2r\d+$`)
 
-// kataStagingRegistryEnv carries the approved staging registry host from private configuration,
-// so the host is not committed and a wrong SERVER_FLAGS value cannot define its own reference.
+// kataStagingRegistryEnv carries the approved staging registry host from the Jenkins job, so the host
+// is not committed and a wrong SERVER_FLAGS value cannot define its own reference.
 const kataStagingRegistryEnv = "KATA_STAGING_REGISTRY"
 
 // glibc for functional checks, musl for performance only.
@@ -130,7 +130,7 @@ func loadKataSecurity(cfg *config.Env) (kataSecurityPolicy, error) {
 	explicitStaging := stagingRegistry != "" && serverConfig.Registry == stagingRegistry
 	if stagingBuild || explicitStaging {
 		if stagingRegistry == "" {
-			return policy, fmt.Errorf("RC, testing and commit builds require %s from private configuration",
+			return policy, fmt.Errorf("RC, testing and commit builds require %s (the approved staging registry host)",
 				kataStagingRegistryEnv)
 		}
 
