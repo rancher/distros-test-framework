@@ -183,12 +183,15 @@ func ipv6FirstCIDR(serverFlags string) bool {
 	return resources.IsIPv6(strings.TrimSpace(first))
 }
 
-// serviceCIDREntry returns the top-level service-cidr key with its indented or "- " continuation lines.
+// serviceCIDREntry returns the top-level service-cidr key with its continuation lines:
+// indented, "- " items, blank or comment-only.
 func serviceCIDREntry(serverFlags string) string {
 	var b strings.Builder
 	in := false
 	for _, line := range strings.Split(resources.NormalizeString(serverFlags), "\n") {
-		cont := strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "-")
+		trimmed := strings.TrimSpace(line)
+		cont := trimmed == "" || strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "-")
 		switch {
 		case strings.HasPrefix(line, "service-cidr:"):
 			in = true

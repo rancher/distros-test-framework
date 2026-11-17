@@ -77,7 +77,7 @@ does it only on qainfra, because on legacy an empty module means the product's o
 
 Jenkins writes the job's `MODULE` parameter to `ENV_MODULE` (`scripts/Jenkinsfile`); the
 ipv6only job sets it and the dualstack jobs do not, so those suites force it. Dualstack and
-ipv6only support only rke2 on AWS; the suites exit early for other products.
+ipv6only support rke2 and k3s on AWS only; the suites exit early for other providers.
 
 ### Pipeline (`internal/provisioning/qainfra/qainfra.go`)
 
@@ -107,9 +107,9 @@ ipv6only support only rke2 on AWS; the suites exit early for other products.
    - sparse-checks-out qa-infra at the same SHA.
    - appends `node-external-ip` to `rke2_config/templates/config.yaml.j2`. The value is
      `{{ ansible_host }}` by default, `{{ ansible_host }},{{ ansible_host_ipv6 }}` for
-     dualstack (IPv6 first when `SERVER_FLAGS`' `cluster-cidr` starts with IPv6, because the
+     dualstack (IPv6 first when `SERVER_FLAGS`' `service-cidr` starts with IPv6, because the
      apiserver advertises the first address and it must match the primary service-cidr
-     family) and `{{ ansible_host_ipv6 }}` for ipv6. The dual-stack NodePort test curls
+     family; an IPv6-first `cluster-cidr` alone keeps IPv4 first) and `{{ ansible_host_ipv6 }}` for ipv6. The dual-stack NodePort test curls
      every external IP.
    - k3s dualstack/ipv6 only: rewrites `k3s_install`'s `node-external-ip` list (`public_ip`)
      to the same value, because k3s advertises the apiserver on it the same way.

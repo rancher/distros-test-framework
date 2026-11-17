@@ -44,6 +44,11 @@ func TestMain(m *testing.M) {
 		cfg.Module = "ipv6only"
 	}
 
+	if cfg.ProvisionerModule == "qainfra" && cfg.QAInfraProvider != "aws" {
+		resources.LogLevel("error", "qainfra ipv6only supports only aws, got %q\n", cfg.QAInfraProvider)
+		os.Exit(1)
+	}
+
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
 	// qainfra skips the legacy install spec, the only user of awsClient.
 	if cfg.ProvisionerModule != "qainfra" {

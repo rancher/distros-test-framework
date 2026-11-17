@@ -40,6 +40,10 @@ func TestMain(m *testing.M) {
 		if cfg.Module != "" && cfg.Module != "dualstack" {
 			resources.LogLevel("warn", "ENV_MODULE=%q overridden with dualstack\n", cfg.Module)
 		}
+		if cfg.QAInfraProvider != "aws" {
+			resources.LogLevel("error", "qainfra dualstack supports only aws, got %q\n", cfg.QAInfraProvider)
+			os.Exit(1)
+		}
 		cfg.Module = "dualstack"
 	}
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)

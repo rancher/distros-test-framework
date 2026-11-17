@@ -46,16 +46,14 @@ func TestConfigureSSHContextBoundsStalledHandshake(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ln.Close()
-	done := make(chan struct{})
-	defer close(done)
 	go func() {
-		// Hold the connection open without a handshake until the test ends.
-		c, acceptErr := ln.Accept()
-		if acceptErr != nil {
-			return
+		for {
+			c, acceptErr := ln.Accept()
+			if acceptErr != nil {
+				return
+			}
+			defer c.Close()
 		}
-		<-done
-		_ = c.Close()
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -99,11 +97,8 @@ func TestNewSessionContextBoundsUnansweredSessionOpen(t *testing.T) {
 			return
 		}
 		go ssh.DiscardRequests(reqs)
-		var unanswered []ssh.NewChannel
-		for ch := range chans { // never accept or reject: the open stays unanswered
-			unanswered = append(unanswered, ch)
+		for range chans { // never accept or reject: the open stays unanswered
 		}
-		_ = unanswered
 	}()
 
 	conn, err := ssh.Dial("tcp", ln.Addr().String(), &ssh.ClientConfig{

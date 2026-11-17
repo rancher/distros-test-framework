@@ -316,20 +316,6 @@ func DeleteNodeByNameIf(name string, mayDelete func() bool) error {
 
 type hostArgsRunner func(ctx context.Context, name string, args ...string) (string, error)
 
-// boundedKubectl runs kubectl with each call capped by perCall and by the time left before deadline.
-func boundedKubectl(run hostArgsRunner, deadline time.Time, perCall time.Duration) func(args ...string) (string, error) {
-	return func(args ...string) (string, error) {
-		budget := min(time.Until(deadline), perCall)
-		if budget <= 0 {
-			return "", context.DeadlineExceeded
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), budget)
-		defer cancel()
-
-		return run(ctx, "kubectl", append(args, "--kubeconfig="+KubeConfigFile)...)
-	}
-}
-
 // deleteNodeUntilGone requires the node to be absent for `stable` consecutive polls.
 // Each kubectl call is bounded by perCall and by the time left in timeout.
 func deleteNodeUntilGone(
@@ -344,7 +330,16 @@ func deleteNodeUntilGone(
 	}
 
 	deadline := time.Now().Add(timeout)
-	kubectl := boundedKubectl(run, deadline, perCall)
+	kubectl := func(args ...string) (string, error) {
+		budget := min(time.Until(deadline), perCall)
+		if budget <= 0 {
+			return "", context.DeadlineExceeded
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		defer cancel()
+
+		return run(ctx, "kubectl", append(args, "--kubeconfig="+KubeConfigFile)...)
+	}
 
 	absent := 0
 	for {
