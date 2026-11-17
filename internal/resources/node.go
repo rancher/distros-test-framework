@@ -349,11 +349,8 @@ func deleteNodeUntilGone(
 
 				return nil
 			}
-			if res, err := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false"); err != nil {
-				LogLevel("warn", "delete node %s failed: %v", name, err)
-			} else {
-				LogLevel("info", "%s", res)
-			}
+
+			deleteNodeAttempt(name, kubectl)
 		}
 
 		out, err := kubectl("get", "node", name, "--ignore-not-found", "-o", "name")
@@ -375,4 +372,15 @@ func deleteNodeUntilGone(
 		}
 		time.Sleep(interval)
 	}
+}
+
+func deleteNodeAttempt(name string, kubectl func(...string) (string, error)) {
+	output, deleteErr := kubectl("delete", "node", name, "--ignore-not-found", "--wait=false")
+	if deleteErr != nil {
+		LogLevel("warn", "delete node %s failed: %v", name, deleteErr)
+
+		return
+	}
+
+	LogLevel("info", "%s", output)
 }

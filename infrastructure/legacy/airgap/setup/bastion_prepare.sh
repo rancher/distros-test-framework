@@ -110,6 +110,8 @@ install_kubectl() {
 }
 
 install_podman() {
+  # Provided by the target OS.
+  # shellcheck source=/dev/null
   [ -r /etc/os-release ] && . /etc/os-release
   if [ "$(expr "${ID_LIKE}" : ".*suse.*")" != 0 ]; then
     echo "Checking for package manager locks if so, removing them."

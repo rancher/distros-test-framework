@@ -9,7 +9,6 @@ platform=${2}
 hostdns=${3}
 username=${4}
 password=${5}
-registry_url=${6} 
 
 echo "Logging into private registry: $hostdns..."
 echo "$password" | podman login "$hostdns" -u "$username" --password-stdin

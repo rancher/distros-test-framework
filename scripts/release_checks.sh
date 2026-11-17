@@ -219,7 +219,7 @@ verify_rke2_packaging () {
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}")
     else
         debug_log "grep \"${VERSION_PREFIX}.*${VERSION_SUFFIX}\" \"${RKE2_PKG_FILE}\" | grep -v \"rc\" | wc -l"
-        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc" | wc -l)
+        CHANNEL_COUNT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | awk '!/rc/ { count++ } END { print count+0 }')
         OUTPUT=$(grep "${VERSION_PREFIX}.*${VERSION_SUFFIX}" "${RKE2_PKG_FILE}" | grep -v "rc")
     fi
 
@@ -327,7 +327,7 @@ do
     printf "===================== DONE ==========================\n"
 done
 
-if [ -f $FAILURE_FILE ]; then
+if [ -f "$FAILURE_FILE" ]; then
     printf "==========================================================================
                         FAILURE SUMMARY 
 ==========================================================================\n"

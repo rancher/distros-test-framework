@@ -3,7 +3,6 @@
 set +x
 
 instance_id=${1}
-product=${2}
 
 ipv6_config() {
   echo "Stopping systemd-resolved"

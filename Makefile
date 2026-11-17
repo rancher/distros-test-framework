@@ -149,7 +149,10 @@ security-regression-tests:
 	@sh scripts/security_regression_test.sh
 	@go test -count=1 ./internal/provisioning/qainfra -run '^(TestLoadQAInfraTFVarsDebugLogDoesNotExposeSecrets|TestQAInfraConfigObjectsNotPassedToLogger)$$'
 
-shell-check: security-regression-tests
+shell-regression-tests:
+	@bash scripts/shell_regression_test.sh
+
+shell-check: security-regression-tests shell-regression-tests
 	@shellcheck infrastructure/legacy/airgap/setup/*.sh
 	@shellcheck infrastructure/legacy/ipv6only/scripts/*.sh
 	@shellcheck scripts/*.sh

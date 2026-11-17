@@ -57,7 +57,7 @@ Use `go test -race -count=1 <affected-unit-packages>` for changed concurrency, c
 
 For changed shell scripts, run `shellcheck <changed-scripts>`. Use `bash -n` for Bash scripts and `sh -n` for POSIX shell scripts, following each file's shebang.
 
-Do not use `make shell-check` as a pass/fail baseline until its existing repository-wide findings are resolved.
+Use `make shell-check` for shell regressions, security regressions, and repository-wide ShellCheck.
 
 For image or CI dependency changes, review `.dockerignore` for new secret or generated paths before building. Validate every affected image: use `docker build . -q -f scripts/Dockerfile.build -t acceptance-tests` for the local container and `docker build . -q -f scripts/Dockerfile.jenkins -t acceptance-tests-jenkins` for Jenkins. Build both when shared dependencies or build-context inputs change. Never build from an unrestricted working-tree context.
 
