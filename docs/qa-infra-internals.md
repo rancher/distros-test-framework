@@ -134,6 +134,12 @@ ipv6only support rke2 and k3s on AWS only; the suites exit early for other provi
 For dualstack its server is the first cp node's public IPv4, so local `kubectl` works.
 For ipv6 it's an IPv6 literal, so the suite uses the `*UsingBastion` helpers instead.
 
+On dualstack and ipv6 runs, `applyBastion` also calls `resources.SetSSHBastion`. From then on,
+`RunCommandOnNode`, `RunCommandOnNodeContext` and `RunCommandOnNodeWithStdin` reach any **IPv6**
+node through an SSH tunnel on the bastion (a `direct-tcpip` channel, same as
+`ProxyCommand ssh -W "[%h]:%p"`), so post-provision checks work from IPv4-only runners.
+IPv4 targets and the bastion itself are still dialed directly.
+
 ### Destroy
 
 `entrypoint.AfterSuite` calls `provisioning.DestroyInfrastructure`. For qainfra that reads

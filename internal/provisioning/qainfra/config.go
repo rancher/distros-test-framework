@@ -515,6 +515,10 @@ func applyBastion(config *driver.InfraConfig, data *clusterNodesJSON) error {
 	}
 	config.Cluster.NumBastion = 1
 	resources.LogLevel("info", "Bastion: %s (%s)", data.Bastion.PublicIP, data.Bastion.PublicDNS)
+	if networkEnv(config.Module) != "" {
+		// IPv6 node addresses may be unroutable from the runner; post-provision SSH jumps via the bastion.
+		resources.SetSSHBastion(data.Bastion.PublicIP)
+	}
 
 	return nil
 }
