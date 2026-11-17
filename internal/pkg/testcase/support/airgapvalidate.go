@@ -124,10 +124,22 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 	product := cluster.Config.Product
 	host := cluster.Airgap.RegistryHost
 	cfg := fmt.Sprintf("/etc/rancher/%s/config.yaml", product)
-	for _, ip := range append(append([]string{}, cluster.ServerIPs...), cluster.AgentIPs...) {
+	// K3s agents reject the key in config.yaml and inherit the registry from the server.
+	configNodes := append([]string{}, cluster.ServerIPs...)
+	if product != "k3s" {
+		configNodes = append(configNodes, cluster.AgentIPs...)
+	}
+	for _, ip := range configNodes {
 		out, err := CmdForPrivateNode(cluster, "sudo grep system-default-registry "+cfg, ip)
 		if err != nil || !strings.Contains(out, host) {
 			return fmt.Errorf("%s on %s lacks system-default-registry: %s: %v %q", cfg, ip, host, err, out)
+		}
+	}
+	if product == "k3s" {
+		for _, ip := range cluster.AgentIPs {
+			if err := requireRegistryImages(cluster, product, ip, host); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -139,6 +151,15 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 			"airgap revision that authenticates this registry): %v %q", host, err, code)
 	}
 
+	if err = requireRegistryImages(cluster, product, node, host); err != nil {
+		return err
+	}
+
+	return pullThroughRegistry(cluster, node, host)
+}
+
+// requireRegistryImages fails unless some image on the node carries the registry host prefix.
+func requireRegistryImages(cluster *driver.Cluster, product, node, host string) error {
 	images, err := CmdForPrivateNode(cluster, crictlImagesCmd(product), node)
 	if err != nil {
 		return fmt.Errorf("crictl images on %s: %w", node, err)
@@ -147,7 +168,7 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 		return fmt.Errorf("no image on %s carries the %s/ prefix; system-default-registry was not applied", node, host)
 	}
 
-	return pullThroughRegistry(cluster, node, host)
+	return nil
 }
 
 // pullThroughRegistry pulls one published image explicitly from the bastion
