@@ -29,8 +29,7 @@ uses the post-release case mapping when explicitly enabled. PEM parameters
 are not forwarded; child jobs obtain keys from Jenkins Credentials.
 
 The JJB staging captain must use this QA-infra Jenkinsfile, and all four RPM
-child job definitions must declare `QA_INFRA_REPO`. Local orchestration checks:
-`groovy scripts/tests/post_release_captain_test.groovy`.
+child job definitions must declare `QA_INFRA_REPO`.
 
 ## Architecture
 
