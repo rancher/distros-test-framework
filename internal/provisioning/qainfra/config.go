@@ -59,10 +59,6 @@ func loadQAInfra(i *driver.InfraConfig) (*driver.InfraConfig, error) {
 	stateRoot := runStateRoot()
 	envConfig := addEnvConfig(runDir(stateRoot, runID))
 
-	if err := validateNetworkEnv(i.Product, i.QAInfraProvider, networkEnv(i.Module)); err != nil {
-		return nil, err
-	}
-
 	ansiblePath, ansiblePathErr := getAnsiblePath(i.Product, isAirgap(i), networkEnv(i.Module))
 	if ansiblePathErr != nil {
 		return nil, fmt.Errorf("error getting ansible path: %w", ansiblePathErr)

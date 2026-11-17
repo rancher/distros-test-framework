@@ -33,7 +33,7 @@ func TestIngressDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
 
 	for _, ingressIP := range ingressIPs {
-		if strings.Contains(ingressIP, ":") {
+		if resources.IsIPv6(ingressIP) {
 			ingressIP = resources.EncloseSqBraces(ingressIP)
 		}
 		err = assert.ValidateOnNode(cluster.Bastion.PublicIPv4Addr,
@@ -123,7 +123,7 @@ func TestIPFamiliesDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 	for i, svc := range services {
 		td.SVC = "my-service-"
 		td.SVC += svc
-		testServiceClusterIPs(td, cluster.ServerIPs[0])
+		testServiceClusterIPs(td, curlNodeIP(cluster))
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
 			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + resources.KubeConfigFile
@@ -194,4 +194,14 @@ func TestIngressWithPodRestartAndNetPol(cluster *driver.Cluster, deleteWorkload 
 		err = resources.ManageWorkload("delete", "k3s_issue_10053_ns.yaml")
 		Expect(err).NotTo(HaveOccurred())
 	}
+}
+
+// curlNodeIP prefers an agent: with ETCD_ONLY_NODES the first server may run no kubelet or CNI,
+// so it cannot reach cluster IPs.
+func curlNodeIP(cluster *driver.Cluster) string {
+	if len(cluster.AgentIPs) > 0 {
+		return cluster.AgentIPs[0]
+	}
+
+	return cluster.ServerIPs[0]
 }

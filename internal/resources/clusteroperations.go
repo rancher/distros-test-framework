@@ -185,7 +185,7 @@ func FetchNodeExternalIPs() ([]string, error) {
 // IPv4, since the test runner may have no IPv6 route (IPv6-first nodes list IPv6 first).
 func SSHTargetIP(ips []string) string {
 	for _, ip := range ips {
-		if !strings.Contains(ip, ":") {
+		if !IsIPv6(ip) {
 			return ip
 		}
 	}

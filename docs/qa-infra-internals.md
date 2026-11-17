@@ -74,6 +74,10 @@ selects the qa-infra mode:
 The airgap, ipv6only and dualstack suites set `cfg.Module` themselves. The dualstack suite
 does it only on qainfra, because on legacy an empty module means the product's own Terraform dir.
 
+Jenkins writes the job's `MODULE` parameter to `ENV_MODULE` (`scripts/Jenkinsfile`); the
+ipv6only job sets it and the dualstack jobs do not, so those suites force it. Dualstack and
+ipv6only support only rke2 on AWS; the suites exit early for other products.
+
 ### Pipeline (`internal/provisioning/qainfra/qainfra.go`)
 
 1. `loadQAInfra` (config.go): resolves `QA_INFRA_REPO` and `QA_INFRA_REF` to one commit SHA

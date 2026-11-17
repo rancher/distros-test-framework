@@ -127,7 +127,7 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	var b strings.Builder
 	writeInventoryVars(&b, data)
 	writeInventoryHosts(&b, data, assigned)
-	writeInventoryChildren(&b, data, assigned)
+	writeInventoryChildren(&b, data, assigned, "", true)
 
 	return b.String()
 }
@@ -227,8 +227,11 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 	}
 }
 
-// writeInventoryChildren writes the all.children groups (master/servers/workers).
-func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
+// writeInventoryChildren writes the all.children groups (master/servers/workers) after
+// any pre-rendered extra groups; withHost repeats ansible_host under each member.
+func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string,
+	extra string, withHost bool,
+) {
 	groups := []string{"master", "servers", "workers"}
 	groupMembers := make(map[string][]clusterNode)
 	for _, n := range data.Nodes {
@@ -237,7 +240,7 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 		}
 	}
 
-	anyChildren := false
+	anyChildren := extra != ""
 	for _, g := range groups {
 		if len(groupMembers[g]) > 0 {
 			anyChildren = true
@@ -250,6 +253,7 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 	}
 
 	b.WriteString("  children:\n")
+	b.WriteString(extra)
 	for _, g := range groups {
 		members := groupMembers[g]
 		if len(members) == 0 {
@@ -260,7 +264,9 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 		b.WriteString("      hosts:\n")
 		for _, n := range members {
 			writeLine(b, "        ", n.Name, ":")
-			writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
+			if withHost {
+				writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
+			}
 		}
 	}
 }

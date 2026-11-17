@@ -327,7 +327,7 @@ func buildAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]string
 	args = addServerFlags(args, serverFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
 	// The playbook selects server_flags/worker_flags per node role; rke2_additional_config
-	// bypasses that on every node, so dualstack/ipv6 runs skip it (as #360 does for all runs).
+	// bypasses that on every node, so dualstack/ipv6 runs skip it (as all other runs do).
 	perRoleFlags := networkEnv(config.Module) != ""
 	args = addChannel(args, config.Cluster.Config.Channel)
 

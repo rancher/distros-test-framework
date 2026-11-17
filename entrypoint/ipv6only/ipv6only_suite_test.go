@@ -44,11 +44,19 @@ func TestMain(m *testing.M) {
 		cfg.Module = "ipv6only"
 	}
 
-	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
-	awsClient, err = aws.AddClient(cluster)
-	if err != nil {
-		resources.LogLevel("error", "error adding aws nodes: %s", err)
+	if cfg.ProvisionerModule == "qainfra" && cfg.Product != "rke2" {
+		resources.LogLevel("error", "qainfra ipv6only supports only rke2, got %q\n", cfg.Product)
 		os.Exit(1)
+	}
+
+	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)
+	// qainfra skips the legacy install spec, the only user of awsClient.
+	if cfg.ProvisionerModule != "qainfra" {
+		awsClient, err = aws.AddClient(cluster)
+		if err != nil {
+			resources.LogLevel("error", "error adding aws nodes: %s", err)
+			os.Exit(1)
+		}
 	}
 
 	os.Exit(m.Run())

@@ -37,6 +37,13 @@ func TestMain(m *testing.M) {
 	}
 	// qainfra selects qa-infra's dualstack module and playbook from ENV_MODULE.
 	if cfg.ProvisionerModule == "qainfra" {
+		if cfg.Module != "" && cfg.Module != "dualstack" {
+			resources.LogLevel("warn", "ENV_MODULE=%q overridden with dualstack\n", cfg.Module)
+		}
+		if cfg.Product != "rke2" {
+			resources.LogLevel("error", "qainfra dualstack supports only rke2, got %q\n", cfg.Product)
+			os.Exit(1)
+		}
 		cfg.Module = "dualstack"
 	}
 	cluster, infraConfig = entrypoint.SetupClusterInfra(cfg)

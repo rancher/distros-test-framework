@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
@@ -20,7 +22,7 @@ const (
 )
 
 // The dualstack/ipv6 modules do not declare these cluster_nodes inputs.
-var clusterNodesOnlyArgsRE = regexp.MustCompile(`(?m)^[ \t]*(airgap_setup|proxy_setup)[ \t]*=.*\n`)
+var clusterNodesOnlyArgsRE = regexp.MustCompile(`(?m)^[ \t]*(airgap_setup|proxy_setup)[ \t]*=[^\r\n]*(\r?\n|$)`)
 
 // networkEnv maps ENV_MODULE onto the qa-infra ENV name, or "" for other modules.
 func networkEnv(module string) string {
@@ -32,22 +34,6 @@ func networkEnv(module string) string {
 	default:
 		return ""
 	}
-}
-
-// validateNetworkEnv rejects combinations qa-infra has no module or playbook for.
-func validateNetworkEnv(product, provider, env string) error {
-	if env == "" {
-		return nil
-	}
-	if !strings.EqualFold(product, "rke2") {
-		return fmt.Errorf("qainfra %s runs support only rke2 (qa-infra has no ansible/%s/%s playbook)",
-			env, strings.ToLower(product), env)
-	}
-	if provider != "" && !strings.EqualFold(provider, "aws") {
-		return fmt.Errorf("qainfra %s runs support only QA_INFRA_PROVIDER=aws, got %q", env, provider)
-	}
-
-	return nil
 }
 
 // injectNetworkModuleArgs swaps cluster_nodes-only inputs for the dualstack/ipv6 module inputs.
@@ -72,26 +58,43 @@ func buildNetworkInventory(data *clusterNodesJSON, env, sshUser, keyPath string)
 	if data.Bastion == nil || data.Bastion.PublicIP == "" {
 		return "", fmt.Errorf("%s inventory needs a bastion with a public IP in cluster_nodes_json", env)
 	}
-	direct := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-	nodeArgs := direct
-	if env == envIPv6 {
-		// %h is bracketed so ssh -W can parse an IPv6 literal.
-		nodeArgs = fmt.Sprintf("%s -o ProxyCommand='ssh -i %s %s -W [%%h]:%%p %s@%s'",
-			direct, keyPath, direct, sshUser, data.Bastion.PublicIP)
-	}
 	assigned := assignNodeGroups(data, "")
 
 	var b strings.Builder
+	writeNetworkVars(&b, data, sshUser)
+	if err := writeNetworkHosts(&b, data, env, sshUser, keyPath, assigned); err != nil {
+		return "", err
+	}
+	writeInventoryChildren(&b, data, assigned, "    bastion:\n      hosts:\n        bastion-0:\n", false)
+
+	return b.String(), nil
+}
+
+func writeNetworkVars(b *strings.Builder, data *clusterNodesJSON, sshUser string) {
 	b.WriteString("all:\n  vars:\n")
-	writeLine(&b, "    ansible_user: ", yamlQuote(sshUser))
-	writeLine(&b, "    kube_api_host: ", yamlQuote(data.Metadata.KubeAPIHost))
-	writeLine(&b, "    fqdn: ", yamlQuote(data.Metadata.FQDN))
-	writeLine(&b, "    bastion_host: ", yamlQuote(data.Bastion.PublicIP))
-	writeLine(&b, "    bastion_user: ", yamlQuote(sshUser))
-	writeLine(&b, "    bastion_dns: ", yamlQuote(data.Bastion.PublicDNS))
+	writeLine(b, "    ansible_user: ", yamlQuote(sshUser))
+	writeLine(b, "    kube_api_host: ", yamlQuote(data.Metadata.KubeAPIHost))
+	writeLine(b, "    fqdn: ", yamlQuote(data.Metadata.FQDN))
+	writeLine(b, "    bastion_host: ", yamlQuote(data.Bastion.PublicIP))
+	writeLine(b, "    bastion_user: ", yamlQuote(sshUser))
+	writeLine(b, "    bastion_dns: ", yamlQuote(data.Bastion.PublicDNS))
+}
+
+func writeNetworkHosts(b *strings.Builder, data *clusterNodesJSON, env, sshUser, keyPath string,
+	assigned map[string]string,
+) error {
+	direct := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+	nodeArgs := direct
+	if env == envIPv6 {
+		// %h is bracketed and quoted so ssh -W parses an IPv6 literal and the shell never globs it.
+		proxy := fmt.Sprintf(`ssh -i %s %s -W "[%%h]:%%p" %s`,
+			shellQuote(keyPath), direct, shellQuote(sshUser+"@"+data.Bastion.PublicIP))
+		nodeArgs = direct + " -o ProxyCommand=" + shellQuote(proxy)
+	}
+
 	b.WriteString("  hosts:\n    bastion-0:\n")
-	writeLine(&b, "      ansible_host: ", yamlQuote(data.Bastion.PublicIP))
-	writeLine(&b, "      ansible_ssh_common_args: ", yamlQuote(direct))
+	writeLine(b, "      ansible_host: ", yamlQuote(data.Bastion.PublicIP))
+	writeLine(b, "      ansible_ssh_common_args: ", yamlQuote(direct))
 	for i := range data.Nodes {
 		n := &data.Nodes[i]
 		addr := n.PublicIP
@@ -99,41 +102,22 @@ func buildNetworkInventory(data *clusterNodesJSON, env, sshUser, keyPath string)
 			addr = n.IPv6
 		}
 		if addr == "" || n.IPv6 == "" {
-			return "", fmt.Errorf("%s node %s is missing its address in cluster_nodes_json (public_ip=%q ipv6=%q)",
+			return fmt.Errorf("%s node %s is missing its address in cluster_nodes_json (public_ip=%q ipv6=%q)",
 				env, n.Name, n.PublicIP, n.IPv6)
 		}
-		writeLine(&b, "    ", n.Name, ":")
-		writeLine(&b, "      ansible_host: ", yamlQuote(addr))
-		writeLine(&b, "      ansible_host_ipv6: ", yamlQuote(n.IPv6))
-		writeLine(&b, "      ansible_ssh_common_args: ", yamlQuote(nodeArgs))
-		writeLine(&b, "      node_roles: ", yamlInlineList(n.Roles))
-		writeLine(&b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
-	}
-	b.WriteString("  children:\n    bastion:\n      hosts:\n        bastion-0:\n")
-	for _, g := range []string{"master", "servers", "workers"} {
-		var members []string
-		for _, n := range data.Nodes {
-			if assigned[n.Name] == g {
-				members = append(members, n.Name)
-			}
-		}
-		if len(members) == 0 {
-			continue
-		}
-		writeLine(&b, "    ", g, ":\n      hosts:")
-		for _, m := range members {
-			writeLine(&b, "        ", m, ":")
-		}
+		writeLine(b, "    ", n.Name, ":")
+		writeLine(b, "      ansible_host: ", yamlQuote(addr))
+		writeLine(b, "      ansible_host_ipv6: ", yamlQuote(n.IPv6))
+		writeLine(b, "      ansible_ssh_common_args: ", yamlQuote(nodeArgs))
+		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
+		writeLine(b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
 	}
 
-	return b.String(), nil
+	return nil
 }
 
-// nodeExternalIPPatch is the config.yaml line that makes kubelet advertise the
-// node's reachable address(es); dual-stack tests curl both families.
-// Dual-stack order follows cluster-cidr: rke2 advertises the apiserver on the first
-// node-external-ip, and kube-apiserver rejects an advertise address whose family differs
-// from the primary service-cidr (IPv6-first runs never come up otherwise).
+// nodeExternalIPPatch is the config.yaml line that makes kubelet advertise the node's
+// addresses. Dual-stack order follows service-cidr: kube-apiserver rejects a mismatched family.
 func nodeExternalIPPatch(env string, ipv6First bool) string {
 	switch env {
 	case envDualstack:
@@ -167,15 +151,21 @@ func stageBastionKubeconfig(config *driver.InfraConfig) error {
 	return nil
 }
 
-// ipv6FirstCIDR reports whether SERVER_FLAGS' cluster-cidr lists an IPv6 range first.
+// ipv6FirstCIDR reports whether SERVER_FLAGS' service-cidr lists an IPv6 range first.
 func ipv6FirstCIDR(serverFlags string) bool {
-	for _, line := range strings.Split(resources.NormalizeString(serverFlags), "\n") {
-		key, val, ok := strings.Cut(strings.TrimSpace(line), ":")
-		if ok && strings.TrimSpace(key) == "cluster-cidr" {
-			first, _, _ := strings.Cut(val, ",")
-			return strings.Contains(first, ":")
+	var flags map[string]any
+	if err := yaml.Unmarshal([]byte(resources.NormalizeString(serverFlags)), &flags); err != nil {
+		return false
+	}
+	first := ""
+	switch v := flags["service-cidr"].(type) {
+	case string:
+		first, _, _ = strings.Cut(v, ",")
+	case []any:
+		if len(v) > 0 {
+			first, _, _ = strings.Cut(fmt.Sprint(v[0]), ",")
 		}
 	}
 
-	return false
+	return resources.IsIPv6(strings.TrimSpace(first))
 }

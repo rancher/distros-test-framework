@@ -20,21 +20,6 @@ func TestNetworkEnv(t *testing.T) {
 	}
 }
 
-func TestValidateNetworkEnv(t *testing.T) {
-	if err := validateNetworkEnv("rke2", "aws", envIPv6); err != nil {
-		t.Errorf("rke2/aws ipv6 must be accepted: %v", err)
-	}
-	if err := validateNetworkEnv("k3s", "aws", ""); err != nil {
-		t.Errorf("non-network modules must be untouched: %v", err)
-	}
-	if err := validateNetworkEnv("k3s", "aws", envDualstack); err == nil {
-		t.Error("k3s dualstack must be rejected: qa-infra has no k3s playbook")
-	}
-	if err := validateNetworkEnv("rke2", "vsphere", envDualstack); err == nil {
-		t.Error("non-aws provider must be rejected: the module only exists under tofu/aws")
-	}
-}
-
 func TestPlaybookAndAnsiblePathForNetworkEnv(t *testing.T) {
 	if got, _ := getPlaybookPath("rke2", false, envIPv6); got != "rke2-playbook-ipv6.yml" {
 		t.Errorf("ipv6 playbook = %q", got)
@@ -130,7 +115,7 @@ func TestBuildNetworkInventoryIPv6(t *testing.T) {
 	if w.AnsibleHost != "2600::11" || w.AnsibleHostIPv6 != "2600::11" || w.RKE2NodeRole != "agent" {
 		t.Errorf("ipv6 worker entry wrong: %+v", w)
 	}
-	if !strings.Contains(w.SSHArgs, "-W [%h]:%p ubuntu@3.3.3.3") {
+	if !strings.Contains(w.SSHArgs, `-W "[%h]:%p" '\''ubuntu@3.3.3.3'\''`) {
 		t.Errorf("ipv6 nodes must go through the bastion with a bracketed %%h: %q", w.SSHArgs)
 	}
 	if b := inv.All.Hosts["bastion-0"]; b.AnsibleHost != "3.3.3.3" || strings.Contains(b.SSHArgs, "ProxyCommand") {
@@ -200,11 +185,14 @@ func TestNodeExternalIPPatch(t *testing.T) {
 
 func TestIPv6FirstCIDR(t *testing.T) {
 	for flags, want := range map[string]bool{
-		`cni: calico\ncluster-cidr: 2001:cafe:42:0::/56,10.42.0.0/16`: true,
-		`cluster-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\ncni: calico`: false,
-		`cluster-cidr: 2001:cafe:42:0::/56`:                           true,
-		`cni: calico`:                                                 false,
-		``:                                                            false,
+		`cni: calico\nservice-cidr: 2001:cafe:42:0::/56,10.42.0.0/16`: true,
+		`service-cidr: 10.42.0.0/16,2001:cafe:42:0::/56\ncni: calico`: false,
+		`cluster-cidr: 2001:cafe:42::/56,10.42.0.0/16`:                false,
+		`service-cidr: 2001:cafe:43::/112,10.43.0.0/16`:               true,
+		`service-cidr: [10.43.0.0/16, "2001:cafe:43::/112"]`:          false,
+		"service-cidr:\n  - 2001:cafe:43::/112\n  - 10.43.0.0/16":     true,
+		`cni: calico`: false,
+		``:            false,
 	} {
 		if got := ipv6FirstCIDR(flags); got != want {
 			t.Errorf("ipv6FirstCIDR(%q) = %t, want %t", flags, got, want)
@@ -239,6 +227,35 @@ func TestBuildAnsibleArgsPerRoleFlags(t *testing.T) {
 			if !strings.Contains(joined, want) {
 				t.Errorf("%s: want %s in args, got %s", module, want, joined)
 			}
+		}
+	}
+}
+
+func TestBuildNetworkInventoryQuotesKeyPath(t *testing.T) {
+	data, err := parseClusterNodesJSON([]byte(networkNodesJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := buildNetworkInventory(data, envIPv6, "ubuntu", "/tmp/my key.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inv networkInventory
+	if err := yaml.Unmarshal([]byte(out), &inv); err != nil {
+		t.Fatal(err)
+	}
+	if got := inv.All.Hosts["worker-0"].SSHArgs; !strings.Contains(got, `ssh -i '\''/tmp/my key.pem'\''`) {
+		t.Errorf("key path with a space must stay one quoted argument: %q", got)
+	}
+}
+
+func TestInjectNetworkModuleArgsLineEndings(t *testing.T) {
+	for _, tf := range []string{
+		"a = 1\r\n  airgap_setup = false\r\nb = 2\r\n", "a = 1\nproxy_setup = false",
+	} {
+		got := injectNetworkModuleArgs(tf, envDualstack)
+		if strings.Contains(got, "airgap_setup") || strings.Contains(got, "proxy_setup") {
+			t.Errorf("not stripped from %q: %q", tf, got)
 		}
 	}
 }

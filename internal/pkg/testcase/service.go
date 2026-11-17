@@ -114,7 +114,7 @@ func testServiceNodePortDualStack(cluster *driver.Cluster, td testData) {
 	Expect(err).NotTo(HaveOccurred())
 
 	for _, ip := range nodeExternalIP {
-		if strings.Contains(ip, ":") {
+		if resources.IsIPv6(ip) {
 			ip = resources.EncloseSqBraces(ip)
 		}
 		err = assert.CheckComponentCmdNode(
@@ -132,7 +132,7 @@ func testServiceClusterIPs(td testData, sshIP string) {
 	Expect(err).NotTo(HaveOccurred())
 
 	for _, clusterIP := range clusterIPSlice {
-		if strings.Contains(clusterIP, ":") {
+		if resources.IsIPv6(clusterIP) {
 			clusterIP = resources.EncloseSqBraces(clusterIP)
 		}
 		err := assert.ValidateOnNode(sshIP,
