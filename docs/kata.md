@@ -106,7 +106,7 @@ the same host as `system-default-registry` on the server. The variable holds onl
 the host, for example `<staging-registry-host>`, with no scheme or namespace. The
 suite compares the server value with it; `SERVER_FLAGS` alone is never the reference.
 A GA release on stable/latest without that staging override expects
-`registry.rancher.com` through Prime's automatic selection. An explicit override
+the production Prime registry through Prime's automatic selection. An explicit override
 equal to `KATA_STAGING_REGISTRY` selects the staging baseline even for a
 release-shaped tag; without the variable, an override that differs from the GA
 registry fails preflight. Confirm promotion before choosing the GA channel; a version string

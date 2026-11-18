@@ -286,14 +286,18 @@ verify_registry_tags () {
     fi
 
     if ! jq -r --arg version "${VERSION_PREFIX}-${VERSION_SUFFIX}" '
-      .Tags[] | select(. == $version or startswith($version + "-"))
+      .Tags[] | select(. == $version)
     ' registry_tags.json > registry_matches.txt; then
         echo "FAIL: ${VERSION}: invalid tag response from ${REGISTRY_URL}." | tee -a "$FAILURE_FILE"
         return
     fi
     cat registry_matches.txt
     REGISTRY_COUNT=$(wc -l < registry_matches.txt)
-    verify_count "$REGISTRY_COUNT" 1 "$REGISTRY_DESCRIPTION"
+    if [ "$REGISTRY_COUNT" -eq 1 ]; then
+        echo "PASS: ${REGISTRY_DESCRIPTION} Count is ${REGISTRY_COUNT}."
+    else
+        echo "FAIL: ${VERSION}: Expected exactly one ${REGISTRY_DESCRIPTION} tag but got ${REGISTRY_COUNT}." | tee -a "$FAILURE_FILE"
+    fi
 }
 
 verify_prime_registry () {
