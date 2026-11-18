@@ -11,3 +11,4 @@ See `docs/` for any more specific information and examples.
 - [Development & Getting Started](./docs/development.md)
 - [Version Bump Template Model](./docs/version_bump_template.md)
 - [Example Configs](./docs/examples/)
+- [Release artifact checks](./docs/release-checks.md)
