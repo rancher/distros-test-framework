@@ -2,8 +2,6 @@ package entrypoint
 
 import (
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/onsi/ginkgo/v2"
@@ -137,25 +135,9 @@ func ExtractIngressController(serverFlags string) string {
 	return ""
 }
 
-var rke2MinorVersionRE = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
-
 // IsRKE2At reports whether installVersion is at least major.minor (e.g. 1.36).
 func IsRKE2At(installVersion string, major, minor int) bool {
-	matches := rke2MinorVersionRE.FindStringSubmatch(installVersion)
-	if len(matches) < 3 {
-		return false
-	}
-
-	maj, errMaj := strconv.Atoi(matches[1])
-	minVal, errMin := strconv.Atoi(matches[2])
-	if errMaj != nil || errMin != nil {
-		return false
-	}
-	if maj != major {
-		return maj > major
-	}
-
-	return minVal >= minor
+	return resources.IsVersionAtLeast(installVersion, major, minor)
 }
 
 func ReportAfterSuite(

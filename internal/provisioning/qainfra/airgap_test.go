@@ -182,7 +182,7 @@ func TestAirgapAnsibleArgsAndSecretsFile(t *testing.T) {
 	t.Cleanup(func() { customflag.ServiceFlag = saved })
 	t.Setenv(testTagEnv, "")
 	t.Setenv(testArgsEnv, "-tags=privateregistry -destroy true")
-	customflag.ServiceFlag.AirgapFlag.ImageRegistryUrl = "https://prime.ribs.rancher.io"
+	customflag.ServiceFlag.AirgapFlag.ImageRegistryUrl = "https://artifacts.example.com"
 	customflag.ServiceFlag.AirgapFlag.TarballType = ""
 	customflag.ServiceFlag.AirgapFlag.RegistryUsername = "testuser"
 	customflag.ServiceFlag.AirgapFlag.RegistryPassword = "s3cret-value"
@@ -195,7 +195,7 @@ func TestAirgapAnsibleArgsAndSecretsFile(t *testing.T) {
 	for _, want := range []string{
 		airgapPlaybook, "product=k3s", "kubernetes_version=v1.36.0+k3s1", "arch=arm64",
 		"airgap_method=private_registry", "tarball_type=tar.zst",
-		"image_registry_url=https://prime.ribs.rancher.io", "ssh_key_name=jenkins-key",
+		"image_registry_url=https://artifacts.example.com", "ssh_key_name=jenkins-key",
 		"airgap_facts_file=" + filepath.Join(cfg.InfraProvisioner.Ansible.Dir, airgapFactsName),
 	} {
 		if !strings.Contains(joined, want) {
