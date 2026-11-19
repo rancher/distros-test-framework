@@ -104,6 +104,18 @@ CHANNEL=stable                                              # Channel to use: st
 ARCH=amd64                                                  # Architecture to use: amd64, arm64, etc.
 ```
 
+Before stopping or replacing nodes, the AWS cluster-restore and node-replacement
+tests read the first server's EC2 `KeyName` using `DescribeInstances`. Additional
+nodes reuse that key instead of the independently configured `AWS_SSH_KEY_NAME`.
+This works with either provisioning path and does not read OpenTofu state. The
+lookup requires one running instance, uses the configured VPC when available,
+and requires a VPC for private IPs. A missing/ambiguous instance, missing key, or
+API error stops the test before it changes the nodes; there is no fallback to the
+configured key. The source node must still be running when this lookup occurs.
+The selected key belongs to the AWS client only; SSH settings used for bastion
+file names and reports remain unchanged. Clients without this selection keep
+using the configured key for instance creation.
+
 ### Environment Variables per test
 
 The vars above apply to every run. Each suite (selected by `TEST_DIR`, sometimes refined
@@ -122,6 +134,18 @@ WORKER_FLAGS="selinux: true"
 DESTROY=false                                              # true tears the cluster down after the test
 TEST_DIR=<suite>                                           # see per-suite below
 ```
+
+DTF forwards `SERVER_FLAGS` and `WORKER_FLAGS` separately to Ansible. The selected
+qa-infra ref must resolve these YAML mappings by node role for RKE2; server flags
+are not copied into the global `rke2_additional_config` extra-var. This keeps
+server-only settings such as `prime` out of agents and preserves worker overrides.
+Role-based selection predates [qa-infra PR #185](https://github.com/rancher/qa-infra-automation/pull/185)
+(`d2383fc`); that change fixed compatibility-input precedence, not the introduction
+of server/worker selection. Verify the selected ref's behavior rather than treating
+that commit as the minimum for role-based flags. Workers need their own hardening
+flags. Jenkins warns if these are empty while server flags contain
+`profile` or `selinux`; it does not silently copy server-only flags to agents.
+Airgap uses its separate provisioning/configuration path.
 
 ```bash
 # Cluster topology
@@ -182,7 +206,7 @@ NVIDIA_VERSION=580.95.05
 # airgap  (TEST_DIR=airgap, MODULE=airgap; Linux only on qainfra)
 TEST_TAG=tarball                                           # tarball | privateregistry | systemdefaultregistry
 TARBALL_TYPE=tar.zst                                       # tarball: tar.zst (fast) | tar.gz
-IMAGE_REGISTRY_URL=https://artifacts.example.invalid           # optional: Prime artifacts (<base>/<product>/<version>)
+IMAGE_REGISTRY_URL=<REDACTED_PRIME_ARTIFACT_URL>           # optional: Prime artifacts (<base>/<product>/<version>)
 REGISTRY_USERNAME=...                                      # both registry methods; optional override of testuser
 REGISTRY_PASSWORD=...                                      # random per-run default; never CLI flags or TFVARS
 BASTION_INSTANCE_TYPE=t3a.medium                           # optional; same arch as the nodes (t4g.large for arm64)
@@ -247,7 +271,7 @@ aws_vpc             =  "vpc-bfccf4d7"
 aws_volume_size     = "50"
 aws_subnet          = "subnet-ee8cac86"
 aws_volume_type     = "gp3"
-aws_ami             = "ami-01de4781572fa1285"
+aws_ami             = "<REDACTED_AMI>"
 instance_type       = "t3.xlarge"
 aws_ssh_user        = "ec2-user"
 

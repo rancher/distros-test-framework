@@ -39,6 +39,9 @@ func TestUpgradeReplaceNode(cluster *driver.Cluster,
 	}
 
 	awsClient := getAwsClient(cluster)
+	keyErr := awsClient.UseInstanceSSHKey(context.Background(), cluster.ServerIPs[0])
+	Expect(keyErr).NotTo(HaveOccurred(), "resolve source node SSH key before node replacement")
+
 	// qainfra sets the uppercase form; legacy set the lowercase one via tfvars.
 	resourceName := os.Getenv("RESOURCE_NAME")
 	if resourceName == "" {
@@ -694,12 +697,7 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 
 	// Ownership is re-read before every delete; an empty owner is indeterminate pre-termination.
 	if name != "" && currentID == expectedID {
-		ownedByExpected := func() bool {
-			id, err := r.resolveInstanceID(ip)
-
-			return err == nil && id == expectedID
-		}
-		if err := r.deleteNode(name, ownedByExpected); err != nil {
+		if err := r.deleteNode(name, r.instanceIs(ip, expectedID)); err != nil {
 			return err
 		}
 		resources.LogLevel("debug", "Node %s (%s) delete step finished\n", name, ip)
@@ -710,22 +708,22 @@ func (r nodeRemoval) run(ip, expectedID string) error {
 	}
 	resources.LogLevel("debug", "Instance %s (%s) deleted from cloud provider\n", expectedID, ip)
 
-	return r.deleteTerminatedNode(ip, name)
-}
-
-// deleteTerminatedNode removes a final kubelet registration only while the IP has no live owner.
-func (r nodeRemoval) deleteTerminatedNode(ip, name string) error {
 	if name == "" {
 		return nil
 	}
 
-	noLiveOwner := func() bool {
-		id, resolveErr := r.resolveInstanceID(ip)
+	// A final kubelet sync can recreate the Node just before termination. Delete it only
+	// while no live instance holds the ip, so a replacement reusing the name is never hit.
+	return r.deleteNode(name, r.instanceIs(ip, ""))
+}
 
-		return resolveErr == nil && id == ""
+// instanceIs reports whether the live instance on ip is want ("" = none), re-read on every call.
+func (r nodeRemoval) instanceIs(ip, want string) func() bool {
+	return func() bool {
+		id, err := r.resolveInstanceID(ip)
+
+		return err == nil && id == want
 	}
-
-	return r.deleteNode(name, noLiveOwner)
 }
 
 // ensureAPINotOnNode fails when kubectl targets the node being removed.

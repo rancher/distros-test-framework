@@ -131,6 +131,9 @@ test-killall-uninstall:
 test-nvidia:
 	@go test -timeout=60m -v -count=1 ./entrypoint/nvidia/... -destroy "${DESTROY}"
 
+test-kata:
+	@go test -timeout=180m -v -count=1 ./entrypoint/kata/... -destroy "${DESTROY}" --ginkgo.timeout=175m
+
 #========================= TestCode Static Quality Check =========================#
 pre-commit: go-check unit-tests
 

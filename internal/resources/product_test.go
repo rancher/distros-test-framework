@@ -100,3 +100,28 @@ func TestGetInstallCmd(t *testing.T) {
 		})
 	}
 }
+
+func TestIsVersionAtLeast(t *testing.T) {
+	for _, tc := range []struct {
+		version string
+		want    bool
+	}{
+		{"v1.36.9+rke2r1", false},
+		{"v1.37.0-rc1+rke2r1", true},
+		{"v1.37.1+rke2r1", true},
+		{"1.37.1+k3s1", true},
+		{"v1.38.0+k3s1", true},
+		{"v2.0.0", true},
+		{"v0.99.0", false},
+		{"3f2a1bc9d8e7", false},
+		{"", false},
+		{"v1", false},
+		{"v999999999999999999999999.37.0", false},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			if got := IsVersionAtLeast(tc.version, 1, 37); got != tc.want {
+				t.Errorf("IsVersionAtLeast(%q, 1, 37) = %t; want %t", tc.version, got, tc.want)
+			}
+		})
+	}
+}
