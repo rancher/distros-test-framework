@@ -111,7 +111,7 @@ func TestBuildNodesTFVarSplitWithoutCountsFails(t *testing.T) {
 
 func TestTfvarsValueStripsInlineComments(t *testing.T) {
 	cases := map[string]string{
-		`"ami-04d0934033d5d6964" # RHEL 9.8`: "ami-04d0934033d5d6964",
+		`"ami-0fedcba9876543210" # RHEL 9.8`: "ami-0fedcba9876543210",
 		`"us-east-2"`:                        "us-east-2",
 		`50`:                                 "50",
 		`50 # gp3 default`:                   "50",

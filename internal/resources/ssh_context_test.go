@@ -47,12 +47,18 @@ func TestConfigureSSHContextBoundsStalledHandshake(t *testing.T) {
 	}
 	defer ln.Close()
 	go func() {
+		var conns []net.Conn
+		defer func() {
+			for _, c := range conns {
+				_ = c.Close()
+			}
+		}()
 		for {
 			c, acceptErr := ln.Accept()
 			if acceptErr != nil {
 				return
 			}
-			defer c.Close()
+			conns = append(conns, c)
 		}
 	}()
 
@@ -97,7 +103,8 @@ func TestNewSessionContextBoundsUnansweredSessionOpen(t *testing.T) {
 			return
 		}
 		go ssh.DiscardRequests(reqs)
-		for range chans { // never accept or reject: the open stays unanswered
+		for ch := range chans {
+			_ = ch // never accept or reject: the open stays unanswered
 		}
 	}()
 

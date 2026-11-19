@@ -449,7 +449,7 @@ func executeRerun(tests, slackToken, channelID, threadTS, user string) error {
 	resources.LogLevel("info", "  Requested by: %s", user)
 	resources.LogLevel("info", "  Thread: %s\n", threadTS)
 
-	msg := fmt.Sprintf(":arrows_counterclockwise: Starting rerun of: `%s`\nRequested by: <@%s>", tests, user)
+	msg := fmt.Sprintf(":arrows_counterclockwise: Starting rerun of: %#q\nRequested by: <@%s>", tests, user)
 	if err := postToSlack(slackToken, channelID, threadTS, msg); err != nil {
 		resources.LogLevel("warn", "Failed to post start message to Slack: %v", err)
 	}
@@ -477,7 +477,7 @@ func executeRerun(tests, slackToken, channelID, threadTS, user string) error {
 		}
 		resources.LogLevel("error", "Rerun FAILED after %v (exit code %d)", duration, exitCode)
 
-		msg := fmt.Sprintf(":x: Rerun failed for: `%s`\nExit code: %d\nDuration: %v",
+		msg := fmt.Sprintf(":x: Rerun failed for: %#q\nExit code: %d\nDuration: %v",
 			tests, exitCode, duration.Round(time.Second))
 		_ = postToSlack(slackToken, channelID, threadTS, msg)
 

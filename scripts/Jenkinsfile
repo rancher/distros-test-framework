@@ -147,6 +147,12 @@ node {
                   if (serverFlags) { data += "SERVER_FLAGS=${serverFlags}\n" }
                   if (workerFlags) { data += "WORKER_FLAGS=${workerFlags}\n" }
 
+                  if (env.PRODUCT_NAME == 'rke2' && !workerFlags?.trim() &&
+                      (serverFlags =~ /(?:^|\\n|\n)\s*(profile|selinux)\s*:/).find()) {
+                    echo 'WARNING: WORKER_FLAGS is empty while SERVER_FLAGS contains hardening settings; agents do not inherit CIS/SELinux. Set worker flags explicitly or document the test exception.'
+                  }
+
+                  // KATA_STAGING_REGISTRY is a job parameter whose default lives in the job definition, not in this repository.
                   ['QA_INFRA_REF', 'QA_INFRA_REPO', 'SSH_USER', 'NO_OF_SERVER_NODES', 'NO_OF_WORKER_NODES',
                    'SPLIT_ROLES', 'ETCD_ONLY_NODES', 'ETCD_CP_NODES', 'ETCD_WORKER_NODES',
                    'CP_ONLY_NODES', 'CP_WORKER_NODES', 'NODE_OS', 'AWS_AMI', 'ARCH', 'CNI',
@@ -154,7 +160,8 @@ node {
                    'AWS_REGION', 'DATASTORE_TYPE', 'EXTERNAL_DB', 'EXTERNAL_DB_VERSION',
                    'DB_GROUP_NAME', 'EXTERNAL_DB_NODE_TYPE', 'EXTERNAL_DB_ENDPOINT',
                    'EXTERNAL_DB_SUBNET_IDS', 'DB_USERNAME', 'DB_PASSWORD', 'ENGINE_MODE',
-                   'CREATE_EIP', 'OPTIONAL_FILES', 'INSTALL_METHOD', 'BASTION_INSTANCE_TYPE'].each { name ->
+                   'CREATE_EIP', 'OPTIONAL_FILES', 'INSTALL_METHOD', 'BASTION_INSTANCE_TYPE',
+                   'KATA_STAGING_REGISTRY'].each { name ->
                     def value = env."${name}"
                     if (value?.trim()) {
                       data += "${name}=${value}\n"
