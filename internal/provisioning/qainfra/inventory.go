@@ -41,6 +41,8 @@ type clusterNode struct {
 	PublicIP   string   `json:"public_ip"`
 	PrivateIP  string   `json:"private_ip"`
 	InstanceID string   `json:"instance_id,omitempty"`
+	OS         string   `json:"os,omitempty"`
+	SSHUser    string   `json:"ssh_user,omitempty"`
 	AZ         string   `json:"az,omitempty"`
 }
 
@@ -121,17 +123,23 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	return b.String()
 }
 
-// assignNodeGroups maps each node to its inventory group (master/servers/workers)
-// with mutually-exclusive first-match-wins rules: master = first etcd node (else
-// first cp for external-datastore topologies); servers = remaining etcd/cp;
-// workers = worker. Mirrors the upstream schema so every source of truth agrees.
+func isWindowsNode(n *clusterNode) bool {
+	return strings.EqualFold(n.OS, "windows") || strings.Contains(strings.ToLower(n.Name), "windows")
+}
+
+// assignNodeGroups maps each node to its inventory group (master/servers/workers/windows_workers)
+// with mutually-exclusive first-match-wins rules.
 func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 	assigned := make(map[string]string) // node name -> group
 
 	// master: first etcd node, else first cp (external-datastore has no etcd).
 	masterFound := false
 	for _, roleSet := range [][]string{{"etcd"}, {"cp"}} {
-		for _, n := range data.Nodes {
+		for i := range data.Nodes {
+			n := &data.Nodes[i]
+			if isWindowsNode(n) {
+				continue
+			}
 			if hasAnyRole(n.Roles, roleSet) {
 				assigned[n.Name] = "master"
 				masterFound = true
@@ -143,17 +151,20 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 			break
 		}
 	}
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		if _, ok := assigned[n.Name]; ok {
 			continue
 		}
+		if isWindowsNode(n) {
+			if hasAnyRole(n.Roles, []string{"worker"}) {
+				assigned[n.Name] = "windows_workers"
+			}
+			continue
+		}
 		switch {
-		// Any remaining node with etcd or cp is a K3s/RKE2 server. Matches
-		// isServerRole in config.go and the legacy "node_role.sh" classification
-		// (etcd-only, etcd-cp, cp-only, cp-worker all install as `server`).
-		// Without etcd here, extra etcd-only nodes in a split-role topology
-		// would be provisioned by Tofu but skipped by Ansible — silently
-		// shrinking the cluster.
+		// Any remaining node with etcd or cp is a K3s/RKE2 server.
+		// Extra etcd-only nodes in a split-role topology install as servers.
 		case hasAnyRole(n.Roles, []string{"etcd", "cp"}):
 			assigned[n.Name] = "servers"
 		case hasAnyRole(n.Roles, []string{"worker"}):
@@ -213,16 +224,29 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 		writeLine(b, "      ansible_host: ", yamlQuote(n.PublicIP))
 		writeLine(b, "      node_roles: ", yamlInlineList(n.Roles))
 		writeLine(b, "      rke2_node_role: ", yamlQuote(nodeRole(n, assigned)))
+		if isWindowsNode(n) {
+			sshUser := n.SSHUser
+			if sshUser == "" {
+				sshUser = "Administrator"
+			}
+			writeLine(b, "      node_os: \"windows\"")
+			writeLine(b, "      ansible_user: ", yamlQuote(sshUser))
+			writeLine(b, "      ansible_connection: \"ssh\"")
+			writeLine(b, "      ansible_shell_type: \"powershell\"")
+			writeLine(b, "      ansible_become: false")
+			writeLine(b, "      ansible_pipelining: false")
+		}
 	}
 }
 
-// writeInventoryChildren writes the all.children groups (master/servers/workers).
+// writeInventoryChildren writes the all.children groups (master/servers/workers/windows_workers).
 func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
-	groups := []string{"master", "servers", "workers"}
+	groups := []string{"master", "servers", "workers", "windows_workers"}
 	groupMembers := make(map[string][]clusterNode)
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		if g, ok := assigned[n.Name]; ok {
-			groupMembers[g] = append(groupMembers[g], n)
+			groupMembers[g] = append(groupMembers[g], *n)
 		}
 	}
 
@@ -313,6 +337,38 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 	}
 	if err := os.WriteFile(config.InfraProvisioner.Inventory.Path, []byte(yaml), 0o644); err != nil {
 		return fmt.Errorf("write inventory: %w", err)
+	}
+
+	return nil
+}
+
+// validateWindowsCNI fails before provisioning when Windows agents are requested
+// without a CNI RKE2 supports on Windows (the playbook would only fail after apply).
+func validateWindowsCNI(config *driver.InfraConfig) error {
+	srcTFVars := ""
+	if config.InfraProvisioner != nil {
+		srcTFVars = filepath.Join(config.InfraProvisioner.RootDir, "infrastructure", "qainfra", "vars.tfvars")
+	}
+	windows, err := windowsRequested(srcTFVars)
+	if err != nil {
+		return err
+	}
+	if !windows {
+		return nil
+	}
+	if config.InfraProvisioner != nil && config.InfraProvisioner.AirgapSetup {
+		return errors.New("windows agents are not supported with airgap: the airgap inventory has no windows_workers group")
+	}
+	if !strings.EqualFold(config.Product, "rke2") {
+		return fmt.Errorf("windows agents are only supported with rke2, got product %q", config.Product)
+	}
+
+	cni, err := effectiveCNI(config.CNI, config.Cluster.Config.ServerFlags)
+	if err != nil {
+		return err
+	}
+	if cni != "calico" && cni != "flannel" {
+		return fmt.Errorf("windows agents need CNI calico or flannel, got %q; set CNI or server_flags cni:", cni)
 	}
 
 	return nil

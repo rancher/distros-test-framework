@@ -148,6 +148,10 @@ func setOrAppendTFVarRaw(tfvarsPath, key, value string) error {
 
 // prepareTerraformFiles copies and updates terraform configuration files.
 func prepareTerraformFiles(config *driver.InfraConfig) error {
+	if err := validateWindowsCNI(config); err != nil {
+		return err
+	}
+
 	if err := copyTerraformFiles(config); err != nil {
 		return fmt.Errorf("failed to copy terraform files: %w", err)
 	}
@@ -257,16 +261,43 @@ func threadRuntimeEnvIntoTFVars(tfvarsPath string) error {
 		{"VOLUME_SIZE", "", "aws_volume_size"},
 		{"VOLUME_TYPE", "", "aws_volume_type"},
 		{"AWS_REGION", "", "aws_region"},
+		{"AWS_AMI_WINDOWS", "WINDOWS_AMI", "aws_ami_windows"},
+		{"INSTANCE_TYPE_WINDOWS", "WINDOWS_INSTANCE_TYPE", "instance_type_windows"},
+		{"AWS_VOLUME_SIZE_WINDOWS", "VOLUME_SIZE_WINDOWS", "aws_volume_size_windows"},
+		{"AWS_VOLUME_TYPE_WINDOWS", "VOLUME_TYPE_WINDOWS", "aws_volume_type_windows"},
+		{"AWS_WINDOWS_SSH_USER", "WINDOWS_SSH_USER", "aws_windows_ssh_user"},
+		{"WINDOWS_ENABLE_RDP", "", "windows_enable_rdp"},
 	}
 	for _, o := range overrides {
 		if value := envOr(o.envA, o.envB); value != "" {
-			if err := setOrAppendTFVar(tfvarsPath, o.tfKey, value); err != nil {
+			if err := setTypedTFVar(tfvarsPath, o.tfKey, value); err != nil {
 				return fmt.Errorf("set %s in tfvars: %w", o.tfKey, err)
 			}
 		}
 	}
 
 	return externalDBIntoTFVars(tfvarsPath)
+}
+
+// setTypedTFVar writes number/bool module inputs unquoted (validated) and the rest as strings.
+func setTypedTFVar(tfvarsPath, key, value string) error {
+	switch key {
+	case "aws_volume_size_windows":
+		if n, err := strconv.Atoi(strings.TrimSpace(value)); err != nil || n <= 0 {
+			return fmt.Errorf("%s must be a positive integer, got %q", key, value)
+		}
+
+		return setOrAppendTFVarRaw(tfvarsPath, key, strings.TrimSpace(value))
+	case "windows_enable_rdp":
+		b, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("%s must be true or false, got %q", key, value)
+		}
+
+		return setOrAppendTFVarRaw(tfvarsPath, key, strconv.FormatBool(b))
+	}
+
+	return setOrAppendTFVar(tfvarsPath, key, value)
 }
 
 // envOr returns the first non-empty of the primary/fallback env vars.
@@ -365,6 +396,11 @@ func updateMainTfModuleSource(config *driver.InfraConfig) error {
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
 	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
 	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
+	hasWindows, winErr := windowsRequested(config.InfraProvisioner.Terraform.TFVarsPath)
+	if winErr != nil {
+		return winErr
+	}
+	contentStr = injectWindowsModuleArgs(contentStr, hasWindows)
 	contentStr, nestedErr := injectNestedVirtualization(contentStr, qaInfraProvider, os.Getenv("QA_INFRA_WORKER_NESTED"))
 	if nestedErr != nil {
 		return nestedErr
