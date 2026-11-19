@@ -1,6 +1,10 @@
 package qainfra
 
-import "strings"
+import (
+	"os"
+	"regexp"
+	"strings"
+)
 
 const windowsMarker = "# __WINDOWS_MODULE_ARGS__"
 
@@ -20,4 +24,32 @@ func injectWindowsModuleArgs(mainTf string, windows bool) string {
 	}
 
 	return strings.ReplaceAll(mainTf, windowsMarker, args)
+}
+
+var windowsNodeRE = regexp.MustCompile(`(?i)"?\bos"?\s*[=:]\s*"windows"`)
+
+// windowsRequested checks the effective topology: the env-built nodes override wins,
+// otherwise the vars.tfvars nodes list (e.g. from the Jenkins TFVARS blob).
+func windowsRequested(tfvarsPath string) (bool, error) {
+	winWorkers, err := envInt("no_of_windows_worker_nodes", 0)
+	if err != nil {
+		return false, err
+	}
+	if winWorkers > 0 {
+		return true, nil
+	}
+	// A non-empty env topology replaces the tfvars nodes, so tfvars Windows entries no longer apply.
+	if nodesJSON, nodesErr := buildNodesTFVar(); nodesErr == nil && nodesJSON != "" {
+		return false, nil
+	}
+
+	content, err := os.ReadFile(tfvarsPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return windowsNodeRE.Match(content), nil
 }

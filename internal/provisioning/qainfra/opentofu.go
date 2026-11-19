@@ -396,11 +396,11 @@ func updateMainTfModuleSource(config *driver.InfraConfig) error {
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
 	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
 	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
-	windowsRequested, winErr := envInt("no_of_windows_worker_nodes", 0)
+	hasWindows, winErr := windowsRequested(config.InfraProvisioner.Terraform.TFVarsPath)
 	if winErr != nil {
 		return winErr
 	}
-	contentStr = injectWindowsModuleArgs(contentStr, windowsRequested > 0)
+	contentStr = injectWindowsModuleArgs(contentStr, hasWindows)
 	contentStr, nestedErr := injectNestedVirtualization(contentStr, qaInfraProvider, os.Getenv("QA_INFRA_WORKER_NESTED"))
 	if nestedErr != nil {
 		return nestedErr
