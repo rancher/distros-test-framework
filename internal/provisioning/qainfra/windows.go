@@ -26,6 +26,8 @@ func injectWindowsModuleArgs(mainTf string, windows bool) string {
 	return strings.ReplaceAll(mainTf, windowsMarker, args)
 }
 
+var nodesStartRE = regexp.MustCompile(`(?m)^\s*nodes\s*=\s*\[`)
+
 var windowsNodeRE = regexp.MustCompile(`(?i)"?\bos"?\s*[=:]\s*"windows"`)
 
 // windowsRequested checks the effective topology: the env-built nodes override wins,
@@ -51,5 +53,71 @@ func windowsRequested(tfvarsPath string) (bool, error) {
 		return false, err
 	}
 
-	return windowsNodeRE.Match(content), nil
+	return windowsNodeRE.MatchString(nodesBlock(string(content))), nil
+}
+
+// nodesBlock returns the bracketed value of the top-level `nodes` variable with HCL
+// comments removed; text outside it or inside comments never counts as a node.
+func nodesBlock(src string) string {
+	var clean strings.Builder
+	inStr := false
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		switch {
+		case inStr:
+			clean.WriteByte(c)
+			if c == '\\' && i+1 < len(src) {
+				i++
+				clean.WriteByte(src[i])
+			} else if c == '"' {
+				inStr = false
+			}
+		case c == '"':
+			inStr = true
+			clean.WriteByte(c)
+		case c == '#' || strings.HasPrefix(src[i:], "//"):
+			for i < len(src) && src[i] != '\n' {
+				i++
+			}
+			clean.WriteByte('\n')
+		case strings.HasPrefix(src[i:], "/*"):
+			end := strings.Index(src[i+2:], "*/")
+			if end < 0 {
+				i = len(src)
+			} else {
+				i += end + 3
+			}
+		default:
+			clean.WriteByte(c)
+		}
+	}
+
+	text := clean.String()
+	loc := nodesStartRE.FindStringIndex(text)
+	if loc == nil {
+		return ""
+	}
+	start := loc[1] - 1
+	depth := 0
+	inStr = false
+	for i := start; i < len(text); i++ {
+		switch c := text[i]; {
+		case inStr:
+			if c == '\\' {
+				i++
+			} else if c == '"' {
+				inStr = false
+			}
+		case c == '"':
+			inStr = true
+		case c == '[':
+			depth++
+		case c == ']':
+			if depth--; depth == 0 {
+				return text[start : i+1]
+			}
+		}
+	}
+
+	return text[start:]
 }
