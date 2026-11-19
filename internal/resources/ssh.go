@@ -67,7 +67,7 @@ func dialNode(ctx context.Context, host string) (net.Conn, error) {
 
 		return dialer.DialContext(ctx, "tcp", host)
 	}
-	jump, err := getOrDialSSHContext(ctx, bastion)
+	jump, err := getOrDialBastion(ctx, bastion)
 	if err != nil {
 		return nil, fmt.Errorf("bastion %s: %w", bastion, err)
 	}
@@ -467,6 +467,23 @@ func getOrDialSSHContext(ctx context.Context, host string) (*ssh.Client, error) 
 	LogLevel("debug", "SSH connection pool: %v\n", &connPool.connClient)
 
 	return newConn, nil
+}
+
+// bastionDial serializes bastion health checks and dials so concurrent callers share one client.
+var bastionDial sync.Mutex
+
+const bastionPingTimeout = 15 * time.Second
+
+// getOrDialBastion pings the shared bastion client on its own timeout, so one caller's cancel
+// can't close the tunnels other goroutines use.
+func getOrDialBastion(ctx context.Context, host string) (*ssh.Client, error) {
+	bastionDial.Lock()
+	defer bastionDial.Unlock()
+
+	pingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bastionPingTimeout)
+	defer cancel()
+
+	return getOrDialSSHContext(pingCtx, host)
 }
 
 // pingSSH closes conn when ctx ends, since a stuck session cannot be interrupted otherwise.

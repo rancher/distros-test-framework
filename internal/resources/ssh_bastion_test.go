@@ -228,3 +228,60 @@ func TestRunCommandOnNodeContextTunnelsIPv6ThroughBastion(t *testing.T) {
 		t.Fatalf("RunCommandOnNodeContext via bastion = %q, %v", out, err)
 	}
 }
+
+// A caller whose ctx is already done must not close the bastion client other IPv6 tunnels share.
+func TestBastionClientSurvivesCanceledCaller(t *testing.T) {
+	t.Setenv("PROVISIONER_MODULE", "legacy")
+	t.Setenv("access_key", writeTestKey(t))
+	t.Setenv("aws_user", "test")
+	bastion := startSSHServer(t, execServer("ok"))
+	useTestBastion(t, "127.0.0.1", bastion)
+
+	shared, err := getOrDialBastion(context.Background(), bastion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _ = getOrDialBastion(canceled, bastion)
+
+	if _, _, err := runsshCommand("echo ok", shared); err != nil {
+		t.Fatalf("shared bastion client was closed by a canceled caller: %v", err)
+	}
+	connPool.Lock()
+	pooled := connPool.connClient[bastion]
+	connPool.Unlock()
+	if pooled != shared {
+		t.Fatal("the pooled bastion client was replaced after a canceled caller")
+	}
+}
+
+// Concurrent first dials must share one bastion client instead of leaking the losers.
+func TestBastionClientSingleDial(t *testing.T) {
+	t.Setenv("PROVISIONER_MODULE", "legacy")
+	t.Setenv("access_key", writeTestKey(t))
+	t.Setenv("aws_user", "test")
+	bastion := startSSHServer(t, execServer("ok"))
+	useTestBastion(t, "127.0.0.1", bastion)
+
+	const callers = 8
+	clients := make([]*ssh.Client, callers)
+	var wg sync.WaitGroup
+	for i := range clients {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, err := getOrDialBastion(context.Background(), bastion)
+			if err != nil {
+				t.Error(err)
+			}
+			clients[i] = c
+		}()
+	}
+	wg.Wait()
+	for _, c := range clients[1:] {
+		if c != clients[0] {
+			t.Fatal("concurrent first dials produced more than one bastion client")
+		}
+	}
+}
