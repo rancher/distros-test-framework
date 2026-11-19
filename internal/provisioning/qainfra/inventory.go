@@ -342,12 +342,19 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 // validateWindowsCNI fails before provisioning when Windows agents are requested
 // without a CNI RKE2 supports on Windows (the playbook would only fail after apply).
 func validateWindowsCNI(config *driver.InfraConfig) error {
-	winWorkers, err := envInt("no_of_windows_worker_nodes", 0)
+	srcTFVars := ""
+	if config.InfraProvisioner != nil {
+		srcTFVars = filepath.Join(config.InfraProvisioner.RootDir, "infrastructure", "qainfra", "vars.tfvars")
+	}
+	windows, err := windowsRequested(srcTFVars)
 	if err != nil {
 		return err
 	}
-	if winWorkers == 0 {
+	if !windows {
 		return nil
+	}
+	if config.InfraProvisioner != nil && config.InfraProvisioner.AirgapSetup {
+		return errors.New("windows agents are not supported with airgap: the airgap inventory has no windows_workers group")
 	}
 	if !strings.EqualFold(config.Product, "rke2") {
 		return fmt.Errorf("windows agents are only supported with rke2, got product %q", config.Product)
