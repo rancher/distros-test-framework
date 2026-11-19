@@ -76,8 +76,8 @@ node {
     addStrParam(param, 'REPO',   (env.REPO ?: ''))
     addStrParam(param, 'BRANCH', branch)
     param << string(name: 'PROVISIONER_MODULE', value: 'qainfra')
-    param << string(name: 'QA_INFRA_REF', value: env.QA_INFRA_REF?.trim() ?: 'main')
-    param << string(name: 'QA_INFRA_REPO', value: env.QA_INFRA_REPO?.trim() ?: '')
+    addStrParam(param, 'QA_INFRA_REF',  env.QA_INFRA_REF?.trim())
+    addStrParam(param, 'QA_INFRA_REPO', env.QA_INFRA_REPO?.trim())
 
     // Optional.
     addStrParam(param, 'LOG_LEVEL',         env.LOG_LEVEL)

@@ -17,13 +17,16 @@ branch. Existing JJB main jobs must not consume this Jenkinsfile beforehand.
 `scripts/Jenkinsfile_post_release_captain` calls the product's
 `validate_cluster_rpm_qainfra` and `validate_cluster_arm_rpm_qainfra` jobs for
 each `CHANNELS`/`VERSIONS` combination, with at most four children running at
-once. It forwards `PROVISIONER_MODULE=qainfra`, `QA_INFRA_REF`, `QA_INFRA_REPO`,
-the DTF repository/branch and the managed SSH key name. Each child retains its
-own OS, architecture, TFVARS and test arguments; the captain does not enable
-Prime or replace the child's security configuration.
+once. It forwards `PROVISIONER_MODULE=qainfra`, the DTF repository/branch and
+the managed SSH key name. `QA_INFRA_REF` and `QA_INFRA_REPO` are forwarded only
+when nonempty and not the literal `null`; otherwise the child defaults apply.
+Each child retains its own OS, architecture, TFVARS and test arguments; the
+captain does not enable Prime or replace the child's security configuration.
 
-A failed child marks the captain as failed when `PROPAGATE_CHILD_FAILURES=true`,
-but later batches still run. Cancelling the captain stops the remaining batches.
+With `PROPAGATE_CHILD_FAILURES=true`, any child result other than `SUCCESS`
+(including `UNSTABLE` or `ABORTED`) marks the captain `FAILURE`; later batches
+still run. With `false`, child results do not change the captain's result.
+Cancelling or timing out the captain itself stops the remaining batches.
 
 `INSTALL_MODE=auto` selects the release install mode for `PRODUCT_NAME`;
 commit installs are not supported by these RPM checks. `DRY_RUN=true` checks
@@ -226,7 +229,13 @@ ARCH=amd64                                                 # amd64 | arm64
 Both registry methods require authentication in the QA-infra playbook. Use matching DTF and
 QA-infra Airgap revisions: the system-default validator now expects an unauthenticated HTTP 401
 with the OS trust store, then verifies an authenticated image pull. It still requires
-`system-default-registry` and checks the image prefix; it does not rely on source mirrors.
+`system-default-registry` and checks server image prefixes; K3s agents are checked
+through their generated containerd sandbox image, without requiring a scheduled pod.
+These checks do not rely on source mirrors.
+
+The legacy K3s artifact downloader now rejects an unsupported non-Prime artifact URL
+instead of silently ignoring it and falling back to GitHub. Leave the URL empty for
+community artifacts.
 
 ```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used

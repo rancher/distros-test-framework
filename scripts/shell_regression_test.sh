@@ -9,24 +9,24 @@ mkdir -p "$test_root/artifacts" "$test_root/report" "$test_root/bin"
 asset_requests="$test_root/asset-requests"
 (
   cd "$test_root/artifacts"
-  # Load the real helpers without invoking the infrastructure-facing main.
+  # An invalid product makes an accidental main call fail before any downloads.
   # shellcheck source=/dev/null
-  source <(sed '$d' "$repo_root/infrastructure/legacy/airgap/setup/get_artifacts.sh") \
-    rke2 v1.32.13+rke2r1 linux amd64 'https://prime.example.invalid/path with spaces' '' tar.gz
+  source "$repo_root/infrastructure/legacy/airgap/setup/get_artifacts.sh" \
+    source-only v1.32.13+rke2r1 linux amd64 'https://prime.example.invalid/path with spaces' '' tar.gz
 
   # Called indirectly by the sourced artifact helpers.
-  # shellcheck disable=SC2317
+  # shellcheck disable=SC2317,SC2329
   download_retry() {
     [[ $# -eq 2 && "$1" == wget ]]
     printf '%s\n' "$2" >> "$asset_requests"
   }
-  # shellcheck disable=SC2317
+  # shellcheck disable=SC2317,SC2329
   safe_download_install() { :; }
-  # shellcheck disable=SC2317
+  # shellcheck disable=SC2317,SC2329
   verify_checksums() { :; }
 
-  get_assets
-  if registry_url=https://unsupported.example.invalid get_assets; then
+  product=rke2 get_assets
+  if product=rke2 registry_url=https://unsupported.example.invalid get_assets; then
     echo 'Unsupported artifact source was accepted' >&2
     exit 1
   fi

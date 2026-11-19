@@ -2,6 +2,7 @@ package support
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -124,7 +125,7 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 	product := cluster.Config.Product
 	host := cluster.Airgap.RegistryHost
 	cfg := fmt.Sprintf("/etc/rancher/%s/config.yaml", product)
-	// K3s agents reject the key in config.yaml and inherit the registry from the server.
+	// K3s agents inherit this server-only setting from the server configuration.
 	configNodes := append([]string{}, cluster.ServerIPs...)
 	if product != "k3s" {
 		configNodes = append(configNodes, cluster.AgentIPs...)
@@ -137,7 +138,7 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 	}
 	if product == "k3s" {
 		for _, ip := range cluster.AgentIPs {
-			if err := requireRegistryImages(cluster, product, ip, host); err != nil {
+			if err := validateK3sAgentRegistry(cluster, ip, host); err != nil {
 				return err
 			}
 		}
@@ -151,11 +152,38 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 			"airgap revision that authenticates this registry): %v %q", host, err, code)
 	}
 
-	if err = requireRegistryImages(cluster, product, node, host); err != nil {
-		return err
+	if imageErr := requireRegistryImages(cluster, product, node, host); imageErr != nil {
+		return imageErr
 	}
 
 	return pullThroughRegistry(cluster, node, host)
+}
+
+// Check the generated sandbox image before any workload needs to pull it.
+func validateK3sAgentRegistry(cluster *driver.Cluster, node, host string) error {
+	cmd := "sudo grep -E '^[[:space:]]*(sandbox_image|sandbox)[[:space:]]*=' " +
+		"/var/lib/rancher/k3s/agent/etc/containerd/config.toml"
+	config, configErr := CmdForPrivateNode(cluster, cmd, node)
+	if configErr != nil {
+		return fmt.Errorf("read containerd sandbox image on %s: %w", node, configErr)
+	}
+
+	if registryErr := assertK3sSandboxRegistry(config, host); registryErr != nil {
+		return fmt.Errorf("containerd sandbox image on %s: %w", node, registryErr)
+	}
+
+	return nil
+}
+
+var sandboxImageRE = regexp.MustCompile(`(?m)^\s*(?:sandbox_image|sandbox)\s*=\s*["']([^"'\r\n]+)["'][ \t]*(?:#.*)?$`)
+
+func assertK3sSandboxRegistry(config, host string) error {
+	images := sandboxImageRE.FindAllStringSubmatch(config, -1)
+	if len(images) != 1 || !strings.HasPrefix(images[0][1], host+"/") {
+		return fmt.Errorf("expected one sandbox image with the %s/ prefix", host)
+	}
+
+	return nil
 }
 
 // requireRegistryImages fails unless some image on the node carries the registry host prefix.
