@@ -18,7 +18,7 @@ type infraNode struct {
 }
 
 // address returns the IP the framework must use to reach the node.
-func (n infraNode) address(airgap bool) string {
+func (n *infraNode) address(airgap bool) string {
 	if airgap {
 		return n.privateIP
 	}
