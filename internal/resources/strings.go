@@ -68,6 +68,11 @@ func EncloseSqBraces(ip string) string {
 	return "[" + ip + "]"
 }
 
+// IsIPv6 reports whether ip is an IPv6 literal.
+func IsIPv6(ip string) bool {
+	return strings.Contains(ip, ":")
+}
+
 // LogGrepOutput
 // Grep for a particular text/string (content) in a file (filename) on a node with 'ip' and log the same.
 // Ex: Log content:'denied' calls in filename:'/var/log/audit/audit.log' file.

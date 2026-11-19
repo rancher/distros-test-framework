@@ -22,6 +22,63 @@ type sshConn struct {
 
 var connPool = sshConn{connClient: make(map[string]*ssh.Client)}
 
+// sshBastion is the jump host for IPv6 targets; empty means every target is dialed directly.
+var sshBastion struct {
+	sync.RWMutex
+	ip, addr string
+}
+
+// SetSSHBastion routes SSH to IPv6 nodes through bastionIP (like ProxyCommand ssh -W [%h]:%p),
+// for runners without an IPv6 route. An empty bastionIP turns it off.
+func SetSSHBastion(bastionIP string) {
+	sshBastion.Lock()
+	defer sshBastion.Unlock()
+	sshBastion.ip, sshBastion.addr = bastionIP, ""
+	if bastionIP != "" {
+		sshBastion.addr = net.JoinHostPort(bastionIP, "22")
+	}
+}
+
+// SSHBastion returns the bastion IP registered with SetSSHBastion, or "".
+func SSHBastion() string {
+	sshBastion.RLock()
+	defer sshBastion.RUnlock()
+
+	return sshBastion.ip
+}
+
+// bastionFor returns the bastion address to tunnel host ("ip:port") through, or "" to dial directly.
+func bastionFor(host string) string {
+	sshBastion.RLock()
+	defer sshBastion.RUnlock()
+	ip, _, err := net.SplitHostPort(host)
+	if sshBastion.ip == "" || err != nil || !IsIPv6(ip) || ip == sshBastion.ip {
+		return ""
+	}
+
+	return sshBastion.addr
+}
+
+// dialNode opens the TCP stream to host, through the bastion's direct-tcpip channel when required.
+func dialNode(ctx context.Context, host string) (net.Conn, error) {
+	bastion := bastionFor(host)
+	if bastion == "" {
+		var dialer net.Dialer
+
+		return dialer.DialContext(ctx, "tcp", host)
+	}
+	jump, err := getOrDialBastion(ctx, bastion)
+	if err != nil {
+		return nil, fmt.Errorf("bastion %s: %w", bastion, err)
+	}
+	conn, err := jump.DialContext(ctx, "tcp", host)
+	if err != nil {
+		return nil, fmt.Errorf("via bastion %s: %w", bastion, err)
+	}
+
+	return conn, nil
+}
+
 // RetryCfg is the configuration for retrying commands.
 // Attempts: total attempts for the command.
 // Delay: delay before 1st retry.
@@ -212,13 +269,13 @@ func configureSSHContext(ctx context.Context, host string) (*ssh.Client, error) 
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	var dialer net.Dialer
-	netConn, err := dialer.DialContext(ctx, "tcp", host)
+	netConn, err := dialNode(ctx, host)
 	if err != nil {
 		return nil, ReturnLogError("failed to dial: %w", err)
 	}
 
-	// The handshake has no context support, so a deadline on the raw conn bounds it.
+	// The handshake has no context support, so a deadline on the raw conn bounds it
+	// (bastion channels reject deadlines; the AfterFunc close below still bounds them).
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = netConn.SetDeadline(deadline)
 	}
@@ -266,7 +323,7 @@ func resolveSSHConfig() (user, path string) {
 // RunCommandOnNodeWithStdin runs a command on the node streaming stdin over
 // the established connection — no shell-encoded payloads or size limits.
 func RunCommandOnNodeWithStdin(cmd, ip string, stdin io.Reader) (string, error) {
-	conn, err := getOrDialSSH(ip + ":22")
+	conn, err := getOrDialSSH(net.JoinHostPort(ip, "22"))
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
@@ -298,7 +355,7 @@ func RunCommandOnNodeContext(ctx context.Context, cmd, ip string) (string, error
 	}
 
 	// A dedicated client, never the pooled one: closing it on cancel must not abort other callers.
-	conn, err := configureSSHContext(ctx, ip+":22")
+	conn, err := configureSSHContext(ctx, net.JoinHostPort(ip, "22"))
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %w", ip, err)
 	}
@@ -410,6 +467,23 @@ func getOrDialSSHContext(ctx context.Context, host string) (*ssh.Client, error) 
 	LogLevel("debug", "SSH connection pool: %v\n", &connPool.connClient)
 
 	return newConn, nil
+}
+
+// bastionDial serializes bastion health checks and dials so concurrent callers share one client.
+var bastionDial sync.Mutex
+
+const bastionPingTimeout = 15 * time.Second
+
+// getOrDialBastion pings the shared bastion client on its own timeout, so one caller's cancel
+// can't close the tunnels other goroutines use.
+func getOrDialBastion(ctx context.Context, host string) (*ssh.Client, error) {
+	bastionDial.Lock()
+	defer bastionDial.Unlock()
+
+	pingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bastionPingTimeout)
+	defer cancel()
+
+	return getOrDialSSHContext(pingCtx, host)
 }
 
 // pingSSH closes conn when ctx ends, since a stuck session cannot be interrupted otherwise.

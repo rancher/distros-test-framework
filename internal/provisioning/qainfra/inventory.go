@@ -30,6 +30,9 @@ type clusterNodesJSON struct {
 		Arch          string `json:"arch,omitempty"`
 		RunID         string `json:"run_id,omitempty"`
 		QAInfraSHA    string `json:"qa_infra_sha,omitempty"`
+		// The dualstack/ipv6 modules publish the bastion here instead of a bastion object.
+		BastionIP  string `json:"bastion_ip,omitempty"`
+		BastionDNS string `json:"bastion_dns,omitempty"`
 	} `json:"metadata"`
 	Nodes   []clusterNode   `json:"nodes"`
 	Bastion *clusterBastion `json:"bastion,omitempty"`
@@ -40,6 +43,7 @@ type clusterNode struct {
 	Roles      []string `json:"roles"`
 	PublicIP   string   `json:"public_ip"`
 	PrivateIP  string   `json:"private_ip"`
+	IPv6       string   `json:"ipv6,omitempty"`
 	InstanceID string   `json:"instance_id,omitempty"`
 	AZ         string   `json:"az,omitempty"`
 }
@@ -81,12 +85,19 @@ func fetchClusterNodesJSON(tofuDir string) (*clusterNodesJSON, error) {
 		return nil, errors.New("cluster_nodes_json output is empty — did 'tofu apply' complete?")
 	}
 
+	return parseClusterNodesJSON(raw)
+}
+
+func parseClusterNodesJSON(raw []byte) (*clusterNodesJSON, error) {
 	var data clusterNodesJSON
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal cluster_nodes_json: %w", err)
 	}
 	if err := data.validateSchema(); err != nil {
 		return nil, err
+	}
+	if data.Bastion == nil && data.Metadata.BastionIP != "" {
+		data.Bastion = &clusterBastion{PublicIP: data.Metadata.BastionIP, PublicDNS: data.Metadata.BastionDNS}
 	}
 
 	return &data, nil
@@ -116,7 +127,7 @@ func buildStaticInventory(data *clusterNodesJSON, product string) string {
 	var b strings.Builder
 	writeInventoryVars(&b, data)
 	writeInventoryHosts(&b, data, assigned)
-	writeInventoryChildren(&b, data, assigned)
+	writeInventoryChildren(&b, data, assigned, "", true)
 
 	return b.String()
 }
@@ -216,8 +227,11 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 	}
 }
 
-// writeInventoryChildren writes the all.children groups (master/servers/workers).
-func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
+// writeInventoryChildren writes the all.children groups (master/servers/workers) after
+// any pre-rendered extra groups; withHost repeats ansible_host under each member.
+func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string,
+	extra string, withHost bool,
+) {
 	groups := []string{"master", "servers", "workers"}
 	groupMembers := make(map[string][]clusterNode)
 	for _, n := range data.Nodes {
@@ -226,7 +240,7 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 		}
 	}
 
-	anyChildren := false
+	anyChildren := extra != ""
 	for _, g := range groups {
 		if len(groupMembers[g]) > 0 {
 			anyChildren = true
@@ -239,6 +253,7 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 	}
 
 	b.WriteString("  children:\n")
+	b.WriteString(extra)
 	for _, g := range groups {
 		members := groupMembers[g]
 		if len(members) == 0 {
@@ -249,7 +264,9 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 		b.WriteString("      hosts:\n")
 		for _, n := range members {
 			writeLine(b, "        ", n.Name, ":")
-			writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
+			if withHost {
+				writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
+			}
 		}
 	}
 }
@@ -294,9 +311,14 @@ func writeStaticInventory(config *driver.InfraConfig) error {
 	}
 
 	var yaml string
+	ssh := config.Cluster.SSH
 	if config.InfraProvisioner.AirgapSetup {
-		ssh := config.Cluster.SSH
 		yaml, err = buildAirgapInventory(data, ssh.User, ssh.PrivKeyPath, ssh.KeyName)
+		if err != nil {
+			return err
+		}
+	} else if env := networkEnv(config.Module); env != "" {
+		yaml, err = buildNetworkInventory(data, env, ssh.User, ssh.PrivKeyPath)
 		if err != nil {
 			return err
 		}

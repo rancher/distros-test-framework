@@ -359,11 +359,16 @@ func updateMainTfModuleSource(config *driver.InfraConfig) error {
 	}
 
 	contentStr := string(content)
+	module := "cluster_nodes"
+	if env := networkEnv(config.Module); env != "" {
+		module = env
+	}
 	contentStr = strings.ReplaceAll(contentStr, "placeholder-for-remote-module",
-		src.moduleSource(qaInfraProvider, "cluster_nodes"))
+		src.moduleSource(qaInfraProvider, module))
 
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
 	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
+	contentStr = injectNetworkModuleArgs(contentStr, networkEnv(config.Module))
 	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
 	contentStr, nestedErr := injectNestedVirtualization(contentStr, qaInfraProvider, os.Getenv("QA_INFRA_WORKER_NESTED"))
 	if nestedErr != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -17,7 +18,7 @@ func RunCommandOnNode(cmd, ip string) (string, error) {
 		return "", ReturnLogError("cmd should not be empty")
 	}
 
-	host := ip + ":22"
+	host := net.JoinHostPort(ip, "22")
 	conn, err := getOrDialSSH(host)
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to host %s: %v", host, err)

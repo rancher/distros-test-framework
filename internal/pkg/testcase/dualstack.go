@@ -33,7 +33,7 @@ func TestIngressDualStack(cluster *driver.Cluster, deleteWorkload bool) {
 	Expect(err).NotTo(HaveOccurred(), "Ingress ip is not returned")
 
 	for _, ingressIP := range ingressIPs {
-		if strings.Contains(ingressIP, ":") {
+		if resources.IsIPv6(ingressIP) {
 			ingressIP = resources.EncloseSqBraces(ingressIP)
 		}
 		err = assert.ValidateOnNode(cluster.Bastion.PublicIPv4Addr,
@@ -87,16 +87,29 @@ func TestClusterIPsInCIDRRange(cluster *driver.Cluster, deleteWorkload bool) {
 	}
 }
 
-func TestIPFamiliesDualStack(deleteWorkload bool) {
+// TestIPFamiliesDualStack SSHes to the first server's provisioned address, not a node
+// ExternalIP: IPv6-first nodes may report only IPv6 external IPs, unreachable from the runner.
+func TestIPFamiliesDualStack(cluster *driver.Cluster, deleteWorkload bool) {
+	Expect(cluster.ServerIPs).NotTo(BeEmpty(), "no server IPs recorded for the cluster")
 	err := resources.ManageWorkload("apply", "dualstack-multi.yaml")
 	Expect(err).NotTo(HaveOccurred())
+
+	// Dual-stack services list the cluster's primary family first; the built-in
+	// kubernetes service carries it (IPv6 on IPv6-first clusters).
+	primary, famErr := resources.RunCommandHost("kubectl get svc kubernetes -n default " +
+		"-o jsonpath='{.spec.ipFamilies[0]}' --kubeconfig=" + resources.KubeConfigFile)
+	Expect(famErr).NotTo(HaveOccurred(), famErr)
+	dualFamilies := `"IPv4","IPv6"`
+	if strings.TrimSpace(primary) == "IPv6" {
+		dualFamilies = `"IPv6","IPv4"`
+	}
 
 	services := []string{"v4", "v6", "require-dual", "prefer-dual"}
 	expectedIPFamily := []string{
 		`"ipFamilies":["IPv4"],"ipFamilyPolicy":"SingleStack"`,
 		`"ipFamilies":["IPv6"],"ipFamilyPolicy":"SingleStack"`,
-		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"RequireDualStack"`,
-		`"ipFamilies":["IPv4","IPv6"],"ipFamilyPolicy":"PreferDualStack"`,
+		`"ipFamilies":[` + dualFamilies + `],"ipFamilyPolicy":"RequireDualStack"`,
+		`"ipFamilies":[` + dualFamilies + `],"ipFamilyPolicy":"PreferDualStack"`,
 	}
 	td := testData{
 		Namespace: "default",
@@ -110,7 +123,7 @@ func TestIPFamiliesDualStack(deleteWorkload bool) {
 	for i, svc := range services {
 		td.SVC = "my-service-"
 		td.SVC += svc
-		testServiceClusterIPs(td)
+		testServiceClusterIPs(td, curlNodeIP(cluster))
 
 		cmd := "kubectl get svc " + td.SVC + " -n " + td.Namespace +
 			" -o jsonpath='{range .items[*]}{.spec}' --kubeconfig=" + resources.KubeConfigFile
@@ -181,4 +194,14 @@ func TestIngressWithPodRestartAndNetPol(cluster *driver.Cluster, deleteWorkload 
 		err = resources.ManageWorkload("delete", "k3s_issue_10053_ns.yaml")
 		Expect(err).NotTo(HaveOccurred())
 	}
+}
+
+// curlNodeIP prefers an agent: with ETCD_ONLY_NODES the first server may run no kubelet or CNI,
+// so it cannot reach cluster IPs.
+func curlNodeIP(cluster *driver.Cluster) string {
+	if len(cluster.AgentIPs) > 0 {
+		return cluster.AgentIPs[0]
+	}
+
+	return cluster.ServerIPs[0]
 }

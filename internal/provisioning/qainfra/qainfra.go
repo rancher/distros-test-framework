@@ -29,6 +29,7 @@ func (*Provisioner) provisionInfrastructure(cfg *driver.InfraConfig) (*driver.Cl
 		buildClusterConfig,
 		setupAnsibleEnvironment,
 		executeAnsiblePlaybook,
+		stageBastionKubeconfig,
 		addTofuOutputsToConfig,
 		collectAirgapFacts,
 	}
