@@ -16,20 +16,25 @@ func TestInjectWindowsModuleArgs(t *testing.T) {
 }
 
 func TestWindowsRequestedIgnoresCommentsAndStrings(t *testing.T) {
-	clearRuntimeEnvs(t)
+	const etcd = `nodes = [{ count = 1, role = ["etcd"] }]` + "\n"
+	const win = `os = "windows"`
 	for name, tc := range map[string]struct {
 		content string
 		want    bool
 	}{
-		"hash comment":    {"# example: os = \"windows\"\nnodes = [{ count = 1, role = [\"etcd\"] }]\n", false},
-		"block comment":   {"/* os = \"windows\" */\nnodes = [{ count = 1, role = [\"etcd\"] }]\n", false},
-		"other variable":  {"description = \"os = \\\"windows\\\"\"\nnodes = [{ count = 1, role = [\"etcd\"] }]\n", false},
-		"real node":       {"nodes = [\n  { count = 1, role = [\"etcd\"] },\n  { count = 1, role = [\"worker\"], os = \"windows\" }, # win\n]\n", true},
-		"after nodes var": {"nodes = [{ count = 1, role = [\"etcd\"] }]\nfoo = { os = \"windows\" }\n", false},
+		"hash comment":    {"# example: " + win + "\n" + etcd, false},
+		"block comment":   {"/* " + win + " */\n" + etcd, false},
+		"description":     {`description = "os = \"windows\""` + "\n" + etcd, false},
+		"after nodes var": {etcd + "foo = { " + win + " }\n", false},
+		"real node": {
+			"nodes = [\n  { count = 1, role = [\"etcd\"] },\n" +
+				"  { count = 1, role = [\"worker\"], " + win + " }, # win\n]\n",
+			true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			path := writeTFVars(t, tc.content)
-			got, err := windowsRequested(path)
+			setNodeEnvs(t, nil)
+			got, err := windowsRequested(writeTFVars(t, tc.content))
 			if err != nil || got != tc.want {
 				t.Fatalf("windowsRequested = %v, %v; want %v", got, err, tc.want)
 			}

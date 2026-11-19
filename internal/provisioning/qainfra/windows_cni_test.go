@@ -42,8 +42,7 @@ func TestValidateWindowsCNI(t *testing.T) {
 }
 
 func TestValidateWindowsRejectsAirgap(t *testing.T) {
-	t.Setenv("no_of_windows_worker_nodes", "1")
-	t.Setenv("NO_OF_WINDOWS_WORKER_NODES", "")
+	setNodeEnvs(t, map[string]string{"no_of_windows_worker_nodes": "1"})
 	cfg := &driver.InfraConfig{Product: "rke2", CNI: "calico", Cluster: &driver.Cluster{}}
 	cfg.InfraProvisioner = &driver.InfraProvisionerConfig{AirgapSetup: true}
 	if err := validateWindowsCNI(cfg); err == nil {
@@ -52,6 +51,7 @@ func TestValidateWindowsRejectsAirgap(t *testing.T) {
 }
 
 func TestValidateWindowsFromTFVarsNodes(t *testing.T) {
+	setNodeEnvs(t, nil)
 	clearRuntimeEnvs(t)
 	root := t.TempDir()
 	dir := filepath.Join(root, "infrastructure", "qainfra")

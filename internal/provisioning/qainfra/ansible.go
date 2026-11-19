@@ -49,7 +49,7 @@ func fetchQAInfraCheckout(config *driver.InfraConfig) error {
 
 // checkoutQAInfra does the git work for fetchQAInfraCheckout; dir must already exist.
 func checkoutQAInfra(dir string, src qaInfraSource, product string) error {
-	sparseDirs := []string{"ansible/" + product, "ansible/roles", "ansible/tasks", airgapAnsiblePath, "requirements.yml"}
+	sparseDirs := []string{"ansible/" + product, "ansible/roles", "ansible/tasks", airgapAnsiblePath}
 
 	steps := [][]string{
 		{"init", "-q"},

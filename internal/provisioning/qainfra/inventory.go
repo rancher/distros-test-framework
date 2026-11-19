@@ -135,8 +135,9 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 	// master: first etcd node, else first cp (external-datastore has no etcd).
 	masterFound := false
 	for _, roleSet := range [][]string{{"etcd"}, {"cp"}} {
-		for _, n := range data.Nodes {
-			if isWindowsNode(&n) {
+		for i := range data.Nodes {
+			n := &data.Nodes[i]
+			if isWindowsNode(n) {
 				continue
 			}
 			if hasAnyRole(n.Roles, roleSet) {
@@ -150,11 +151,12 @@ func assignNodeGroups(data *clusterNodesJSON, _ string) map[string]string {
 			break
 		}
 	}
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		if _, ok := assigned[n.Name]; ok {
 			continue
 		}
-		if isWindowsNode(&n) {
+		if isWindowsNode(n) {
 			if hasAnyRole(n.Roles, []string{"worker"}) {
 				assigned[n.Name] = "windows_workers"
 			}
@@ -241,9 +243,10 @@ func writeInventoryHosts(b *strings.Builder, data *clusterNodesJSON, assigned ma
 func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned map[string]string) {
 	groups := []string{"master", "servers", "workers", "windows_workers"}
 	groupMembers := make(map[string][]clusterNode)
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		if g, ok := assigned[n.Name]; ok {
-			groupMembers[g] = append(groupMembers[g], n)
+			groupMembers[g] = append(groupMembers[g], *n)
 		}
 	}
 

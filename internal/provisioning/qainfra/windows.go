@@ -59,6 +59,17 @@ func windowsRequested(tfvarsPath string) (bool, error) {
 // nodesBlock returns the bracketed value of the top-level `nodes` variable with HCL
 // comments removed; text outside it or inside comments never counts as a node.
 func nodesBlock(src string) string {
+	text := stripHCLComments(src)
+	loc := nodesStartRE.FindStringIndex(text)
+	if loc == nil {
+		return ""
+	}
+
+	return bracketedValue(text, loc[1]-1)
+}
+
+// stripHCLComments removes #, // and /* */ comments while leaving quoted strings intact.
+func stripHCLComments(src string) string {
 	var clean strings.Builder
 	inStr := false
 	for i := 0; i < len(src); i++ {
@@ -76,44 +87,40 @@ func nodesBlock(src string) string {
 			inStr = true
 			clean.WriteByte(c)
 		case c == '#' || strings.HasPrefix(src[i:], "//"):
-			for i < len(src) && src[i] != '\n' {
-				i++
-			}
+			i += strings.IndexByte(src[i:]+"\n", '\n') - 1
 			clean.WriteByte('\n')
 		case strings.HasPrefix(src[i:], "/*"):
 			end := strings.Index(src[i+2:], "*/")
 			if end < 0 {
-				i = len(src)
-			} else {
-				i += end + 3
+				return clean.String()
 			}
+			i += end + 3
 		default:
 			clean.WriteByte(c)
 		}
 	}
 
-	text := clean.String()
-	loc := nodesStartRE.FindStringIndex(text)
-	if loc == nil {
-		return ""
-	}
-	start := loc[1] - 1
+	return clean.String()
+}
+
+// bracketedValue returns text[start:] up to the bracket matching text[start], ignoring strings.
+func bracketedValue(text string, start int) string {
 	depth := 0
-	inStr = false
+	inStr := false
 	for i := start; i < len(text); i++ {
-		switch c := text[i]; {
+		c := text[i]
+		switch {
+		case inStr && c == '\\':
+			i++
 		case inStr:
-			if c == '\\' {
-				i++
-			} else if c == '"' {
-				inStr = false
-			}
+			inStr = c != '"'
 		case c == '"':
 			inStr = true
 		case c == '[':
 			depth++
 		case c == ']':
-			if depth--; depth == 0 {
+			depth--
+			if depth == 0 {
 				return text[start : i+1]
 			}
 		}
