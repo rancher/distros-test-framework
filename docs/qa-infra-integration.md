@@ -137,6 +137,25 @@ CP_ONLY_NODES=0
 CP_WORKER_NODES=0
 ```
 
+#### Windows agents (RKE2, connected mode only)
+
+Set `NO_OF_WINDOWS_WORKER_NODES` (or add `{ count = N, role = ["worker"], os = "windows" }` to the
+`nodes` list in `vars.tfvars`/`TFVARS`) to add Windows workers. Requirements and behavior:
+
+- Product must be RKE2 and the CNI must be `calico` or `flannel` (set `CNI` or `cni:` in `SERVER_FLAGS`); otherwise provisioning fails before apply.
+- Airgap with Windows agents is not supported and is rejected before apply.
+- The Windows module arguments are passed to qa-infra only when Windows nodes are requested, so the selected `QA_INFRA_REF` must declare them for Windows runs. Linux-only runs are unaffected.
+
+```bash
+NO_OF_WINDOWS_WORKER_NODES=1
+AWS_AMI_WINDOWS=<ami-id>
+INSTANCE_TYPE_WINDOWS=t3.xlarge        # t3.xlarge or higher
+AWS_VOLUME_SIZE_WINDOWS=100            # optional, positive integer
+AWS_VOLUME_TYPE_WINDOWS=gp3            # optional
+AWS_WINDOWS_SSH_USER=Administrator     # optional
+WINDOWS_ENABLE_RDP=false               # optional, true|false
+```
+
 ```bash
 # upgradecluster  (TEST_DIR=upgradecluster)
 TEST_TAG=upgradesuc                                        # upgradesuc | upgrademanual | upgradereplacement
