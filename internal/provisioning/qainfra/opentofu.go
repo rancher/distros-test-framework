@@ -270,13 +270,34 @@ func threadRuntimeEnvIntoTFVars(tfvarsPath string) error {
 	}
 	for _, o := range overrides {
 		if value := envOr(o.envA, o.envB); value != "" {
-			if err := setOrAppendTFVar(tfvarsPath, o.tfKey, value); err != nil {
+			if err := setTypedTFVar(tfvarsPath, o.tfKey, value); err != nil {
 				return fmt.Errorf("set %s in tfvars: %w", o.tfKey, err)
 			}
 		}
 	}
 
 	return externalDBIntoTFVars(tfvarsPath)
+}
+
+// setTypedTFVar writes number/bool module inputs unquoted (validated) and the rest as strings.
+func setTypedTFVar(tfvarsPath, key, value string) error {
+	switch key {
+	case "aws_volume_size_windows":
+		if n, err := strconv.Atoi(strings.TrimSpace(value)); err != nil || n <= 0 {
+			return fmt.Errorf("%s must be a positive integer, got %q", key, value)
+		}
+
+		return setOrAppendTFVarRaw(tfvarsPath, key, strings.TrimSpace(value))
+	case "windows_enable_rdp":
+		b, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("%s must be true or false, got %q", key, value)
+		}
+
+		return setOrAppendTFVarRaw(tfvarsPath, key, strconv.FormatBool(b))
+	}
+
+	return setOrAppendTFVar(tfvarsPath, key, value)
 }
 
 // envOr returns the first non-empty of the primary/fallback env vars.
@@ -375,6 +396,11 @@ func updateMainTfModuleSource(config *driver.InfraConfig) error {
 	// Inject the external_db module only for Path B; other runs get no block, so they never fetch it.
 	contentStr = strings.ReplaceAll(contentStr, externalDBMarker, externalDBModuleBlock(src, qaInfraProvider))
 	contentStr = injectAirgapModuleArgs(contentStr, config.InfraProvisioner.AirgapSetup)
+	windowsRequested, winErr := envInt("no_of_windows_worker_nodes", 0)
+	if winErr != nil {
+		return winErr
+	}
+	contentStr = injectWindowsModuleArgs(contentStr, windowsRequested > 0)
 	contentStr, nestedErr := injectNestedVirtualization(contentStr, qaInfraProvider, os.Getenv("QA_INFRA_WORKER_NESTED"))
 	if nestedErr != nil {
 		return nestedErr

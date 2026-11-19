@@ -282,7 +282,7 @@ func TestInfraMainTfKeepsInjectionAnchors(t *testing.T) {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 
-	for _, anchor := range []string{externalDBMarker, airgapModuleMarker, "placeholder-for-remote-module"} {
+	for _, anchor := range []string{externalDBMarker, airgapModuleMarker, windowsMarker, "placeholder-for-remote-module"} {
 		if !strings.Contains(string(content), anchor) {
 			t.Errorf("infrastructure/qainfra/main.tf lost required anchor %q", anchor)
 		}
@@ -307,10 +307,10 @@ func TestThreadRuntimeEnvWindowsOverrides(t *testing.T) {
 	checks := []string{
 		`aws_ami_windows = "ami-win-1234"`,
 		`instance_type_windows = "m5.xlarge"`,
-		`aws_volume_size_windows = "100"`,
+		`aws_volume_size_windows = 100`,
 		`aws_volume_type_windows = "gp3"`,
 		`aws_windows_ssh_user = "Administrator"`,
-		`windows_enable_rdp = "true"`,
+		`windows_enable_rdp = true`,
 	}
 	for _, c := range checks {
 		if !strings.Contains(got, c) {
@@ -336,6 +336,16 @@ func TestNormalizeQAInfraRepo(t *testing.T) {
 		}
 		if got != tc.want {
 			t.Errorf("normalizeQAInfraRepo(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestThreadRuntimeEnvWindowsInvalidTypes(t *testing.T) {
+	for env, val := range map[string]string{"AWS_VOLUME_SIZE_WINDOWS": "big", "WINDOWS_ENABLE_RDP": "maybe"} {
+		clearRuntimeEnvs(t)
+		t.Setenv(env, val)
+		if err := threadRuntimeEnvIntoTFVars(writeTFVars(t, "")); err == nil {
+			t.Errorf("%s=%q: expected validation error", env, val)
 		}
 	}
 }
