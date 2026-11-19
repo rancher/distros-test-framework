@@ -49,12 +49,9 @@ module "cluster_nodes" {
   airgap_setup            = var.airgap_setup
   proxy_setup             = var.proxy_setup
   nodes                   = var.nodes
-  aws_ami_windows         = var.aws_ami_windows
-  instance_type_windows   = var.instance_type_windows
-  aws_volume_size_windows = var.aws_volume_size_windows
-  aws_volume_type_windows = var.aws_volume_type_windows
-  aws_windows_ssh_user    = var.aws_windows_ssh_user
-  windows_enable_rdp      = var.windows_enable_rdp
+  # Windows-only arguments are injected by opentofu.go when Windows nodes are requested, so older
+  # qa-infra refs stay usable for Linux runs.
+  # __WINDOWS_MODULE_ARGS__
   # Added only for opted-in runs, so older qa-infra refs reject the request explicitly.
   # __NESTED_VIRTUALIZATION_MODULE_ARGS__
   # Airgap-only arguments (bastion, run_id, qa_infra_sha, arch) are injected here by
