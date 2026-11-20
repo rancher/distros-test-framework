@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -182,7 +183,7 @@ func TestAirgapAnsibleArgsAndSecretsFile(t *testing.T) {
 	t.Cleanup(func() { customflag.ServiceFlag = saved })
 	t.Setenv(testTagEnv, "")
 	t.Setenv(testArgsEnv, "-tags=privateregistry -destroy true")
-	customflag.ServiceFlag.AirgapFlag.ImageRegistryUrl = "https://artifacts.example.com"
+	customflag.ServiceFlag.AirgapFlag.ImageRegistryUrl = "https://artifacts.example.invalid"
 	customflag.ServiceFlag.AirgapFlag.TarballType = ""
 	customflag.ServiceFlag.AirgapFlag.RegistryUsername = "testuser"
 	customflag.ServiceFlag.AirgapFlag.RegistryPassword = "s3cret-value"
@@ -195,7 +196,7 @@ func TestAirgapAnsibleArgsAndSecretsFile(t *testing.T) {
 	for _, want := range []string{
 		airgapPlaybook, "product=k3s", "kubernetes_version=v1.36.0+k3s1", "arch=arm64",
 		"airgap_method=private_registry", "tarball_type=tar.zst",
-		"image_registry_url=https://artifacts.example.com", "ssh_key_name=jenkins-key",
+		"image_registry_url=https://artifacts.example.invalid", "ssh_key_name=jenkins-key",
 		"airgap_facts_file=" + filepath.Join(cfg.InfraProvisioner.Ansible.Dir, airgapFactsName),
 	} {
 		if !strings.Contains(joined, want) {
@@ -230,15 +231,27 @@ func TestAirgapAnsibleArgsAndSecretsFile(t *testing.T) {
 }
 
 func TestAirgapScenarioDefaultsRegistryCredentials(t *testing.T) {
+	for _, tag := range []string{"privateregistry", "systemdefaultregistry"} {
+		t.Run(tag, func(t *testing.T) { testAirgapRegistryCredentials(t, tag) })
+	}
+}
+
+func testAirgapRegistryCredentials(t *testing.T, tag string) {
+	t.Helper()
 	cfg := airgapTestConfig(t, airgapModule)
 	saved := customflag.ServiceFlag
 	t.Cleanup(func() { customflag.ServiceFlag = saved })
-	t.Setenv(testTagEnv, "privateregistry")
+	t.Setenv(testTagEnv, tag)
 	customflag.ServiceFlag.AirgapFlag.RegistryUsername = ""
 	customflag.ServiceFlag.AirgapFlag.RegistryPassword = ""
+	customflag.ServiceFlag.AirgapFlag.TarballType = ""
 
-	if _, err := airgapAnsibleArgs(cfg, airgapPlaybook); err != nil {
+	first, err := airgapAnsibleArgs(cfg, airgapPlaybook)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.Contains(first, "tarball_type="+defaultTarballType) {
+		t.Fatalf("the default tarball type must survive credential generation: %v", first)
 	}
 	data, err := os.ReadFile(filepath.Join(cfg.InfraProvisioner.RunDir, airgapSecretsName))
 	if err != nil || !strings.Contains(string(data), customflag.DefaultRegistryUsername) {
@@ -247,6 +260,30 @@ func TestAirgapScenarioDefaultsRegistryCredentials(t *testing.T) {
 	pw := customflag.ServiceFlag.AirgapFlag.RegistryPassword
 	if len(pw) < 20 || pw == customflag.DefaultRegistryPassword || !strings.Contains(string(data), pw) {
 		t.Fatalf("a random per-run password must be generated and written: %q", pw)
+	}
+
+	customflag.ServiceFlag.AirgapFlag.RegistryUsername = `u"ser`
+	customflag.ServiceFlag.AirgapFlag.RegistryPassword = `p"a\ss#1`
+	args, err := airgapAnsibleArgs(cfg, airgapPlaybook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{`u"ser`, `p"a\ss#1`} {
+		if strings.Contains(strings.Join(args, " "), secret) {
+			t.Fatal("credentials must not appear in command arguments")
+		}
+	}
+
+	data, err = os.ReadFile(filepath.Join(cfg.InfraProvisioner.RunDir, airgapSecretsName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var credentials map[string]string
+	if err := json.Unmarshal(data, &credentials); err != nil {
+		t.Fatal(err)
+	}
+	if credentials["registry_username"] != `u"ser` || credentials["registry_password"] != `p"a\ss#1` {
+		t.Fatal("explicit credentials must roundtrip through the secrets file unchanged")
 	}
 }
 

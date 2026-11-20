@@ -21,7 +21,12 @@ run_qase() {
 
 # Init variables.
 PRODUCT=
-latest_log=$(ls -t ./report/rke2_*.log ./report/k3s_*.log 2>/dev/null | head -1)
+latest_log=
+for log in ./report/k3s_*.log ./report/rke2_*.log; do
+  if [[ -f "$log" && ( -z "$latest_log" || "$log" -nt "$latest_log" ) ]]; then
+    latest_log=$log
+  fi
+done
 
 if [[ ! "$latest_log" =~ ^./report/(rke2|k3s)_.*\.log$ ]]; then
   echo "Error: Invalid log file name: $latest_log"

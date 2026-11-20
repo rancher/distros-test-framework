@@ -7,7 +7,7 @@
 action=${1:-install}
 version=${2:-0.57.3}
 arch=${3:-amd64}
-mixed_plugins_url="git clone https://github.com/phillipsj/my-sonobuoy-plugins.git"
+mixed_plugins_url="https://github.com/phillipsj/my-sonobuoy-plugins.git"
 sonobuoy_url="https://github.com/vmware-tanzu/sonobuoy/releases/download/v${version}/sonobuoy_${version}_linux_${arch}.tar.gz"
 max_retries=5
 retry_delay=11
@@ -58,7 +58,7 @@ installation(){
     if [ ! -d "my-sonobuoy-plugins" ];
     then
         echo "Cloning repo: https://github.com/phillipsj/my-sonobuoy-plugins.git"
-        download_retry ${mixed_plugins_url}
+        download_retry git clone "${mixed_plugins_url}"
     fi
     wait
     echo "Downloading sonobuoy installer..."
@@ -96,7 +96,7 @@ deletion(){
     echo "Deleting sonobuoy installer"
     rm -rf my-sonobuoy-plugins
     rm -rf sonobuoy_*
-    rm -rf $(get_binpath)/sonobuoy
+    rm -rf "$(get_binpath)/sonobuoy"
 }
 
 if [ "$action" == "install" ];

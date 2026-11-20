@@ -451,6 +451,8 @@ get_product() {
 
 run_test_file_removal_safety() {
     if [ -f /etc/profile.d/env_vars.sh ]; then
+        # Generated on the target host.
+        # shellcheck source=/dev/null
         source /etc/profile.d/env_vars.sh
     fi
 
@@ -497,6 +499,8 @@ done
 main() {
     # Source the path for environment variables added by golang code.
     if [ -f "/etc/profile.d/bin_paths.sh" ]; then
+        # Generated on the target host.
+        # shellcheck source=/dev/null
         . /etc/profile.d/bin_paths.sh
         cat /etc/profile.d/bin_paths.sh
     fi

@@ -1,6 +1,9 @@
 package support
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAssertEgressBlocked(t *testing.T) {
 	cases := []struct {
@@ -28,5 +31,41 @@ func TestAssertEgressBlocked(t *testing.T) {
 		if !tc.blocked && err == nil {
 			t.Errorf("%q: expected an error", tc.out)
 		}
+	}
+}
+
+func TestK3sCrictlCommandsUseTheAbsoluteBinaryPath(t *testing.T) {
+	cmds := map[string]string{
+		"images": crictlImagesCmd("k3s"),
+		"pull":   crictlPullCmd("k3s", "registry.example/rancher/pause:3.6"),
+	}
+	for name, cmd := range cmds {
+		if !strings.HasPrefix(cmd, "sudo /usr/local/bin/k3s crictl ") {
+			t.Errorf("%s: %q must call k3s by absolute path, SLES sudo secure_path omits /usr/local/bin", name, cmd)
+		}
+	}
+}
+
+func TestK3sSandboxRegistry(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		valid  bool
+	}{
+		{"containerd v2", `sandbox_image = "registry.example:443/rancher/pause:3.6"`, true},
+		{"containerd v3", "  sandbox = 'registry.example:443/rancher/pause:3.6' # generated", true},
+		{"wrong registry", `sandbox = "docker.io/rancher/pause:3.6"`, false},
+		{"host boundary", `sandbox = "registry.example:443.other/rancher/pause:3.6"`, false},
+		{"unrelated value", `registry = "registry.example:443/rancher/pause:3.6"`, false},
+		{"comment only", `# sandbox = "registry.example:443/rancher/pause:3.6"`, false},
+		{"missing", "", false},
+		{"duplicate", "sandbox = 'registry.example:443/a'\nsandbox_image = 'docker.io/b'", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := assertK3sSandboxRegistry(tc.config, "registry.example:443"); (err == nil) != tc.valid {
+				t.Fatalf("expected valid=%t, got error: %v", tc.valid, err)
+			}
+		})
 	}
 }

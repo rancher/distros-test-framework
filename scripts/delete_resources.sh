@@ -35,9 +35,9 @@ delete_ec2_instances () {
     --query 'Reservations[].Instances[].Tags' --output text)
     echo "${EC2_TAG_NAMES}"
     echo "Instance ID List: ${EC2_INSTANCE_IDS}"
-    TAG_COUNT=$(echo $EC2_TAG_NAMES |xargs -n1 echo | wc -l)
+    TAG_COUNT=$(echo "$EC2_TAG_NAMES" |xargs -n1 echo | wc -l)
     echo "EC2 Tag Name count: $((TAG_COUNT/2))"
-    INSTANCE_COUNT=$(echo $EC2_INSTANCE_IDS | xargs -n1 echo | wc -l)
+    INSTANCE_COUNT=$(echo "$EC2_INSTANCE_IDS" | xargs -n1 echo | wc -l)
     echo "EC2 Instance Id count:$INSTANCE_COUNT"
   fi
 
@@ -64,7 +64,7 @@ delete_db_resources () {
       done
     else
       echo "DB Instances that will be deleted: $DB_INSTANCES"
-      echo "DB Instance Count:$(echo $DB_INSTANCES |xargs -n1 echo | wc -l)"
+      echo "DB Instance Count:$(echo "$DB_INSTANCES" |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -85,7 +85,7 @@ delete_db_resources () {
       done
     else
       echo "DB Clusters that will be deleted: $CLUSTERS"
-      echo "DB Clusters Count:$(echo $CLUSTERS |xargs -n1 echo | wc -l)"
+      echo "DB Clusters Count:$(echo "$CLUSTERS" |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -104,7 +104,7 @@ delete_db_resources () {
       done
     else
       echo "DB Snapshots that will be deleted: $SNAPSHOTS"
-      echo "DB Snapshots Count:$(echo $SNAPSHOTS |xargs -n1 echo | wc -l)"
+      echo "DB Snapshots Count:$(echo "$SNAPSHOTS" |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -131,7 +131,7 @@ delete_lb_resources () {
       done
     else
       echo "Load Balancers that will be deleted: $LB_ARN_LIST"
-      echo "Load Balancers Count:$(echo $LB_ARN_LIST |xargs -n1 echo | wc -l)"
+      echo "Load Balancers Count:$(echo "$LB_ARN_LIST" |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -158,7 +158,7 @@ delete_target_groups () {
       done
     else
       echo "Target Groups that will be deleted: $TG_ARN_LIST"
-      echo "Target Groups Count:$(echo $TG_ARN_LIST |xargs -n1 echo | wc -l)"
+      echo "Target Groups Count:$(echo "$TG_ARN_LIST" |xargs -n1 echo | wc -l)"
     fi
   fi
 
@@ -245,7 +245,7 @@ do
 
       -r: resource prefix names (comma separated). Matched as a leading prefix
           (starts_with) — pass a full, specific token to avoid over-matching.
-          qainfra tokens in the exact "dsf-<name>-" form (trailing hyphen) switch
+          qainfra tokens in the exact \"dsf-<name>-\" form (trailing hyphen) switch
           to substring matching so the tf-dsf-* EC2 tags are caught too.
       -d: Dry run option. This will simply list the names and ids of what could potentially be listed. But will not delete anything.
       -h: help. Prints usage example.
@@ -256,7 +256,7 @@ do
       Ex 2:
       ./delete_resources.sh
       - Reads RESOURCE_NAME (and ENV_PRODUCT for sanity checking) from
-        config/.env, matches resources whose name contains "dsf-<RESOURCE_NAME>-"
+        config/.env, matches resources whose name contains \"dsf-<RESOURCE_NAME>-\"
         (catches tf-prefixed EC2 tags too), and deletes them after confirmation.
       Ex 3: 
       ./delete_resources.sh -h
@@ -273,7 +273,7 @@ done
 if [ "${RESOURCES}" = "" ]; then
     echo "Reading config/.env to derive the AWS resource prefix"
     # Find the correct config directory path, based on which directory you are running the script from.
-    BASE_DIR=$(echo "$PWD" | sed 's/scripts//')
+    BASE_DIR=${PWD/scripts/}
     CONFIG_DIR="${BASE_DIR}/config"
     ENV_FILE="${CONFIG_DIR}/.env"
     echo "config directory path: $CONFIG_DIR"

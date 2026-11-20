@@ -12,6 +12,32 @@ Promotion is coordinated with Jenkins Job Builder: promote the QA Infra job
 definitions validated on JJB staging before or together with this framework
 branch. Existing JJB main jobs must not consume this Jenkinsfile beforehand.
 
+### Post-release RPM orchestration
+
+`scripts/Jenkinsfile_post_release_captain` calls the product's
+`validate_cluster_rpm_qainfra` and `validate_cluster_arm_rpm_qainfra` jobs for
+each `CHANNELS`/`VERSIONS` combination, with at most four children running at
+once. It forwards `PROVISIONER_MODULE=qainfra`, the DTF repository/branch and
+the managed SSH key name. `QA_INFRA_REF` and `QA_INFRA_REPO` are forwarded only
+when nonempty and not the literal `null`; otherwise the child defaults apply.
+Each child retains its own OS, architecture, TFVARS and test arguments; the
+captain does not enable Prime or replace the child's security configuration.
+
+With `PROPAGATE_CHILD_FAILURES=true`, any child result other than `SUCCESS`
+(including `UNSTABLE` or `ABORTED`) marks the captain `FAILURE`; later batches
+still run. With `false`, child results do not change the captain's result.
+Cancelling or timing out the captain itself stops the remaining batches.
+
+`INSTALL_MODE=auto` selects the release install mode for `PRODUCT_NAME`;
+commit installs are not supported by these RPM checks. `DRY_RUN=true` checks
+the plan and prints the target jobs without launching builds. Qase reporting
+uses the post-release case mapping when explicitly enabled. PEM parameters
+are not forwarded; child jobs obtain keys from Jenkins Credentials.
+
+The JJB staging captain must use this QA-infra Jenkinsfile, and all four RPM
+child job definitions must declare `QA_INFRA_REPO`. Promote the migration to DTF
+`main` before deploying the captain and children's `main` SCM/`BRANCH` defaults.
+
 ## Architecture
 
 ### Flow Diagram
@@ -184,9 +210,8 @@ NVIDIA_VERSION=580.95.05
 TEST_TAG=tarball                                           # tarball | privateregistry | systemdefaultregistry
 TARBALL_TYPE=tar.zst                                       # tarball: tar.zst (fast) | tar.gz
 IMAGE_REGISTRY_URL=<REDACTED_PRIME_ARTIFACT_URL>           # optional: Prime artifacts (<base>/<product>/<version>)
-REGISTRY_USERNAME=...                                      # privateregistry only, OPTIONAL override (default: testuser +
-REGISTRY_PASSWORD=...                                      #   random per-run password; Jenkins credential AIRGAP_REGISTRY_CREDENTIALS);
-                                                           #   never CLI flags or TFVARS
+REGISTRY_USERNAME=...                                      # both registry methods; optional override of testuser
+REGISTRY_PASSWORD=...                                      # random per-run default; never CLI flags or TFVARS
 BASTION_INSTANCE_TYPE=t3a.medium                           # optional; same arch as the nodes (t4g.large for arm64)
 ARCH=amd64                                                 # amd64 | arm64
 # qainfra provisions private nodes + one bastion with cluster_nodes (airgap_setup=true,
@@ -200,6 +225,17 @@ ARCH=amd64                                                 # amd64 | arm64
 # manual recovery (`sh destroy.sh` with FORCE=1). The registry credentials file is deleted right
 # after the playbook run.
 ```
+
+Both registry methods require authentication in the QA-infra playbook. Use matching DTF and
+QA-infra Airgap revisions: the system-default validator now expects an unauthenticated HTTP 401
+with the OS trust store, then verifies an authenticated image pull. It still requires
+`system-default-registry` and checks server image prefixes; K3s agents are checked
+through their generated containerd sandbox image, without requiring a scheduled pod.
+These checks do not rely on source mirrors.
+
+The legacy K3s artifact downloader now rejects an unsupported non-Prime artifact URL
+instead of silently ignoring it and falling back to GitHub. Leave the URL empty for
+community artifacts.
 
 ```bash
 # External datastore (any suite): set DATASTORE_TYPE=external, else etcd is used

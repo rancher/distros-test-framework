@@ -25,43 +25,40 @@ node {
   def targetJob = { String product, String arch ->
     def folder = (product == 'k3s') ? 'k3s-tests' : 'rke2-tests'
     def base   = (arch == 'arm') ? "${product}_validate_cluster_arm_rpm" : "${product}_validate_cluster_rpm"
-    return "${folder}/${base}"
+    return "${folder}/${base}_qainfra"
   }
 
-  if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != 'false') {
-    // dealing with test case IDs for QASE in code because we have different IDs for different products/archs/channels combinations.
-    // so that we can trigger the child jobs with the respctive correct mapping combinations.
-    def qaseTcIdResolver = { String productName, String archName, String channelName ->
-      def tcId = env.QASE_TEST_CASE_ID?.trim()
-      if (tcId && tcId != 'null') {
-        return tcId
-      }
-
-      def product = (productName ?: '').toLowerCase()
-      def arch    = normalizeArch(archName)
-      def channel = (channelName ?: '').toLowerCase()
-
-      if (product == 'k3s')  {
-        if (arch == 'amd64') return '215'
-        if (arch == 'arm')   return '219'
-      }
-
-      if (product == 'rke2' && arch == 'amd64') {
-        if (channel == 'latest') return '212'
-        if (channel == 'stable') return '214'
-        if (channel == 'testing') return '268'
-        error "No QASE mapping for rke2/amd64 channel='${channelName}'"
-      }
-
-      if (product == 'rke2' && arch == 'arm') {
-        if (channel == 'latest') return '217'
-        if (channel == 'stable') return '218'
-        if (channel == 'testing') return '269'
-        error "No QASE mapping for rke2/arm channel='${channelName}'."
-      }
-
-      error "Unsupported product/arch: ${productName}/${archName}"
+  // Post-release case IDs differ from the child jobs' generic install cases.
+  def qaseTcIdResolver = { String productName, String archName, String channelName ->
+    def tcId = env.QASE_TEST_CASE_ID?.trim()
+    if (tcId && tcId != 'null') {
+      return tcId
     }
+
+    def product = (productName ?: '').toLowerCase()
+    def arch    = archName == 'arm64' ? 'arm' : archName
+    def channel = (channelName ?: '').toLowerCase()
+
+    if (product == 'k3s')  {
+      if (arch == 'amd64') return '215'
+      if (arch == 'arm')   return '219'
+    }
+
+    if (product == 'rke2' && arch == 'amd64') {
+      if (channel == 'latest') return '212'
+      if (channel == 'stable') return '214'
+      if (channel == 'testing') return '268'
+      error "No QASE mapping for rke2/amd64 channel='${channelName}'"
+    }
+
+    if (product == 'rke2' && arch == 'arm') {
+      if (channel == 'latest') return '217'
+      if (channel == 'stable') return '218'
+      if (channel == 'testing') return '269'
+      error "No QASE mapping for rke2/arm channel='${channelName}'."
+    }
+
+    error "Unsupported product/arch: ${productName}/${archName}"
   }
 
   // Child jobs resolve PEM material from their managed Jenkins credential.
@@ -78,6 +75,9 @@ node {
     addStrParam(param, 'AWS_SSH_KEY_NAME',  env.AWS_SSH_KEY_NAME)
     addStrParam(param, 'REPO',   (env.REPO ?: ''))
     addStrParam(param, 'BRANCH', branch)
+    param << string(name: 'PROVISIONER_MODULE', value: 'qainfra')
+    addStrParam(param, 'QA_INFRA_REF',  env.QA_INFRA_REF?.trim())
+    addStrParam(param, 'QA_INFRA_REPO', env.QA_INFRA_REPO?.trim())
 
     // Optional.
     addStrParam(param, 'LOG_LEVEL',         env.LOG_LEVEL)
@@ -85,7 +85,7 @@ node {
     addStrParam(param, 'QASE_PROJECT_ID',   env.QASE_PROJECT_ID)
     addStrParam(param, 'QASE_RUN_ID',       env.QASE_RUN_ID)
     def tcId =  ''
-    if (env.REPORT_TO_QASE && env.REPORT_TO_QASE.toLowerCase() != 'false') {
+    if (env.REPORT_TO_QASE?.trim()?.equalsIgnoreCase('true')) {
       tcId = qaseTcIdResolver(product, arch, channel)
     }
     param << string(name: 'QASE_TEST_CASE_ID', value:  tcId)
@@ -98,7 +98,7 @@ node {
     withFolderProperties {
       def paramsMap = []
       params.each { key, value ->
-        if (key != 'AWS_SSH_PEM_KEY' && value != null) {
+        if (!key.startsWith('AWS_SSH_PEM_KEY') && value != null) {
           if (value instanceof String) { if (value.trim()) paramsMap << "${key}=${value}" }
           else { paramsMap << "${key}=${value}" }
         }
@@ -118,6 +118,13 @@ node {
         dir('./') {
           stage('Plan & Run') {
             def product  = (env.PRODUCT_NAME && env.PRODUCT_NAME != 'null' && env.PRODUCT_NAME.trim()) ? env.PRODUCT_NAME.trim() : 'rke2'
+            if (!(product in ['rke2', 'k3s'])) {
+              error("Unsupported product: ${product}")
+            }
+            if ((env.PROVISIONER_MODULE ?: 'qainfra') != 'qainfra') {
+              error('Post-release RPM validation requires PROVISIONER_MODULE=qainfra')
+            }
+
             def channels = splitAndNormalize(env.CHANNELS ?: '')
             def versions = splitAndNormalize(env.VERSIONS ?: '')
             if (channels.isEmpty() || versions.isEmpty()) {
@@ -126,14 +133,16 @@ node {
             }
 
             def autoInstallMode = (product == 'k3s') ? 'INSTALL_K3S_VERSION' : 'INSTALL_RKE2_VERSION'
-            def installMode = (env.INSTALL_MODE && env.INSTALL_MODE != 'null' && env.INSTALL_MODE.trim())
+            def installMode = (env.INSTALL_MODE && env.INSTALL_MODE != 'null' && env.INSTALL_MODE != 'auto' && env.INSTALL_MODE.trim())
                               ? env.INSTALL_MODE.trim() : autoInstallMode
+            if (installMode != autoInstallMode) {
+              error("RPM post-release checks require ${autoInstallMode}")
+            }
 
             def propagateChildren = ("${env.PROPAGATE_CHILD_FAILURES}".toString().toLowerCase() != 'false')
             def dryRun = ("${env.DRY_RUN}".toString().toLowerCase() == 'true')
 
             def jobs = [:]
-            int idx = 0
 
             channels.each { channel ->
               versions.each { version ->
@@ -145,35 +154,53 @@ node {
 
                 jobs[jobAmdName] = {
                   stage(jobAmdName) {
+                    def childParams = buildParams('amd64', product, hostNamePrefix, version, channel, installMode)
                     if (dryRun) {
-                      echo "DRY_RUN=true → skipping ${jobAmdName}"
+                      echo "DRY_RUN=true → ${targetAmd} (${jobAmdName})"
                     } else {
-                      build job: targetAmd,
-                        parameters: buildParams('amd64', product, hostNamePrefix, version, channel, installMode),
-                        propagate: propagateChildren,
+                      def child = build job: targetAmd,
+                        parameters: childParams,
+                        propagate: false,
                         quietPeriod: 0,
                         wait: true
+
+                      if (propagateChildren && child.result != 'SUCCESS') {
+                        error "${targetAmd} #${child.number} finished ${child.result}"
+                      }
                     }
                   }
                 }
                 jobs[jobArmName] = {
                   stage(jobArmName) {
+                    def childParams = buildParams('arm', product, hostNamePrefix, version, channel, installMode)
                     if (dryRun) {
-                      echo "DRY_RUN=true → skipping ${jobArmName}"
+                      echo "DRY_RUN=true → ${targetArm} (${jobArmName})"
                     } else {
-                      build job: targetArm,
-                        parameters: buildParams('arm', product, hostNamePrefix, version, channel, installMode),
-                        propagate: propagateChildren,
+                      def child = build job: targetArm,
+                        parameters: childParams,
+                        propagate: false,
                         quietPeriod: 0,
                         wait: true
+
+                      if (propagateChildren && child.result != 'SUCCESS') {
+                        error "${targetArm} #${child.number} finished ${child.result}"
+                      }
                     }
                   }
                 }
-                idx++
               }
             }
             echo "Planned executions: ${jobs.size()}"
-            parallel jobs
+            jobs.keySet().toList().collate(4).each { names ->
+              catchError(buildResult: 'FAILURE', stageResult: 'FAILURE', catchInterruptions: false) {
+                parallel jobs.subMap(names)
+              }
+
+              // Jenkins may catch timeout interruptions even with catchInterruptions disabled.
+              if (currentBuild.currentResult == 'ABORTED') {
+                error 'Post-release validation interrupted'
+              }
+            }
           } // stage
         } // dir
       } // withEnv

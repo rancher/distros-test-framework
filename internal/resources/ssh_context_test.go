@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -47,19 +48,13 @@ func TestConfigureSSHContextBoundsStalledHandshake(t *testing.T) {
 	}
 	defer ln.Close()
 	go func() {
-		var conns []net.Conn
-		defer func() {
-			for _, c := range conns {
-				_ = c.Close()
-			}
-		}()
-		for {
-			c, acceptErr := ln.Accept()
-			if acceptErr != nil {
-				return
-			}
-			conns = append(conns, c)
+		conn, acceptErr := ln.Accept()
+		if acceptErr != nil {
+			return
 		}
+		defer conn.Close()
+
+		_, _ = io.Copy(io.Discard, conn)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
@@ -98,14 +93,17 @@ func TestNewSessionContextBoundsUnansweredSessionOpen(t *testing.T) {
 		if acceptErr != nil {
 			return
 		}
-		_, chans, reqs, handshakeErr := ssh.NewServerConn(c, cfg)
+		defer c.Close()
+
+		serverConn, chans, reqs, handshakeErr := ssh.NewServerConn(c, cfg)
 		if handshakeErr != nil {
 			return
 		}
+		defer serverConn.Close()
+
 		go ssh.DiscardRequests(reqs)
-		for ch := range chans {
-			_ = ch // never accept or reject: the open stays unanswered
-		}
+		<-chans // Consume the session-open request without accepting or rejecting it.
+		_ = serverConn.Wait()
 	}()
 
 	conn, err := ssh.Dial("tcp", ln.Addr().String(), &ssh.ClientConfig{
