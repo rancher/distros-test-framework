@@ -14,7 +14,7 @@ func TestParseResultsStatus(t *testing.T) {
 	}{
 		{"all passed", []string{passStatus, passStatus}, passStatus},
 		{"skipped does not fail run", []string{passStatus, skipStatus}, passStatus},
-		{"all skipped", []string{skipStatus}, passStatus},
+		{"all skipped fails run", []string{skipStatus, skipStatus}, failStatus},
 		{"failed fails run", []string{passStatus, skipStatus, failStatus}, failStatus},
 		{"panicked fails run", []string{passStatus, "panicked"}, failStatus},
 	}
