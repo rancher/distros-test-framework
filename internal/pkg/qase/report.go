@@ -175,11 +175,21 @@ func parseResults(
 ) *createResultRequest {
 	testResSummary := tcResultSummary(cluster, reportSummary)
 	var failedSubTests []TestCase
+	skipped := 0
 
 	for _, tc := range testCases {
-		if tc.Status != passStatus {
+		switch tc.Status {
+		case passStatus:
+		case skipStatus:
+			skipped++
+		default:
 			failedSubTests = append(failedSubTests, tc)
 		}
+	}
+
+	// A run where every spec skipped validated nothing, so report it as FAIL.
+	if skipped > 0 && skipped == len(testCases) {
+		failedSubTests = testCases
 	}
 
 	if len(failedSubTests) > 0 {
