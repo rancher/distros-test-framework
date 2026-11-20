@@ -177,7 +177,7 @@ func parseResults(
 	var failedSubTests []TestCase
 
 	for _, tc := range testCases {
-		if tc.Status != passStatus {
+		if tc.Status != passStatus && tc.Status != skipStatus {
 			failedSubTests = append(failedSubTests, tc)
 		}
 	}
