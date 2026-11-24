@@ -179,8 +179,10 @@ INSTANCE_TYPE_WINDOWS=t3.xlarge        # t3.xlarge or higher
 AWS_VOLUME_SIZE_WINDOWS=100            # optional, positive integer
 AWS_VOLUME_TYPE_WINDOWS=gp3            # optional
 AWS_WINDOWS_SSH_USER=Administrator     # optional
-WINDOWS_ENABLE_RDP=false               # optional, true|false
+WINDOWS_ENABLE_RDP=false               # optional, true|false; see note below
 ```
+
+`WINDOWS_ENABLE_RDP=true` has no effect yet. The qa-infra module opens TCP 3389 only when `ssh_allowed_cidrs` is non-empty and returns Administrator passwords only when `private_ssh_key` is set. DTF does not pass either input today.
 
 ```bash
 # upgradecluster  (TEST_DIR=upgradecluster)

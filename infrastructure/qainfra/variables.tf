@@ -214,7 +214,7 @@ variable "aws_windows_ssh_user" {
 }
 
 variable "windows_enable_rdp" {
-  description = "Open TCP 3389 for interactive debugging on Windows agents"
+  description = "Open TCP 3389 on Windows agents; no effect unless qa-infra also gets ssh_allowed_cidrs (not passed by DTF yet)"
   type        = bool
   default     = false
 }
