@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# One release bot run without Slack, as root on the bot host: releasebot-run [--execute] <rc-tag>... [baler]
+# Dry-run (prints the plan) unless --execute; installed by setup.sh, see docs/releasebot.md.
+set -euo pipefail
+
+RUN_DIR="${RELEASEBOT_RUN_DIR:-/run/releasebot-run}"
+RC_TAG='^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+\+(k3s|rke2r)[0-9]+$'
+
+die() { echo "error: $*" >&2; exit 1; }
+usage() { echo "usage: releasebot-run [--execute] <rc-tag>... [baler]" >&2; exit 64; }
+
+dry_run=true
+tags=0
+words=()
+for arg in "$@"; do
+  case "$arg" in
+    --execute) dry_run=false ;;
+    baler) words+=("$arg") ;;
+    v*)
+      [[ "$arg" =~ $RC_TAG ]] || die "not an RC tag: $arg (e.g. v1.37.1-rc1+rke2r1, v1.37.1-rc1+k3s1)"
+      words+=("$arg")
+      tags=$((tags + 1))
+      ;;
+    *) usage ;;
+  esac
+done
+[ "$tags" -gt 0 ] || usage
+
+# The Slack bot holds the same lock; refusing here beats a unit that fails a second after "started".
+if [ "$dry_run" = false ] && systemctl is-active --quiet releasebot; then
+  die "the Slack bot (releasebot.service) is running: ask it in Slack (if stopped, its unfinished runs still block --execute until they end)"
+fi
+
+# The unit reads the request as root from this file before switching to the releasebot user.
+id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+unit="releasebot-run@$id.service"
+install -d -m 0700 "$RUN_DIR"
+(umask 077 && printf 'RUN_REQUEST="%s"\nRUN_DRY_RUN=%s\n' "${words[*]}" "$dry_run" > "$RUN_DIR/$id.env")
+
+if [ "$dry_run" = true ]; then
+  # A oneshot unit: start returns once the plan is printed.
+  status=0
+  systemctl start "$unit" || status=$?
+  journalctl -u "$unit" -o cat --no-pager
+  exit "$status"
+fi
+
+systemctl start --no-block "$unit"
+echo "started $unit (EXECUTE)"
+echo "follow: journalctl -u $unit -f    stop: systemctl stop $unit"

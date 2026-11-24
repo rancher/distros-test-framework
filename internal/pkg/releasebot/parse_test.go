@@ -32,3 +32,19 @@ func TestBaseVersion(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// "baler" in any case asks for the Baler split ("balers" does not), and survives Without, which the
+// listener uses to re-plan a request minus the tags other runs already validate.
+func TestParseRequestBaler(t *testing.T) {
+	if !ParseRequest("v1.37.1-rc1+k3s1 on `Baler` please").Baler {
+		t.Fatal("baler not detected")
+	}
+	if ParseRequest("v1.37.1-rc1+k3s1 balers").Baler {
+		t.Fatal("balers must not ask for baler")
+	}
+
+	req := ParseRequest("v1.37.1-rc1+k3s1 v1.37.1-rc1+rke2r1 baler")
+	if !req.Without([]string{"v1.37.1-rc1+k3s1"}).Baler {
+		t.Fatal("Without dropped the baler choice")
+	}
+}

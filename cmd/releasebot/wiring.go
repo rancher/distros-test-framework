@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -23,6 +24,7 @@ func newApp(o *options) *releasebot.App {
 		QaseTimeout:   o.qaseTimeout,
 		GitHubToken:   os.Getenv("GITHUB_TOKEN"),
 		JenkinsAuth:   jenkinsAuth,
+		ControllerURL: controllerURL,
 		Log:           resources.LogLevel,
 	})
 }
@@ -30,6 +32,11 @@ func newApp(o *options) *releasebot.App {
 // jenkinsAuth reads JENKINS_<CONTROLLER>_AUTH as "user:apitoken".
 func jenkinsAuth(controller string) (user, token string, ok bool) {
 	return strings.Cut(os.Getenv("JENKINS_"+strings.ToUpper(controller)+"_AUTH"), ":")
+}
+
+// controllerURL reads JENKINS_<CONTROLLER>_URL; empty keeps the matrix URL.
+func controllerURL(controller string) string {
+	return os.Getenv("JENKINS_" + strings.ToUpper(controller) + "_URL")
 }
 
 // run is the one-shot CLI mode: plan the request in -message or -message-file, then execute it
@@ -41,6 +48,14 @@ func run(o *options) error {
 			return err
 		}
 		o.message = string(raw)
+	}
+
+	if !o.dryRun {
+		release, claimErr := claimExecution(o.stateFile)
+		if claimErr != nil {
+			return claimErr
+		}
+		defer release()
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -61,6 +76,29 @@ func run(o *options) error {
 	}
 
 	return app.Execute(ctx, p, nil)
+}
+
+// claimExecution takes the -listen lock and refuses while the Slack bot has saved runs: their builds
+// may still run, so this run would exceed the controllers' capacity and test the same RCs twice.
+func claimExecution(stateFile string) (release func(), err error) {
+	release, lockErr := releasebot.AcquireInstanceLock(stateFile + ".lock")
+	if lockErr != nil {
+		return nil, fmt.Errorf("not running (stop the Slack bot or the other CLI run first): %w", lockErr)
+	}
+
+	saved := &releasebot.Listener{StatePath: stateFile}
+	if restoreErr := saved.Restore(); restoreErr != nil {
+		release()
+		return nil, fmt.Errorf("read the Slack bot's saved runs: %w", restoreErr)
+	}
+
+	if n := saved.SavedRuns(); n > 0 {
+		release()
+		return nil, fmt.Errorf("not running: the Slack bot left %d unfinished runs in %s; start releasebot.service "+
+			"so it resumes them, and run this once they end", n, stateFile)
+	}
+
+	return release, nil
 }
 
 // validateMatrix loads the matrix the way a request would, so a deploy can reject a bad candidate.

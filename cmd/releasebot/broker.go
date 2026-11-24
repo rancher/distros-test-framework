@@ -41,6 +41,12 @@ func claudeTriage(o *options) (*releasebot.ClaudeTriage, error) {
 
 // runTriageBuild triages one build directly (no spool) and prints the verdict as JSON.
 func runTriageBuild(o *options) error {
+	// First: a build of a controller the broker's tools do not reach is refused, quick or full.
+	j, err := newApp(o).TriageJenkins(o.triageBuild)
+	if err != nil {
+		return err
+	}
+
 	ct, err := claudeTriage(o)
 	if err != nil {
 		return err
@@ -51,11 +57,6 @@ func runTriageBuild(o *options) error {
 	req := &releasebot.TriageRequest{Mode: releasebot.TriageQuick, BuildURL: o.triageBuild, Attempt: 1}
 	if o.triageFull {
 		req.Mode = releasebot.TriageFull
-	}
-
-	j, err := newApp(o).JenkinsForBuild(o.triageBuild)
-	if err != nil {
-		return err
 	}
 
 	log, err := j.ConsoleText(ctx, o.triageBuild)

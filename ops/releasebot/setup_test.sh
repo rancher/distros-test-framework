@@ -11,21 +11,24 @@ FAIL=0
 SHA_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SHA_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
-mkdir -p "$ROOT/bin" "$ROOT/lib" "$ROOT/etc" "$ROOT/systemd"
+mkdir -p "$ROOT/bin" "$ROOT/sbin" "$ROOT/lib" "$ROOT/etc" "$ROOT/systemd"
 UNIT="$ROOT/systemd/releasebot.service"
 TRIAGE_UNIT="$ROOT/systemd/releasebot-triage@.service"
+RUN_UNIT="$ROOT/systemd/releasebot-run@.service"
+RUN_BIN="$ROOT/sbin/releasebot-run"
 # go stub: `go version -m <bin>` prints the VCS stamp stored next to the fake binary.
 cat > "$ROOT/bin/go" <<'EOF'
 #!/usr/bin/env bash
 cat "$3.vcs"
 EOF
 # systemctl stub (records calls): the current matrix's NORESTART fails restart, DOWN (or $ROOT/active
-# not "active") the bot, BROKERDOWN the broker, which runs when $ROOT/broker exists.
+# not "active") the bot, BROKERDOWN the broker, which runs as the user named in $ROOT/broker.
 cat > "$ROOT/bin/systemctl" <<EOF
 #!/usr/bin/env bash
 echo "\$*" >> "$ROOT/systemctl.log"
 m="\$RELEASEBOT_LIB_DIR/current/matrix.yaml"
-[ "\$1" = list-units ] && [ -e "$ROOT/broker" ] && echo "releasebot-triage@fmoral.service loaded active running"
+[ "\$1" = list-units ] && [ -e "$ROOT/systemctl-fails" ] && { echo "Failed to connect to bus" >&2; exit 1; }
+[ "\$1" = list-units ] && [ -s "$ROOT/broker" ] && echo "releasebot-triage@\$(cat "$ROOT/broker").service loaded active running"
 [ "\$1" = restart ] && grep -qw NORESTART "\$m" && exit 1
 if [ "\$1" = is-active ]; then
   case "\$3" in releasebot-triage@*) grep -qw BROKERDOWN "\$m" && exit 3; exit 0 ;; esac
@@ -33,7 +36,8 @@ if [ "\$1" = is-active ]; then
 fi
 exit 0
 EOF
-chmod +x "$ROOT/bin/go" "$ROOT/bin/systemctl"
+printf '#!/usr/bin/env bash\necho "journal for $*"\n' > "$ROOT/bin/journalctl"
+chmod +x "$ROOT/bin/go" "$ROOT/bin/systemctl" "$ROOT/bin/journalctl"
 
 # candidate <name> <revision> <modified> <matrix content>: a fake bot binary plus its matrix.
 candidate() {
@@ -63,7 +67,7 @@ LIB="$ROOT/lib"
 deploy() {
   PATH="$ROOT/bin:$PATH" GO="$ROOT/bin/go" SETTLE_SECONDS=0 RELEASEBOT_LIB_DIR="$LIB" \
     RELEASEBOT_ETC_DIR="$ROOT/etc" RELEASEBOT_UNIT="$UNIT" RELEASEBOT_TRIAGE_UNIT="$TRIAGE_UNIT" \
-    bash "$HERE/setup.sh" deploy "$@" 2>&1
+    RELEASEBOT_RUN_UNIT="$RUN_UNIT" RELEASEBOT_RUN_BIN="$RUN_BIN" bash "$HERE/setup.sh" deploy "$@" 2>&1
 }
 
 check() { # name condition-exit-code output
@@ -78,10 +82,10 @@ reset() { # reset <is-active answer>
 current() { readlink "$ROOT/lib/current"; }
 
 reset active
-printf 'SLACK_BOT_TOKEN=x\nRELEASEBOT_DRY_RUN=false\n' > "$ROOT/etc/releasebot.env"
+printf 'SLACK_BOT_TOKEN=x\nSLACK_APP_TOKEN=x\nRELEASEBOT_DRY_RUN=false\n' > "$ROOT/etc/releasebot.env"
 chmod 0600 "$ROOT/etc/releasebot.env"
 cp "$ROOT/etc/releasebot.env" "$ROOT/env.before"
-touch "$ROOT/broker"
+echo fmoral > "$ROOT/broker"
 echo "# unit installed by an older setup.sh" > "$UNIT"
 
 candidate wrongsha "$SHA_B" false "jobs: good-a"
@@ -105,6 +109,8 @@ out="$(deploy "$ROOT/a/releasebot" "$ROOT/a/matrix.yaml" "$SHA_A")"; rc=$?
 check "clean build deploys, migrates the unit, enables and records the commit" $? "$out"
 grep -qx "restart releasebot-triage@fmoral.service" "$ROOT/systemctl.log" && cmp -s "$TRIAGE_UNIT" "$HERE/releasebot-triage@.service"
 check "a deploy installs the broker unit and moves a running broker to the new release" $? "$(cat "$ROOT/systemctl.log")"
+cmp -s "$RUN_UNIT" "$HERE/releasebot-run@.service" && cmp -s "$RUN_BIN" "$HERE/releasebot-run" && [ -x "$RUN_BIN" ]
+check "a deploy installs the CLI run unit and the releasebot-run command" $? ""
 
 for bad in mode link; do
   env="$ROOT/etc/releasebot.env"
@@ -190,8 +196,59 @@ mv "$ROOT/env.moved" "$ROOT/etc/releasebot.env"
 [ "$rc" != 0 ] && [[ "$out" == *"run '"*"prepare'"* ]] && [ "$(current)" = "$A" ]
 check "deploy on a host that was not prepared asks for prepare first" $? "$out"
 
+# Without Slack tokens the listener would exit at once: the release goes live for releasebot-run only.
+reset failed
+cp -p "$ROOT/etc/releasebot.env" "$ROOT/env.slack"
+printf 'RELEASEBOT_DRY_RUN=false\n' > "$ROOT/etc/releasebot.env"
+candidate e "$SHA_B" false "jobs: good-e"
+out="$(deploy "$ROOT/e/releasebot" "$ROOT/e/matrix.yaml" "$SHA_B")"; rc=$?
+cp -p "$ROOT/env.slack" "$ROOT/etc/releasebot.env"
+[ "$rc" = 0 ] && [ "$(current)" = "$(release e "$SHA_B")" ] && [[ "$out" == *"only releasebot-run"* ]] &&
+  grep -qx "disable --now releasebot" "$ROOT/systemctl.log" && ! grep -q "^restart releasebot$" "$ROOT/systemctl.log" &&
+  ! grep -qx "enable releasebot" "$ROOT/systemctl.log" && [ "$(cat "$ROOT/lib/current-commit")" = "$SHA_B" ]
+check "a deploy without Slack tokens installs the release and leaves the listener disabled" $? "$out"
+
 cmp -s "$ROOT/etc/releasebot.env" "$ROOT/env.before"
 check "deploys never touch the env file, so the execution mode is kept" $? ""
+
+# The CLI run unit keeps the listener's sandbox; only the triage spool lines (no triage in CLI runs) differ.
+sandbox() {
+  grep -E '^(StateDirectory|UMask|NoNewPrivileges|Private|Protect|Restrict|LockPersonality|MemoryDeny|SystemCall|CapabilityBoundingSet|AmbientCapabilities)' "$1"
+}
+out="$(diff <(sandbox "$HERE/releasebot.service") <(sandbox "$HERE/releasebot-run@.service"))"
+check "the CLI run unit has the same sandbox as the listener" $? "$out"
+
+# releasebot-run, the SSH path without Slack, with stubbed systemctl and journalctl.
+run_wrapper() {
+  rm -rf "$ROOT/run"
+  PATH="$ROOT/bin:$PATH" RELEASEBOT_RUN_DIR="$ROOT/run" bash "$HERE/releasebot-run" "$@" 2>&1
+}
+
+reset failed # the Slack bot is not running
+out="$(run_wrapper v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1 baler)"; rc=$?
+[ "$rc" = 0 ] && grep -qx 'RUN_REQUEST="v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1 baler"' "$ROOT"/run/*.env &&
+  grep -qx 'RUN_DRY_RUN=true' "$ROOT"/run/*.env && [ "$(stat -c %a "$ROOT/run" 2>/dev/null || stat -f %Lp "$ROOT/run")" = 700 ] &&
+  grep -Eqx 'start releasebot-run@[0-9]{8}T[0-9]{6}Z-[0-9]+\.service' "$ROOT/systemctl.log" &&
+  [[ "$out" == *"journal for -u releasebot-run@"* ]]
+check "releasebot-run is a dry-run by default and prints the plan from the journal" $? "$out"
+
+reset failed
+out="$(run_wrapper --execute v1.37.1-rc1+rke2r1)"; rc=$?
+[ "$rc" = 0 ] && grep -qx 'RUN_DRY_RUN=false' "$ROOT"/run/*.env &&
+  grep -Eqx 'start --no-block releasebot-run@[0-9TZ-]+\.service' "$ROOT/systemctl.log" && [[ "$out" == *"journalctl -u"* ]]
+check "releasebot-run --execute starts the run in the background and says how to follow it" $? "$out"
+
+reset active
+out="$(run_wrapper --execute v1.37.1-rc1+rke2r1)"; rc=$?
+[ "$rc" != 0 ] && [[ "$out" == *"Slack bot"* ]] && ! grep -q '^start' "$ROOT/systemctl.log" && [ ! -e "$ROOT/run" ]
+check "releasebot-run --execute refuses while the Slack bot runs" $? "$out"
+
+for bad in v1.37.1+rke2r1 'v1.37.1-rc1+rke2r1;id' --dry-run=false baler; do
+  reset failed
+  out="$(run_wrapper "$bad")"; rc=$?
+  [ "$rc" != 0 ] && ! grep -q '^start' "$ROOT/systemctl.log" && [ ! -e "$ROOT/run" ]
+  check "releasebot-run rejects '$bad' before starting anything" $? "$out"
+done
 
 # prepare over an older layout (group-writable root, so entries may have been swapped), as root:
 # links are removed without touching their targets and the modes are put back.
@@ -201,8 +258,10 @@ if [ "$(id -u)" = 0 ] && stat -c %h / >/dev/null 2>&1; then
   prepare() {
     PATH="$ROOT/bin:$PATH" RELEASEBOT_LIB_DIR="$LIB" RELEASEBOT_ETC_DIR="$ROOT/etc" RELEASEBOT_UNIT="$UNIT" \
       RELEASEBOT_TRIAGE_UNIT="$ROOT/systemd/triage.service" RELEASEBOT_TRIAGE_SPOOL="$SPOOL" \
+      RELEASEBOT_RUN_UNIT="$RUN_UNIT" RELEASEBOT_RUN_BIN="$RUN_BIN" \
       RELEASEBOT_TRIAGE_GROUP="$(id -gn)" bash "$HERE/setup.sh" prepare nobody 2>&1
   }
+  : > "$ROOT/broker" # no broker runs until the handover cases below
   mkdir -m 0770 "$SPOOL" "$SPOOL/work" "$ROOT/elsewhere"
   printf 's' > "$ROOT/secret" && chmod 0600 "$ROOT/secret"
   ln -s "$ROOT/elsewhere" "$SPOOL/in"
@@ -237,6 +296,27 @@ if [ "$(id -u)" = 0 ] && stat -c %h / >/dev/null 2>&1; then
   [ "$rc" != 0 ] && [[ "$out" == *"is a link or not a regular file"* ]]
   check "prepare refuses a tokens file that is a link" $? "$out"
   rm -f "$env" && mv "$ROOT/env.real" "$env"
+
+  # Handing the spool to another user replaces the lock: a running broker would keep the old one.
+  lock_id() { stat -c '%i %U' "$SPOOL/.broker.lock"; }
+  before="$(lock_id)"
+  echo fmoral > "$ROOT/broker"
+  out="$(prepare)"; rc=$?
+  [ "$rc" != 0 ] && [[ "$out" == *"releasebot-triage@fmoral.service is running"* ]] && [ "$(lock_id)" = "$before" ]
+  check "prepare refuses to hand the spool to another user while a broker runs, keeping its lock" $? "$out"
+
+  echo nobody > "$ROOT/broker"
+  out="$(prepare)"; rc=$?
+  [ "$rc" = 0 ] && [ "$(lock_id)" = "$before" ]
+  check "prepare for the user whose broker runs keeps that broker's lock" $? "$out"
+  : > "$ROOT/broker"
+
+  # A failed broker query must stop prepare before it replaces another user's lock.
+  chown root "$SPOOL/.broker.lock" && before="$(lock_id)" && touch "$ROOT/systemctl-fails"
+  out="$(prepare)"; rc=$?
+  [ "$rc" != 0 ] && [[ "$out" == *"cannot list the running triage brokers"* ]] && [ "$(lock_id)" = "$before" ]
+  check "prepare stops, keeping the lock, when the broker query fails" $? "$out"
+  rm -f "$ROOT/systemctl-fails"
 else
   echo "SKIP: prepare tests need root and GNU stat"
 fi

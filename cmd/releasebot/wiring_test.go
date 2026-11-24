@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/releasebot"
@@ -22,5 +23,58 @@ func TestWiringAppliesDTFRefEnvironment(t *testing.T) {
 	}
 	if p.Matrix.DTFRef != "env-ref" || p.Matrix.Defaults["BRANCH"] != "env-ref" {
 		t.Fatalf("override not applied: %+v", p.Matrix)
+	}
+}
+
+// A real CLI run takes the listener's lock, so it never schedules next to the Slack bot (both would
+// fill a controller's maxConcurrent); a dry-run triggers nothing and needs no lock.
+func TestRunRefusesWhileAnotherBotRuns(t *testing.T) {
+	state := filepath.Join(t.TempDir(), "state.json")
+	release, err := releasebot.AcquireInstanceLock(state + ".lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+
+	o := &options{message: "v1.37.1-rc1+rke2r1", stateFile: state, matrixPath: "missing.yaml"}
+	runErr := run(o)
+	if runErr == nil || !strings.Contains(runErr.Error(), "already running") {
+		t.Fatalf("execute next to a running bot: expected the lock error, got %v", runErr)
+	}
+
+	o.dryRun = true
+	if dryErr := run(o); dryErr == nil || strings.Contains(dryErr.Error(), "already running") {
+		t.Fatalf("dry-run must not take the lock (it fails on the missing matrix instead), got %v", dryErr)
+	}
+}
+
+// A stopped Slack bot keeps its unfinished runs to resume, with their builds possibly still on
+// Jenkins: a real CLI run refuses until they end, while a dry-run (it triggers nothing) still plans.
+func TestRunRefusesWhileSlackRunsAreSaved(t *testing.T) {
+	state := filepath.Join(t.TempDir(), "state.json")
+	saved := []byte(`{"version":1,"runs":{"rb-1":{"channel":"C1","ts":"1.2","tags":["v1.37.1-rc1+rke2r1"]}}}`)
+	if err := os.WriteFile(state, saved, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	o := &options{message: "v1.37.1-rc1+rke2r1", stateFile: state, matrixPath: "missing.yaml"}
+	runErr := run(o)
+	if runErr == nil || !strings.Contains(runErr.Error(), "1 unfinished runs") {
+		t.Fatalf("execute next to saved Slack runs: expected a refusal, got %v", runErr)
+	}
+
+	o.dryRun = true
+	if dryErr := run(o); dryErr == nil || strings.Contains(dryErr.Error(), "unfinished") {
+		t.Fatalf("dry-run must still plan (it fails on the missing matrix instead), got %v", dryErr)
+	}
+
+	// The refusal releases the lock: once the runs end, the next request may run.
+	if err := os.WriteFile(state, []byte(`{"version":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o.dryRun = false
+	if err := run(o); err == nil || strings.Contains(err.Error(), "unfinished") ||
+		strings.Contains(err.Error(), "already running") {
+		t.Fatalf("no saved runs: expected the matrix error, got %v", err)
 	}
 }

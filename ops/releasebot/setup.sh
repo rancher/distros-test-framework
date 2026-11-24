@@ -8,6 +8,8 @@ LIB_DIR="${RELEASEBOT_LIB_DIR:-/usr/local/lib/releasebot}"
 ETC_DIR="${RELEASEBOT_ETC_DIR:-/etc/releasebot}"
 UNIT="${RELEASEBOT_UNIT:-/etc/systemd/system/releasebot.service}"
 TRIAGE_UNIT="${RELEASEBOT_TRIAGE_UNIT:-/etc/systemd/system/releasebot-triage@.service}"
+RUN_UNIT="${RELEASEBOT_RUN_UNIT:-/etc/systemd/system/releasebot-run@.service}"
+RUN_BIN="${RELEASEBOT_RUN_BIN:-/usr/local/sbin/releasebot-run}"
 TRIAGE_GROUP="${RELEASEBOT_TRIAGE_GROUP:-releasebot-triage}"
 SPOOL="${RELEASEBOT_TRIAGE_SPOOL:-/var/lib/releasebot-triage}"
 GO="${GO:-$(command -v go || echo /usr/local/go/bin/go)}"
@@ -16,7 +18,21 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() { echo "error: $*" >&2; exit 1; }
 
+# refuse_broker_handover: handing the spool to another user replaces the broker lock, so a broker
+# still running (or stopping) would keep the old lock and serve next to the new one.
+refuse_broker_handover() {
+  local units unit
+  units="$(systemctl list-units --plain --no-legend --state=active,activating,deactivating,reloading \
+    'releasebot-triage@*.service')" || die "cannot list the running triage brokers; nothing was changed"
+
+  for unit in $(awk '{print $1}' <<<"$units"); do
+    [ "$unit" = "releasebot-triage@$1.service" ] ||
+      die "$unit is running: stop it and wait until it is inactive before handing the triage spool to $1"
+  done
+}
+
 prepare() {
+  [ -z "${1:-}" ] || refuse_broker_handover "$1"
   if ! getent passwd "$BOT_USER" >/dev/null; then
     # No login shell, no home, no extra groups (no sudo, no docker), no SSH keys.
     useradd --system --user-group --no-create-home --home-dir /var/lib/releasebot \
@@ -66,6 +82,8 @@ prepare() {
 
   install -o root -g root -m 0644 "$HERE/releasebot.service" "$UNIT"
   install -o root -g root -m 0644 "$HERE/releasebot-triage@.service" "$TRIAGE_UNIT"
+  install -o root -g root -m 0644 "$HERE/releasebot-run@.service" "$RUN_UNIT"
+  install -o root -g root -m 0755 "$HERE/releasebot-run" "$RUN_BIN"
   systemctl daemon-reload
   if [ -n "${1:-}" ]; then
     echo "triage broker: put the pinned skill in ~$1/releasebot-triage/skill, then enable releasebot-triage@$1"
@@ -95,8 +113,22 @@ sha256() {
   if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi
 }
 
+# slack_configured: without both tokens the listener exits at once, so the host serves releasebot-run only.
+slack_configured() {
+  grep -Eq '^SLACK_BOT_TOKEN=.+' "$ETC_DIR/releasebot.env" && grep -Eq '^SLACK_APP_TOKEN=.+' "$ETC_DIR/releasebot.env"
+}
+
+enable_listener() {
+  if slack_configured; then
+    systemctl enable releasebot
+  else
+    systemctl disable --now releasebot
+  fi
+}
+
 # start_healthy restarts the unit and reports whether it stayed up; never exits under set -e.
 start_healthy() {
+  slack_configured || return 0 # CLI-only host: no listener to start
   systemctl restart releasebot || return 1
   sleep "$SETTLE_SECONDS"
   systemctl is-active --quiet releasebot
@@ -105,7 +137,7 @@ start_healthy() {
 # deploy <binary> <matrix.yaml> <commit-sha>: a release is <sha>-<hash of binary+matrix+manifest>,
 # never overwritten, so the previous one survives for rollback even when only the matrix changes.
 deploy() {
-  local bin="$1" matrix="$2" sha="$3" stage release prev prev_unit prev_triage brokers
+  local bin="$1" matrix="$2" sha="$3" stage release prev prev_unit prev_triage prev_run brokers
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "commit sha must be 40 hex characters"
   if [ ! -d "$LIB_DIR" ] || [ ! -f "$ETC_DIR/releasebot.env" ]; then
     die "host not prepared: run '$0 prepare' and fill $ETC_DIR/releasebot.env first"
@@ -138,21 +170,28 @@ deploy() {
   prev="$(readlink "$LIB_DIR/current" || true)"
   prev_unit="$(save_unit "$UNIT")"
   prev_triage="$(save_unit "$TRIAGE_UNIT")"
+  prev_run="$(save_unit "$RUN_UNIT")"
   brokers="$(active_brokers)"
 
   install -m 0644 "$HERE/releasebot.service" "$UNIT"
   install -m 0644 "$HERE/releasebot-triage@.service" "$TRIAGE_UNIT"
-  if ! { systemctl daemon-reload && systemctl enable releasebot; }; then
-    restore_units "$prev_unit" "$prev_triage"
+  install -m 0644 "$HERE/releasebot-run@.service" "$RUN_UNIT"
+  install -m 0755 "$HERE/releasebot-run" "$RUN_BIN"
+  if ! { systemctl daemon-reload && enable_listener; }; then
+    restore_units "$prev_unit" "$prev_triage" "$prev_run"
     die "could not install or enable the unit; the active version is unchanged"
   fi
 
   ln -sfn "$LIB_DIR/$release" "$LIB_DIR/current"
   if start_healthy && restart_brokers "$brokers"; then
-    rm -f "$prev_unit" "$prev_triage"
+    rm -f "$prev_unit" "$prev_triage" "$prev_run"
     echo "$sha" > "$LIB_DIR/current-commit"
     echo "$release" > "$LIB_DIR/current-release"
-    echo "releasebot $release is running${brokers:+ (triage broker restarted)}"
+    if slack_configured; then
+      echo "releasebot $release is running${brokers:+ (triage broker restarted)}"
+    else
+      echo "releasebot $release is installed; no Slack tokens, so only releasebot-run serves requests"
+    fi
     return 0
   fi
 
@@ -162,11 +201,11 @@ deploy() {
     systemctl disable --now releasebot || true
     systemctl stop 'releasebot-triage@*.service' || true
     rm -f "$LIB_DIR/current" "$LIB_DIR/current-commit" "$LIB_DIR/current-release"
-    restore_units "$prev_unit" "$prev_triage"
+    restore_units "$prev_unit" "$prev_triage" "$prev_run"
     die "releasebot $release did not stay up; the unit is stopped and disabled (see journalctl -u releasebot)"
   fi
 
-  restore_units "$prev_unit" "$prev_triage"
+  restore_units "$prev_unit" "$prev_triage" "$prev_run"
   [ "$prev" = "$LIB_DIR/$release" ] ||
     ln -sfn "$prev" "$LIB_DIR/current"
   if start_healthy && restart_brokers "$brokers"; then
@@ -208,7 +247,7 @@ save_unit() {
 # restore_units puts the previously installed units back (or removes first-time installs).
 restore_units() {
   local saved dest pair
-  for pair in "$1:$UNIT" "$2:$TRIAGE_UNIT"; do
+  for pair in "$1:$UNIT" "$2:$TRIAGE_UNIT" "$3:$RUN_UNIT"; do
     saved="${pair%%:*}" dest="${pair#*:}"
     if [ -s "$saved" ]; then cp -p "$saved" "$dest"; else rm -f "$dest"; fi
     rm -f "$saved"

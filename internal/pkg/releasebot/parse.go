@@ -11,19 +11,24 @@ import (
 type Request struct {
 	K3s  []string
 	RKE2 []string
+
+	// Baler moves the jobs with a baler path in the matrix (airgap, conformance) to that controller.
+	Baler bool
 }
 
 var (
-	k3sRC  = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+k3s\d+`)
-	rke2RC = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+rke2r\d+`)
+	k3sRC     = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+k3s\d+`)
+	rke2RC    = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+rke2r\d+`)
+	balerWord = regexp.MustCompile(`(?i)\bbaler\b`)
 )
 
 func ParseRequest(text string) Request {
 	text = normalizeSlack(text)
 
 	return Request{
-		K3s:  uniqueSorted(k3sRC.FindAllString(text, -1)),
-		RKE2: uniqueSorted(rke2RC.FindAllString(text, -1)),
+		K3s:   uniqueSorted(k3sRC.FindAllString(text, -1)),
+		RKE2:  uniqueSorted(rke2RC.FindAllString(text, -1)),
+		Baler: balerWord.MatchString(text),
 	}
 }
 
@@ -40,7 +45,7 @@ func (r Request) Without(drop []string) Request {
 		return out
 	}
 
-	return Request{K3s: keep(r.K3s), RKE2: keep(r.RKE2)}
+	return Request{K3s: keep(r.K3s), RKE2: keep(r.RKE2), Baler: r.Baler}
 }
 
 // Empty reports whether no RC was found.

@@ -27,6 +27,9 @@ func planLines(p *Plan, mode string) []planLine {
 		add("info", "Release plan, request %s", p.RequestID)
 	}
 	add("info", "  k3s: %s | rke2: %s", list(p.Request.K3s), list(p.Request.RKE2))
+	if p.Request.Baler {
+		add("info", "  baler: jobs with a Baler path (airgap, conformance) run on baler, the rest on mower")
+	}
 
 	add("info", "gitHub workflows (%d):", len(p.Workflows))
 	for _, w := range p.Workflows {
@@ -71,7 +74,7 @@ func jobLines(p *Plan, add func(level, format string, args ...any)) {
 		}
 		rc := j.Product + " " + j.Version
 		byPhase[j.Phase][rc] = append(byPhase[j.Phase][rc], j.Name)
-		add("debug", "  phase %d %s %s prefix=%s params: %s", j.Phase, j.Path, j.Version,
+		add("debug", "  phase %d %s:%s %s prefix=%s params: %s", j.Phase, j.Controller, j.Path, j.Version,
 			j.Params["HOSTNAME_PREFIX"], sortedParams(j.Params))
 	}
 

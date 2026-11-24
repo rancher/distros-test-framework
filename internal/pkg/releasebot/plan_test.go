@@ -745,3 +745,67 @@ func TestLoadMatrixRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("expected unknown-field error naming depends_on, got %v", err)
 	}
 }
+
+const balerMatrix = `
+dtfRef: rc-ref
+controllers:
+  mower: {url: https://mower.example, maxConcurrent: 2}
+  baler: {url: https://baler.example, maxConcurrent: 1, params: {BRANCH: main}}
+defaultParams:
+  INSTALL_VERSION: "{{VERSION}}"
+  HOSTNAME_PREFIX: "{{PREFIX}}"
+  BRANCH: "{{DTF_REF}}"
+jobs:
+  - {name: smoke, product: rke2, controller: mower, path: m/smoke, phase: 1, code: vc}
+  - {name: conf, product: rke2, controller: mower, path: m/conf, phase: 2, code: cf, baler: b/conf}
+`
+
+// A request saying baler runs the jobs that have a Baler path there, with Baler's params (its legacy
+// jobs run from main); every other job, and every job of a request without it, stays on mower.
+func TestBuildPlanBalerMovesJobsWithABalerPath(t *testing.T) {
+	m := loadMatrixText(t, balerMatrix)
+	params := allParams("BRANCH")
+	res := &fakeResolver{jobs: map[string][]string{"m/smoke": params, "m/conf": params, "b/conf": params}}
+	rc := "v1.37.1-rc1+rke2r1"
+
+	for _, c := range []struct {
+		baler                      bool
+		confCtrl, confPath, branch string
+	}{
+		{baler: false, confCtrl: "mower", confPath: "m/conf", branch: "rc-ref"},
+		{baler: true, confCtrl: "baler", confPath: "b/conf", branch: "main"},
+	} {
+		req := Request{RKE2: []string{rc}, Baler: c.baler}
+		p, err := buildPlan(context.Background(), req, m, testNow, "rb-1", res)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		jobs := jobsFor(p, rc)
+		smoke, conf := jobs["smoke"], jobs["conf"]
+		if smoke.Controller != "mower" || smoke.Path != "m/smoke" || smoke.Params["BRANCH"] != "rc-ref" {
+			t.Fatalf("baler=%v: smoke moved: %+v", c.baler, smoke)
+		}
+		if conf.Controller != c.confCtrl || conf.Path != c.confPath || conf.Params["BRANCH"] != c.branch {
+			t.Fatalf("baler=%v: conf = %s:%s BRANCH=%s, want %s:%s BRANCH=%s", c.baler,
+				conf.Controller, conf.Path, conf.Params["BRANCH"], c.confCtrl, c.confPath, c.branch)
+		}
+		if conf.Params["HOSTNAME_PREFIX"] != "rbr137cf" || !slices.Contains(conf.DependsOn, "smoke") {
+			t.Fatalf("baler=%v: conf lost its prefix or phase gate: %+v", c.baler, conf)
+		}
+	}
+}
+
+// A Baler path needs a usable baler controller, or a baler request could not run that job.
+func TestLoadMatrixRejectsBalerPathWithoutController(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "m.yaml")
+	body := "controllers:\n  m: {url: https://x, maxConcurrent: 1}\njobs:\n" +
+		"  - {name: a, product: k3s, controller: m, path: p, code: a, baler: b/p}\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), `controller "baler"`) {
+		t.Fatalf("expected an error about the baler controller, got %v", err)
+	}
+}

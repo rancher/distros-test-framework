@@ -1,0 +1,47 @@
+# One release bot run without Slack (CLI mode), started by releasebot-run; see docs/releasebot.md.
+# %i names the request file the wrapper wrote; dry-run unless that file sets RUN_DRY_RUN=false.
+[Unit]
+Description=distros release bot run %i (CLI, without Slack)
+Documentation=https://github.com/rancher/distros-test-framework/blob/qa-infra-RC-1/docs/releasebot.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# oneshot: a dry-run's `systemctl start` returns with the plan printed; a run may last hours.
+Type=oneshot
+TimeoutStartSec=infinity
+User=releasebot
+Group=releasebot
+EnvironmentFile=/etc/releasebot/releasebot.env
+EnvironmentFile=/run/releasebot-run/%i.env
+ExecStart=/usr/local/lib/releasebot/current/releasebot -message ${RUN_REQUEST} -dry-run=${RUN_DRY_RUN} \
+    -matrix /usr/local/lib/releasebot/current/matrix.yaml -state-file /var/lib/releasebot/state.json
+ExecStopPost=+/usr/bin/rm -f /run/releasebot-run/%i.env
+
+# The sandbox of releasebot.service without the triage spool, which CLI runs do not use
+# (setup_test.sh checks the two stay the same).
+StateDirectory=releasebot
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=

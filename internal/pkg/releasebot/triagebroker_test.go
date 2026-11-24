@@ -50,7 +50,7 @@ func newSpool(t *testing.T) string {
 
 func failedOutcome() Outcome {
 	return Outcome{
-		Job:      JenkinsJob{Name: "smoke", Path: "f/smoke", Product: "rke2", Version: "v1"},
+		Job:      JenkinsJob{Name: "smoke", Controller: "mower", Path: "f/smoke", Product: "rke2", Version: "v1"},
 		BuildURL: "https://jenkins/job/f/job/smoke/7/", Result: "FAILURE",
 	}
 }
@@ -1256,7 +1256,7 @@ func (b *countingBroker) serve(t *testing.T, spool string) {
 
 func failureOn(version string) *Outcome {
 	return &Outcome{
-		Job:      JenkinsJob{Name: "k3s-validate-cluster", Product: "k3s", Version: version},
+		Job:      JenkinsJob{Name: "k3s-validate-cluster", Controller: "mower", Product: "k3s", Version: version},
 		BuildURL: "https://j/" + version + "/", Result: "FAILURE",
 	}
 }
@@ -1321,7 +1321,10 @@ func TestFailureTriageReuseAcrossJobs(t *testing.T) {
 		"https://j/test-a/": test, "https://j/test-b/": test,
 	})
 	on := func(job, build string) *Outcome {
-		return &Outcome{Job: JenkinsJob{Name: job, Version: "v1"}, BuildURL: "https://j/" + build + "/", Result: "FAILURE"}
+		return &Outcome{
+			Job:      JenkinsJob{Name: job, Controller: "mower", Version: "v1"},
+			BuildURL: "https://j/" + build + "/", Result: "FAILURE",
+		}
 	}
 
 	ft.Quick(context.Background(), on("validate", "infra-a"))
@@ -1602,5 +1605,31 @@ func TestFailureTriageRecoversTogether(t *testing.T) {
 	wg.Wait()
 	if n := b.calls.Load(); n != 2 {
 		t.Fatalf("broker calls %d, want 2", n)
+	}
+}
+
+// The broker's tools and prompt reach only Mower: a Baler build is never sent to it (it could not
+// fetch that build's evidence), quick or full, and waits for a person without a rerun.
+func TestFailureTriageSkipsOtherControllers(t *testing.T) {
+	spool := newSpool(t)
+	b := &countingBroker{}
+	b.serve(t, spool)
+	ft := newFailureTriage(spool, map[string]string{"https://j/v1.37/": capacityLog("10.0.0.1")})
+
+	baler := failureOn("v1.37")
+	baler.Job.Controller = balerController
+	for mode, d := range map[string]Decision{
+		"quick": ft.Quick(context.Background(), baler), "full": ft.Full(context.Background(), baler),
+	} {
+		if d.Rerun || !strings.Contains(d.Summary, "needs a person") {
+			t.Fatalf("%s triage of a baler build: %+v", mode, d)
+		}
+	}
+	if n := b.calls.Load(); n != 0 {
+		t.Fatalf("the broker was asked %d times for a baler build", n)
+	}
+
+	if d := ft.Quick(context.Background(), failureOn("v1.37")); !d.Rerun || b.calls.Load() != 1 {
+		t.Fatalf("a mower build must still reach the broker: %+v, calls %d", d, b.calls.Load())
 	}
 }

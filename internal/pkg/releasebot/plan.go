@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -118,7 +119,13 @@ type Matrix struct {
 type Limits struct {
 	URL           string `yaml:"url"`
 	MaxConcurrent int    `yaml:"maxConcurrent"`
+
+	// Params override every job's params on this controller (Baler's legacy jobs run DTF from main).
+	Params map[string]string `yaml:"params"`
 }
+
+// balerController runs a job's Baler path when the request asks for Baler (Request.Baler).
+const balerController = "baler"
 
 // MatrixJob is a job template; {{VERSION}}, {{PREFIX}} and {{UPGRADE_FROM}} are replaced per
 // RC, {{QASE_RUN_ID}} once the Qase runs exist.
@@ -145,6 +152,10 @@ type MatrixJob struct {
 
 	// DependsOn lists job names of the same product; they must succeed for the same RC first.
 	DependsOn []string `yaml:"dependsOn"`
+
+	// Baler is the job's path on the baler controller, used instead of Controller/Path when the
+	// request says "baler".
+	Baler string `yaml:"baler"`
 }
 
 const (
@@ -200,6 +211,11 @@ func LoadMatrixWithRef(path, dtfRef string) (*Matrix, error) {
 			m.Jobs[i].Params[k] = strings.ReplaceAll(v, dtfRefPlaceholder, m.DTFRef)
 		}
 	}
+	for _, lim := range m.Controller {
+		for k, v := range lim.Params {
+			lim.Params[k] = strings.ReplaceAll(v, dtfRefPlaceholder, m.DTFRef)
+		}
+	}
 
 	return &m, nil
 }
@@ -229,9 +245,13 @@ func validateJobs(m *Matrix) error {
 		if err := checkPrefix(m, j, codes); err != nil {
 			return err
 		}
-		lim, ok := m.Controller[j.Controller]
-		if !ok || lim.URL == "" || lim.MaxConcurrent < 1 {
-			return fmt.Errorf("job %q: controller %q missing url or maxConcurrent", j.Name, j.Controller)
+		if ctrlErr := checkController(m, j.Name, j.Controller); ctrlErr != nil {
+			return ctrlErr
+		}
+		if j.Baler != "" {
+			if ctrlErr := checkController(m, j.Name, balerController); ctrlErr != nil {
+				return ctrlErr
+			}
 		}
 		if j.Name == "" || seen[j.Product+"|"+j.Name] {
 			return fmt.Errorf("job %q (%s): names must be set and unique per product", j.Name, j.Product)
@@ -246,6 +266,15 @@ func validateJobs(m *Matrix) error {
 	}
 
 	return checkPhaseOrder(m.Jobs)
+}
+
+func checkController(m *Matrix, job, controller string) error {
+	lim, ok := m.Controller[controller]
+	if !ok || lim.URL == "" || lim.MaxConcurrent < 1 {
+		return fmt.Errorf("job %q: controller %q missing url or maxConcurrent", job, controller)
+	}
+
+	return nil
 }
 
 // checkPhaseOrder rejects a dependency on a job of a later phase: that phase already waits for
@@ -450,7 +479,7 @@ func (x *expander) expandRC(product, tag string, share map[string]string) []Jenk
 			continue
 		}
 
-		job := expandJob(mj, tag, x.m.PrefixBase, x.m.Defaults)
+		job := expandJob(mj, tag, x.m, x.plan.Request.Baler)
 		if reason := x.fillUpgradeFrom(&job); reason != "" {
 			x.block(&job, reason)
 			continue
@@ -683,16 +712,18 @@ func gatePhases(jobs []JenkinsJob, note func(string)) []JenkinsJob {
 
 // expandJob keeps HOSTNAME_PREFIX short: qainfra caps dsf-<prefix>-<product>-<id> at 24 chars.
 // The prefix is <base><product letter><major><minor><code>, e.g. rbr137vc.
-func expandJob(mj *MatrixJob, tag, prefixBase string, defaults map[string]string) JenkinsJob {
+func expandJob(mj *MatrixJob, tag string, m *Matrix, baler bool) JenkinsJob {
 	r, _ := parseRelease(tag)
-	prefix := fmt.Sprintf("%s%s%d%d%s", prefixBase, mj.Product[:1], r.major, r.minor, mj.Code)
+	prefix := fmt.Sprintf("%s%s%d%d%s", m.PrefixBase, mj.Product[:1], r.major, r.minor, mj.Code)
+
+	controller, path := mj.Controller, mj.Path
+	if baler && mj.Baler != "" {
+		controller, path = balerController, mj.Baler
+	}
 
 	params := map[string]string{}
-	for k, v := range defaults {
-		params[k] = v
-	}
-	for k, v := range mj.Params {
-		params[k] = v
+	for _, layer := range []map[string]string{m.Defaults, mj.Params, m.Controller[controller].Params} {
+		maps.Copy(params, layer)
 	}
 	for k, v := range params {
 		v = strings.ReplaceAll(v, "{{VERSION}}", tag)
@@ -702,8 +733,8 @@ func expandJob(mj *MatrixJob, tag, prefixBase string, defaults map[string]string
 	return JenkinsJob{
 		Name:       mj.Name,
 		DependsOn:  append([]string{}, mj.DependsOn...),
-		Controller: mj.Controller,
-		Path:       mj.Path,
+		Controller: controller,
+		Path:       path,
 		Product:    mj.Product,
 		Version:    tag,
 		Phase:      mj.Phase,

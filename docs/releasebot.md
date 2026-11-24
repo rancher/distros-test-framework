@@ -13,6 +13,8 @@ into the three things we do by hand today for every RC round:
    A parity test against the batch parameters is still to do (see "Execution model").
 
 The bot reacts to a Slack mention (Socket Mode, `-listen`). It does not poll the channel.
+Without Slack, `releasebot-run` on the bot host starts the same plan over SSH (see
+"Running without Slack").
 
 ## Status
 
@@ -28,6 +30,8 @@ The bot reacts to a Slack mention (Socket Mode, `-listen`). It does not poll the
 | Qase run id → `QASE_RUN_ID` of every job | Done (`qase.go`); title and `search` lookup checked read-only against the real API |
 | Job matrix | Five phases, smoke split, upgrade starts, jobs checked on Jenkins (`config/releasebot/matrix.yaml`) |
 | CLI with dry-run (`cmd/releasebot`) | Done |
+| Run without Slack over SSH (`releasebot-run`, dry-run by default) | Done (`ops/releasebot/releasebot-run`, `releasebot-run@.service`); not yet run on the host |
+| Mower default, `baler` split for airgap + conformance | Done (`matrix.yaml`); **temporary** Mower default, see "Jenkins matrix" |
 | Unit tests | Done (`releasebot_test.go`: parsing, plan/order/prefix, Qase RC dedupe, Qase title/request-id matching/timeout, scheduler limits, transient and persistent query errors, lost trigger responses, canceled queue items, `dependsOn` release/block/validation, Jenkins trigger error classification over HTTP) |
 | Slack app: bot token, Socket Mode, `message.channels` event | Done; live-tested: mention and thread reply both arrive over the socket |
 | Slack scopes `groups:read`, `groups:history`, `app_mentions:read` | **Waiting for workspace admin approval** |
@@ -120,7 +124,8 @@ The whole path of a failed build in a running plan; the sections linked give the
 `ParseRequest` finds `vX.Y.Z-rcN+k3sN` and `vX.Y.Z-rcN+rke2rN` anywhere in the text. It undoes
 Slack escaping first, so tags inside links (`<url|tag>`), code spans and `%2B`-encoded URLs still
 match. Duplicates are dropped.
-A message with no tags is rejected.
+A message with no tags is rejected. The word `baler` (any case) asks for the Baler split (see
+"Jenkins matrix").
 
 ### Workflows
 
@@ -206,6 +211,18 @@ Each template runs once per RC of its product. In params:
   RC, the previous minor's latest GA, and the plan says so).
   Upgrade jobs set `INSTALL_VERSION: "{{UPGRADE_FROM}}"` and `UPGRADE_VERSION: "{{VERSION}}"`;
   their default `TEST_ARGS` already read `${UPGRADE_VERSION}`.
+
+**Controllers: Mower by default, for now (TEMPORARY).** Every job runs on Mower unless the
+request says `baler`. Baler has only the legacy (non-qainfra) airgap and conformance jobs, so a
+`baler` request moves the jobs with a `baler:` path in the matrix (conformance, conformance with
+external DB and every airgap child) to Baler and keeps the rest on Mower. Each Baler job is still
+one child build counted against Baler's `maxConcurrent`, never `*_batch_airgap_test`. The `baler`
+controller's `params` override the job params there (`BRANCH: main`: those legacy jobs run DTF
+from main). **The Mower default is temporary:** once every job exists on Baler, Baler becomes the
+default controller; the `baler` split request stays. `JENKINS_<CONTROLLER>_URL` overrides a
+controller's `url` (https, no credentials or query), and a plan needs `JENKINS_<CONTROLLER>_AUTH`
+only for the controllers it uses: a Mower-only run needs no Baler token. A failed Baler build is not
+sent to the triage broker (its tools and prompt are jenkins-mower's): it waits for a person.
 
 **Phases.** Every job has a `phase` (1 smoke, 2 install, 3 airgap, 4 upgrade, 5 Rancher). Per
 product and RC, a job waits for every job of the previous phase that runs for that RC; other RCs
@@ -535,7 +552,7 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-triage-skill-dir` / `-triage-manifest` | `<workspace>/skill` / | The pinned skill and the manifest it must match |
 | `-triage-mcp-config` | `<workspace>/private/mcp.json` | The jenkins-mower MCP config (0600, in a 0700 `private/`) |
 | `-triage-quick-model` | `sonnet` | Model for quick triage |
-| `-triage-build <url>` / `-triage-full` | | Triage one build now (no spool) and print the verdict and the decision as JSON |
+| `-triage-build <url>` / `-triage-full` | | Triage one build now (no spool) and print the verdict and the decision as JSON; Mower builds only, like the broker |
 
 Environment:
 
@@ -543,7 +560,8 @@ Environment:
 |---|---|
 | `GITHUB_TOKEN` | Tag check (optional, avoids rate limits) and `workflow_dispatch` (needs Actions write on this repo) |
 | `QASE_AUTOMATION_TOKEN` | Finding the new Qase run ids (required when a job uses `{{QASE_RUN_ID}}`) |
-| `JENKINS_<CONTROLLER>_AUTH` | `user:apitoken` per controller in the matrix, e.g. `JENKINS_MOWER_AUTH` |
+| `JENKINS_<CONTROLLER>_AUTH` | `user:apitoken` per controller a plan uses, e.g. `JENKINS_MOWER_AUTH`; `JENKINS_BALER_AUTH` only for `baler` requests |
+| `JENKINS_<CONTROLLER>_URL` | Overrides the controller's matrix `url`, e.g. `JENKINS_MOWER_URL`, `JENKINS_BALER_URL` (https only) |
 | `SLACK_BOT_TOKEN` | Listen mode: bot token (`xoxb`, needs `channels:history` and `chat:write`) |
 | `SLACK_APP_TOKEN` | Listen mode: app-level token (`xapp`, `connections:write`) for Socket Mode |
 | `RELEASEBOT_CHANNELS` | Listen mode: comma-separated channel ids to serve, e.g. `C07Q8H55F6Z` (#distros-test-reports); the older `RELEASEBOT_CHANNEL` still works |
@@ -551,6 +569,38 @@ Environment:
 | `RELEASEBOT_ALLOWED_USERS` | Listen mode: comma-separated Slack user ids who may run plans in the other channels |
 | `RELEASEBOT_DRY_RUN` | systemd unit only: passed as `-dry-run`; `true` (default) or `false` in `/etc/releasebot/releasebot.env` |
 | `RELEASEBOT_DTF_REF` | Overrides the matrix's `dtfRef` (the workflow ref and every job's `BRANCH`, `{{DTF_REF}}`); set it to `main` once `qa-infra-RC-1` merges |
+
+`-dry-run=false` takes the same lock as `-listen` (`<state-file>.lock`), so a CLI run never
+schedules next to the Slack bot or another CLI run: both would fill a controller's `maxConcurrent`.
+
+### Running without Slack
+
+On the bot host, `releasebot-run` (installed by `setup.sh`) starts the same plan over SSH, as root.
+It is a dry-run unless `--execute` is given:
+
+```
+$ ssh <bot-host>
+$ sudo releasebot-run v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1             # dry-run: prints the plan
+$ sudo releasebot-run v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1 baler       # dry-run of the Baler split
+$ sudo releasebot-run --execute v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1   # runs it
+started releasebot-run@20261124T150000Z-4242.service (EXECUTE)
+follow: journalctl -u releasebot-run@20261124T150000Z-4242.service -f    stop: systemctl stop releasebot-run@20261124T150000Z-4242.service
+```
+
+- Each request is a `releasebot-run@<id>` unit: a one-shot `-message` run as `releasebot`, with the
+  listener's env file and sandbox, so it outlives the SSH session. The request (RC tags and
+  optionally `baler`, nothing else is accepted) goes through a root-only file under
+  `/run/releasebot-run/`, removed when the unit stops.
+- `--execute` is refused while `releasebot.service` runs (ask in Slack instead), while another
+  executing run holds the bot's lock, and while the Slack bot has unfinished runs saved in
+  `/var/lib/releasebot/state.json`: a stopped bot keeps them to resume and their builds may still
+  run, so a CLI run next to them would exceed `maxConcurrent` and test the same RCs twice. Start
+  `releasebot.service` again so it resumes them, and use the CLI once they end. If Slack cannot
+  come back, check those builds on Jenkins first, then remove the runs from the state file by hand.
+- Compared with Slack: there is no thread, so a job that needs help fails instead of waiting
+  (no `retry`/`skip`/`triage`), failures are not triaged (no automatic rerun), and the run is not
+  saved for a resume: if the unit stops, its builds keep running on Jenkins unfollowed. Rerun
+  failed jobs by hand or with a new request for those RCs.
 
 ### Listen mode
 
@@ -670,7 +720,8 @@ scopes are approved this can move to `app_mention`.
    `-listen -dry-run=false` with one RC and a low `maxConcurrent` (or a reduced matrix), then widen.
 3. **Matrix.** The batch parity test and OS validation (see "Execution model"). Decide
    `maxConcurrent` per controller with the team, accounting for manual/cron load and shared AWS
-   quotas. Baler can be added as a second controller; do not add batch parent jobs to the matrix.
+   quotas. Baler is the second controller (airgap and conformance children for `baler` requests);
+   do not add batch parent jobs to the matrix.
    Flip `dtfRef` to `main` (or set `RELEASEBOT_DTF_REF`) when `qa-infra-RC-1` merges: until then
    every dispatch and job runs from that branch, and once it is deleted every run fails.
 4. **Failure policy: decisions still open.** Implementation follows the
@@ -690,10 +741,18 @@ scopes are approved this can move to `app_mention`.
 6. **Rerun poller on the shared Slack client.** The reporter (`internal/pkg/qase`) and the bot use
    `internal/pkg/slack`; `cmd/rerunpoller` still has its own `postToSlack` and history reads.
 7. **Tokens for the bot.** A dedicated GitHub token (fine-grained, Actions write on this repo
-   only) and a Jenkins service account instead of personal tokens. The triage MCP config needs a
+   only) and a Jenkins service account instead of personal tokens. Baler needs its own
+   (`JENKINS_BALER_AUTH`) for `baler` requests. The triage MCP config needs a
    **read-only** Jenkins account: today the tool deny list is the only barrier between the model
    (which reads build logs anyone's build can print) and a token that can trigger builds.
 8. **Hosting**, see below.
+9. **Triage broker on Bedrock.** claude-sandbox runs Claude on Vertex (gcloud login,
+   `CLAUDE_CODE_USE_VERTEX`); the broker moves to Bedrock once the AWS account to use is decided.
+   That needs a Bedrock profile in claude-sandbox (`CLAUDE_CODE_USE_BEDROCK`, `AWS_REGION`, that
+   account's credentials mounted read-only), then `releasebot-triage@.service` and this doc.
+10. **Baler as the default.** The Mower default is temporary: move the remaining jobs to Baler and
+    make it the matrix default, keeping the `baler` split request. Failed Baler builds skip the triage
+    broker today; a read-only jenkins-baler MCP server and per-controller tools and prompt enable them.
 
 ## Hosting
 
@@ -708,19 +767,22 @@ Files in `ops/releasebot/`:
 |---|---|
 | `releasebot.service` | Hardened unit: runs `-listen` as user `releasebot`, dry-run unless the env file sets `RELEASEBOT_DRY_RUN=false` |
 | `releasebot-triage@.service` | The triage broker, run as the user who owns the claude-sandbox (`releasebot-triage@fmoral`) |
+| `releasebot-run@.service`, `releasebot-run` | One CLI run without Slack, and the root command that starts it (see "Running without Slack") |
 | `triage-skill.sha256` | Manifest of the pinned triage skill; `deploy` ships it with each release |
 | `releasebot.env.example` | Template for `/etc/releasebot/releasebot.env` |
-| `setup.sh` | `prepare [triage-user]` (users, directories, spool, units, env file) and `deploy <binary> <matrix> <sha>` |
+| `setup.sh` | `prepare [triage-user]` (users, directories, spool, units, `releasebot-run`, env file) and `deploy <binary> <matrix> <sha>` |
 | `setup_test.sh` | Tests `deploy` with stubbed `go` and `systemctl` (and `prepare`, as root) |
 
 How the host is set up:
 
 - **Dedicated account.** `releasebot` is a system user with no login shell, no home, no extra
   groups (no sudo, no docker) and no SSH keys; it cannot read other users' secrets.
-- **Least credentials.** Dry-run needs only `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` (tag checks on
-  the public repos work without a GitHub token). Add `GITHUB_TOKEN` (Actions write on this repo
-  only), `QASE_AUTOMATION_TOKEN` (read runs) and `JENKINS_*_AUTH` (a service account) only when
-  enabling real runs.
+- **Least credentials.** A Slack dry-run needs only `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` (tag
+  checks on the public repos work without a GitHub token); a `releasebot-run` dry-run needs none.
+  Add `GITHUB_TOKEN` (Actions write on this repo only), `QASE_AUTOMATION_TOKEN` (read runs) and
+  `JENKINS_*_AUTH` (a service account) only when enabling real runs.
+- **Without Slack.** With either Slack token empty, `deploy` installs the release but leaves
+  `releasebot.service` disabled (it would exit at once): the host serves `releasebot-run` only.
 - **Secrets.** `/etc/releasebot/releasebot.env` is `root:root 0600`; systemd reads it before
   switching to `releasebot`, which cannot read the file itself. `prepare` refuses a link and closes
   an existing file to `root:root 0600` (keeping its content); `deploy` refuses to run otherwise. `LoadCredential=` would be
@@ -731,7 +793,7 @@ How the host is set up:
   user), and only then are they moved to `/usr/local/lib/releasebot/<sha>-<hash>/` (the hash
   covers binary and matrix) and `current` is switched, all root-owned. Existing releases are never
   overwritten: an identical redeploy reuses its directory, and a matrix change on the same commit
-  gets a new one. `deploy` also installs both units shipped next to `setup.sh`, runs
+  gets a new one. `deploy` also installs the units and `releasebot-run` shipped next to `setup.sh`, runs
   `daemon-reload`, enables and restarts the bot and restarts the brokers that were running; if a
   restart fails or the bot or a broker does not stay up (for example a skill that no longer matches
   the new manifest), `current` and the units go back to the previous version, and `deploy` reports
@@ -755,7 +817,7 @@ How the host is set up:
 Preparing a new host (once; `deploy` refuses to run until this is done):
 
 ```
-$ scp ops/releasebot/{setup.sh,releasebot.service,releasebot-triage@.service,releasebot.env.example} \
+$ scp ops/releasebot/{setup.sh,releasebot.service,releasebot-triage@.service,releasebot-run@.service,releasebot-run,releasebot.env.example} \
     <host>:/root/releasebot-deploy/
 # on the host, as root (fmoral: the user who owns the claude-sandbox and its Vertex login):
 $ bash /root/releasebot-deploy/setup.sh prepare fmoral  # users, dirs, triage group and spool, units, env
@@ -770,13 +832,27 @@ $ (umask 077; printf '{"mcpServers":{"jenkins-mower":{"type":"http","url":"https
 $ systemctl enable --now releasebot-triage@fmoral
 ```
 
+Handing the triage broker to another user (for example the next release captain), as root. `prepare`
+replaces the broker lock for the new user, so the old broker must be gone first: `prepare` refuses
+while another user's broker is active, activating or stopping. Requests the old broker left in
+`work/` are put back in the queue when the new one starts; one that waits past `-triage-wait`
+goes to a person instead.
+
+```
+$ systemctl disable --now releasebot-triage@<old-user>
+$ systemctl is-active releasebot-triage@<old-user>       # must print "inactive" (or "failed")
+$ bash /root/releasebot-deploy/setup.sh prepare <new-user>
+# as <new-user>: the triage workspace (skill, private/mcp.json) as above
+$ systemctl enable --now releasebot-triage@<new-user>
+```
+
 Deploying a commit:
 
 ```
 $ git worktree add /tmp/releasebot-<sha> <sha>          # clean checkout of the reviewed commit
 $ cd /tmp/releasebot-<sha> && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o releasebot ./cmd/releasebot
 $ scp releasebot config/releasebot/matrix.yaml \
-    ops/releasebot/{setup.sh,releasebot.service,releasebot-triage@.service,triage-skill.sha256} \
+    ops/releasebot/{setup.sh,releasebot.service,releasebot-triage@.service,releasebot-run@.service,releasebot-run,triage-skill.sha256} \
     <host>:/root/releasebot-deploy/
 # on the host, as root:
 $ bash /root/releasebot-deploy/setup.sh deploy /root/releasebot-deploy/releasebot \

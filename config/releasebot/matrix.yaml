@@ -8,10 +8,17 @@ dtfRepo: rancher/distros-test-framework
 dtfRef: qa-infra-RC-1
 prefixBase: rb
 
+# TEMPORARY: mower runs every job by default until all of them move to baler (then the default);
+# a request saying "baler" sends each job's `baler` path there. JENKINS_<NAME>_URL overrides a url.
 controllers:
   mower:
     url: https://mower.jenkins.qa.rancher.space
     maxConcurrent: 6
+  baler:
+    url: https://baler.jenkins.qa.rancher.space
+    maxConcurrent: 6
+    # Baler's airgap and conformance jobs are the legacy (non-qainfra) pipeline, run from main.
+    params: {BRANCH: main}
 
 defaultParams:
   INSTALL_VERSION: "{{VERSION}}"
@@ -35,9 +42,9 @@ jobs:
      path: distros_qa/rke2-tests/rke2_validate_cluster_arm_qainfra}
   # Phase 2, install.
   - {name: rke2-conformance, product: rke2, controller: mower, phase: 2, code: cf,
-     path: distros_qa/rke2-tests/rke2_conformance_qainfra}
+     path: distros_qa/rke2-tests/rke2_conformance_qainfra, baler: rke2-tests/rke2_conformance}
   - {name: rke2-conformance-external-db, product: rke2, controller: mower, phase: 2, code: ce,
-     path: distros_qa/rke2-tests/rke2_conformance_external_db_qainfra}
+     path: distros_qa/rke2-tests/rke2_conformance_external_db_qainfra, baler: rke2-tests/rke2_conformance_external_db}
   - {name: rke2-external-datastore, product: rke2, controller: mower, phase: 2, code: ed,
      path: distros_qa/rke2-tests/rke2_external_datastore_qainfra}
   - {name: rke2-validate-cluster-arm-rpm, product: rke2, controller: mower, phase: 2, code: ar,
@@ -76,23 +83,23 @@ jobs:
      path: distros_qa/rke2-tests/rke2_windows_agent_flannel_qainfra}
   # Phase 3, airgap: each job keeps its own TEST_ARGS, as the batch does.
   - {name: rke2-private-registry, product: rke2, controller: mower, phase: 3, code: pr,
-     path: distros_qa/rke2-tests/rke2_private_registry_qainfra}
+     path: distros_qa/rke2-tests/rke2_private_registry_qainfra, baler: rke2-tests/rke2_private_registry}
   - {name: rke2-system-default-registry, product: rke2, controller: mower, phase: 3, code: sd,
-     path: distros_qa/rke2-tests/rke2_system_default_registry_qainfra}
+     path: distros_qa/rke2-tests/rke2_system_default_registry_qainfra, baler: rke2-tests/rke2_system_default_registry}
   - {name: rke2-tarball, product: rke2, controller: mower, phase: 3, code: tb,
-     path: distros_qa/rke2-tests/rke2_tarball_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_qainfra, baler: rke2-tests/rke2_tarball}
   - {name: rke2-tarball-prime-staging, product: rke2, controller: mower, phase: 3, code: ts,
-     path: distros_qa/rke2-tests/rke2_tarball_prime_staging_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_prime_staging_qainfra, baler: rke2-tests/rke2_tarball_prime_staging}
   - {name: rke2-tarball-arm, product: rke2, controller: mower, phase: 3, code: ta,
-     path: distros_qa/rke2-tests/rke2_tarball_arm_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_arm_qainfra, baler: rke2-tests/rke2_tarball_arm}
   - {name: rke2-tarball-arm-prime-staging, product: rke2, controller: mower, phase: 3, code: tp,
-     path: distros_qa/rke2-tests/rke2_tarball_arm_prime_staging_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_arm_prime_staging_qainfra, baler: rke2-tests/rke2_tarball_arm_prime_staging}
   - {name: rke2-private-registry-windows, product: rke2, controller: mower, optional: true, phase: 3, code: pw,
-     path: distros_qa/rke2-tests/rke2_private_registry_windows_qainfra}
+     path: distros_qa/rke2-tests/rke2_private_registry_windows_qainfra, baler: rke2-tests/rke2_private_registry_windows}
   - {name: rke2-tarball-windows, product: rke2, controller: mower, optional: true, phase: 3, code: tw,
-     path: distros_qa/rke2-tests/rke2_tarball_windows_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_windows_qainfra, baler: rke2-tests/rke2_tarball_windows}
   - {name: rke2-tarball-windows-prime-staging, product: rke2, controller: mower, optional: true, phase: 3, code: tx,
-     path: distros_qa/rke2-tests/rke2_tarball_windows_prime_staging_qainfra}
+     path: distros_qa/rke2-tests/rke2_tarball_windows_prime_staging_qainfra, baler: rke2-tests/rke2_tarball_windows_prime_staging}
   # Phase 4, upgrades from the latest GA of the same minor (previous minor for a .0 RC) to the RC.
   - {name: rke2-suc-upgrade, product: rke2, controller: mower, phase: 4, code: su,
      path: distros_qa/rke2-tests/rke2_suc_upgrade_qainfra,
@@ -137,9 +144,9 @@ jobs:
      path: distros_qa/k3s-tests/k3s_docker_cri_qainfra}
   # Phase 2, install.
   - {name: k3s-conformance, product: k3s, controller: mower, phase: 2, code: cf,
-     path: distros_qa/k3s-tests/k3s_conformance_qainfra}
+     path: distros_qa/k3s-tests/k3s_conformance_qainfra, baler: k3s-tests/k3s_conformance}
   - {name: k3s-conformance-external-db, product: k3s, controller: mower, phase: 2, code: ce,
-     path: distros_qa/k3s-tests/k3s_conformance_external_db_qainfra}
+     path: distros_qa/k3s-tests/k3s_conformance_external_db_qainfra, baler: k3s-tests/k3s_conformance_external_db}
   - {name: k3s-external-datastore, product: k3s, controller: mower, phase: 2, code: ed,
      path: distros_qa/k3s-tests/k3s_external_datastore_qainfra}
   - {name: k3s-validate-cluster-arm-rpm, product: k3s, controller: mower, phase: 2, code: ar,
@@ -172,17 +179,17 @@ jobs:
      path: distros_qa/k3s-tests/k3s_ipv6_only_qainfra}
   # Phase 3, airgap: each job keeps its own TEST_ARGS, as the batch does.
   - {name: k3s-private-registry, product: k3s, controller: mower, phase: 3, code: pr,
-     path: distros_qa/k3s-tests/k3s_private_registry_qainfra}
+     path: distros_qa/k3s-tests/k3s_private_registry_qainfra, baler: k3s-tests/k3s_private_registry}
   - {name: k3s-system-default-registry, product: k3s, controller: mower, phase: 3, code: sd,
-     path: distros_qa/k3s-tests/k3s_system_default_registry_qainfra}
+     path: distros_qa/k3s-tests/k3s_system_default_registry_qainfra, baler: k3s-tests/k3s_system_default_registry}
   - {name: k3s-tarball, product: k3s, controller: mower, phase: 3, code: tb,
-     path: distros_qa/k3s-tests/k3s_tarball_qainfra}
+     path: distros_qa/k3s-tests/k3s_tarball_qainfra, baler: k3s-tests/k3s_tarball}
   - {name: k3s-tarball-prime-staging, product: k3s, controller: mower, phase: 3, code: ts,
-     path: distros_qa/k3s-tests/k3s_tarball_prime_staging_qainfra}
+     path: distros_qa/k3s-tests/k3s_tarball_prime_staging_qainfra, baler: k3s-tests/k3s_tarball_prime_staging}
   - {name: k3s-tarball-arm, product: k3s, controller: mower, phase: 3, code: ta,
-     path: distros_qa/k3s-tests/k3s_tarball_arm_qainfra}
+     path: distros_qa/k3s-tests/k3s_tarball_arm_qainfra, baler: k3s-tests/k3s_tarball_arm}
   - {name: k3s-tarball-arm-prime-staging, product: k3s, controller: mower, phase: 3, code: tp,
-     path: distros_qa/k3s-tests/k3s_tarball_arm_prime_staging_qainfra}
+     path: distros_qa/k3s-tests/k3s_tarball_arm_prime_staging_qainfra, baler: k3s-tests/k3s_tarball_arm_prime_staging}
   # Phase 4, upgrades from the latest GA of the same minor (previous minor for a .0 RC) to the RC.
   - {name: k3s-suc-upgrade, product: k3s, controller: mower, phase: 4, code: su,
      path: distros_qa/k3s-tests/k3s_suc_upgrade_qainfra,

@@ -265,9 +265,32 @@ type triaged struct {
 	at      time.Time
 }
 
+// triageUnsupported refuses builds of other controllers: the broker's tools and prompt are
+// triageController's, so it could not fetch their evidence.
+func triageUnsupported(controller string) error {
+	if controller == triageController {
+		return nil
+	}
+
+	return fmt.Errorf("automatic triage covers %s builds only; this %s build needs a person",
+		triageController, controller)
+}
+
+func unsupported(o *Outcome) (Decision, bool) {
+	if err := triageUnsupported(o.Job.Controller); err != nil {
+		return Decision{Summary: err.Error()}, true
+	}
+
+	return Decision{}, false
+}
+
 // Quick is the Triager used for every failure. A rerun verdict (fresh or reused) only stands
 // when this build's failing log also matches a transient-infrastructure rule.
 func (f *FailureTriage) Quick(ctx context.Context, o *Outcome) Decision {
+	if d, skip := unsupported(o); skip {
+		return d
+	}
+
 	req, fail := f.request(ctx, o, TriageQuick)
 
 	return GateRerun(f.decide(ctx, req, o, reuseKey(o, &fail)), &fail)
@@ -327,6 +350,10 @@ func (f *FailureTriage) decide(ctx context.Context, req *TriageRequest, o *Outco
 
 // Full is the complete skill with its verifier, for a person's `triage` request; never reused.
 func (f *FailureTriage) Full(ctx context.Context, o *Outcome) Decision {
+	if d, skip := unsupported(o); skip {
+		return d
+	}
+
 	req, _ := f.request(ctx, o, TriageFull)
 	d, _ := f.Broker.Ask(ctx, req)
 
@@ -410,6 +437,9 @@ const privateDir = "private"
 // cancelGrace is how long a canceled triage gets to stop its container (the wrapper's
 // SIGTERM trap runs docker stop) before the process is killed.
 const cancelGrace = 30 * time.Second
+
+// triageController is the only controller the tools below reach; other builds skip the broker.
+const triageController = "mower"
 
 // Under dontAsk this is the complete list: file tools reach only the pinned skill ("//" is an
 // absolute path in permission rules) and the jenkins tools are the read-only ones.

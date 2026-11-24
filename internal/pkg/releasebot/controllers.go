@@ -60,9 +60,14 @@ func (a *App) controllerClients(m *Matrix) map[string]*jenkins {
 	return clients
 }
 
-func buildersFor(m *Matrix, clients map[string]*jenkins) (map[string]Builder, error) {
+// buildersFor needs credentials only for the controllers jobs use: a Mower-only run needs no Baler token.
+func buildersFor(m *Matrix, clients map[string]*jenkins, jobs []JenkinsJob) (map[string]Builder, error) {
 	builders := make(map[string]Builder, len(m.Controller))
-	for name := range m.Controller {
+	for i := range jobs {
+		name := jobs[i].Controller
+		if _, known := m.Controller[name]; !known {
+			continue // a saved build of a removed controller: the scheduler reports it as unknown
+		}
 		if clients[name] == nil {
 			return nil, fmt.Errorf("set JENKINS_%s_AUTH=user:apitoken", strings.ToUpper(name))
 		}
@@ -84,26 +89,55 @@ func (a *App) controllerSnapshot() (entries []controllerClient, loaded bool) {
 
 // JenkinsForBuild also serves builds from an older plan after the matrix changes.
 func (a *App) JenkinsForBuild(buildURL string) (*jenkins, error) {
+	entry, err := a.controllerForBuild(buildURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return entry.authorized()
+}
+
+// TriageJenkins is JenkinsForBuild for -triage-build: a build the broker cannot triage is refused
+// before its log is read or the agent runs.
+func (a *App) TriageJenkins(buildURL string) (*jenkins, error) {
+	entry, err := a.controllerForBuild(buildURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if unsupportedErr := triageUnsupported(entry.name); unsupportedErr != nil {
+		return nil, unsupportedErr
+	}
+
+	return entry.authorized()
+}
+
+func (a *App) controllerForBuild(buildURL string) (controllerClient, error) {
 	entries, loaded := a.controllerSnapshot()
 	if !loaded {
-		m, err := LoadMatrixWithRef(a.cfg.MatrixPath, a.cfg.DTFRef)
+		m, err := a.loadMatrix()
 		if err != nil {
-			return nil, err
+			return controllerClient{}, err
 		}
 		a.controllerClients(m)
 		entries, _ = a.controllerSnapshot()
 	}
+
 	for _, entry := range entries {
 		if strings.HasPrefix(buildURL, entry.url+"/") {
-			if entry.client == nil {
-				return nil, fmt.Errorf("JENKINS_%s_AUTH is not set", strings.ToUpper(entry.name))
-			}
-
-			return entry.client, nil
+			return entry, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no controller in %s serves %s", a.cfg.MatrixPath, buildURL)
+	return controllerClient{}, fmt.Errorf("no controller in %s serves %s", a.cfg.MatrixPath, buildURL)
+}
+
+func (e *controllerClient) authorized() (*jenkins, error) {
+	if e.client == nil {
+		return nil, fmt.Errorf("JENKINS_%s_AUTH is not set", strings.ToUpper(e.name))
+	}
+
+	return e.client, nil
 }
 
 func (a *App) FailureTriage(spool string, wait time.Duration) *FailureTriage {

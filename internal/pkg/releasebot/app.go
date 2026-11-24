@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,9 @@ type Config struct {
 	QaseTimeout   time.Duration
 	GitHubToken   string
 	JenkinsAuth   func(controller string) (user, token string, ok bool)
+
+	// ControllerURL overrides a controller's matrix URL when it returns non-empty (JENKINS_<NAME>_URL).
+	ControllerURL func(controller string) string
 	NewQase       func() (*Qase, error)
 	NewGitHub     func(token string) *gitHub
 	NewJenkins    func(baseURL, user, token string) *jenkins
@@ -51,8 +55,38 @@ func New(cfg *Config) *App {
 	if a.cfg.JenkinsAuth == nil {
 		a.cfg.JenkinsAuth = func(string) (string, string, bool) { return "", "", false }
 	}
+	if a.cfg.ControllerURL == nil {
+		a.cfg.ControllerURL = func(string) string { return "" }
+	}
 
 	return a
+}
+
+// loadMatrix reads the matrix with the environment's overrides: the DTF ref and controller URLs.
+func (a *App) loadMatrix() (*Matrix, error) {
+	m, err := LoadMatrixWithRef(a.cfg.MatrixPath, a.cfg.DTFRef)
+	if err != nil {
+		return nil, err
+	}
+
+	for name, lim := range m.Controller {
+		override := a.cfg.ControllerURL(name)
+		if override == "" {
+			continue
+		}
+
+		// The URL is logged and receives the credentials: a plain https origin only.
+		u, parseErr := url.Parse(override)
+		if parseErr != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" {
+			return nil, fmt.Errorf("JENKINS_%s_URL must be an https URL without credentials or query",
+				strings.ToUpper(name))
+		}
+
+		lim.URL = override
+		m.Controller[name] = lim
+	}
+
+	return m, nil
 }
 
 // hooks are one run's controls; listen mode sets them per run, the one-shot CLI leaves them empty.
@@ -99,7 +133,7 @@ type prepared struct {
 }
 
 func (a *App) Prepare(ctx context.Context, req Request) (*prepared, error) {
-	matrix, err := LoadMatrixWithRef(a.cfg.MatrixPath, a.cfg.DTFRef)
+	matrix, err := a.loadMatrix()
 	if err != nil {
 		return nil, err
 	}
@@ -223,12 +257,7 @@ func (a *App) Resume(ctx context.Context, saved *Progress, h *hooks) (err error)
 		}
 	}()
 
-	matrix, err := LoadMatrixWithRef(a.cfg.MatrixPath, a.cfg.DTFRef)
-	if err != nil {
-		return a.resumeFailed(saved, h, err)
-	}
-
-	builders, err := buildersFor(matrix, a.controllerClients(matrix))
+	matrix, err := a.loadMatrix()
 	if err != nil {
 		return a.resumeFailed(saved, h, err)
 	}
@@ -236,6 +265,11 @@ func (a *App) Resume(ctx context.Context, saved *Progress, h *hooks) (err error)
 	jobs := make([]JenkinsJob, 0, len(saved.Jobs))
 	for i := range saved.Jobs {
 		jobs = append(jobs, saved.Jobs[i].Job)
+	}
+
+	builders, err := buildersFor(matrix, a.controllerClients(matrix), jobs)
+	if err != nil {
+		return a.resumeFailed(saved, h, err)
 	}
 
 	progress := saved
@@ -313,7 +347,7 @@ func (a *App) preflight(p *prepared) (qase *Qase, builders map[string]Builder, e
 		if controllers == nil {
 			controllers = a.controllerClients(p.Matrix)
 		}
-		if builders, err = buildersFor(p.Matrix, controllers); err != nil {
+		if builders, err = buildersFor(p.Matrix, controllers, p.Plan.Jobs); err != nil {
 			return nil, nil, err
 		}
 	}
