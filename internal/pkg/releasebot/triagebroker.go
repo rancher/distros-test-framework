@@ -48,6 +48,9 @@ func (b *Broker) Serve(ctx context.Context) error {
 	for ctx.Err() == nil { // a stopping broker claims nothing more; the next one serves what is left
 		b.sweep()
 		served, err := b.serveOne(ctx)
+		if errors.Is(err, ErrModelAccess) {
+			return err
+		}
 		if err != nil {
 			b.logf("error", "triage broker: %v", err)
 		}
@@ -95,7 +98,7 @@ func (b *Broker) serveOne(ctx context.Context) (bool, error) {
 	defer cancel()
 	defer os.Remove(marker)
 	go b.watchCancel(tctx, marker, cancel)
-	v, err := b.Triage(tctx, &req)
+	v, triageErr := b.Triage(tctx, &req)
 	if ctx.Err() != nil {
 		if _, markErr := os.Lstat(marker); markErr != nil {
 			keep = true
@@ -103,13 +106,19 @@ func (b *Broker) serveOne(ctx context.Context) (bool, error) {
 			return true, nil
 		}
 	}
-	if err != nil {
-		v = &Verdict{Error: err.Error()}
+	if triageErr != nil {
+		v = &Verdict{Error: triageErr.Error()}
 	}
 	b.logf("info", "verdict for %s %s (%s): %s %s ($%.2f, %ds)", req.JobName, req.Version, req.Mode, v.Action,
 		redactSecrets(v.Error), v.CostUSD, v.Seconds)
 
-	return true, writeSpoolFile(filepath.Join(b.Spool, spoolOut), id, v)
+	writeErr := writeSpoolFile(filepath.Join(b.Spool, spoolOut), id, v)
+	if errors.Is(triageErr, ErrModelAccess) {
+		// Every later request would fail the same way: stop, so the bot asks a person at once.
+		return true, errors.Join(triageErr, writeErr)
+	}
+
+	return true, writeErr
 }
 
 // claim moves the oldest request to work/ and returns its id ("" when there is none).
@@ -418,8 +427,9 @@ type ClaudeTriage struct {
 	Timeout   time.Duration
 	// QuickTimeout limits a quick triage (about 30 s normally), so a queue of them fits -triage-wait.
 	QuickTimeout time.Duration
-	// QuickModel runs quick triage (e.g. "sonnet"); empty keeps the sandbox's default model.
-	QuickModel string
+	// QuickModel runs quick triage (e.g. "sonnet"), FullModel full triage; empty keeps the sandbox's
+	// default model.
+	QuickModel, FullModel string
 	// MCPConfig holds the jenkins-mower MCP server and its credential in <Workspace>/private/, which
 	// is denied explicitly (the model can read its working directory by default).
 	MCPConfig string
@@ -476,8 +486,12 @@ func (c *ClaudeTriage) Args(req *TriageRequest) ([]string, error) {
 		"--plugin-dir", "/workspace/skill", "--no-session-persistence", "--permission-mode", "dontAsk",
 		"--strict-mcp-config", "--mcp-config", "/workspace/" + filepath.ToSlash(mcp),
 	}
-	if !full && c.QuickModel != "" {
-		args = append(args, "--model", c.QuickModel)
+	model := c.QuickModel
+	if full {
+		model = c.FullModel
+	}
+	if model != "" {
+		args = append(args, "--model", model)
 	}
 	// Only full triage may start the skill's independent verifier (a subagent).
 	args = append(args, "--allowedTools")
@@ -572,10 +586,42 @@ func (c *ClaudeTriage) Triage(ctx context.Context, req *TriageRequest) (*Verdict
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	if runErr != nil {
+		if accessErr := modelAccessError(runErr, stdout.String()+stderr.String()); accessErr != nil {
+			return nil, accessErr
+		}
+
 		return nil, fmt.Errorf("claude: %w: %s", runErr, lastLine(stderr.String()))
 	}
 
 	return parseClaudeVerdict(stdout.Bytes())
+}
+
+// ErrModelAccess means the broker's model sign-in or budget fails every call until a person acts.
+var ErrModelAccess = errors.New("no model access")
+
+// modelAccessError maps the sandbox's sign-in exits (77 expired, 78 no profile, from the
+// claude-sandbox entrypoint) and a Bedrock denial, such as a paused budget, to ErrModelAccess.
+func modelAccessError(runErr error, output string) error {
+	const restart = "then restart the triage broker"
+
+	if exitErr, ok := errors.AsType[*exec.ExitError](runErr); ok {
+		switch exitErr.ExitCode() {
+		case 77:
+			return fmt.Errorf("%w: the broker's Bedrock sign-in expired; its user runs "+
+				"`claude-sandbox bedrock login --no-browser`, %s", ErrModelAccess, restart)
+		case 78:
+			return fmt.Errorf("%w: the broker's sandbox has no Bedrock profile; its user sets it up "+
+				"(claude-sandbox SKILL.md, Bedrock provider), %s", ErrModelAccess, restart)
+		}
+	}
+
+	// shortcut: matched on the AWS error name in claude's output; check it on a real paused budget.
+	if strings.Contains(output, "AccessDeniedException") {
+		return fmt.Errorf("%w: Bedrock denied the call (budget paused or access removed); see "+
+			"`claude-sandbox bedrock doctor`, %s", ErrModelAccess, restart)
+	}
+
+	return nil
 }
 
 func (c *ClaudeTriage) stopContainer(pid int) {

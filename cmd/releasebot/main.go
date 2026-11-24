@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 
+	"github.com/rancher/distros-test-framework/internal/pkg/releasebot"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
@@ -23,6 +25,9 @@ func main() {
 	}
 	if err := runFn(o); err != nil {
 		resources.LogLevel("error", "releasebot: %v", err)
+		if errors.Is(err, releasebot.ErrModelAccess) {
+			os.Exit(77) // releasebot-triage@.service does not restart on it: a person signs in first
+		}
 		os.Exit(1)
 	}
 }

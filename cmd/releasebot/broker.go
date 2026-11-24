@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,8 +37,26 @@ func claudeTriage(o *options) (*releasebot.ClaudeTriage, error) {
 	return &releasebot.ClaudeTriage{
 		Command: o.triageCmd, Workspace: o.triageWorkspace, SkillDir: o.triageSkillDir,
 		Manifest: o.triageManifest, Timeout: o.triageTimeout, QuickTimeout: o.triageQuickTimeout, QuickModel: o.triageModel,
-		MCPConfig: o.triageMCP,
+		FullModel: o.triageFullModel, MCPConfig: o.triageMCP,
 	}, nil
+}
+
+// logIdentity logs whose Bedrock sign-in the broker spends; a failure is logged, the first triage decides.
+func logIdentity(ctx context.Context, sandbox string) {
+	if os.Getenv("CLAUDE_SANDBOX_PROVIDER") != "bedrock" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	out, whoamiErr := exec.CommandContext(ctx, sandbox, "bedrock", "whoami", "--profile", "bedrock").CombinedOutput()
+	text := strings.Join(strings.Fields(string(out)), " ")
+	if whoamiErr != nil {
+		resources.LogLevel("warn", "bedrock whoami failed (%v): %s", whoamiErr, text)
+		return
+	}
+
+	resources.LogLevel("info", "bedrock identity: %s", text)
 }
 
 // runTriageBuild triages one build directly (no spool) and prints the verdict as JSON.
@@ -110,6 +130,7 @@ func runBroker(o *options) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	logIdentity(ctx, o.triageCmd)
 	resources.LogLevel("info", "triage broker serving %s (skill %s)", o.triageSpool, o.triageSkillDir)
 	b := &releasebot.Broker{Spool: o.triageSpool, Triage: ct.Triage, Poll: 5 * time.Second, Logf: resources.LogLevel}
 

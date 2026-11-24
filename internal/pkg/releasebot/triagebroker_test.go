@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -323,6 +324,68 @@ func TestClaudeTriageRunsSandbox(t *testing.T) {
 	}
 	if _, statErr := os.Stat(argsFile); statErr == nil {
 		t.Fatal("claude ran with a tampered skill")
+	}
+}
+
+// The sandbox's sign-in exits and a Bedrock denial become ErrModelAccess with the fix; any other
+// failure stays a plain claude error.
+func TestClaudeTriageModelAccess(t *testing.T) {
+	root := t.TempDir()
+	dir, manifest := writeSkill(t, root)
+	fake := filepath.Join(root, "claude-sandbox")
+	ct := &ClaudeTriage{
+		Command: fake, Workspace: root, SkillDir: dir, Manifest: manifest, Timeout: 10 * time.Second,
+		MCPConfig: filepath.Join(root, "private", "mcp.json"),
+	}
+
+	for _, c := range []struct{ body, want string }{
+		{"exit 77", "sign-in expired"},
+		{"exit 78", "no Bedrock profile"},
+		{`echo '{"is_error":true,"result":"API Error: 403 AccessDeniedException"}'; exit 1`, "Bedrock denied"},
+		{"echo boom >&2; exit 1", ""},
+	} {
+		if err := os.WriteFile(fake, []byte("#!/bin/sh\ncat >/dev/null\n"+c.body+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		_, err := ct.Triage(context.Background(), quickRequest())
+		access := errors.Is(err, ErrModelAccess)
+		if c.want == "" && (access || err == nil || !strings.Contains(err.Error(), "boom")) ||
+			c.want != "" && (!access || !strings.Contains(err.Error(), c.want)) {
+			t.Fatalf("%q: %v", c.body, err)
+		}
+	}
+}
+
+// Without model access the broker answers the request with the fix and stops, so later requests go
+// to a person at once instead of failing one by one.
+func TestBrokerStopsWithoutModelAccess(t *testing.T) {
+	spool := newSpool(t)
+	calls := 0
+	b := &Broker{Spool: spool, Poll: time.Millisecond, Triage: func(context.Context, *TriageRequest) (*Verdict, error) {
+		calls++
+		return nil, fmt.Errorf("%w: the broker's Bedrock sign-in expired", ErrModelAccess)
+	}}
+	for _, id := range []string{"first", "second"} {
+		req := quickRequest()
+		req.ID = id
+		if err := writeSpoolFile(filepath.Join(spool, spoolIn), id, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := b.Serve(testContext(t)); !errors.Is(err, ErrModelAccess) {
+		t.Fatalf("serve: %v, want ErrModelAccess", err)
+	}
+
+	verdicts, _ := os.ReadDir(filepath.Join(spool, spoolOut))
+	queued, _ := os.ReadDir(filepath.Join(spool, spoolIn))
+	if calls != 1 || len(verdicts) != 1 || len(queued) != 1 {
+		t.Fatalf("calls %d, verdicts %d, still queued %d; want 1 each", calls, len(verdicts), len(queued))
+	}
+	raw, _ := readSpoolFile(filepath.Join(spool, spoolOut, verdicts[0].Name()))
+	if v, _ := decodeVerdict(raw); v == nil || !strings.Contains(v.Error, "sign-in expired") {
+		t.Fatalf("verdict %s", raw)
 	}
 }
 
@@ -1379,13 +1442,13 @@ func TestFailureTriageReuseWindow(t *testing.T) {
 	}
 }
 
-// Quick triage runs the smaller model without the verifier; full keeps the default model and
-// may start the verifier.
+// Quick triage runs the smaller model without the verifier; full runs its own model (the sandbox's
+// default when unset) and may start the verifier.
 func TestClaudeTriageModes(t *testing.T) {
 	root := t.TempDir()
 	dir, manifest := writeSkill(t, root)
 	ct := &ClaudeTriage{
-		Workspace: root, SkillDir: dir, Manifest: manifest, QuickModel: "sonnet",
+		Workspace: root, SkillDir: dir, Manifest: manifest, QuickModel: "sonnet", FullModel: "opus",
 		MCPConfig: filepath.Join(root, "private", "mcp.json"),
 	}
 
@@ -1394,8 +1457,13 @@ func TestClaudeTriageModes(t *testing.T) {
 	full, _ := ct.Args(&TriageRequest{Mode: TriageFull})
 	prompt := triagePrompt(quickReq)
 	q, f := strings.Join(quick, "\n"), strings.Join(full, "\n")
-	if !strings.Contains(q, "--model\nsonnet\n") || strings.Contains(f, "--model") {
+	if !strings.Contains(q, "--model\nsonnet\n") || !strings.Contains(f, "--model\nopus\n") {
 		t.Fatalf("models:\nquick %q\nfull %q", q, f)
+	}
+	ct.FullModel = ""
+	defaulted, _ := ct.Args(&TriageRequest{Mode: TriageFull})
+	if strings.Contains(strings.Join(defaulted, "\n"), "--model") {
+		t.Fatalf("full triage without a model must keep the sandbox's default: %q", defaulted)
 	}
 	if !strings.HasSuffix(q, "\nAgent") || !strings.Contains(prompt, "Do not start the independent verifier") ||
 		!strings.Contains(prompt, "<excerpt>\n[FAILED] boom\n</excerpt>") {

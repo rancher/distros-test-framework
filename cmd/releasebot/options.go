@@ -32,6 +32,7 @@ type options struct {
 	triageSkillDir     string
 	triageManifest     string
 	triageModel        string
+	triageFullModel    string
 	triageMCP          string
 	triageBuild        string
 	triageFull         bool
@@ -80,7 +81,9 @@ func triageFlags(o *options) {
 	flag.StringVar(&o.triageMCP, "triage-mcp-config", "",
 		"broker mode: jenkins-mower MCP config with its credential, owner-only (default <workspace>/private/mcp.json)")
 	flag.StringVar(&o.triageModel, "triage-quick-model", "sonnet",
-		"broker mode: model for quick triage (the rerun decision); full triage keeps the default model")
+		"broker mode: model for quick triage (the rerun decision)")
+	flag.StringVar(&o.triageFullModel, "triage-full-model", "opus",
+		"broker mode: model for full triage (empty keeps the sandbox's default)")
 	flag.StringVar(&o.triageBuild, "triage-build", "",
 		"triage one failed build now and print the verdict (as the broker would; needs the broker flags)")
 	flag.BoolVar(&o.triageFull, "triage-full", false, "with -triage-build: full triage instead of quick")

@@ -112,7 +112,7 @@ The whole path of a failed build in a running plan; the sections linked give the
    the build link and the triage summary. The job and its RC's later phases wait for a reply:
    - `retry <job> [rc]` runs it again;
    - `skip <job> [rc]` counts it as passed (SKIPPED) and lets the next phase start;
-   - `triage <job> [rc]` runs the full triage (default model, with the independent verifier;
+   - `triage <job> [rc]` runs the full triage (Opus, with the independent verifier;
      about 7 min and $3) and posts it; the job keeps waiting for `retry` or `skip`;
    - `stop` starts no new job and ends the waiting ones as failed.
 7. **End of the run.** The summary lists every job. Failures (SKIPPED is not one) make the run end
@@ -427,7 +427,16 @@ Human-requested reruns remain a separate authorized action, not an LLM policy ov
 
 The bot user has no Claude login and no Jenkins read credential. A separate broker does the
 triage: `releasebot -triage-broker`, run by `releasebot-triage@<user>.service` as the user who
-owns the claude-sandbox and its Vertex login (`fmoral` on the bot VM).
+owns the claude-sandbox and its Bedrock sign-in (`fmoral` on the bot VM), so the triage
+spends that user's own Bedrock budget; the broker logs the identity (`bedrock whoami`) when it
+starts.
+
+- **Sign-in.** The IAM Identity Center session ends after 8 hours by default. When the sandbox
+  reports it expired (exit 77) or has no profile (78), or Bedrock denies the call (a paused
+  budget), the broker answers that request with the fix, which the thread shows, and exits 77;
+  systemd does not restart it, so later failures go to a person at once instead of failing one
+  by one. As that user, `claude-sandbox bedrock login --no-browser`, then as root
+  `systemctl restart releasebot-triage@<user>`.
 
 - **Cost.** Every failure gets a *quick* triage: the bot reads the console log itself, extracts
   the failing part and a signature (failed tests and reasons, IDs and numbers normalized), and
@@ -443,7 +452,7 @@ owns the claude-sandbox and its Vertex login (`fmoral` on the bot VM).
   job at a time. Measured on two real builds, quick mode gave the same decision as the full
   triage for $0.13 to $0.37 and about 30 s, instead of about $3 and 7 min; 40 distinct failures
   would be about $5 to $15, less with reuse. Both real builds were `ask` cases: the rerun path
-  is covered by tests, not yet by a real transient failure. The *full* triage (default model,
+  is covered by tests, not yet by a real transient failure. The *full* triage (Opus,
   verifier, deeper explanation) runs only when someone replies `triage <job>`.
 - **Exchange.** Bot and broker share `/var/lib/releasebot-triage` through the
   `releasebot-triage` group: the bot writes `in/<id>.json` (job, RC, result, build URL,
@@ -551,7 +560,7 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-triage-workspace` | `~/releasebot-triage` | Broker mode: workspace the sandbox mounts |
 | `-triage-skill-dir` / `-triage-manifest` | `<workspace>/skill` / | The pinned skill and the manifest it must match |
 | `-triage-mcp-config` | `<workspace>/private/mcp.json` | The jenkins-mower MCP config (0600, in a 0700 `private/`) |
-| `-triage-quick-model` | `sonnet` | Model for quick triage |
+| `-triage-quick-model` / `-triage-full-model` | `sonnet` / `opus` | Model for quick / full triage (empty keeps the sandbox's default) |
 | `-triage-build <url>` / `-triage-full` | | Triage one build now (no spool) and print the verdict and the decision as JSON; Mower builds only, like the broker |
 
 Environment:
@@ -746,10 +755,10 @@ scopes are approved this can move to `app_mention`.
    **read-only** Jenkins account: today the tool deny list is the only barrier between the model
    (which reads build logs anyone's build can print) and a token that can trigger builds.
 8. **Hosting**, see below.
-9. **Triage broker on Bedrock.** claude-sandbox runs Claude on Vertex (gcloud login,
-   `CLAUDE_CODE_USE_VERTEX`); the broker moves to Bedrock once the AWS account to use is decided.
-   That needs a Bedrock profile in claude-sandbox (`CLAUDE_CODE_USE_BEDROCK`, `AWS_REGION`, that
-   account's credentials mounted read-only), then `releasebot-triage@.service` and this doc.
+9. **Triage broker on Bedrock.** The broker runs with `CLAUDE_SANDBOX_PROVIDER=bedrock`, which
+   needs the claude-sandbox Bedrock provider (distros-qa-skills) on the host. Still open: a
+   longer IAM Identity Center session (8 hours means signing in again during a release day), and
+   checking the paused-budget detection (`AccessDeniedException`) on a real paused budget.
 10. **Baler as the default.** The Mower default is temporary: move the remaining jobs to Baler and
     make it the matrix default, keeping the `baler` split request. Failed Baler builds skip the triage
     broker today; a read-only jenkins-baler MCP server and per-controller tools and prompt enable them.
@@ -819,9 +828,14 @@ Preparing a new host (once; `deploy` refuses to run until this is done):
 ```
 $ scp ops/releasebot/{setup.sh,releasebot.service,releasebot-triage@.service,releasebot-run@.service,releasebot-run,releasebot.env.example} \
     <host>:/root/releasebot-deploy/
-# on the host, as root (fmoral: the user who owns the claude-sandbox and its Vertex login):
+# on the host, as root (fmoral: the user who owns the claude-sandbox and its Bedrock sign-in):
 $ bash /root/releasebot-deploy/setup.sh prepare fmoral  # users, dirs, triage group and spool, units, env
 $ vi /etc/releasebot/releasebot.env                     # Slack tokens, channel, allowlist (root:root 0600)
+# once, as fmoral: the Bedrock sign-in, in the sandbox's own volume (claude-sandbox SKILL.md,
+# "Bedrock provider"; the configure line comes from the team's CLZ owner)
+$ export CLAUDE_SANDBOX_PROVIDER=bedrock
+$ claude-sandbox bedrock configure sso --no-browser ...
+$ claude-sandbox bedrock setup --id <team-id> && claude-sandbox bedrock doctor
 # once, as fmoral: the triage workspace (its own sandbox state) with the jenkins-mower MCP and the
 # pinned skill (git archive <rev> .claude-plugin/plugin.json skills/jenkins-failure-triage)
 $ mkdir -p ~/releasebot-triage/skill && tar -xf skill-<rev>.tar -C ~/releasebot-triage/skill
@@ -836,13 +850,16 @@ Handing the triage broker to another user (for example the next release captain)
 replaces the broker lock for the new user, so the old broker must be gone first: `prepare` refuses
 while another user's broker is active, activating or stopping. Requests the old broker left in
 `work/` are put back in the queue when the new one starts; one that waits past `-triage-wait`
-goes to a person instead.
+goes to a person instead. The new user runs the sandbox, so it must be in the `docker` group,
+which is root-equivalent on this rootful Docker host (today only `fmoral` is): hand the broker
+only to someone already authorized for that. Each user has their own sign-in volume
+(`claude-sandbox-aws-<uid>`), but every `docker` group member could mount another's.
 
 ```
 $ systemctl disable --now releasebot-triage@<old-user>
 $ systemctl is-active releasebot-triage@<old-user>       # must print "inactive" (or "failed")
 $ bash /root/releasebot-deploy/setup.sh prepare <new-user>
-# as <new-user>: the triage workspace (skill, private/mcp.json) as above
+# as <new-user>: the Bedrock sign-in and the triage workspace (skill, private/mcp.json) as above
 $ systemctl enable --now releasebot-triage@<new-user>
 ```
 
