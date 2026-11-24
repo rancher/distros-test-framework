@@ -14,6 +14,7 @@ import (
 
 // TestUpgradeClusterSUC upgrades cluster using the system-upgrade-controller.
 func TestUpgradeClusterSUC(cluster *shared.Cluster, k8sClient *k8s.Client, version string) error {
+	version = strings.TrimSpace(version)
 	shared.PrintClusterState()
 
 	shared.LogLevel("info", "Upgrading SUC to version: %s\n", version)
