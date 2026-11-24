@@ -165,8 +165,7 @@ CP_WORKER_NODES=0
 
 #### Windows agents (RKE2, connected mode only)
 
-Set `NO_OF_WINDOWS_WORKER_NODES` (or add `{ count = N, role = ["worker"], os = "windows" }` to the
-`nodes` list in `vars.tfvars`/`TFVARS`) to add Windows workers. Requirements and behavior:
+Set `NO_OF_WINDOWS_WORKER_NODES` to add Windows workers. A `nodes` entry with `os = "windows"` in `vars.tfvars` is honored only when no node-count env vars are set; Jenkins requires `NO_OF_SERVER_NODES`, so it replaces the `TFVARS` `nodes` list and the count variable is the supported path there. Requirements and behavior:
 
 - Product must be RKE2 and the CNI must be `calico` or `flannel` (set `CNI` or `cni:` in `SERVER_FLAGS`); otherwise provisioning fails before apply.
 - Airgap with Windows agents is not supported and is rejected before apply.
