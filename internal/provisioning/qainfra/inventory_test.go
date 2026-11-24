@@ -214,3 +214,28 @@ func TestBuildStaticInventoryYAMLMixedOS(t *testing.T) {
 		t.Errorf("windows-worker-0 should not be in workers group")
 	}
 }
+
+func TestStaticInventoryEmitsEmptyWindowsGroupForLinuxOnly(t *testing.T) {
+	data := nodesJSON("ec2-user",
+		clusterNode{Name: "master", Roles: []string{"etcd", "cp", "worker"}, PublicIP: "1.1.1.1"},
+		clusterNode{Name: "worker-0", Roles: []string{"worker"}, PublicIP: "1.1.1.2"},
+	)
+
+	var inv struct {
+		All struct {
+			Children map[string]struct {
+				Hosts map[string]any `yaml:"hosts"`
+			} `yaml:"children"`
+		} `yaml:"all"`
+	}
+	if err := yaml.Unmarshal([]byte(buildStaticInventory(data, "rke2")), &inv); err != nil {
+		t.Fatal(err)
+	}
+	win, ok := inv.All.Children["windows_workers"]
+	if !ok || len(win.Hosts) != 0 {
+		t.Errorf("want empty windows_workers group on Linux-only runs, got present=%v hosts=%v", ok, win.Hosts)
+	}
+	if len(inv.All.Children["workers"].Hosts) != 1 {
+		t.Errorf("workers group lost its member: %v", inv.All.Children["workers"].Hosts)
+	}
+}

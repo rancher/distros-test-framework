@@ -31,24 +31,24 @@ provider "aws" {
 }
 
 module "cluster_nodes" {
-  source                  = "placeholder-for-remote-module"
-  public_ssh_key          = var.public_ssh_key
-  aws_access_key          = var.aws_access_key
-  aws_secret_key          = var.aws_secret_key
-  aws_region              = var.aws_region
-  aws_ami                 = var.aws_ami
-  instance_type           = var.instance_type
-  aws_security_group      = var.aws_security_group
-  aws_subnet              = var.aws_subnet
-  aws_vpc                 = var.aws_vpc
-  aws_route53_zone        = var.aws_route53_zone
-  aws_ssh_user            = var.aws_ssh_user
-  aws_volume_size         = var.aws_volume_size
-  aws_volume_type         = var.aws_volume_type
-  aws_hostname_prefix     = var.aws_hostname_prefix
-  airgap_setup            = var.airgap_setup
-  proxy_setup             = var.proxy_setup
-  nodes                   = var.nodes
+  source              = "placeholder-for-remote-module"
+  public_ssh_key      = var.public_ssh_key
+  aws_access_key      = var.aws_access_key
+  aws_secret_key      = var.aws_secret_key
+  aws_region          = var.aws_region
+  aws_ami             = var.aws_ami
+  instance_type       = var.instance_type
+  aws_security_group  = var.aws_security_group
+  aws_subnet          = var.aws_subnet
+  aws_vpc             = var.aws_vpc
+  aws_route53_zone    = var.aws_route53_zone
+  aws_ssh_user        = var.aws_ssh_user
+  aws_volume_size     = var.aws_volume_size
+  aws_volume_type     = var.aws_volume_type
+  aws_hostname_prefix = var.aws_hostname_prefix
+  airgap_setup        = var.airgap_setup
+  proxy_setup         = var.proxy_setup
+  nodes               = var.nodes
   # Windows-only arguments are injected by opentofu.go when Windows nodes are requested, so older
   # qa-infra refs stay usable for Linux runs.
   # __WINDOWS_MODULE_ARGS__

@@ -266,6 +266,12 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 	for _, g := range groups {
 		members := groupMembers[g]
 		if len(members) == 0 {
+			// Mirror qa-infra: an empty windows_workers keeps `all:!windows_workers` plays warning-free.
+			if g == "windows_workers" {
+				writeLine(b, "    ", g, ":")
+				b.WriteString("      hosts: {}\n")
+			}
+
 			continue
 		}
 		sort.SliceStable(members, func(i, j int) bool { return members[i].Name < members[j].Name })
