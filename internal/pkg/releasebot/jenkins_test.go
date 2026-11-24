@@ -94,3 +94,36 @@ func TestJenkinsTriggerRedirectIsUnknown(t *testing.T) {
 		t.Fatalf("err=%v posts=%d, want errTriggerUnknown after one POST", err, posts)
 	}
 }
+
+// The credential reaches only the controller's own scheme and host: a queue or build URL from
+// jenkins' answer that names another host, plain http, or a redirect elsewhere gets nothing.
+func TestJenkinsKeepsTheCredentialOnItsController(t *testing.T) {
+	var leaked atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			leaked.Add(1)
+		}
+	}))
+	defer other.Close()
+	controller := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/job/x/1/api/json", http.StatusFound)
+	}))
+	defer controller.Close()
+
+	j := NewJenkins(controller.URL, "u", "secret")
+	j.HTTP.Transport = controller.Client().Transport
+
+	if _, err := j.BuildFromQueue(t.Context(), other.URL+"/queue/item/1/"); err == nil ||
+		!strings.Contains(err.Error(), "refusing to send the jenkins credential") {
+		t.Fatalf("queue URL on another host: %v", err)
+	}
+	if _, err := j.ConsoleText(t.Context(), strings.Replace(controller.URL, "https:", "http:", 1)+"/job/x/1/"); err == nil {
+		t.Fatal("a build URL over plain http was allowed")
+	}
+	if _, _, err := j.Finished(t.Context(), controller.URL+"/job/x/1/"); err == nil {
+		t.Fatal("a redirect off the controller was followed")
+	}
+	if leaked.Load() != 0 {
+		t.Fatalf("the credential reached another host %d times", leaked.Load())
+	}
+}

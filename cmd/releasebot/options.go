@@ -18,11 +18,13 @@ type options struct {
 	poll          time.Duration
 	qaseTimeout   time.Duration
 	listen        bool
+	resume        bool
 	stateFile     string
 	validate      bool
 
 	// Triage broker: the spool shared with the bot, and how the broker runs the skill.
 	triageBroker       bool
+	triageLocal        bool
 	triageSpool        string
 	triageWait         time.Duration
 	triageTimeout      time.Duration
@@ -52,8 +54,10 @@ func parseFlags() *options {
 	flag.DurationVar(&o.poll, "poll", 60*time.Second, "Jenkins polling interval")
 	flag.DurationVar(&o.qaseTimeout, "qase-timeout", 15*time.Minute, "how long to wait for the Qase runs to appear")
 	flag.BoolVar(&o.listen, "listen", false, "serve release requests from Slack (Socket Mode) instead of -message")
+	flag.BoolVar(&o.resume, "resume", false,
+		"carry on the run a CLI execution saved (interrupted, killed or rebooted) instead of -message; with -dry-run=false")
 	flag.StringVar(&o.stateFile, "state-file", defaultStateFile(),
-		"listen mode: where the block state and in-progress marker survive restarts")
+		"where runs in progress survive restarts (the CLI keeps its run in cli-run.json next to it)")
 	flag.BoolVar(&o.validate, "validate", false, "load and check the -matrix file, then exit (used before deploying)")
 	triageFlags(&o)
 	flag.Parse()
@@ -66,8 +70,11 @@ func triageFlags(o *options) {
 	flag.StringVar(&o.triageSpool, "triage-spool", "",
 		"listen mode: ask the triage broker through this spool directory (empty: every failure asks a person); "+
 			"broker mode: the spool to serve")
-	flag.DurationVar(&o.triageWait, "triage-wait", time.Hour, "listen mode: how long a failure waits for a verdict")
+	flag.DurationVar(&o.triageWait, "triage-wait", time.Hour,
+		"how long a failure waits for a verdict (listen mode) or for the triage slot (-triage-local)")
 	flag.BoolVar(&o.triageBroker, "triage-broker", false, "serve triage requests from -triage-spool with claude-sandbox")
+	flag.BoolVar(&o.triageLocal, "triage-local", false,
+		"CLI execution: triage failed builds in this process with claude-sandbox (needs the broker flags below)")
 	flag.DurationVar(&o.triageTimeout, "triage-timeout", 20*time.Minute, "broker mode: limit for one full triage")
 	flag.DurationVar(&o.triageQuickTimeout, "triage-quick-timeout", 5*time.Minute,
 		"broker mode: limit for one quick triage (12 fit in the default -triage-wait)")

@@ -253,10 +253,15 @@ func (b *Broker) logf(level, format string, args ...any) {
 	}
 }
 
+// TriageAsker answers one triage request: the broker through its spool, or LocalTriage in-process.
+type TriageAsker interface {
+	Ask(ctx context.Context, req *TriageRequest) (d Decision, ok bool)
+}
+
 type FailureTriage struct {
 	// Log returns a build's console text; nil or failing leaves the model to read the log itself.
 	Log    func(ctx context.Context, buildURL string) (string, error)
-	Broker *BrokerClient
+	Broker TriageAsker
 
 	// Reuse is how long a verdict is reused for the same failure (default 24h).
 	Reuse time.Duration
@@ -586,7 +591,7 @@ func (c *ClaudeTriage) Triage(ctx context.Context, req *TriageRequest) (*Verdict
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	if runErr != nil {
-		if accessErr := modelAccessError(runErr, stdout.String()+stderr.String()); accessErr != nil {
+		if accessErr := modelAccessError(runErr, stdout.Bytes()); accessErr != nil {
 			return nil, accessErr
 		}
 
@@ -601,8 +606,8 @@ var ErrModelAccess = errors.New("no model access")
 
 // modelAccessError maps the sandbox's sign-in exits (77 expired, 78 no profile, from the
 // claude-sandbox entrypoint) and a Bedrock denial, such as a paused budget, to ErrModelAccess.
-func modelAccessError(runErr error, output string) error {
-	const restart = "then restart the triage broker"
+func modelAccessError(runErr error, stdout []byte) error {
+	const restart = "then restart the triage broker (a CLI with -triage-local tries again by itself)"
 
 	if exitErr, ok := errors.AsType[*exec.ExitError](runErr); ok {
 		switch exitErr.ExitCode() {
@@ -615,8 +620,14 @@ func modelAccessError(runErr error, output string) error {
 		}
 	}
 
-	// shortcut: matched on the AWS error name in claude's output; check it on a real paused budget.
-	if strings.Contains(output, "AccessDeniedException") {
+	// Only claude's own API error counts: the model's text may quote a build log.
+	// shortcut: matched on the AWS error name; check it on a real paused budget.
+	var out struct {
+		IsError bool   `json:"is_error"`
+		Result  string `json:"result"`
+	}
+	if json.Unmarshal(stdout, &out) == nil && out.IsError && strings.HasPrefix(out.Result, "API Error") &&
+		strings.Contains(out.Result, "AccessDeniedException") {
 		return fmt.Errorf("%w: Bedrock denied the call (budget paused or access removed); see "+
 			"`claude-sandbox bedrock doctor`, %s", ErrModelAccess, restart)
 	}

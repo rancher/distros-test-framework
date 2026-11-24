@@ -133,6 +133,10 @@ type prepared struct {
 }
 
 func (a *App) Prepare(ctx context.Context, req Request) (*prepared, error) {
+	if req.BalerUnclear {
+		return nil, errBalerUnclear
+	}
+
 	matrix, err := a.loadMatrix()
 	if err != nil {
 		return nil, err

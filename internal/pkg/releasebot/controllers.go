@@ -140,16 +140,22 @@ func (e *controllerClient) authorized() (*jenkins, error) {
 	return e.client, nil
 }
 
+// FailureTriage asks the broker through spool (listen mode).
 func (a *App) FailureTriage(spool string, wait time.Duration) *FailureTriage {
-	return &FailureTriage{
-		Log: func(ctx context.Context, buildURL string) (string, error) {
-			j, err := a.JenkinsForBuild(buildURL)
-			if err != nil {
-				return "", err
-			}
+	return &FailureTriage{Log: a.consoleLog, Broker: &BrokerClient{Dir: spool, Timeout: wait, Poll: 5 * time.Second}}
+}
 
-			return j.ConsoleText(ctx, buildURL)
-		},
-		Broker: &BrokerClient{Dir: spool, Timeout: wait, Poll: 5 * time.Second},
+// LocalFailureTriage runs triage in this process (the CLI on a captain's laptop); a failure waits at
+// most wait for the triage slot.
+func (a *App) LocalFailureTriage(triage TriageFunc, wait time.Duration) *FailureTriage {
+	return &FailureTriage{Log: a.consoleLog, Broker: &LocalTriage{Triage: triage, Wait: wait}}
+}
+
+func (a *App) consoleLog(ctx context.Context, buildURL string) (string, error) {
+	j, err := a.JenkinsForBuild(buildURL)
+	if err != nil {
+		return "", err
 	}
+
+	return j.ConsoleText(ctx, buildURL)
 }

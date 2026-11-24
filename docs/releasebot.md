@@ -550,10 +550,12 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-poll` | `60s` | Jenkins polling interval |
 | `-qase-timeout` | `15m` | How long to wait for the Qase runs to appear |
 | `-listen` | `false` | Serve requests from Slack instead of `-message` (see below) |
-| `-state-file` | `<user config dir>/releasebot/state.json` | Listen mode: every run in progress (stage and jobs), saved at each change and resumed after a restart |
+| `-resume` | `false` | With `-dry-run=false`: carry on the run a CLI execution saved (interrupted, killed, rebooted) instead of `-message` |
+| `-state-file` | `<user config dir>/releasebot/state.json` | Every run in progress (stage and jobs), saved at each change and resumed after a restart; the CLI keeps its run in `cli-run.json` next to it |
+| `-triage-local` | `false` | CLI execution: triage failed builds in this process with claude-sandbox (the broker flags below apply) |
 | `-validate` | `false` | Load and check `-matrix`, then exit (`setup.sh deploy` runs it on the candidate) |
 | `-triage-spool` | | Listen mode: ask the triage broker through this spool (empty: every failure asks a person); broker mode: the spool to serve |
-| `-triage-wait` | `1h` | Listen mode: how long a failure waits for a verdict |
+| `-triage-wait` | `1h` | How long a failure waits for a verdict (listen mode) or for the triage slot (`-triage-local`) |
 | `-triage-broker` | `false` | Serve triage requests from `-triage-spool` with claude-sandbox |
 | `-triage-timeout` / `-triage-quick-timeout` | `20m` / `5m` | Broker mode: limit for one full / quick triage |
 | `-triage-cmd` | `claude-sandbox` | Broker mode: the sandbox command |
@@ -582,6 +584,56 @@ Environment:
 `-dry-run=false` takes the same lock as `-listen` (`<state-file>.lock`), so a CLI run never
 schedules next to the Slack bot or another CLI run: both would fill a controller's `maxConcurrent`.
 
+### Running on a laptop (v1)
+
+The release captain runs the whole release from their own laptop, in a terminal: every Slack
+command works there too, and the run survives an interrupt. The VM hosting below is the v2, kept
+for when there is a Bedrock-only credential.
+
+Once per captain:
+
+```
+$ go build -o ~/bin/releasebot ./cmd/releasebot        # from a clean checkout of the reviewed commit
+$ (umask 077; mkdir -p ~/.config/releasebot && $EDITOR ~/.config/releasebot/releasebot.env)
+#   GITHUB_TOKEN, JENKINS_MOWER_AUTH, JENKINS_BALER_AUTH (for baler requests), QASE_AUTOMATION_TOKEN;
+#   the captain's own tokens, from the team vault; nothing of Slack is needed
+# for -triage-local: claude-sandbox with the Bedrock provider and its sign-in (distros-qa-skills,
+# claude-sandbox SKILL.md), and the triage workspace (skill, private/mcp.json) as in "Hosting" below
+```
+
+A release day (`caffeinate -i` keeps a Mac awake; a sleeping laptop only delays polling):
+
+```
+$ set -a; . ~/.config/releasebot/releasebot.env; set +a
+$ export CLAUDE_SANDBOX_PROVIDER=bedrock && claude-sandbox bedrock login --no-browser   # for -triage-local
+$ releasebot -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1'                  # the plan (dry-run)
+$ caffeinate -i releasebot -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -dry-run=false \
+    -triage-local -triage-manifest ops/releasebot/triage-skill.sha256
+```
+
+- **Commands.** Typed in the same terminal while the run goes: `status`, `stop`,
+  `retry <job> [rc]`, `skip <job> [rc]`, `triage <job> [rc]`, as in a Slack thread. A job that needs
+  help prints `NEEDS HELP` (and rings the terminal bell); its RC's later phases wait for the answer.
+  Without a terminal (stdin redirected) a job that fails just fails.
+- **Interrupt and resume.** Ctrl-C, a crash or a reboot leaves the run saved in `cli-run.json`;
+  builds already started keep running on Jenkins. The same command with `-resume` instead of
+  `-message` carries it on: it follows those builds (nothing is triggered twice) and runs the rest.
+  While a run is saved, a new execution refuses, so builds are never started twice. A run that may
+  have dispatched workflows without following them (a dispatch failed part-way) or that left builds
+  in unknown state stays saved too: check GitHub Actions, Qase and Jenkins, then remove the file.
+- **Triage.** `-triage-local` runs it in the same process, one at a time, with the captain's own
+  Bedrock sign-in. When the sign-in expires (8 hours by default) each failure says so and asks the
+  captain; after `claude-sandbox bedrock login --no-browser` the next one is triaged again, no
+  restart needed. Without `-triage-local` every failure asks the captain.
+- **One captain at a time.** The run lives on that laptop. To hand a release over, interrupt it
+  there with Ctrl-C (not `stop`: `stop` ends the plan, its pending jobs never start, also after a
+  resume) and copy `cli-run.json` to the next captain, who starts it with `-resume`; never run it on
+  two laptops at once. Neither the CLI nor `-listen` starts a run while the other has one saved.
+- **Docker engine: Rancher Desktop**, not Docker Desktop (SUSE asks to avoid it on laptops), with the
+  `dockerd (moby)` container engine (with containerd the sandbox has no `docker` CLI) and
+  `docker context use rancher-desktop`. Images and volumes do not move between engines: rebuild the
+  sandbox (`install.sh`) and sign in to Bedrock again there.
+
 ### Running without Slack
 
 On the bot host, `releasebot-run` (installed by `setup.sh`) starts the same plan over SSH, as root.
@@ -606,10 +658,12 @@ follow: journalctl -u releasebot-run@20261124T150000Z-4242.service -f    stop: s
   run, so a CLI run next to them would exceed `maxConcurrent` and test the same RCs twice. Start
   `releasebot.service` again so it resumes them, and use the CLI once they end. If Slack cannot
   come back, check those builds on Jenkins first, then remove the runs from the state file by hand.
-- Compared with Slack: there is no thread, so a job that needs help fails instead of waiting
-  (no `retry`/`skip`/`triage`), failures are not triaged (no automatic rerun), and the run is not
-  saved for a resume: if the unit stops, its builds keep running on Jenkins unfollowed. Rerun
-  failed jobs by hand or with a new request for those RCs.
+- Compared with Slack: the unit has no terminal, so a job that needs help fails instead of waiting
+  (no `retry`/`skip`/`triage`) and failures are not triaged. The run is saved
+  (`/var/lib/releasebot/cli-run.json`), so a new execution refuses until it is carried on:
+  `releasebot-run` has no `--resume` yet, so run `releasebot -resume -dry-run=false` as `releasebot`
+  with the same env, or remove the file once its builds ended (see "Running on a laptop" for the
+  terminal version with every command).
 
 ### Listen mode
 
@@ -863,7 +917,8 @@ $ bash /root/releasebot-deploy/setup.sh prepare <new-user>
 $ systemctl enable --now releasebot-triage@<new-user>
 ```
 
-Deploying a commit:
+Deploying a commit (the host needs Go: `deploy` reads the binary's commit with `go version -m`; one
+deploy at a time, and a listener someone disabled stays off):
 
 ```
 $ git worktree add /tmp/releasebot-<sha> <sha>          # clean checkout of the reviewed commit

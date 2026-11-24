@@ -78,3 +78,61 @@ func TestRunRefusesWhileSlackRunsAreSaved(t *testing.T) {
 		t.Fatalf("no saved runs: expected the matrix error, got %v", err)
 	}
 }
+
+// A CLI run saved by an interrupted execution may still have builds on jenkins: a new execution refuses
+// (it would trigger them again) and says how to carry it on; -resume needs it, and is never a dry-run.
+func TestRunRefusesNewExecutionWhileACLIRunIsSaved(t *testing.T) {
+	state := filepath.Join(t.TempDir(), "state.json")
+	o := &options{resume: true, stateFile: state, matrixPath: "missing.yaml"}
+	if err := run(o); err == nil || !strings.Contains(err.Error(), "no saved run") {
+		t.Fatalf("-resume without a saved run: %v", err)
+	}
+
+	raw := []byte(`{"version":1,"request":"v1.37.1-rc1+rke2r1","progress":{"request_id":"rb-1"}}`)
+	if err := os.WriteFile(cliStatePath(state), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	o = &options{message: "v1.37.1-rc1+rke2r1", stateFile: state, matrixPath: "missing.yaml"}
+	if err := run(o); err == nil || !strings.Contains(err.Error(), "carry it on with -resume") {
+		t.Fatalf("a new execution next to a saved CLI run: %v", err)
+	}
+
+	o = &options{resume: true, dryRun: true, stateFile: state, matrixPath: "missing.yaml"}
+	if err := run(o); err == nil || !strings.Contains(err.Error(), "needs -dry-run=false") {
+		t.Fatalf("-resume as a dry-run: %v", err)
+	}
+}
+
+// The Slack bot refuses to execute next to a run an interrupted CLI saved, as the CLI refuses next to
+// the bot's saved runs; a dry-run bot triggers nothing and starts.
+func TestListenRefusesNextToASavedCLIRun(t *testing.T) {
+	t.Setenv("SLACK_BOT_TOKEN", "xoxb-test")
+	t.Setenv("SLACK_APP_TOKEN", "xapp-test")
+	t.Setenv("RELEASEBOT_CHANNELS", "C1")
+	state := filepath.Join(t.TempDir(), "state.json")
+	raw := []byte(`{"version":1,"request":"v1.37.1-rc1+rke2r1","progress":{"request_id":"rb-1","stage":"jobs"}}`)
+	if err := os.WriteFile(cliStatePath(state), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runListen(&options{stateFile: state, matrixPath: "missing.yaml"})
+	if err == nil || !strings.Contains(err.Error(), "not serving: the CLI run") {
+		t.Fatalf("listen next to a saved CLI run: %v", err)
+	}
+	if dryErr := refuseNextToCLIRun(&options{dryRun: true, stateFile: state}); dryErr != nil {
+		t.Fatalf("a dry-run bot was refused: %v", dryErr)
+	}
+}
+
+// /dev/null is a character device, not a person: commands are read from a real terminal only.
+func TestIsTerminalRefusesDevNull(t *testing.T) {
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devNull.Close()
+
+	if isTerminal(devNull) {
+		t.Fatal("/dev/null taken for a terminal")
+	}
+}

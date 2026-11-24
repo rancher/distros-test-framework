@@ -343,6 +343,10 @@ func TestClaudeTriageModelAccess(t *testing.T) {
 		{"exit 78", "no Bedrock profile"},
 		{`echo '{"is_error":true,"result":"API Error: 403 AccessDeniedException"}'; exit 1`, "Bedrock denied"},
 		{"echo boom >&2; exit 1", ""},
+		// A build log the model quotes never stops the broker.
+		{`echo '{"is_error":false,"result":"log: AccessDeniedException"}'; echo boom >&2; exit 1`, ""},
+		{`echo '{"is_error":true,"result":"max turns; log: AccessDeniedException"}'; echo boom >&2; exit 1`, ""},
+		{`echo 'AccessDeniedException'; echo boom >&2; exit 1`, ""},
 	} {
 		if err := os.WriteFile(fake, []byte("#!/bin/sh\ncat >/dev/null\n"+c.body+"\n"), 0o755); err != nil {
 			t.Fatal(err)
@@ -923,9 +927,22 @@ func TestRedactSecrets(t *testing.T) {
 		"abc123.0123456789abcdef",                                                       // k3s join token
 		"K10" + strings.Repeat("ab", 32) + "::abc123.0123456789abcdef",                  // k3s token with CA hash
 		"K10" + strings.Repeat("ab", 32) + "::server:hunter2",
+		"AKIAIOSFODNN7EXAMPLE",                                        // AWS access key id (20 chars)
+		"xoxb" + "-1234567890-1234567890123-abcdefghijklmnopqrstuvwx", // Slack bot token, lowercase (split: not a real one)
+		"xapp" + "-1-a0123456789-1234567890123-abcdef0123456789",      // Slack app token
 	} {
 		if got := redactSecrets("got " + secret + " end"); got != "got [redacted] end" {
 			t.Fatalf("not redacted: %q", got)
+		}
+	}
+	for in, want := range map[string]string{ //nolint:gosec // fake credentials
+		"dbpass=hunter2 end":       "dbpass=[redacted] end",
+		"DB_PASS: hunter2 end":     "DB_PASS: [redacted] end",
+		"--- PASS: TestFoo (1.2s)": "--- PASS: TestFoo (1.2s)",
+		"3 tests pass, 0 failed":   "3 tests pass, 0 failed",
+	} {
+		if got := redactSecrets(in); got != want {
+			t.Fatalf("redactSecrets(%q) = %q, want %q", in, got, want)
 		}
 	}
 	url := "https://alice:DummY42!@example.invalid/data" //nolint:gosec // fake credential

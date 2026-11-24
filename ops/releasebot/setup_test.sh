@@ -30,6 +30,11 @@ m="\$RELEASEBOT_LIB_DIR/current/matrix.yaml"
 [ "\$1" = list-units ] && [ -e "$ROOT/systemctl-fails" ] && { echo "Failed to connect to bus" >&2; exit 1; }
 [ "\$1" = list-units ] && [ -s "$ROOT/broker" ] && echo "releasebot-triage@\$(cat "$ROOT/broker").service loaded active running"
 [ "\$1" = restart ] && grep -qw NORESTART "\$m" && exit 1
+# "stopped": not running before the deploy, up once restarted; $ROOT/disabled: not enabled
+[ "\$*" = "restart releasebot" ] && [ "\$(cat "$ROOT/active")" = stopped ] && echo active > "$ROOT/active"
+[ "\$*" = "disable --now releasebot" ] && touch "$ROOT/disabled"
+[ "\$*" = "enable releasebot" ] && rm -f "$ROOT/disabled"
+[ "\$1" = is-enabled ] && [ -e "$ROOT/disabled" ] && exit 1
 if [ "\$1" = is-active ]; then
   case "\$3" in releasebot-triage@*) grep -qw BROKERDOWN "\$m" && exit 3; exit 0 ;; esac
   { grep -qw DOWN "\$m" || [ "\$(cat "$ROOT/active")" != active ]; } && exit 3
@@ -37,7 +42,9 @@ fi
 exit 0
 EOF
 printf '#!/usr/bin/env bash\necho "journal for $*"\n' > "$ROOT/bin/journalctl"
-chmod +x "$ROOT/bin/go" "$ROOT/bin/systemctl" "$ROOT/bin/journalctl"
+# flock stub: the lock is held while $ROOT/deploy-locked exists.
+printf '#!/usr/bin/env bash\n[ ! -e "%s/deploy-locked" ]\n' "$ROOT" > "$ROOT/bin/flock"
+chmod +x "$ROOT/bin/go" "$ROOT/bin/systemctl" "$ROOT/bin/journalctl" "$ROOT/bin/flock"
 
 # candidate <name> <revision> <modified> <matrix content>: a fake bot binary plus its matrix.
 candidate() {
@@ -77,6 +84,7 @@ check() { # name condition-exit-code output
 reset() { # reset <is-active answer>
   : > "$ROOT/systemctl.log"
   echo "$1" > "$ROOT/active"
+  rm -f "$ROOT/disabled"
 }
 
 current() { readlink "$ROOT/lib/current"; }
@@ -138,12 +146,14 @@ check "invalid matrix is rejected before touching the running version" $? "$out"
 
 reset active
 echo "# previous unit" > "$UNIT"
+printf '#!/bin/sh\n# previous releasebot-run\n' > "$RUN_BIN"
 candidate b "$SHA_B" false "jobs: good-b DOWN"
 out="$(deploy "$ROOT/b/releasebot" "$ROOT/b/matrix.yaml" "$SHA_B")"; rc=$?
 [ "$rc" != 0 ] && [[ "$out" == *"rolled back to $(basename "$A"), which is running"* ]] &&
   [ "$(current)" = "$A" ] && [ "$(cat "$ROOT/lib/current-commit")" = "$SHA_A" ] &&
-  [ "$(grep -c '^restart releasebot$' "$ROOT/systemctl.log")" = 2 ] && grep -qx "# previous unit" "$UNIT"
-check "a version that does not stay up is rolled back with its unit" $? "$out"
+  [ "$(grep -c '^restart releasebot$' "$ROOT/systemctl.log")" = 2 ] && grep -qx "# previous unit" "$UNIT" &&
+  grep -qx "# previous releasebot-run" "$RUN_BIN" && [ -x "$RUN_BIN" ]
+check "a version that does not stay up is rolled back with its unit and releasebot-run" $? "$out"
 awk '/^restart releasebot$/ { r = NR } /^restart releasebot-triage@/ { b = NR } END { exit !(b > r && r > 0) }' \
   "$ROOT/systemctl.log"
 check "a rollback moves the triage broker back to the previous release" $? "$(cat "$ROOT/systemctl.log")"
@@ -210,6 +220,40 @@ check "a deploy without Slack tokens installs the release and leaves the listene
 
 cmp -s "$ROOT/etc/releasebot.env" "$ROOT/env.before"
 check "deploys never touch the env file, so the execution mode is kept" $? ""
+
+# The previous case stopped the listener for lack of tokens: it comes back once they are there.
+reset stopped
+candidate f "$SHA_B" false "jobs: good-f"
+out="$(deploy "$ROOT/f/releasebot" "$ROOT/f/matrix.yaml" "$SHA_B")"; rc=$?
+[ "$rc" = 0 ] && [[ "$out" == *"is running"* ]] && grep -qx "enable releasebot" "$ROOT/systemctl.log" &&
+  grep -qx "restart releasebot" "$ROOT/systemctl.log" && [ ! -e "$LIB/listener-off-no-tokens" ]
+check "a listener stopped for lack of tokens comes back once they are set" $? "$out"
+
+# A listener someone disabled stays off: the release is installed, nothing is enabled or restarted.
+reset stopped
+touch "$ROOT/disabled"
+candidate g "$SHA_B" false "jobs: good-g"
+out="$(deploy "$ROOT/g/releasebot" "$ROOT/g/matrix.yaml" "$SHA_B")"; rc=$?
+[ "$rc" = 0 ] && [[ "$out" == *"stays off"* ]] && [ "$(current)" = "$(release g "$SHA_B")" ] &&
+  ! grep -Eq '^(enable|restart) releasebot$' "$ROOT/systemctl.log"
+check "a deploy leaves a listener someone disabled off" $? "$out"
+
+reset active
+printf 'SLACK_BOT_TOKEN=""\nSLACK_APP_TOKEN=x\nRELEASEBOT_DRY_RUN=false\n' > "$ROOT/etc/releasebot.env"
+candidate h "$SHA_B" false "jobs: good-h"
+out="$(deploy "$ROOT/h/releasebot" "$ROOT/h/matrix.yaml" "$SHA_B")"; rc=$?
+cp -p "$ROOT/env.slack" "$ROOT/etc/releasebot.env"
+[ "$rc" = 0 ] && [[ "$out" == *"only releasebot-run"* ]] && grep -qx "disable --now releasebot" "$ROOT/systemctl.log"
+check "an empty quoted Slack token counts as none" $? "$out"
+
+touch "$ROOT/deploy-locked"
+reset active
+before="$(current)"
+out="$(deploy "$ROOT/a/releasebot" "$ROOT/a/matrix.yaml" "$SHA_A")"; rc=$?
+rm -f "$ROOT/deploy-locked"
+[ "$rc" != 0 ] && [[ "$out" == *"another deploy is running"* ]] && [ "$(current)" = "$before" ] &&
+  [ ! -s "$ROOT/systemctl.log" ]
+check "a deploy refuses while another one holds the lock" $? "$out"
 
 # The CLI run unit keeps the listener's sandbox; only the triage spool lines (no triage in CLI runs) differ.
 sandbox() {

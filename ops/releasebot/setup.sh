@@ -114,21 +114,26 @@ sha256() {
 }
 
 # slack_configured: without both tokens the listener exits at once, so the host serves releasebot-run only.
+# An empty value, quoted or not, is no token.
 slack_configured() {
-  grep -Eq '^SLACK_BOT_TOKEN=.+' "$ETC_DIR/releasebot.env" && grep -Eq '^SLACK_APP_TOKEN=.+' "$ETC_DIR/releasebot.env"
+  grep -Eq "^SLACK_BOT_TOKEN=[\"']?[^\"'[:space:]]" "$ETC_DIR/releasebot.env" &&
+    grep -Eq "^SLACK_APP_TOKEN=[\"']?[^\"'[:space:]]" "$ETC_DIR/releasebot.env"
 }
 
 enable_listener() {
-  if slack_configured; then
-    systemctl enable releasebot
-  else
+  if ! slack_configured; then
+    : > "$LIB_DIR/listener-off-no-tokens"
     systemctl disable --now releasebot
+  elif [ "$keep_off" != true ]; then
+    rm -f "$LIB_DIR/listener-off-no-tokens"
+    systemctl enable releasebot
   fi
 }
 
 # start_healthy restarts the unit and reports whether it stayed up; never exits under set -e.
 start_healthy() {
   slack_configured || return 0 # CLI-only host: no listener to start
+  [ "$keep_off" != true ] || return 0
   systemctl restart releasebot || return 1
   sleep "$SETTLE_SECONDS"
   systemctl is-active --quiet releasebot
@@ -137,7 +142,7 @@ start_healthy() {
 # deploy <binary> <matrix.yaml> <commit-sha>: a release is <sha>-<hash of binary+matrix+manifest>,
 # never overwritten, so the previous one survives for rollback even when only the matrix changes.
 deploy() {
-  local bin="$1" matrix="$2" sha="$3" stage release prev prev_unit prev_triage prev_run brokers
+  local bin="$1" matrix="$2" sha="$3" stage release prev prev_unit prev_triage prev_run prev_run_bin brokers keep_off
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "commit sha must be 40 hex characters"
   if [ ! -d "$LIB_DIR" ] || [ ! -f "$ETC_DIR/releasebot.env" ]; then
     die "host not prepared: run '$0 prepare' and fill $ETC_DIR/releasebot.env first"
@@ -146,6 +151,10 @@ deploy() {
     die "$ETC_DIR/releasebot.env holds the tokens and must be a root-owned 0600 file; run '$0 prepare'"
   fi
   verify_build "$bin" "$sha"
+
+  # One deploy at a time: two would race on `current` and the units.
+  exec 9>"$LIB_DIR/.deploy.lock"
+  flock -n 9 || die "another deploy is running"
 
   # Stage and validate the candidate before touching the active version.
   stage="$(mktemp -d "$LIB_DIR/.stage.XXXXXX")"
@@ -168,26 +177,36 @@ deploy() {
 
   # The units ship with the release; the execution mode lives in the env file and is kept.
   prev="$(readlink "$LIB_DIR/current" || true)"
+  # A listener someone disabled stays off; one this script turned off for lack of tokens (the marker)
+  # comes back once they are set. A failed one is restarted: that is how a fix goes live.
+  keep_off=false
+  if [ -n "$prev" ] && [ ! -e "$LIB_DIR/listener-off-no-tokens" ] && ! systemctl is-enabled --quiet releasebot; then
+    keep_off=true
+  fi
   prev_unit="$(save_unit "$UNIT")"
   prev_triage="$(save_unit "$TRIAGE_UNIT")"
   prev_run="$(save_unit "$RUN_UNIT")"
+  prev_run_bin="$(save_unit "$RUN_BIN")"
   brokers="$(active_brokers)"
 
-  install -m 0644 "$HERE/releasebot.service" "$UNIT"
-  install -m 0644 "$HERE/releasebot-triage@.service" "$TRIAGE_UNIT"
-  install -m 0644 "$HERE/releasebot-run@.service" "$RUN_UNIT"
-  install -m 0755 "$HERE/releasebot-run" "$RUN_BIN"
-  if ! { systemctl daemon-reload && enable_listener; }; then
-    restore_units "$prev_unit" "$prev_triage" "$prev_run"
+  if ! { install -m 0644 "$HERE/releasebot.service" "$UNIT" &&
+    install -m 0644 "$HERE/releasebot-triage@.service" "$TRIAGE_UNIT" &&
+    install -m 0644 "$HERE/releasebot-run@.service" "$RUN_UNIT" &&
+    install -m 0755 "$HERE/releasebot-run" "$RUN_BIN" &&
+    systemctl daemon-reload && enable_listener; }; then
+    restore_units "$prev_unit" "$prev_triage" "$prev_run" "$prev_run_bin"
     die "could not install or enable the unit; the active version is unchanged"
   fi
 
   ln -sfn "$LIB_DIR/$release" "$LIB_DIR/current"
   if start_healthy && restart_brokers "$brokers"; then
-    rm -f "$prev_unit" "$prev_triage" "$prev_run"
+    rm -f "$prev_unit" "$prev_triage" "$prev_run" "$prev_run_bin"
     echo "$sha" > "$LIB_DIR/current-commit"
     echo "$release" > "$LIB_DIR/current-release"
-    if slack_configured; then
+    if slack_configured && [ "$keep_off" = true ]; then
+      echo "releasebot $release is installed; the listener is disabled, so it stays off" \
+        "(start it with: systemctl enable --now releasebot)"
+    elif slack_configured; then
       echo "releasebot $release is running${brokers:+ (triage broker restarted)}"
     else
       echo "releasebot $release is installed; no Slack tokens, so only releasebot-run serves requests"
@@ -201,11 +220,11 @@ deploy() {
     systemctl disable --now releasebot || true
     systemctl stop 'releasebot-triage@*.service' || true
     rm -f "$LIB_DIR/current" "$LIB_DIR/current-commit" "$LIB_DIR/current-release"
-    restore_units "$prev_unit" "$prev_triage" "$prev_run"
+    restore_units "$prev_unit" "$prev_triage" "$prev_run" "$prev_run_bin"
     die "releasebot $release did not stay up; the unit is stopped and disabled (see journalctl -u releasebot)"
   fi
 
-  restore_units "$prev_unit" "$prev_triage" "$prev_run"
+  restore_units "$prev_unit" "$prev_triage" "$prev_run" "$prev_run_bin"
   [ "$prev" = "$LIB_DIR/$release" ] ||
     ln -sfn "$prev" "$LIB_DIR/current"
   if start_healthy && restart_brokers "$brokers"; then
@@ -244,10 +263,10 @@ save_unit() {
   echo "$saved"
 }
 
-# restore_units puts the previously installed units back (or removes first-time installs).
+# restore_units puts the previous units and releasebot-run back (or removes first-time installs).
 restore_units() {
   local saved dest pair
-  for pair in "$1:$UNIT" "$2:$TRIAGE_UNIT" "$3:$RUN_UNIT"; do
+  for pair in "$1:$UNIT" "$2:$TRIAGE_UNIT" "$3:$RUN_UNIT" "$4:$RUN_BIN"; do
     saved="${pair%%:*}" dest="${pair#*:}"
     if [ -s "$saved" ]; then cp -p "$saved" "$dest"; else rm -f "$dest"; fi
     rm -f "$saved"

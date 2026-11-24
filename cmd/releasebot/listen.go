@@ -69,7 +69,7 @@ func runListen(o *options) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	release, err := releasebot.AcquireInstanceLock(o.stateFile + ".lock")
+	release, err := claimListener(o)
 	if err != nil {
 		return err
 	}
@@ -116,6 +116,42 @@ func runListen(o *options) error {
 	}
 
 	return err
+}
+
+// claimListener takes the instance lock, refusing to serve next to a saved CLI run.
+func claimListener(o *options) (release func(), err error) {
+	release, lockErr := releasebot.AcquireInstanceLock(o.stateFile + ".lock")
+	if lockErr != nil {
+		return nil, lockErr
+	}
+
+	if refuseErr := refuseNextToCLIRun(o); refuseErr != nil {
+		release()
+		return nil, refuseErr
+	}
+
+	return release, nil
+}
+
+// refuseNextToCLIRun: a run an interrupted CLI saved may still have builds on jenkins, so the bot would
+// exceed maxConcurrent and could test the same RCs twice; a dry-run bot triggers nothing.
+func refuseNextToCLIRun(o *options) error {
+	if o.dryRun {
+		return nil
+	}
+
+	statePath := cliStatePath(o.stateFile)
+	saved, savedErr := (&releasebot.TerminalRun{StatePath: statePath}).Saved()
+	if savedErr != nil {
+		return savedErr
+	}
+	if saved != nil {
+		return fmt.Errorf("not serving: the CLI run %q (started %s UTC) is saved in %s and its builds may still "+
+			"run; carry it on with releasebot -resume -dry-run=false, or remove the file once they ended",
+			saved.Request, saved.Started.Format("2006-01-02 15:04"), statePath)
+	}
+
+	return nil
 }
 
 // newListener wires the listener to Slack and loads the runs a previous bot saved.

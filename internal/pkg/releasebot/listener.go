@@ -257,7 +257,7 @@ func (l *Listener) savedProgress(run *activeRun) Progress {
 	return l.saved[threadKey(run.channel, run.ts)].Progress.clone()
 }
 
-// saveLocked writes the state atomically. Callers hold l.mu.
+// saveLocked writes the state atomically and durably. Callers hold l.mu.
 func (l *Listener) saveLocked() error {
 	if l.StatePath == "" {
 		return nil
@@ -270,12 +270,45 @@ func (l *Listener) saveLocked() error {
 	if mkErr := os.MkdirAll(filepath.Dir(l.StatePath), 0o700); mkErr != nil {
 		return mkErr
 	}
-	tmp := l.StatePath + ".tmp"
-	if writeErr := os.WriteFile(tmp, raw, 0o600); writeErr != nil {
-		return writeErr
+
+	return writeDurable(l.StatePath, raw)
+}
+
+// writeDurable replaces path with raw so a power cut leaves the old or the new file, never a
+// truncated one: the data is synced before the rename, and the directory after it.
+func writeDurable(path string, raw []byte) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
 	}
 
-	return os.Rename(tmp, l.StatePath)
+	_, writeErr := f.Write(raw)
+	if writeErr == nil {
+		writeErr = f.Sync()
+	}
+	if closeErr := f.Close(); writeErr == nil {
+		writeErr = closeErr
+	}
+	if writeErr != nil {
+		return fmt.Errorf("write %s: %w", tmp, writeErr)
+	}
+
+	if renameErr := os.Rename(tmp, path); renameErr != nil {
+		return fmt.Errorf("replace %s: %w", path, renameErr)
+	}
+
+	dir, openErr := os.Open(filepath.Dir(path))
+	if openErr != nil {
+		return fmt.Errorf("sync the directory of %s: %w", path, openErr)
+	}
+	defer dir.Close()
+
+	if syncErr := dir.Sync(); syncErr != nil {
+		return fmt.Errorf("sync the directory of %s: %w", path, syncErr)
+	}
+
+	return nil
 }
 
 // Handle processes one message event. Plans run in the background; Wait blocks until they end.

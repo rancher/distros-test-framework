@@ -29,10 +29,32 @@ type jenkins struct {
 }
 
 func NewJenkins(baseURL, user, token string) *jenkins {
-	return &jenkins{
-		BaseURL: strings.TrimRight(baseURL, "/"), User: user, Token: token,
-		HTTP: &http.Client{Timeout: 60 * time.Second},
+	j := &jenkins{BaseURL: strings.TrimRight(baseURL, "/"), User: user, Token: token}
+	j.HTTP = &http.Client{
+		Timeout: 60 * time.Second,
+		// Go drops the credential on a redirect to another host, not on one to http on the same host.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+
+			return j.checkOrigin(req.URL.String())
+		},
 	}
+
+	return j
+}
+
+// checkOrigin allows the credential only to this controller's scheme and host: queue and build URLs
+// come from jenkins' answers (its configured root URL), which may name another host or plain http.
+func (j *jenkins) checkOrigin(raw string) error {
+	base, baseErr := url.Parse(j.BaseURL)
+	target, targetErr := url.Parse(raw)
+	if baseErr != nil || targetErr != nil || target.Scheme != base.Scheme || !strings.EqualFold(target.Host, base.Host) {
+		return fmt.Errorf("refusing to send the jenkins credential to %s: it is not %s", raw, j.BaseURL)
+	}
+
+	return nil
 }
 
 // jobURL turns "distros_qa/rke2-tests/rke2_validate_cluster_qainfra" into ".../job/distros_qa/job/...".
@@ -265,6 +287,10 @@ const (
 // stream so the tail is the real one; a log longer than 512 MiB is an error, not a wrong tail.
 func (j *jenkins) ConsoleText(ctx context.Context, buildURL string) (string, error) {
 	u := strings.TrimRight(buildURL, "/") + "/consoleText"
+	if originErr := j.checkOrigin(u); originErr != nil {
+		return "", originErr
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return "", err
@@ -319,6 +345,10 @@ func consoleTail(r io.Reader, keep, limit int) (string, error) {
 }
 
 func (j *jenkins) get(ctx context.Context, u string) (*http.Response, error) {
+	if originErr := j.checkOrigin(u); originErr != nil {
+		return nil, originErr
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return nil, err

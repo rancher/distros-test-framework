@@ -1,6 +1,7 @@
 package releasebot
 
 import (
+	"errors"
 	"regexp"
 	"slices"
 	"sort"
@@ -13,23 +14,39 @@ type Request struct {
 	RKE2 []string
 
 	// Baler moves the jobs with a baler path in the matrix (airgap, conformance) to that controller.
-	Baler bool
+	// BalerUnclear: "baler" came with other words ("do not use baler"), so the request is refused.
+	Baler, BalerUnclear bool
 }
 
+// errBalerUnclear refuses a request whose controller would be a guess.
+var errBalerUnclear = errors.New("say `baler` alone next to the RC tags to use Baler (for example " +
+	"`v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1 baler`), or leave it out for Mower; nothing was planned")
+
 var (
-	k3sRC     = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+k3s\d+`)
-	rke2RC    = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+rke2r\d+`)
-	balerWord = regexp.MustCompile(`(?i)\bbaler\b`)
+	k3sRC        = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+k3s\d+`)
+	rke2RC       = regexp.MustCompile(`v\d+\.\d+\.\d+-rc\d+\+rke2r\d+`)
+	balerWord    = regexp.MustCompile(`(?i)\bbaler\b`)
+	slackMention = regexp.MustCompile(`<@[A-Z0-9]+>`)
 )
 
 func ParseRequest(text string) Request {
 	text = normalizeSlack(text)
-
-	return Request{
-		K3s:   uniqueSorted(k3sRC.FindAllString(text, -1)),
-		RKE2:  uniqueSorted(rke2RC.FindAllString(text, -1)),
-		Baler: balerWord.MatchString(text),
+	r := Request{
+		K3s:  uniqueSorted(k3sRC.FindAllString(text, -1)),
+		RKE2: uniqueSorted(rke2RC.FindAllString(text, -1)),
 	}
+
+	// "baler" counts only on its own: once the mentions and the tags are gone, nothing else is left.
+	if balerWord.MatchString(text) {
+		rest := rke2RC.ReplaceAllString(k3sRC.ReplaceAllString(slackMention.ReplaceAllString(text, " "), " "), " ")
+		words := strings.FieldsFunc(strings.ToLower(rest), func(c rune) bool {
+			return strings.ContainsRune(" \t\n,;.!?()[]{}\"'", c)
+		})
+		r.Baler = len(words) == 1 && words[0] == "baler"
+		r.BalerUnclear = !r.Baler
+	}
+
+	return r
 }
 
 // Without returns the request minus the given tags.
@@ -45,7 +62,7 @@ func (r Request) Without(drop []string) Request {
 		return out
 	}
 
-	return Request{K3s: keep(r.K3s), RKE2: keep(r.RKE2), Baler: r.Baler}
+	return Request{K3s: keep(r.K3s), RKE2: keep(r.RKE2), Baler: r.Baler, BalerUnclear: r.BalerUnclear}
 }
 
 // Empty reports whether no RC was found.

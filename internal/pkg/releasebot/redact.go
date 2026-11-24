@@ -27,6 +27,10 @@ var (
 	// or <id>.<secret>, see k3s token generate).
 	urlUserInfo    = regexp.MustCompile(`\b([a-z][a-z0-9+.-]*://)[^\s/@:]+:[^\s/@]+@`)
 	bootstrapToken = regexp.MustCompile(`\bK10[0-9a-f]{64}::\S+|\b[a-z0-9]{6}\.[a-z0-9]{16}\b`)
+	// AWS key ids are too short for secretLike, and an all-lowercase Slack token reads as a name.
+	knownToken = regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\bxox[abposr]-[A-Za-z0-9-]+|\bxapp-[A-Za-z0-9-]+`)
+	// "pass" alone is no label (--- PASS: TestX), but a prefixed one assigned (dbpass=, DB_PASS:) is.
+	passAssign = regexp.MustCompile(`(?i)\b([a-z0-9_-]+pass)(\s*[:=]\s*)[^\s"',;]+`)
 )
 
 // proseAfter: a line whose text after the label is only these words stays ("the token expired").
@@ -46,6 +50,8 @@ func init() {
 func redactSecrets(s string) string {
 	s = urlUserInfo.ReplaceAllString(s, "${1}[redacted]@")
 	s = bootstrapToken.ReplaceAllString(s, "[redacted]")
+	s = knownToken.ReplaceAllString(s, "[redacted]")
+	s = passAssign.ReplaceAllString(s, "${1}${2}[redacted]")
 	lines := strings.Split(s, "\n")
 	for i := range lines {
 		lines[i] = redactLine(lines[i])
