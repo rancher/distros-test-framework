@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -12,9 +13,11 @@ import (
 )
 
 type Client struct {
-	infra *driver.Cluster
-	ec2   *ec2.EC2
-	s3    *s3.S3
+	infra      *driver.Cluster
+	sshKeyName string
+
+	ec2 ec2iface.EC2API
+	s3  *s3.S3
 }
 
 func AddClient(c *driver.Cluster) (*Client, error) {
@@ -25,11 +28,9 @@ func AddClient(c *driver.Cluster) (*Client, error) {
 	cfg := &aws.Config{
 		Region: aws.String(c.Aws.Region),
 	}
+
 	// If we have explicit credentials in cluster config, use them. Otherwise
-	// fall back to the SDK's default credential chain (env, ~/.aws, IAM
-	// role). Explicit creds make the session deterministic — no surprise from
-	// stale ambient env state, especially after the test thread runs for a
-	// while.
+	// fall back to the SDK's default credential chain .
 	if c.Aws.AccessKeyID != "" && c.Aws.SecretAccessKey != "" {
 		cfg.Credentials = credentials.NewStaticCredentials(
 			c.Aws.AccessKeyID, c.Aws.SecretAccessKey, "",

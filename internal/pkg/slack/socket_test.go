@@ -175,7 +175,10 @@ func TestSocketModeAcksWhileHandlerIsSlow(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("socket shutdown: got %v, want context.Canceled", err)
+	}
+
 	if strings.Join(order, ",") != "1,2,3" {
 		t.Fatalf("handler order %v", order)
 	}

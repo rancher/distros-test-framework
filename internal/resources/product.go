@@ -3,6 +3,8 @@ package resources
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/pkg/customflag"
@@ -201,4 +203,27 @@ func execAction(product, script, ip string) error {
 	}
 
 	return nil
+}
+
+var minorVersionRE = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
+
+// IsVersionAtLeast reports whether a version such as v1.37.1+rke2r1 is at least major.minor.
+// Versions without a leading major.minor, such as commit hashes, return false.
+func IsVersionAtLeast(version string, major, minor int) bool {
+	matches := minorVersionRE.FindStringSubmatch(version)
+	if len(matches) < 3 {
+		return false
+	}
+
+	versionMajor, majorErr := strconv.Atoi(matches[1])
+	versionMinor, minorErr := strconv.Atoi(matches[2])
+	if majorErr != nil || minorErr != nil {
+		return false
+	}
+
+	if versionMajor != major {
+		return versionMajor > major
+	}
+
+	return versionMinor >= minor
 }

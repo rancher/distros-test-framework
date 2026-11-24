@@ -4,6 +4,8 @@ PS4='+(${LINENO}): '
 set -e
 trap 'echo "Error on line $LINENO: $BASH_COMMAND"' ERR
 
+# Runtime configuration is generated locally.
+# shellcheck source=/dev/null
 source ./config/.env
 
 # Refuse to launch if AWS credentials weren't exported.
@@ -16,6 +18,7 @@ if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
 fi
 
 TAG_NAME=${TAG_NAME:=distros-test}
+IMG_NAME=${IMG_NAME:-}
 CONTAINER_ROOT="/go/src/github.com/rancher/distros-test-framework"
 KEY_CONTAINER_PATH="${CONTAINER_ROOT}/config/.ssh/aws_key.pem"
 RUNTIME_INPUT_DIR="/run/dtf"
@@ -73,13 +76,13 @@ test_run() {
 # Runs a new Docker container with a random suffix and version-specific image name
 # Uses the same base image as the original container, so dont need to rebuild.
 test_run_new() {
-    RANDOM_SUFFIX=$(LC_ALL=C tr -dc 'a-z' </dev/urandom | head -c3)
+    RANDOM_SUFFIX=$(LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c3)
 
     NEW_IMG_NAME=""
     if [[ -n "${RKE2_VERSION}" ]]; then
-        NEW_IMG_NAME=$(echo "${RKE2_VERSION}" | sed 's/+.*//')
+        NEW_IMG_NAME=${RKE2_VERSION%%+*}
     elif [[ -n "${K3S_VERSION}" ]]; then
-        NEW_IMG_NAME=$(echo "${K3S_VERSION}" | sed 's/+.*//')
+        NEW_IMG_NAME=${K3S_VERSION%%+*}
     fi
 
     FULL_IMG_NAME="${IMG_NAME}-${NEW_IMG_NAME}-${RANDOM_SUFFIX}"

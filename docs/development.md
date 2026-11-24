@@ -196,6 +196,7 @@ $ make remove-tf-state                 # removes acceptance state dir and files
 $ make test-suite                      # runs all testcase locally in sequence not using the same state
 $ make pre-commit                      # formats (rewrites files in place), vets, lints and runs the unit tests
 $ make unit-tests                      # only the unit tests; changes nothing
+$ make shell-check                     # runs shell/security regressions and ShellCheck
 ```
 
 `make pre-commit` runs `gofmt`, `gofumpt` and `goimports` with `-w` on the whole tree, untracked

@@ -3,6 +3,7 @@ package resources
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -107,6 +108,34 @@ func RunHostArgsContext(ctx context.Context, name string, args ...string) (strin
 		return "", ReturnLogError("binary name should not be empty")
 	}
 
+	output, runErr := runHostArgsContext(ctx, name, args...)
+	if runErr != nil {
+		LogLevel("error", "Command %s %v failed with error: %v\n %v", name, args, runErr, output)
+	}
+
+	return output, runErr
+}
+
+// RunHostArgsQuietContext leaves failure reporting to the caller, for example after retries expire.
+// It preserves stderr in the returned error without logging each failed attempt or command arguments.
+func RunHostArgsQuietContext(ctx context.Context, name string, args ...string) (string, error) {
+	output, runErr := runHostArgsContext(ctx, name, args...)
+	if runErr != nil {
+		if stderr := strings.TrimSpace(output); stderr != "" {
+			return output, fmt.Errorf("%s failed: %w; stderr: %s", name, runErr, stderr)
+		}
+
+		return output, fmt.Errorf("%s failed: %w", name, runErr)
+	}
+
+	return output, nil
+}
+
+func runHostArgsContext(ctx context.Context, name string, args ...string) (string, error) {
+	if name == "" {
+		return "", errors.New("binary name should not be empty")
+	}
+
 	var output, errOut bytes.Buffer
 	c := exec.CommandContext(ctx, name, args...)
 	c.Stdout = &output
@@ -117,8 +146,6 @@ func RunHostArgsContext(ctx context.Context, name string, args ...string) (strin
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			err = fmt.Errorf("command canceled (%w): %w", ctxErr, err)
 		}
-		LogLevel("error", "Command %s %v failed with error: %v\n %v", name, args, err, errOut.String())
-
 		return errOut.String(), err
 	}
 

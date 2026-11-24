@@ -1,14 +1,17 @@
 package aws
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"github.com/rancher/distros-test-framework/internal/resources"
@@ -18,6 +21,78 @@ type response struct {
 	nodeId     string
 	externalIp string
 	privateIp  string
+}
+
+// UseInstanceSSHKey selects the source node's EC2 key for subsequent creates.
+// Call before stopping nodes or starting concurrent instance creation.
+func (c *Client) UseInstanceSSHKey(ctx context.Context, ip string) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	instance, err := c.instanceByIP(ctx, ip)
+	if err != nil {
+		return fmt.Errorf("resolve SSH key for node %s: %w", ip, err)
+	}
+
+	keyName := aws.StringValue(instance.KeyName)
+	if strings.TrimSpace(keyName) == "" {
+		return fmt.Errorf("instance %s has no EC2 SSH key", aws.StringValue(instance.InstanceId))
+	}
+	c.sshKeyName = keyName
+	resources.LogLevel("info", "Using EC2 key %s from instance %s for additional nodes",
+		keyName, aws.StringValue(instance.InstanceId))
+
+	return nil
+}
+
+func (c Client) instanceByIP(ctx context.Context, ip string) (*ec2.Instance, error) {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return nil, fmt.Errorf("parse node IP: %w", err)
+	}
+
+	addr = addr.Unmap()
+	filter := "ip-address"
+	if addr.Is6() {
+		filter = "network-interface.ipv6-address"
+	} else if addr.IsPrivate() {
+		filter = "private-ip-address"
+	}
+	if addr.IsPrivate() && c.infra.Aws.VPCID == "" {
+		return nil, errors.New("VPC ID is required to resolve a private node IP")
+	}
+
+	input := &ec2.DescribeInstancesInput{Filters: []*ec2.Filter{
+		{Name: aws.String(filter), Values: aws.StringSlice([]string{addr.String()})},
+		{Name: aws.String("instance-state-name"), Values: aws.StringSlice([]string{"running"})},
+	}}
+	if c.infra.Aws.VPCID != "" {
+		input.Filters = append(input.Filters, &ec2.Filter{
+			Name: aws.String("vpc-id"), Values: aws.StringSlice([]string{c.infra.Aws.VPCID}),
+		})
+	}
+
+	var instances []*ec2.Instance
+	err = c.ec2.DescribeInstancesPagesWithContext(ctx, input, func(page *ec2.DescribeInstancesOutput, _ bool) bool {
+		for _, reservation := range page.Reservations {
+			instances = append(instances, reservation.Instances...)
+		}
+
+		return len(instances) < 2
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("describe EC2 instances: %w", ctx.Err())
+		}
+
+		return nil, fmt.Errorf("describe EC2 instances: %w", err)
+	}
+
+	if len(instances) != 1 {
+		return nil, fmt.Errorf("expected one running instance for node %s, found %d", ip, len(instances))
+	}
+
+	return instances[0], nil
 }
 
 func (c Client) CreateInstances(names ...string) (externalIPs, privateIPs, ids []string, err error) {
@@ -366,6 +441,15 @@ func (c Client) ReleaseElasticIps(ipAddress string) error {
 	return nil
 }
 
+// runKeyName prefers the key resolved from a running node over the configured one.
+func (c Client) runKeyName() string {
+	if c.sshKeyName != "" {
+		return c.sshKeyName
+	}
+
+	return c.infra.SSH.KeyName
+}
+
 func (c Client) create(name string) (*ec2.Reservation, error) {
 	volume, err := strconv.ParseInt(c.infra.Aws.EC2.VolumeSize, 10, 64)
 	if err != nil {
@@ -377,7 +461,7 @@ func (c Client) create(name string) (*ec2.Reservation, error) {
 		InstanceType: aws.String(c.infra.Aws.EC2.InstanceClass),
 		MinCount:     aws.Int64(1),
 		MaxCount:     aws.Int64(1),
-		KeyName:      aws.String(c.infra.SSH.KeyName),
+		KeyName:      aws.String(c.runKeyName()),
 		NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				AssociatePublicIpAddress: aws.Bool(true),
@@ -444,8 +528,7 @@ func (c Client) waitForInstanceRunning(instanceId string) error {
 
 			status := statusRes.InstanceStatuses[0]
 			if *status.InstanceStatus.Status == "ok" && *status.SystemStatus.Status == "ok" {
-				resources.LogLevel("info", "Instance %s is running "+
-					"and passed status checks", instanceId)
+				resources.LogLevel("info", "Instance %s is running and passed status checks", instanceId)
 
 				return nil
 			}
@@ -514,4 +597,141 @@ func extractID(reservation *ec2.Reservation) (string, error) {
 	}
 
 	return *reservation.Instances[0].InstanceId, nil
+}
+
+// terminateTimeout covers the terminate call and the wait together; a var so tests can shrink it.
+var (
+	terminateTimeout = 5 * time.Minute
+	describeTimeout  = 1 * time.Minute
+)
+
+// liveInstanceStates excludes "terminated" so recycled IPs never match dead instances.
+var liveInstanceStates = []string{"pending", "running", "stopping", "stopped", "shutting-down"}
+
+// InstanceIDByIP returns the ID of the single live instance owning ip, or "" when none exists.
+// It errors on ambiguous matches so callers never terminate the wrong instance.
+func (c Client) InstanceIDByIP(ip string) (string, error) {
+	if ip == "" {
+		return "", resources.ReturnLogError("must send an ip")
+	}
+
+	filterNames := []string{"ip-address", "private-ip-address"}
+	if strings.Contains(ip, ":") {
+		filterNames = []string{"ipv6-address"}
+	}
+
+	ids := map[string]struct{}{}
+	for _, filterName := range filterNames {
+		filters := []*ec2.Filter{
+			{Name: aws.String(filterName), Values: aws.StringSlice([]string{ip})},
+			{Name: aws.String("instance-state-name"), Values: aws.StringSlice(liveInstanceStates)},
+		}
+		// Public and IPv6 addresses are unique across live instances, so only private
+		// addresses (unique per VPC, not per subnet) are scoped to the VPC.
+		if filterName == "private-ip-address" {
+			vpcID, vpcErr := c.scopeVPCID()
+			if vpcErr != nil {
+				return "", vpcErr
+			}
+			if vpcID != "" {
+				filters = append(filters, &ec2.Filter{
+					Name:   aws.String("vpc-id"),
+					Values: aws.StringSlice([]string{vpcID}),
+				})
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), describeTimeout)
+		res, err := c.ec2.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{Filters: filters})
+		cancel()
+		if err != nil {
+			return "", resources.ReturnLogError("error describing instances using %s: %w\n", filterName, err)
+		}
+		for _, reservation := range res.Reservations {
+			for _, instance := range reservation.Instances {
+				if instance.InstanceId != nil {
+					ids[*instance.InstanceId] = struct{}{}
+				}
+			}
+		}
+	}
+
+	switch len(ids) {
+	case 0:
+		return "", nil
+	case 1:
+		for id := range ids {
+			return id, nil
+		}
+	}
+
+	return "", resources.ReturnLogError("ip %s matches multiple live instances: %v\n", ip, ids)
+}
+
+// scopeVPCID prefers the configured VPC, avoiding ec2:DescribeSubnets, and falls back to the subnet's VPC.
+func (c Client) scopeVPCID() (string, error) {
+	if c.infra == nil {
+		return "", nil
+	}
+	if c.infra.Aws.VPCID != "" {
+		return c.infra.Aws.VPCID, nil
+	}
+	if c.infra.Aws.Subnets == "" {
+		return "", nil
+	}
+
+	return c.vpcIDOfSubnet(c.infra.Aws.Subnets)
+}
+
+// vpcIDOfSubnet resolves the VPC so private IPs are checked across all its subnets.
+func (c Client) vpcIDOfSubnet(subnetID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), describeTimeout)
+	defer cancel()
+
+	res, err := c.ec2.DescribeSubnetsWithContext(ctx, &ec2.DescribeSubnetsInput{
+		SubnetIds: aws.StringSlice([]string{subnetID}),
+	})
+	if err != nil {
+		return "", resources.ReturnLogError("error resolving vpc of subnet %s: %w\n", subnetID, err)
+	}
+	if len(res.Subnets) != 1 || aws.StringValue(res.Subnets[0].VpcId) == "" {
+		return "", resources.ReturnLogError("subnet %s did not resolve to exactly one vpc\n", subnetID)
+	}
+
+	return aws.StringValue(res.Subnets[0].VpcId), nil
+}
+
+// TerminateInstanceByIDAndWait terminates the instance and blocks until EC2 reports it terminated.
+// An unknown or already terminated instance is success, so reruns converge.
+func (c Client) TerminateInstanceByIDAndWait(instanceID string) error {
+	if instanceID == "" {
+		return resources.ReturnLogError("must send an instance id")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), terminateTimeout)
+	defer cancel()
+
+	ids := []*string{aws.String(instanceID)}
+	if _, err := c.ec2.TerminateInstancesWithContext(ctx, &ec2.TerminateInstancesInput{InstanceIds: ids}); err != nil {
+		if isInstanceNotFound(err) {
+			resources.LogLevel("info", "instance %s not found, treating as terminated", instanceID)
+
+			return nil
+		}
+
+		return resources.ReturnLogError("error terminating instance %s: %w\n", instanceID, err)
+	}
+
+	if err := c.ec2.WaitUntilInstanceTerminatedWithContext(ctx, &ec2.DescribeInstancesInput{InstanceIds: ids}); err != nil {
+		return resources.ReturnLogError("error waiting for termination of %s: %w\n", instanceID, err)
+	}
+	resources.LogLevel("info", "instance %s terminated", instanceID)
+
+	return nil
+}
+
+func isInstanceNotFound(err error) bool {
+	var aerr awserr.Error
+
+	return errors.As(err, &aerr) && strings.HasPrefix(aerr.Code(), "InvalidInstanceID.NotFound")
 }

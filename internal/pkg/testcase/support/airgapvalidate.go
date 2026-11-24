@@ -2,6 +2,7 @@ package support
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
@@ -124,20 +125,69 @@ func ValidateAirgapSystemDefaultRegistry(cluster *driver.Cluster) error {
 	product := cluster.Config.Product
 	host := cluster.Airgap.RegistryHost
 	cfg := fmt.Sprintf("/etc/rancher/%s/config.yaml", product)
-	for _, ip := range append(append([]string{}, cluster.ServerIPs...), cluster.AgentIPs...) {
+	// K3s agents inherit this server-only setting from the server configuration.
+	configNodes := append([]string{}, cluster.ServerIPs...)
+	if product != "k3s" {
+		configNodes = append(configNodes, cluster.AgentIPs...)
+	}
+	for _, ip := range configNodes {
 		out, err := CmdForPrivateNode(cluster, "sudo grep system-default-registry "+cfg, ip)
 		if err != nil || !strings.Contains(out, host) {
 			return fmt.Errorf("%s on %s lacks system-default-registry: %s: %v %q", cfg, ip, host, err, out)
 		}
 	}
+	if product == "k3s" {
+		for _, ip := range cluster.AgentIPs {
+			if err := validateK3sAgentRegistry(cluster, ip, host); err != nil {
+				return err
+			}
+		}
+	}
 
 	node := cluster.ServerIPs[0]
 	code, err := CmdForPrivateNode(cluster,
-		fmt.Sprintf("curl -s -o /dev/null -w %%{http_code} https://%s/v2/", host), node)
-	if err != nil || strings.TrimSpace(code) != "200" {
-		return fmt.Errorf("registry %s must be reachable with the OS trust store (want 200): %v %q", host, err, code)
+		fmt.Sprintf("curl -s --max-time 20 -o /dev/null -w %%{http_code} https://%s/v2/", host), node)
+	if err != nil || strings.TrimSpace(code) != "401" {
+		return fmt.Errorf("registry %s must require auth with the OS trust store (want 401; needs a QA-infra "+
+			"airgap revision that authenticates this registry): %v %q", host, err, code)
 	}
 
+	if imageErr := requireRegistryImages(cluster, product, node, host); imageErr != nil {
+		return imageErr
+	}
+
+	return pullThroughRegistry(cluster, node, host)
+}
+
+// Check the generated sandbox image before any workload needs to pull it.
+func validateK3sAgentRegistry(cluster *driver.Cluster, node, host string) error {
+	cmd := "sudo grep -E '^[[:space:]]*(sandbox_image|sandbox)[[:space:]]*=' " +
+		"/var/lib/rancher/k3s/agent/etc/containerd/config.toml"
+	config, configErr := CmdForPrivateNode(cluster, cmd, node)
+	if configErr != nil {
+		return fmt.Errorf("read containerd sandbox image on %s: %w", node, configErr)
+	}
+
+	if registryErr := assertK3sSandboxRegistry(config, host); registryErr != nil {
+		return fmt.Errorf("containerd sandbox image on %s: %w", node, registryErr)
+	}
+
+	return nil
+}
+
+var sandboxImageRE = regexp.MustCompile(`(?m)^\s*(?:sandbox_image|sandbox)\s*=\s*["']([^"'\r\n]+)["'][ \t]*(?:#.*)?$`)
+
+func assertK3sSandboxRegistry(config, host string) error {
+	images := sandboxImageRE.FindAllStringSubmatch(config, -1)
+	if len(images) != 1 || !strings.HasPrefix(images[0][1], host+"/") {
+		return fmt.Errorf("expected one sandbox image with the %s/ prefix", host)
+	}
+
+	return nil
+}
+
+// requireRegistryImages fails unless some image on the node carries the registry host prefix.
+func requireRegistryImages(cluster *driver.Cluster, product, node, host string) error {
 	images, err := CmdForPrivateNode(cluster, crictlImagesCmd(product), node)
 	if err != nil {
 		return fmt.Errorf("crictl images on %s: %w", node, err)
@@ -163,12 +213,12 @@ func pullThroughRegistry(cluster *driver.Cluster, node, host string) error {
 		return fmt.Errorf("read image list on bastion: %w %q", err, first)
 	}
 	image := strings.TrimSpace(first)
-	if i := strings.Index(image, "/"); i > 0 && (strings.Contains(image[:i], ".") || image[:i] == "docker.io") {
+	if i := strings.Index(image, "/"); i > 0 && (strings.ContainsAny(image[:i], ".:") || image[:i] == "localhost") {
 		image = image[i+1:]
 	}
 
 	if out, err := CmdForPrivateNode(cluster, crictlPullCmd(product, host+"/"+image), node); err != nil {
-		return fmt.Errorf("pull %s/%s through the private registry failed: %w %q", host, image, err, out)
+		return fmt.Errorf("pull %s/%s through the bastion registry failed: %w %q", host, image, err, out)
 	}
 	if out, err := CmdForPrivateNode(cluster, crictlPullCmd(product, host+"/dtf/not-published:1"), node); err == nil {
 		return fmt.Errorf("pull of an unpublished image must fail, got: %q", out)
@@ -178,9 +228,12 @@ func pullThroughRegistry(cluster *driver.Cluster, node, host string) error {
 	return nil
 }
 
+// k3sBinary is absolute because SLES/RHEL sudo secure_path omits /usr/local/bin.
+const k3sBinary = "/usr/local/bin/k3s"
+
 func crictlImagesCmd(product string) string {
 	if product == "k3s" {
-		return "sudo k3s crictl images"
+		return "sudo " + k3sBinary + " crictl images"
 	}
 
 	return "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml images"
@@ -188,7 +241,7 @@ func crictlImagesCmd(product string) string {
 
 func crictlPullCmd(product, image string) string {
 	if product == "k3s" {
-		return "sudo k3s crictl pull " + image
+		return "sudo " + k3sBinary + " crictl pull " + image
 	}
 
 	return "sudo /var/lib/rancher/rke2/bin/crictl --config /var/lib/rancher/rke2/agent/etc/crictl.yaml pull " + image

@@ -10,14 +10,18 @@ on:
         required: false
       rke2_versions:
         description: |
-          'Provide the list of rke2 versions (comma separated)
+          'Public RKE2 releases (comma separated). Use rke2_lts_versions for Prime-only/LTS releases.
           Ex: v1.34.0-rc1+rke2r1,v1.33.4-rc1+rke2r1,v1.32.8-rc1+rke2r1,v1.31.12-rc1+rke2r1'
         required: false
       rke2_lts_versions:
         description: |
-          'Provide the list of rke2 lts versions to test prime registry (comma separated)
-          Ex: v1.30.14-rc1+rke2r3'
+          'Prime-only/LTS RKE2 releases: artifact index, Prime images and signed RPM repositories.
+          Ex: v1.32.13-rc1+rke2r3'
         required: false
+      rke2_lts_rpm_targets:
+        description: 'LTS RPM distro/arch targets (comma separated); e.g. slemicro/x86_64,centos/9/aarch64'
+        required: false
+        default: 'slemicro/x86_64'
       page_size:
         description: 'Page size for API queries'
         required: false
@@ -35,13 +39,14 @@ permissions:
 jobs:
   run-script-job:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Update and install necessary packages
-        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo
+        run: sudo apt-get update && sudo apt-get install -y jq curl skopeo gnupg gpgv libxml2-utils
 
       - name: Change permissions and make script executable (if needed)
         working-directory: ./scripts
@@ -54,6 +59,7 @@ jobs:
         env:
           VERSIONS: ${{ inputs.k3s_versions }}
           PAGE_SIZE: ${{ inputs.page_size }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
@@ -65,6 +71,7 @@ jobs:
         env:
           VERSIONS: ${{ inputs.rke2_versions }}
           PAGE_SIZE: ${{ inputs.page_size }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -v "$VERSIONS" -d -p "$PAGE_SIZE"
         shell: sh
         continue-on-error: true
@@ -75,6 +82,9 @@ jobs:
         if: ${{ inputs.rke2_lts_versions != '' }}
         env:
           VERSIONS: ${{ inputs.rke2_lts_versions }}
+          LTS_RPM_TARGETS: ${{ inputs.rke2_lts_rpm_targets }}
+          LTS_ARTIFACT_BASE_URL: ${{ secrets.LTS_ARTIFACT_BASE_URL }}
+          PRIME_RC_REGISTRY: ${{ secrets.PRIME_RC_REGISTRY }}
         run: ./release_checks.sh -l "$VERSIONS" -d
         shell: sh
         continue-on-error: true

@@ -185,7 +185,7 @@ func airgapScenario() (string, customflag.FlagConfig, error) {
 	if flags.AirgapFlag.TarballType == "" {
 		flags.AirgapFlag.TarballType = defaultTarballType
 	}
-	if method == "private_registry" &&
+	if method != "tarball" &&
 		(flags.AirgapFlag.RegistryUsername == "" || flags.AirgapFlag.RegistryPassword == "") {
 		// Throwaway registry: a fresh random password per run, kept in the shared flags
 		// so every later step (secrets file, report masking) sees the same value.
@@ -196,7 +196,8 @@ func airgapScenario() (string, customflag.FlagConfig, error) {
 		}
 		customflag.ServiceFlag.AirgapFlag.RegistryUsername = customflag.DefaultRegistryUsername
 		customflag.ServiceFlag.AirgapFlag.RegistryPassword = password
-		flags.AirgapFlag = customflag.ServiceFlag.AirgapFlag
+		flags.AirgapFlag.RegistryUsername = customflag.DefaultRegistryUsername
+		flags.AirgapFlag.RegistryPassword = password
 	}
 
 	return method, flags, nil
@@ -237,7 +238,7 @@ func airgapAnsibleArgs(config *driver.InfraConfig, playbookPath string) ([]strin
 	args = addServerFlags(args, config.Cluster.Config.ServerFlags)
 	args = addWorkerFlags(args, config.Cluster.Config.WorkerFlags)
 
-	if method == "private_registry" {
+	if method != "tarball" {
 		secretsPath, err := writeAnsibleSecretsFile(ip.RunDir, af.RegistryUsername, af.RegistryPassword)
 		if err != nil {
 			return nil, err
