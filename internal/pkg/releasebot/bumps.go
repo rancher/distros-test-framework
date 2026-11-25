@@ -408,8 +408,8 @@ type bumpedImage struct{ name, tag string }
 // operatorVariant: the cilium chart names one operator image; its template adds the cloud suffix.
 var operatorVariant = regexp.MustCompile(`-(?:aws|azure|alibabacloud|generic)$`)
 
-// valuesChecks reads the images no default install runs from the values of the one RKE2 chart the PR
-// bumps, in its bundled chart file on the node; with no such chart, or several, a person checks them.
+// valuesChecks reads the images no default install runs from the values of the RKE2 chart the PR bumps
+// for them (chartFor), in its bundled chart file on the node; with no such chart, a person checks them.
 func valuesChecks(product string, checks []BumpCheck, images []bumpedImage) (values []BumpCheck, left []string) {
 	var charts []string
 	for _, c := range checks {
@@ -419,23 +419,45 @@ func valuesChecks(product string, checks []BumpCheck, images []bumpedImage) (val
 	}
 
 	for _, img := range images {
-		if product != "rke2" || len(charts) != 1 {
-			left = append(left, fmt.Sprintf("rancher/%s:%s (not a default image, and no single chart to read it from)",
-				img.name, img.tag))
+		chart := chartFor(img.name, charts)
+		if product != "rke2" || chart == "" {
+			left = append(left, fmt.Sprintf("rancher/%s:%s (not a default image, and no single chart, or one named "+
+				"after it, to read it from)", img.name, img.tag))
 			continue
 		}
 
-		chart := charts[0]
+		// comment lines go first: rke2-traefik documents its image tag between repository and tag
 		values = append(values, BumpCheck{
 			What: fmt.Sprintf("%s image %s in %s values", img.name, img.tag, chart),
 			Cmd: "sudo grep -h chartContent /var/lib/rancher/rke2/data/*/charts/" + chart + ".yaml" +
 				" | sed s/.*chartContent.// | base64 -di | tar xzOf - " + chart + "/values.yaml" +
-				" | grep -A1 rancher/" + operatorVariant.ReplaceAllString(img.name, ""),
+				" | grep -v -E ^[[:space:]]*# | grep -A1 rancher/" + operatorVariant.ReplaceAllString(img.name, ""),
 			Expected: img.tag,
 		})
 	}
 
 	return values, left
+}
+
+// chartFor is the bumped chart whose values carry the image: the only one, or the one named after it
+// (hardened-traefik in rke2-traefik, not rke2-traefik-crd); "" when that is not one chart.
+func chartFor(image string, charts []string) string {
+	if len(charts) == 1 {
+		return charts[0]
+	}
+
+	base := strings.TrimPrefix(strings.TrimPrefix(image, "hardened-"), "mirrored-")
+	var named []string
+	for _, c := range charts {
+		if strings.TrimPrefix(c, "rke2-") == base {
+			named = append(named, c)
+		}
+	}
+	if len(named) != 1 {
+		return ""
+	}
+
+	return named[0]
 }
 
 // rke2ChartChecks: a "- version: X" line followed by "filename: /charts/<chart>.yaml" bumps that chart.

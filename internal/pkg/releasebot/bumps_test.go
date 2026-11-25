@@ -438,8 +438,9 @@ const metricsServerPatch = `@@ -49,8 +49,8 @@ xargs -n1 -t $PULL_CMD_CORE << EOF
 +    ${REGISTRY}/rancher/hardened-k8s-metrics-server:v0.9.1-build20261119
 +    ${REGISTRY}/rancher/hardened-addon-resizer:1.8.24-build20261110`
 
-// An image no default install runs is checked in the values of the one chart its pull request bumps,
-// in the chart file on the node; with no chart, two charts, or on K3s, it is left to a person.
+// An image no default install runs is checked in the values of the chart its pull request bumps for it
+// (the only one, or the one named after it: Traefik's two charts), in the chart file on the node; with
+// no chart, two charts neither named after it, or on K3s, it is left to a person.
 func TestBumpValuesChecks(t *testing.T) {
 	chart := PRFile{Name: "charts/chart_versions.yaml",
 		Patch: "-  - version: 3.14.004\n+  - version: 3.14.7\n     filename: /charts/rke2-metrics-server.yaml"}
@@ -448,7 +449,7 @@ func TestBumpValuesChecks(t *testing.T) {
 	checks, unsupported := BumpChecks("rke2", []PRFile{chart, images}, []string{"hardened-k8s-metrics-server"})
 	want := "sudo grep -h chartContent /var/lib/rancher/rke2/data/*/charts/rke2-metrics-server.yaml" +
 		" | sed s/.*chartContent.// | base64 -di | tar xzOf - rke2-metrics-server/values.yaml" +
-		" | grep -A1 rancher/hardened-addon-resizer"
+		" | grep -v -E ^[[:space:]]*# | grep -A1 rancher/hardened-addon-resizer"
 	if len(unsupported) != 0 || len(checks) != 3 || checks[2].Cmd != want || checks[2].Expected != "1.8.24-build20261110" ||
 		checks[2].What != "hardened-addon-resizer image 1.8.24-build20261110 in rke2-metrics-server values" {
 		t.Fatalf("metrics-server: %+v, unsupported %v", checks, unsupported)
@@ -466,6 +467,20 @@ func TestBumpValuesChecks(t *testing.T) {
 	if checks, _ = BumpChecks("rke2", cilium, nil); len(checks) != 2 ||
 		!strings.HasSuffix(checks[1].Cmd, "| grep -A1 rancher/mirrored-cilium-operator") {
 		t.Fatalf("cilium operator-aws: %+v", checks)
+	}
+
+	// rke2#12008: the traefik and traefik-crd charts and the image, read in rke2-traefik
+	traefik := []PRFile{
+		{Name: "charts/chart_versions.yaml", Patch: "-  - version: 42.4.201\n+  - version: 42.4.202\n" +
+			"     filename: /charts/rke2-traefik.yaml\n     bootstrap: false\n-  - version: 42.4.201\n" +
+			"+  - version: 42.4.202\n     filename: /charts/rke2-traefik-crd.yaml"},
+		{Name: "scripts/build-images", Patch: "-    ${REGISTRY}/rancher/hardened-traefik:v3.7.19-build20261118\n" +
+			"+    ${REGISTRY}/rancher/hardened-traefik:v3.7.20-build20261125"},
+	}
+	if checks, u := BumpChecks("rke2", traefik, nil); len(u) != 0 || len(checks) != 3 ||
+		checks[2].What != "hardened-traefik image v3.7.20-build20261125 in rke2-traefik values" ||
+		!strings.Contains(checks[2].Cmd, "tar xzOf - rke2-traefik/values.yaml") {
+		t.Fatalf("traefik: %+v, unsupported %v", checks, u)
 	}
 
 	twoCharts := PRFile{Name: "charts/chart_versions.yaml", Patch: chart.Patch +

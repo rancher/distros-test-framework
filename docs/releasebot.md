@@ -704,9 +704,11 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   there whether or not the chart is enabled); a K3s chart URL in `manifests/*.yaml` on the server
   manifest; an image tag of a default image (`defaultImages` in `bumps.yaml`) on the node's images.
   An image the install does not run (metrics-server's addon-resizer, Cilium's envoy, hubble and
-  cloud operators, all shipped disabled) is read from the values of the one RKE2 chart the same pull
-  request bumps, in its chart file's `chartContent` on the node; with no such chart, or several, or
-  on K3s, the whole issue goes to a person (it would otherwise pass, and close, untested).
+  cloud operators, all shipped disabled) is read from the values of the RKE2 chart the same pull
+  request bumps for it (the only one, or the one named after the image: `hardened-traefik` in
+  `rke2-traefik`, not `rke2-traefik-crd`), in its chart file's `chartContent` on the node, comment
+  lines left out; with no such chart, or on K3s, the whole issue goes to a person (it would
+  otherwise pass, and close, untested).
   `hardened-cni-plugins` runs in both the Canal and the Cilium pods; `rke2-security-responder` is
   a CronJob, on the node only after a run, so its image is read from its chart's values.
   The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
