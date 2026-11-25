@@ -72,7 +72,8 @@ func BusyLimit(
 			cancel()
 
 			at = time.Now()
-			others = 1 // unknown counts as busy
+			// unknown counts as busy
+			others = 1
 			if countErr == nil {
 				others = otherBuilds(builds, ourJobs, ours)
 			}
@@ -250,9 +251,8 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 		}
 
 		version, checks := ParseBumpConsole(console)
-		if missing := noOutput(t.Checks, checks); missing != "" {
-			notPassed = append(notPassed, fmt.Sprintf("%s %s (passed, but its console shows no output for %s)",
-				t.Product, t.Branch, missing))
+		if why := missingEvidence(t.Checks, version, checks); why != "" {
+			notPassed = append(notPassed, fmt.Sprintf("%s %s (passed, but its console shows %s)", t.Product, t.Branch, why))
 			continue
 		}
 
@@ -260,7 +260,8 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 			results[t.Product] = map[string]*BranchResult{}
 		}
 		nodes, flags := clusterConfig(params["TFVARS"])
-		results[t.Product][t.Name()] = &BranchResult{ // by job: a branch has one per CNI install
+		// by job: a branch has one per CNI install
+		results[t.Product][t.Name()] = &BranchResult{
 			Target: t, Version: version, NodeOS: params["NODE_OS"], Arch: params["ARCH"], Results: checks,
 			Nodes: nodes, Flags: flags,
 		}
@@ -290,20 +291,23 @@ func clusterConfig(tfvars string) (nodes, flags string) {
 	return strings.Join(groups, "; "), strings.TrimSpace(flags)
 }
 
-// noOutput is the first check whose output the console does not show (a command with no output is no
-// evidence), or "".
-func noOutput(checks []BumpCheck, results []BumpResult) string {
+// missingEvidence is what the console lacks for the MD (its version line, or a check's own output), or
+// "": the MD shows only what the job printed.
+func missingEvidence(checks []BumpCheck, version string, results []BumpResult) string {
+	if version == "" {
+		return "no version line"
+	}
 	for _, c := range checks {
-		if len(resultFor(results, c.Expected).Output) == 0 {
-			return c.What
+		if len(resultFor(results, c).Output) == 0 {
+			return "no output for " + c.What
 		}
 	}
 
 	return ""
 }
 
-// WriteBumpMDs writes <dir>/<product>-bumps-release-<month>.md for each product with a validated bump
-// and returns the files written.
+// WriteBumpMDs writes <dir>/<product>-bumps-release-<month>.md (or a free -N name) for each product
+// with a validated bump and returns the files written.
 func WriteBumpMDs(dir string, plan *BumpPlan, results map[string]map[string]*BranchResult) ([]string, error) {
 	var files []string
 	for _, product := range []string{"k3s", "rke2"} {
@@ -318,7 +322,7 @@ func WriteBumpMDs(dir string, plan *BumpPlan, results map[string]map[string]*Bra
 		if mkErr := os.MkdirAll(dir, 0o700); mkErr != nil {
 			return files, mkErr
 		}
-		file := filepath.Join(dir, fmt.Sprintf("%s-bumps-release-%s.md", product, plan.Month))
+		file := freeMDPath(dir, product, plan.Month)
 		if writeErr := writeDurable(file, []byte(md)); writeErr != nil {
 			return files, writeErr
 		}
@@ -326,4 +330,16 @@ func WriteBumpMDs(dir string, plan *BumpPlan, results map[string]map[string]*Bra
 	}
 
 	return files, nil
+}
+
+// freeMDPath is the month's MD name, or the next free "-2", "-3" one: an earlier MD (not posted yet,
+// or edited) is never overwritten.
+func freeMDPath(dir, product, month string) string {
+	file := filepath.Join(dir, fmt.Sprintf("%s-bumps-release-%s.md", product, month))
+	for n := 2; ; n++ {
+		if _, statErr := os.Lstat(file); errors.Is(statErr, os.ErrNotExist) {
+			return file
+		}
+		file = filepath.Join(dir, fmt.Sprintf("%s-bumps-release-%s-%d.md", product, month, n))
+	}
 }

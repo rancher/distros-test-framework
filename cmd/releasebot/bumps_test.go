@@ -22,7 +22,8 @@ func TestBumpReportIsWrittenAgainWithResume(t *testing.T) {
 		case down.Load():
 			http.Error(w, "down", http.StatusInternalServerError)
 		case strings.HasSuffix(r.URL.Path, "/consoleText"):
-			_, _ = w.Write([]byte("Command to Execute: sudo grep -h chart-url /x.yaml\nExpected Value: rke2-x-1.0.tgz\n" +
+			_, _ = w.Write([]byte("rke2 version v1.37.2-rc1+rke2r1 (1234abcd)\n" +
+				"Command to Execute: sudo grep -h chart-url /x.yaml\nExpected Value: rke2-x-1.0.tgz\n" +
 				"Matched with result:\n  chart-url: rke2-x-1.0.tgz\n\n" +
 				"Command to Execute: sudo grep -h chart-url /c.yaml\nExpected Value: rke2-canal-2.0.tgz\n" +
 				"Matched with result:\n  chart-url: rke2-canal-2.0.tgz\n\n"))

@@ -178,7 +178,8 @@ func (c *Client) limitUntil(method string, until time.Time) {
 func (c *Client) do(ctx context.Context, token, method string, payload any) (raw []byte,
 	retryAfter time.Duration, err error,
 ) {
-	body, contentType := []byte{}, "application/x-www-form-urlencoded" // no arguments
+	// no arguments
+	body, contentType := []byte{}, "application/x-www-form-urlencoded"
 	if payload != nil {
 		if body, err = json.Marshal(payload); err != nil {
 			return nil, -1, err

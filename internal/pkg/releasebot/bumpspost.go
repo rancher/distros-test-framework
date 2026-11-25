@@ -79,6 +79,8 @@ type bumpPoster interface {
 	Comment(ctx context.Context, repo string, issue int, body string) (string, error)
 	CloseIssue(ctx context.Context, repo string, issue int) error
 	OpenBackports(ctx context.Context, repo string, issue int) ([]int, error)
+	IssueRef(ctx context.Context, repo string, n int) (title, body string, pull bool, err error)
+	FindComment(ctx context.Context, repo string, issue int, marker string) (string, error)
 }
 
 // PostBumpMD posts the file's sections. What was done is kept in <file>.posted.json, so a second run
@@ -94,6 +96,15 @@ func PostBumpMD(ctx context.Context, gh bumpPoster, file string, closeIssues boo
 	}
 	if len(sections) == 0 {
 		return fmt.Errorf("%s has no bump section to post", file)
+	}
+
+	release, lockErr := AcquireInstanceLock(file + ".lock")
+	if lockErr != nil {
+		return fmt.Errorf("post %s: %w", file, lockErr)
+	}
+	defer release()
+	if issuesErr := checkSectionIssues(ctx, gh, sections); issuesErr != nil {
+		return issuesErr
 	}
 
 	ledger := file + ".posted.json"
@@ -125,13 +136,16 @@ func postBumpSection(
 	ctx context.Context, gh bumpPoster, s *BumpSection, closeIssues bool, done map[string]string,
 	record func(key, value string) error, log logFunc,
 ) error {
-	// Keyed by the body too: a later MD of the month with new results for the issue is a new comment.
-	mainKey := fmt.Sprintf("comment %s#%d %x", s.Repo, s.Issue, sha256.Sum256([]byte(s.Body)))
+	// Keyed by the body: new results for the issue are a new comment. The marker finds a comment whose
+	// reply was lost, so a rerun does not post it twice.
+	sum := sha256.Sum256([]byte(s.Body))
+	mainKey := fmt.Sprintf("comment %s#%d %x", s.Repo, s.Issue, sum)
+	marker := fmt.Sprintf("<!-- releasebot bump %x -->", sum[:6])
 	url := done[mainKey]
 	if url == "" {
-		posted, commentErr := gh.Comment(ctx, s.Repo, s.Issue, s.Body)
-		if commentErr != nil {
-			return commentErr
+		posted, postErr := commentOnce(ctx, gh, s.Repo, s.Issue, s.Body+"\n"+marker+"\n", marker)
+		if postErr != nil {
+			return postErr
 		}
 		url = posted
 		if recordErr := record(mainKey, url); recordErr != nil {
@@ -141,8 +155,9 @@ func postBumpSection(
 	log("info", "%s#%d: %s", s.Repo, s.Issue, url)
 
 	for _, bp := range s.Backports {
+		link := "Validated here: " + url
 		if postErr := once(done, fmt.Sprintf("link %s#%d", s.Repo, bp), record, func() error {
-			_, linkErr := gh.Comment(ctx, s.Repo, bp, "Validated here: "+url)
+			_, linkErr := commentOnce(ctx, gh, s.Repo, bp, link, link)
 			return linkErr
 		}); postErr != nil {
 			return postErr
@@ -193,6 +208,37 @@ func closeBumpSection(
 		return closeErr
 	}
 	log("info", "%s#%d and its %d backports closed", s.Repo, s.Issue, len(s.Backports))
+
+	return nil
+}
+
+// commentOnce posts body unless the issue already has a comment holding marker (a post whose reply was
+// lost), and returns the comment's URL.
+func commentOnce(ctx context.Context, gh bumpPoster, repo string, issue int, body, marker string) (string, error) {
+	url, findErr := gh.FindComment(ctx, repo, issue, marker)
+	if findErr != nil {
+		return "", fmt.Errorf("comments of %s#%d: %w", repo, issue, findErr)
+	}
+	if url != "" {
+		return url, nil
+	}
+
+	return gh.Comment(ctx, repo, issue, body)
+}
+
+// checkSectionIssues refuses a file whose sections name a pull request: closing one would close it.
+func checkSectionIssues(ctx context.Context, gh bumpPoster, sections []BumpSection) error {
+	for _, s := range sections {
+		for _, n := range append([]int{s.Issue}, s.Backports...) {
+			_, _, pull, refErr := gh.IssueRef(ctx, s.Repo, n)
+			if refErr != nil {
+				return fmt.Errorf("check %s#%d: %w", s.Repo, n, refErr)
+			}
+			if pull {
+				return fmt.Errorf("%s#%d is a pull request, not an issue: nothing posted", s.Repo, n)
+			}
+		}
+	}
 
 	return nil
 }

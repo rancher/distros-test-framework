@@ -83,7 +83,8 @@ func (c *Client) RunSocketMode(ctx context.Context, handle func(*Event), logf fu
 		if time.Since(started) >= healthyConnection {
 			backoff = time.Second
 			if errors.Is(err, errDisconnect) {
-				continue // routine refresh: reconnect right away
+				// routine refresh: reconnect right away
+				continue
 			}
 		}
 		logf("warn", "socket mode connection ended: %v; reconnecting in %s", err, backoff)
@@ -202,7 +203,8 @@ func (c *Client) dial(ctx context.Context, wsURL string) (*websocket.Conn, error
 // and bounds every write, so a peer that stops reading cannot hang the reader in an ack.
 type idleConn struct {
 	net.Conn
-	idle time.Duration // zero during the handshake
+	// zero during the handshake
+	idle time.Duration
 }
 
 func (c *idleConn) Read(p []byte) (int, error) {

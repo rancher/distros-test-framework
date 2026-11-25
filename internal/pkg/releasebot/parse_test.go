@@ -34,10 +34,8 @@ func TestBaseVersion(t *testing.T) {
 	}
 }
 
-// "baler" in any case asks for the Baler split ("balers" does not), and survives Without, which the
-// listener uses to re-plan a request minus the tags other runs already validate.
-// "baler" switches controller only when it stands alone next to the tags; any other use of the
-// word is refused instead of guessed.
+// "baler" alone next to the tags, in any case, asks for the Baler split and survives Without; any other
+// use of the word is refused instead of guessed.
 func TestParseRequestBaler(t *testing.T) {
 	for _, text := range []string{
 		"v1.37.1-rc1+k3s1 baler", "<@U04M1C0BZAA> v1.37.1-rc1+k3s1, v1.37.1-rc1+rke2r1 `Baler`.",

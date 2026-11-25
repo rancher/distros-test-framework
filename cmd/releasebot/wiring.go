@@ -44,9 +44,8 @@ func controllerURL(controller string) string {
 	return os.Getenv("JENKINS_" + strings.ToUpper(controller) + "_URL")
 }
 
-// run is the CLI mode: plan the request in -message or -message-file, then execute it unless
-// -dry-run, or carry on a saved run (-resume). An execution is driven from the terminal like a Slack
-// thread: progress is saved at each change, and status, stop, retry, skip and triage are typed in.
+// run plans the request and, without -dry-run, executes it from the terminal (or carries a saved run
+// on with -resume), saving the progress at each change.
 func run(o *options) error {
 	if o.messageFile != "" {
 		raw, err := os.ReadFile(o.messageFile)

@@ -15,9 +15,8 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/releasebot"
 )
 
-// runBumps is the bump mode: plan the boards' bump issues (dry-run), or, once the captain accepts the
-// list at the terminal, run one version-bump job per product and branch and write the MDs. Posting
-// is a separate, explicit step (-bumps-post).
+// runBumps plans the boards' bump issues or, once the captain accepts them, runs their jobs and
+// writes the MDs; posting is a separate step (-bumps-post).
 func runBumps(o *options) error {
 	if o.bumpsPost != "" {
 		return postBumps(o)
@@ -63,7 +62,8 @@ func runBumps(o *options) error {
 		return nil
 	}
 
-	o.skipWorkflows = true // bumps dispatch no workflow and report to no Qase run
+	// bumps dispatch no workflow and report to no Qase run
+	o.skipWorkflows = true
 	release, claimErr := claimExecution(o.stateFile, bumpsStatePath(o.stateFile))
 	if claimErr != nil {
 		return claimErr
@@ -306,12 +306,21 @@ func postBumps(o *options) error {
 	if o.bumpsClose {
 		what = "post and close"
 	}
+	commitOnly := 0
 	for _, s := range sections {
 		line := fmt.Sprintf("  %s#%d (backports %v)", s.Repo, s.Issue, s.Backports)
 		if o.bumpsClose && len(s.Open) > 0 {
 			line += fmt.Sprintf(", stays open: backports %v not validated", s.Open)
 		}
+		if len(s.Commit) > 0 {
+			line += fmt.Sprintf(", commit build only: %v", s.Commit)
+			commitOnly += len(s.Commit)
+		}
 		fmt.Println(line)
+	}
+	if commitOnly > 0 {
+		fmt.Printf("%d of these backports were validated on a commit build only: run them again on the RC.\n",
+			commitOnly)
 	}
 	fmt.Printf("%s these %d issues and their backports? Type yes: ", what, len(sections))
 	answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')

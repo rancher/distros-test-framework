@@ -66,7 +66,8 @@ func buildersFor(m *Matrix, clients map[string]*jenkins, jobs []JenkinsJob) (map
 	for i := range jobs {
 		name := jobs[i].Controller
 		if _, known := m.Controller[name]; !known {
-			continue // a saved build of a removed controller: the scheduler reports it as unknown
+			// a saved build of a removed controller: the scheduler reports it as unknown
+			continue
 		}
 		if clients[name] == nil {
 			return nil, fmt.Errorf("set JENKINS_%s_AUTH=user:apitoken", strings.ToUpper(name))

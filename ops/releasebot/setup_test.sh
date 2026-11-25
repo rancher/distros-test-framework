@@ -4,7 +4,8 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(mktemp -d)"
-chmod 0755 "$ROOT" # as root, setup.sh validates as the releasebot user, which must reach the stage
+# as root, setup.sh validates as the releasebot user, which must reach the stage
+chmod 0755 "$ROOT"
 trap 'rm -rf "$ROOT"' EXIT
 PASS=0
 FAIL=0
@@ -77,11 +78,13 @@ deploy() {
     RELEASEBOT_RUN_UNIT="$RUN_UNIT" RELEASEBOT_RUN_BIN="$RUN_BIN" bash "$HERE/setup.sh" deploy "$@" 2>&1
 }
 
-check() { # name condition-exit-code output
+# name condition-exit-code output
+check() {
   if [ "$2" = 0 ]; then echo "PASS: $1"; PASS=$((PASS + 1)); else echo "FAIL: $1"; echo "$3"; FAIL=$((FAIL + 1)); fi
 }
 
-reset() { # reset <is-active answer>
+# reset <is-active answer>
+reset() {
   : > "$ROOT/systemctl.log"
   echo "$1" > "$ROOT/active"
   rm -f "$ROOT/disabled"
@@ -268,7 +271,8 @@ run_wrapper() {
   PATH="$ROOT/bin:$PATH" RELEASEBOT_RUN_DIR="$ROOT/run" bash "$HERE/releasebot-run" "$@" 2>&1
 }
 
-reset failed # the Slack bot is not running
+# the Slack bot is not running
+reset failed
 out="$(run_wrapper v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1 baler)"; rc=$?
 [ "$rc" = 0 ] && grep -qx 'RUN_REQUEST="v1.37.1-rc1+rke2r1 v1.37.1-rc1+k3s1 baler"' "$ROOT"/run/*.env &&
   grep -qx 'RUN_DRY_RUN=true' "$ROOT"/run/*.env && [ "$(stat -c %a "$ROOT/run" 2>/dev/null || stat -f %Lp "$ROOT/run")" = 700 ] &&
@@ -305,7 +309,8 @@ if [ "$(id -u)" = 0 ] && stat -c %h / >/dev/null 2>&1; then
       RELEASEBOT_RUN_UNIT="$RUN_UNIT" RELEASEBOT_RUN_BIN="$RUN_BIN" \
       RELEASEBOT_TRIAGE_GROUP="$(id -gn)" bash "$HERE/setup.sh" prepare nobody 2>&1
   }
-  : > "$ROOT/broker" # no broker runs until the handover cases below
+  # no broker runs until the handover cases below
+  : > "$ROOT/broker"
   mkdir -m 0770 "$SPOOL" "$SPOOL/work" "$ROOT/elsewhere"
   printf 's' > "$ROOT/secret" && chmod 0600 "$ROOT/secret"
   ln -s "$ROOT/elsewhere" "$SPOOL/in"
@@ -328,7 +333,8 @@ if [ "$(id -u)" = 0 ] && stat -c %h / >/dev/null 2>&1; then
   [ "$rc" != 0 ] && [[ "$out" == *"out is not a directory"* ]]
   check "prepare refuses a spool entry that is not a directory" $? "$out"
 
-  rm -f "$SPOOL/out" && mkdir "$SPOOL/out" # the previous case left a file there
+  # the previous case left a file there
+  rm -f "$SPOOL/out" && mkdir "$SPOOL/out"
   env="$ROOT/etc/releasebot.env"
   chmod 0644 "$env" && cp "$env" "$ROOT/env.content"
   out="$(prepare)"; rc=$?

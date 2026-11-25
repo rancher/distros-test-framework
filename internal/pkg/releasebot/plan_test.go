@@ -50,11 +50,12 @@ func loadMatrixText(t *testing.T, body string) *Matrix {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	m, err := loadMatrix(path)
+	m, err := LoadMatrixWithRef(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.PrefixBase = "fmor" // what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
+	// what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
+	m.PrefixBase = "fmor"
 
 	return m
 }
@@ -153,7 +154,8 @@ func TestBuildPlanSkipsOptionalBlocksRequired(t *testing.T) {
 	m := loadMatrixText(t, phasedMatrix)
 	res := &fakeResolver{jobs: map[string][]string{
 		"p/tar": allParams(), "p/rpm": allParams(), "p/arm": allParams(), "p/conf": allParams(),
-		"p/gap": allParams(), "p/up": allParams(), // p/dual missing (optional); p/up lacks UPGRADE_VERSION
+		// p/dual missing (optional); p/up lacks UPGRADE_VERSION
+		"p/gap": allParams(), "p/up": allParams(),
 	}, ga: map[string]string{"v1.37.1-rc1+rke2r1": "v1.37.0+rke2r1"}}
 
 	p, err := buildPlan(context.Background(), Request{RKE2: []string{"v1.37.1-rc1+rke2r1", "v1.36.4-rc1+rke2r1"}},
@@ -212,7 +214,8 @@ func TestBuildPlanBlocksMissingRequiredJob(t *testing.T) {
 	m := loadMatrixText(t, phasedMatrix)
 	res := &fakeResolver{jobs: map[string][]string{
 		"p/tar": allParams(), "p/rpm": allParams(), "p/arm": allParams(), "p/dual": allParams(),
-		"p/gap": allParams(), "p/up": allParams("UPGRADE_VERSION"), // p/conf (required) missing
+		// p/conf (required) missing
+		"p/gap": allParams(), "p/up": allParams("UPGRADE_VERSION"),
 	}, ga: map[string]string{"v1.37.1-rc1+rke2r1": "v1.37.0+rke2r1"}}
 	p, err := buildPlan(context.Background(), Request{RKE2: []string{"v1.37.1-rc1+rke2r1"}}, m, testNow, "rb-1", res)
 	if err != nil {
@@ -343,7 +346,7 @@ func TestLoadMatrixRejectsLongPrefixAndDuplicateCodes(t *testing.T) {
 	} {
 		path := filepath.Join(t.TempDir(), "m.yaml")
 		_ = os.WriteFile(path, []byte(base+jobs), 0o600)
-		if _, err := loadMatrix(path); err == nil {
+		if _, err := LoadMatrixWithRef(path, ""); err == nil {
 			t.Fatalf("%s: expected an error", name)
 		}
 	}
@@ -351,7 +354,7 @@ func TestLoadMatrixRejectsLongPrefixAndDuplicateCodes(t *testing.T) {
 
 // The shipped matrix: every product has the smoke split, and the prefixes fit qainfra's budget.
 func TestShippedMatrixPlan(t *testing.T) {
-	m, err := loadMatrix("../../../config/releasebot/matrix.yaml")
+	m, err := LoadMatrixWithRef("../../../config/releasebot/matrix.yaml", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,12 +501,12 @@ func TestJenkinsJobParams(t *testing.T) {
 
 // The DTF branch comes from the matrix and can be flipped by the env file; job BRANCH follows it.
 func TestDTFRefOverride(t *testing.T) {
-	m, err := loadMatrix("../../../config/releasebot/matrix.yaml")
+	m, err := LoadMatrixWithRef("../../../config/releasebot/matrix.yaml", "")
 	if err != nil || m.DTFRef != "qa-infra-RC-1" || m.Defaults["BRANCH"] != "qa-infra-RC-1" {
 		t.Fatalf("shipped: ref %q, BRANCH %q, err %v", m.DTFRef, m.Defaults["BRANCH"], err)
 	}
 	t.Setenv(DTFRefEnv, "main")
-	m, err = loadMatrix("../../../config/releasebot/matrix.yaml")
+	m, err = LoadMatrixWithRef("../../../config/releasebot/matrix.yaml", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +525,7 @@ func TestDTFRefOverride(t *testing.T) {
 // An unreachable controller or gitHub costs one check per plan, not one per job: the rest are
 // left unchecked at once and the plan is refused.
 func TestBuildPlanStopsAskingAFailedSource(t *testing.T) {
-	m, err := loadMatrix("../../../config/releasebot/matrix.yaml")
+	m, err := LoadMatrixWithRef("../../../config/releasebot/matrix.yaml", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,7 +624,7 @@ func TestQaseRCsInReleaseOrder(t *testing.T) {
 func TestLoadMatrixRejectsUnknownController(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "m.yaml")
 	_ = os.WriteFile(path, []byte("jobs:\n  - {name: x, product: k3s, controller: nope, path: a}\n"), 0o600)
-	if _, err := loadMatrix(path); err == nil {
+	if _, err := LoadMatrixWithRef(path, ""); err == nil {
 		t.Fatal("expected error for unknown controller")
 	}
 }
@@ -724,11 +727,11 @@ func TestLoadMatrixRejectsBadDependencies(t *testing.T) {
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), c.want) {
+		if _, err := LoadMatrixWithRef(path, ""); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Fatalf("%s: expected an error about %q, got %v", name, c.want, err)
 		}
 	}
-	if _, err := loadMatrix("../../../config/releasebot/matrix.yaml"); err != nil {
+	if _, err := LoadMatrixWithRef("../../../config/releasebot/matrix.yaml", ""); err != nil {
 		t.Fatalf("shipped matrix: %v", err)
 	}
 }
@@ -742,7 +745,7 @@ func TestLoadMatrixRejectsUnknownFields(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), "depends_on") {
+	if _, err := LoadMatrixWithRef(path, ""); err == nil || !strings.Contains(err.Error(), "depends_on") {
 		t.Fatalf("expected unknown-field error naming depends_on, got %v", err)
 	}
 }
@@ -806,7 +809,7 @@ func TestLoadMatrixRejectsBalerPathWithoutController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), `controller "baler"`) {
+	if _, err := LoadMatrixWithRef(path, ""); err == nil || !strings.Contains(err.Error(), `controller "baler"`) {
 		t.Fatalf("expected an error about the baler controller, got %v", err)
 	}
 }

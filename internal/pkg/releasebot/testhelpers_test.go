@@ -67,11 +67,12 @@ jobs:
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	m, err := loadMatrix(path)
+	m, err := LoadMatrixWithRef(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.PrefixBase = "fmor" // what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
+	// what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
+	m.PrefixBase = "fmor"
 
 	return m
 }
@@ -120,12 +121,17 @@ var testNow = time.Date(2026, time.September, 28, 12, 0, 0, 0, time.UTC)
 // scriptBuilder answers queue/build queries from per-job scripts and tracks real concurrency:
 // a build counts as running from Trigger until Finished reports it done.
 type scriptBuilder struct {
-	mu       sync.Mutex
-	queue    map[string][]error // per path: errors returned by BuildFromQueue before it succeeds
-	finished map[string][]error // per path: errors returned by Finished before it reports done
-	lost     map[string]bool    // per path: jenkins accepts the trigger but the response is lost
-	results  map[string]string  // per path: final result (default SUCCESS)
-	order    []string           // paths in trigger order
+	mu sync.Mutex
+	// per path: errors returned by BuildFromQueue before it succeeds
+	queue map[string][]error
+	// per path: errors returned by Finished before it reports done
+	finished map[string][]error
+	// per path: jenkins accepts the trigger but the response is lost
+	lost map[string]bool
+	// per path: final result (default SUCCESS)
+	results map[string]string
+	// paths in trigger order
+	order    []string
 	running  int
 	peak     int
 	triggers int
@@ -170,7 +176,8 @@ func (b *scriptBuilder) Finished(_ context.Context, u string) (done bool, result
 			return false, "", errs[0]
 		}
 
-		return false, "", nil // still building
+		// still building
+		return false, "", nil
 	}
 	b.running--
 	if r, ok := b.results[path]; ok {

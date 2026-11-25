@@ -178,9 +178,8 @@ func TestExcerptIsRedacted(t *testing.T) {
 	}
 }
 
-// Timeout settings are not failures: with every git step printing "# timeout=10" and go test's
-// "-timeout=100m", the first failure (and the signature) must still be the real error, here an rpm
-// repo whose signature does not match (baler rke2_validate_cluster_rpm #482).
+// Timeout settings ("# timeout=10", "-timeout=100m") are not failures: the first failure is still the
+// real error, here an rpm repo whose signature does not match.
 func TestTimeoutSettingsAreNotFailures(t *testing.T) {
 	log := strings.Join([]string{
 		"[Pipeline] { (Checkout)",

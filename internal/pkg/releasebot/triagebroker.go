@@ -45,7 +45,8 @@ func (b *Broker) Serve(ctx context.Context) error {
 	if err := b.requeue(); err != nil {
 		return err
 	}
-	for ctx.Err() == nil { // a stopping broker claims nothing more; the next one serves what is left
+	// a stopping broker claims nothing more; the next one serves what is left
+	for ctx.Err() == nil {
 		b.sweep()
 		served, err := b.serveOne(ctx)
 		if errors.Is(err, ErrModelAccess) {
@@ -74,7 +75,8 @@ func (b *Broker) serveOne(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	work := filepath.Join(b.Spool, spoolWork, id+".json")
-	keep := false // a broker stopping mid-triage leaves the request for the next one
+	// a broker stopping mid-triage leaves the request for the next one
+	keep := false
 	defer func() {
 		if !keep {
 			_ = os.Remove(work)
@@ -338,7 +340,8 @@ func (f *FailureTriage) decide(ctx context.Context, req *TriageRequest, o *Outco
 			if !e.ok {
 				f.mu.Lock()
 				if f.seen[key] == e {
-					delete(f.seen, key) // failed triage: the next occurrence tries again
+					// failed triage: the next occurrence tries again
+					delete(f.seen, key)
 				}
 				f.mu.Unlock()
 			}
@@ -425,11 +428,13 @@ func (f *FailureTriage) now() time.Time {
 // ClaudeTriage runs the pinned jenkins-failure-triage skill headless in claude-sandbox (as the
 // broker's user) with read-only jenkins tools, and parses its schema-checked verdict.
 type ClaudeTriage struct {
-	Command   string
-	Workspace string // host directory the sandbox mounts at /workspace
+	Command string
+	// host directory the sandbox mounts at /workspace
+	Workspace string
 	SkillDir  string
-	Manifest  string // "<sha256>  <path>" lines the skill must match
-	Timeout   time.Duration
+	// "<sha256>  <path>" lines the skill must match
+	Manifest string
+	Timeout  time.Duration
 	// QuickTimeout limits a quick triage (about 30 s normally), so a queue of them fits -triage-wait.
 	QuickTimeout time.Duration
 	// QuickModel runs quick triage (e.g. "sonnet"), FullModel full triage; empty keeps the sandbox's
@@ -865,8 +870,9 @@ const (
 
 // BrokerClient asks the triage broker through a spool directory.
 type BrokerClient struct {
-	Dir     string
-	Timeout time.Duration // how long a request waits for its verdict
+	Dir string
+	// how long a request waits for its verdict
+	Timeout time.Duration
 	Poll    time.Duration
 
 	// DownLimit (default 2m): a request gives up once the broker has held no lock for this long.

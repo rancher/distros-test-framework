@@ -13,10 +13,12 @@ import (
 // attemptBuilder finishes each build on its second poll; a job fails (with result) until
 // passFrom[path] attempts, so reruns can succeed.
 type attemptBuilder struct {
-	mu       sync.Mutex
-	polls    map[string]int
-	passFrom map[string]int // path -> first attempt (0-based) that passes; missing = always passes
-	result   string         // failure result (default FAILURE)
+	mu    sync.Mutex
+	polls map[string]int
+	// path -> first attempt (0-based) that passes; missing = always passes
+	passFrom map[string]int
+	// failure result (default FAILURE)
+	result   string
 	triggers []string
 }
 
@@ -374,7 +376,8 @@ func TestStopEndsTriage(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	close(release) // the late verdict arrives while "long" keeps the run alive
+	// the late verdict arrives while "long" keeps the run alive
+	close(release)
 	time.Sleep(20 * time.Millisecond)
 	close(hb.release)
 
@@ -418,7 +421,8 @@ func TestBlockedHelpDoesNotStallScheduler(t *testing.T) {
 		{Name: "good", Product: "rke2", Version: "v2", Controller: "mower", Path: "good"},
 	}
 	done := runAsync(h.s, jobs)
-	<-posted // the help post is now stuck
+	// the help post is now stuck
+	<-posted
 
 	deadline := time.Now().Add(5 * time.Second)
 	for !strings.Contains(h.s.Status(), "rke2 v2: done") {
@@ -428,7 +432,8 @@ func TestBlockedHelpDoesNotStallScheduler(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	h.send(t, Command{Action: CommandSkip, Job: "bad", By: "U1"})
-	close(hang) // the slow post returns
+	// the slow post returns
+	close(hang)
 	out := waitOut(t, done)
 	if out["good"].Result != resultSuccess || out["bad"].Result != ResultSkipped {
 		t.Fatalf("outcomes %+v", out)

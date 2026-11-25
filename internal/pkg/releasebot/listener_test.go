@@ -22,13 +22,15 @@ const (
 	testChan = "C1"
 	openChan = "COPEN"
 	testBot  = "UBOT"
-	alice    = "UALICE" // allowed
-	mallory  = "UMAL"   // not allowed
+	// alice is on the allowlist, mallory is not.
+	alice   = "UALICE"
+	mallory = "UMAL"
 )
 
 type fakeSlack struct {
-	mu    sync.Mutex
-	posts []string // "<thread>|<text>"
+	mu sync.Mutex
+	// "<thread>|<text>"
+	posts []string
 }
 
 func (f *fakeSlack) post(_ context.Context, _, thread, text string) error {
@@ -51,8 +53,10 @@ type testListener struct {
 	t     *testing.T
 	slack *fakeSlack
 	runs  *atomic.Int32
-	gate  chan struct{} // when set, runs block until closed (or until stopped)
-	errs  []error       // returned by the runs in order; nil when exhausted
+	// when set, runs block until closed (or until stopped)
+	gate chan struct{}
+	// returned by the runs in order; nil when exhausted
+	errs []error
 }
 
 func newTestListener(t *testing.T, planErr error) *testListener {
@@ -195,8 +199,9 @@ func TestListenerIgnoresNoise(t *testing.T) {
 			Text: "<@" + testBot + ">",
 		},
 		{Type: "message", Channel: testChan, User: alice, TS: "5", Text: "no mention here"},
-		reply(alice, "999.1", "stop"),   // thread without a run
-		reply(alice, "999.1", "status"), // thread without a run
+		// thread without a run
+		reply(alice, "999.1", "stop"),
+		reply(alice, "999.1", "status"),
 	} {
 		tl.Handle(ctx, e)
 	}
@@ -290,7 +295,8 @@ func TestListenerStopAndStatus(t *testing.T) {
 	tl.Handle(ctx, reply(mallory, "600.1", "status"))
 	tl.Handle(ctx, reply(mallory, "600.1", "stop"))
 	tl.Handle(ctx, reply(alice, "600.1", "Stop"))
-	tl.Handle(ctx, reply(alice, "600.1", "stop")) // already stopped: no second message
+	// already stopped: no second message
+	tl.Handle(ctx, reply(alice, "600.1", "stop"))
 	tl.Wait()
 
 	got := tl.slack.all()
@@ -420,7 +426,8 @@ func TestListenerPostsOutcomeAfterShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(testContext(t))
 	tl.Plan = func(context.Context, string) (*Planned, error) {
 		return &Planned{Summary: "PLAN", Run: func(runCtx context.Context, rc *RunControl) error {
-			cancel() // SIGTERM while running
+			// SIGTERM while running
+			cancel()
 			<-runCtx.Done()
 			rc.Notify("stopping: 2 builds still on jenkins")
 
@@ -467,7 +474,8 @@ func TestListenerPostsAfterLongRun(t *testing.T) {
 	}
 	tl.Plan = func(context.Context, string) (*Planned, error) {
 		return &Planned{Summary: "PLAN", Run: func(_ context.Context, rc *RunControl) error {
-			time.Sleep(200 * time.Millisecond) // longer than PostTimeout
+			// longer than PostTimeout
+			time.Sleep(200 * time.Millisecond)
 			rc.Notify("finished job-1")
 
 			return nil
@@ -506,7 +514,8 @@ func TestProgressBatcherNeverBlocksCaller(t *testing.T) {
 	var mu sync.Mutex
 	var batches []string
 	b := newProgressBatcher(func(s string) {
-		<-release // Slack is slow (or rate limited)
+		// Slack is slow (or rate limited)
+		<-release
 		mu.Lock()
 		batches = append(batches, s)
 		mu.Unlock()
@@ -633,10 +642,13 @@ func TestListenerPlanQueueIsBounded(t *testing.T) {
 		return plan(ctx, text)
 	}
 	ctx := testContext(t)
-	tl.Handle(ctx, mention(mallory, "920.1")) // not allowed: plan only, no run
+	// not allowed: plan only, no run
+	tl.Handle(ctx, mention(mallory, "920.1"))
 	receive(t, entered)
-	tl.Handle(ctx, mention(mallory, "921.1")) // queued
-	tl.Handle(ctx, mention(mallory, "922.1")) // over the bound
+	// queued
+	tl.Handle(ctx, mention(mallory, "921.1"))
+	// over the bound
+	tl.Handle(ctx, mention(mallory, "922.1"))
 	tl.waitPost(t, "922.1|The bot is busy")
 	close(release)
 	tl.Wait()
@@ -671,13 +683,12 @@ func TestListenerResumesSavedRuns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	tl := newTestListener(t, nil)
 	tl.StatePath = path
-	saved := Progress{RequestID: "rb-1", Stage: StageJobs, Jobs: []JobRecord{
-		{Job: JenkinsJob{Name: "smoke", Version: "v1"}, State: jobRunning, BuildURL: "b/1"},
-	}}
+	saved := Progress{RequestID: "rb-1", Stage: StageJobs,
+		Jobs: []JobRecord{{Job: JenkinsJob{Name: "smoke", Version: "v1"}, State: jobRunning, BuildURL: "b/1"}}}
 	tl.Plan = func(context.Context, string) (*Planned, error) {
 		killedWhileRunning := func(ctx context.Context, rc *RunControl) error {
 			_ = rc.Save(saved)
-			<-ctx.Done() // the process is killed while the build runs
+			<-ctx.Done()
 
 			return ctx.Err()
 		}
@@ -694,7 +705,7 @@ func TestListenerResumesSavedRuns(t *testing.T) {
 	next.StatePath = path
 	resumed := make(chan Progress, 1)
 	next.Resume = func(_ context.Context, rc *RunControl, p Progress) error {
-		rc.Ready() // holds no slot: the other resumed runs (none here) may go
+		rc.Ready()
 		<-rc.Go
 		resumed <- p
 		<-rc.Stop
@@ -711,7 +722,7 @@ func TestListenerResumesSavedRuns(t *testing.T) {
 	if p := receive(t, resumed); p.RequestID != "rb-1" || len(p.Jobs) != 1 || p.Jobs[0].BuildURL != "b/1" {
 		t.Fatalf("resumed from %+v", p)
 	}
-	next.Handle(ctx2, mention(alice, "801.1")) // same tag: the resumed run still holds it
+	next.Handle(ctx2, mention(alice, "801.1"))
 	next.waitPost(t, "801.1|")
 	next.Handle(ctx2, reply(alice, "800.1", "stop"))
 	next.Wait()
@@ -789,7 +800,8 @@ func TestResumedRunsTakeTheirSlotsFirst(t *testing.T) {
 	post := tl.Post
 	tl.Post = func(ctx context.Context, channel, thread, text string) error {
 		if thread == "2" && strings.HasPrefix(text, "The bot restarted;") {
-			time.Sleep(100 * time.Millisecond) // the run holding a build starts late
+			// the run holding a build starts late
+			time.Sleep(100 * time.Millisecond)
 		}
 
 		return post(ctx, channel, thread, text)
@@ -806,7 +818,8 @@ func TestResumedRunsTakeTheirSlotsFirst(t *testing.T) {
 	if n := tl.ResumeRuns(testContext(t)); n != 2 {
 		t.Fatalf("resumed %d", n)
 	}
-	time.Sleep(50 * time.Millisecond) // the pending run had every chance to trigger
+	// the pending run had every chance to trigger
+	time.Sleep(50 * time.Millisecond)
 	if b.count("smoke") != 0 || capacity.InUse("mower") != 1 {
 		t.Fatalf("smoke triggered %d times past the limit, slots %d", b.count("smoke"), capacity.InUse("mower"))
 	}
@@ -843,7 +856,8 @@ func TestStateSaveErrorsAndVersion(t *testing.T) {
 	if err := run.ctl.Save(Progress{Stage: StageJobs}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(path+".tmp", 0o700); err != nil { // the next write cannot replace the file
+	// the next write cannot replace the file
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := run.ctl.Save(Progress{Stage: StageJobs, RequestID: "x"}); err == nil {
@@ -880,7 +894,8 @@ func TestRunEndingAtShutdownIsNotSaved(t *testing.T) {
 	ctx, stop := context.WithCancel(testContext(t))
 	tl.Plan = func(context.Context, string) (*Planned, error) {
 		return &Planned{Summary: "PLAN", Run: func(context.Context, *RunControl) error {
-			stop() // SIGTERM arrives as the run finishes by itself
+			// SIGTERM arrives as the run finishes by itself
+			stop()
 
 			return nil
 		}}, nil

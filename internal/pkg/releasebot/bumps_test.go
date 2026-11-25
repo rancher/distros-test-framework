@@ -211,17 +211,46 @@ func TestGroupBumps(t *testing.T) {
 
 // fakeBumpSource answers the planner from tables.
 type fakeBumpSource struct {
-	issues    map[string][]projectIssue // "org/number"
-	prs       map[int][]BumpPR          // by issue
-	files     map[int][]PRFile          // by pull request
-	tags      []string
-	contains  map[string]bool // "tag|commit"
-	head      string
-	backports map[int][]projectIssue // by main issue: its backports in any column
+	// "org/number"
+	issues map[string][]projectIssue
+	// by issue
+	prs map[int][]BumpPR
+	// by pull request
+	files map[int][]PRFile
+	tags  []string
+	// "tag|commit"
+	contains map[string]bool
+	head     string
+	// pulls are numbers that are pull requests; backports are by main issue, in any column
+	pulls     map[int]bool
+	backports map[int][]projectIssue
 }
 
 func (f *fakeBumpSource) BackportIssues(_ context.Context, _ string, issue int) ([]projectIssue, error) {
 	return f.backports[issue], nil
+}
+
+// IssueRef finds the number among the boards' issues and backports; f.pulls are pull requests.
+func (f *fakeBumpSource) IssueRef(_ context.Context, _ string, n int) (title, body string, pull bool, err error) {
+	if f.pulls[n] {
+		return "", "", true, nil
+	}
+	for _, issues := range f.issues {
+		for _, i := range issues {
+			if i.Number == n {
+				return i.Title, i.Body, false, nil
+			}
+		}
+	}
+	for _, issues := range f.backports {
+		for _, i := range issues {
+			if i.Number == n {
+				return i.Title, i.Body, false, nil
+			}
+		}
+	}
+
+	return "", "", false, nil
 }
 
 func (f *fakeBumpSource) ToTestIssues(_ context.Context, org string, number int) ([]projectIssue, error) {
@@ -233,7 +262,8 @@ func (f *fakeBumpSource) MergedPRs(_ context.Context, _ string, number int) ([]B
 }
 
 func (*fakeBumpSource) ClosingIssue(_ context.Context, _ string, pull int) (int, error) {
-	return pull - 1, nil // the tests' main pull requests close the issue just before them
+	// the tests' main pull requests close the issue just before them
+	return pull - 1, nil
 }
 
 func (f *fakeBumpSource) PRFiles(_ context.Context, _ string, number int) ([]PRFile, error) {
@@ -291,11 +321,13 @@ func planSource() *fakeBumpSource {
 			41: {{Number: 141, Base: "release-1.35", MergeCommit: "c135c"}},
 		},
 		backports: map[int][]projectIssue{
-			10: {{Repo: "rancher/rke2", Number: 11, Title: "[Release 1.37] Bump gateway API to 1.7.0"}}, // on the board too
+			// on the board too
+			10: {{Repo: "rancher/rke2", Number: 11, Title: "[Release 1.37] Bump gateway API to 1.7.0"}},
 			40: {
 				{Repo: "rancher/rke2", Number: 41, Title: "[Release-1.35] Update Cilium chart to 1.20.501",
 					Body: "Backport #40"},
-				{Repo: "rancher/rke2", Number: 42, Title: "[Release-1.36] Update Cilium chart to 1.20.501"}, // not merged
+				// not merged
+				{Repo: "rancher/rke2", Number: 42, Title: "[Release-1.36] Update Cilium chart to 1.20.501"},
 			},
 		},
 		files: map[int][]PRFile{
@@ -480,5 +512,24 @@ func TestBumpRoutesByCNI(t *testing.T) {
 	if len(plan.Person) != 1 || plan.Person[0].Number != 65 ||
 		plan.Person[0].Reason != "its checks need both the canal and the cilium install" {
 		t.Fatalf("person %+v", plan.Person)
+	}
+}
+
+// A backport's body may name another backport (k3s#14753 names #14749) or a pull request: the main
+// issue is the one they lead to.
+func TestResolveParent(t *testing.T) {
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"k3s-io/6": {
+			{Repo: "k3s-io/k3s", Number: 14747, Title: "Bump x"},
+			{Repo: "k3s-io/k3s", Number: 14749, Title: "[Release-1.36] Bump x", Body: "Backport of #14747"},
+		}},
+		pulls: map[int]bool{14761: true},
+	}
+	for body, want := range map[string]int{
+		"Backport of #14749": 14747, "Backport of #14747": 14747, "Fixed by #14761": 14760, "nothing": 0,
+	} {
+		if got, err := resolveParent(testContext(t), src, "k3s-io/k3s", body); err != nil || got != want {
+			t.Fatalf("resolveParent(%q) = %d, %v; want %d", body, got, err, want)
+		}
 	}
 }

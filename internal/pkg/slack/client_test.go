@@ -130,7 +130,8 @@ func TestRetryAfterBeyondBudgetFailsWithoutRetry(t *testing.T) {
 
 	calls.Store(0)
 	retryAfter.Store("2")
-	c = testClient(srv) // a fresh client: the first one is still inside the 120s window
+	// a fresh client: the first one is still inside the 120s window
+	c = testClient(srv)
 	c.RetryBudget = 30 * time.Second
 	start = time.Now()
 	if _, err = c.PostMessage(context.Background(), &Message{Channel: "C1", Text: "m"}); err != nil ||

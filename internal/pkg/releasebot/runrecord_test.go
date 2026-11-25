@@ -122,7 +122,8 @@ func journalOfKilledRun(t *testing.T, b *resumeBuilder) []JobRecord {
 	kill()
 	receive(t, killed)
 
-	raw, _ := json.Marshal(tap.last) // as written to the state file
+	// as written to the state file
+	raw, _ := json.Marshal(tap.last)
 	var saved []JobRecord
 	if err := json.Unmarshal(raw, &saved); err != nil {
 		t.Fatal(err)
@@ -131,9 +132,8 @@ func journalOfKilledRun(t *testing.T, b *resumeBuilder) []JobRecord {
 	return saved
 }
 
-// A run killed mid-way resumes from its last journal (as saved to disk): finished jobs are not run
-// again, the running build is followed from its URL with its slot taken back, and the job waiting
-// for help is posted again and answered.
+// A killed run resumes from its saved journal: finished jobs are not run again, the running build is
+// followed with its slot taken back, and the job waiting for help is asked again.
 func TestResumeCarriesRunOn(t *testing.T) {
 	b := &resumeBuilder{
 		results: map[string]string{"rpm": "FAILURE"}, triggers: map[string]int{},

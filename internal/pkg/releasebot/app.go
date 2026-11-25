@@ -13,9 +13,10 @@ import (
 type logFunc func(level, format string, args ...any)
 
 type Config struct {
-	MatrixPath    string
-	DTFRef        string
-	SUSELogin     string // the captain's; their HOSTNAME_PREFIX base (PrefixFromLogin)
+	MatrixPath string
+	DTFRef     string
+	// the captain's; their HOSTNAME_PREFIX base (PrefixFromLogin)
+	SUSELogin     string
 	SkipTagCheck  bool
 	SkipWorkflows bool
 	SkipJobs      bool
@@ -69,7 +70,8 @@ func (a *App) loadMatrix() (*Matrix, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.PrefixBase, _ = PrefixFromLogin(a.cfg.SUSELogin) // without one, Prepare refuses to plan
+	// without one, Prepare refuses to plan
+	m.PrefixBase, _ = PrefixFromLogin(a.cfg.SUSELogin)
 
 	for name, lim := range m.Controller {
 		override := a.cfg.ControllerURL(name)
@@ -262,7 +264,8 @@ func (a *App) Resume(ctx context.Context, saved *Progress, h *hooks) (err error)
 		return fmt.Errorf("%w: it stopped while dispatching its workflows", errNotResumable)
 	}
 	if saved.Stage != StageJobs {
-		h.ready() // no build on jenkins yet: nothing to take back before the others go on
+		// no build on jenkins yet: nothing to take back before the others go on
+		h.ready()
 	}
 
 	defer func() {

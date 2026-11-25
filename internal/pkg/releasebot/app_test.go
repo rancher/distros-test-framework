@@ -81,9 +81,11 @@ func TestExecuteMarksPartialRuns(t *testing.T) {
 	matrix := &Matrix{Controller: map[string]Limits{"mower": {URL: "http://jenkins"}}}
 
 	cases := []struct {
-		name       string
-		statuses   []int // per dispatch
-		cancel     bool  // cancel ctx once the first dispatch is accepted
+		name string
+		// per dispatch
+		statuses []int
+		// cancel ctx once the first dispatch is accepted
+		cancel     bool
 		jobs       bool
 		noToken    bool
 		partial    bool

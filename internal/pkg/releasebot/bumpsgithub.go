@@ -90,23 +90,38 @@ func (g *gitHub) ToTestIssues(ctx context.Context, org string, number int) ([]pr
 	}
 }
 
-const issuePRsQuery = `query($owner: String!, $name: String!, $number: Int!) {
+const issuePRsQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
-    timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT]) { nodes {
+    timelineItems(first: 100, after: $after, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT]) {
+      pageInfo { hasNextPage endCursor } nodes {
       ... on CrossReferencedEvent { source { ... on PullRequest { number merged baseRefName
         mergeCommit { oid } repository { nameWithOwner } } } }
       ... on ConnectedEvent { subject { ... on PullRequest { number merged baseRefName
         mergeCommit { oid } repository { nameWithOwner } } } } } } } } }`
 
-const crossRefIssuesQuery = `query($owner: String!, $name: String!, $number: Int!) {
+const crossRefIssuesQuery = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) {
-    ... on Issue { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
-      ... on CrossReferencedEvent { source { ... on Issue { number title url body state
-        repository { nameWithOwner } } } } } } }
-    ... on PullRequest { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
-      ... on CrossReferencedEvent { source { ... on Issue { number title url body state
-        repository { nameWithOwner } } } } } } }
+    ... on Issue { timelineItems(first: 100, after: $after, itemTypes: [CROSS_REFERENCED_EVENT]) {
+      pageInfo { hasNextPage endCursor } nodes { ... on CrossReferencedEvent { source { ... on Issue {
+        number title url body state repository { nameWithOwner } } } } } } }
+    ... on PullRequest { timelineItems(first: 100, after: $after, itemTypes: [CROSS_REFERENCED_EVENT]) {
+      pageInfo { hasNextPage endCursor } nodes { ... on CrossReferencedEvent { source { ... on Issue {
+        number title url body state repository { nameWithOwner } } } } } } }
   } } }`
+
+type pageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+// nullable is a GraphQL cursor: null for the first page.
+func nullable(cursor string) any {
+	if cursor == "" {
+		return nil
+	}
+
+	return cursor
+}
 
 // BackportIssues are the open backport issues ("[Release-1.37] ...") of repo that reference the issue
 // or a pull request that fixed it (a backport's body names one or the other), on any board column.
@@ -121,39 +136,17 @@ func (g *gitHub) BackportIssues(ctx context.Context, repo string, issue int) ([]
 		refs = append(refs, pr.Number)
 	}
 
-	owner, name, _ := strings.Cut(repo, "/")
 	var backports []projectIssue
 	for _, n := range refs {
-		var out struct {
-			Repository struct {
-				Item struct {
-					TimelineItems struct {
-						Nodes []struct {
-							Source *struct {
-								Number     int    `json:"number"`
-								Title      string `json:"title"`
-								URL        string `json:"url"`
-								Body       string `json:"body"`
-								State      string `json:"state"`
-								Repository struct {
-									NameWithOwner string `json:"nameWithOwner"`
-								} `json:"repository"`
-							} `json:"source"`
-						} `json:"nodes"`
-					} `json:"timelineItems"`
-				} `json:"issueOrPullRequest"`
-			} `json:"repository"`
-		}
-		vars := map[string]any{"owner": owner, "name": name, "number": n}
-		if queryErr := g.graphql(ctx, crossRefIssuesQuery, vars, &out); queryErr != nil {
-			return nil, fmt.Errorf("issues referencing %s#%d: %w", repo, n, queryErr)
+		sources, sourcesErr := g.referencingIssues(ctx, repo, n)
+		if sourcesErr != nil {
+			return nil, sourcesErr
 		}
 
-		for _, node := range out.Repository.Item.TimelineItems.Nodes {
-			s := node.Source
-			seen := slices.ContainsFunc(backports, func(b projectIssue) bool { return s != nil && b.Number == s.Number })
-			if s == nil || s.Number == 0 || s.State != "OPEN" || s.Repository.NameWithOwner != repo ||
-				BranchOf(s.Title) == "" || seen {
+		for _, s := range sources {
+			seen := slices.ContainsFunc(backports, func(b projectIssue) bool { return b.Number == s.Number })
+			if s.Number == 0 || s.State != "OPEN" || s.Repository.NameWithOwner != repo || BranchOf(s.Title) == "" ||
+				seen {
 				continue
 			}
 			backports = append(backports, projectIssue{Repo: repo, Number: s.Number, Title: s.Title, URL: s.URL,
@@ -164,40 +157,100 @@ func (g *gitHub) BackportIssues(ctx context.Context, repo string, issue int) ([]
 	return backports, nil
 }
 
+type refSource struct {
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	Body       string `json:"body"`
+	State      string `json:"state"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+}
+
+// referencingIssues are the issues that reference issue or pull request n, from every timeline page.
+func (g *gitHub) referencingIssues(ctx context.Context, repo string, n int) ([]refSource, error) {
+	owner, name, _ := strings.Cut(repo, "/")
+	var sources []refSource
+	for after := ""; ; {
+		var out struct {
+			Repository struct {
+				Item struct {
+					TimelineItems struct {
+						PageInfo pageInfo `json:"pageInfo"`
+						Nodes    []struct {
+							Source *refSource `json:"source"`
+						} `json:"nodes"`
+					} `json:"timelineItems"`
+				} `json:"issueOrPullRequest"`
+			} `json:"repository"`
+		}
+		vars := map[string]any{"owner": owner, "name": name, "number": n, "after": nullable(after)}
+		if queryErr := g.graphql(ctx, crossRefIssuesQuery, vars, &out); queryErr != nil {
+			return nil, fmt.Errorf("issues referencing %s#%d: %w", repo, n, queryErr)
+		}
+
+		items := out.Repository.Item.TimelineItems
+		for _, node := range items.Nodes {
+			if node.Source != nil {
+				sources = append(sources, *node.Source)
+			}
+		}
+		if !items.PageInfo.HasNextPage {
+			return sources, nil
+		}
+		after = items.PageInfo.EndCursor
+	}
+}
+
+// IssueRef reads an issue's title and body, and whether the number is a pull request.
+func (g *gitHub) IssueRef(ctx context.Context, repo string, n int) (title, body string, pull bool, err error) {
+	var issue struct {
+		Title       string    `json:"title"`
+		Body        string    `json:"body"`
+		PullRequest *struct{} `json:"pull_request"`
+	}
+	if _, getErr := g.getJSON(ctx, fmt.Sprintf("/repos/%s/issues/%d", repo, n), &issue); getErr != nil {
+		return "", "", false, getErr
+	}
+
+	return issue.Title, issue.Body, issue.PullRequest != nil, nil
+}
+
+// FindComment is the URL of the issue's first comment holding marker, "" when none does.
+func (g *gitHub) FindComment(ctx context.Context, repo string, issue int, marker string) (string, error) {
+	for page := 1; ; page++ {
+		var comments []struct {
+			Body    string `json:"body"`
+			HTMLURL string `json:"html_url"`
+		}
+		path := fmt.Sprintf("/repos/%s/issues/%d/comments?per_page=100&page=%d", repo, issue, page)
+		paged, getErr := g.getJSON(ctx, path, &comments)
+		if getErr != nil {
+			return "", getErr
+		}
+
+		for _, c := range comments {
+			if strings.Contains(c.Body, marker) {
+				return c.HTMLURL, nil
+			}
+		}
+		if !paged {
+			return "", nil
+		}
+	}
+}
+
 // MergedPRs lists the merged pull requests of repo that reference or close the issue, with their base.
 func (g *gitHub) MergedPRs(ctx context.Context, repo string, number int) ([]BumpPR, error) {
-	owner, name, _ := strings.Cut(repo, "/")
-	type pr struct {
-		Number      int    `json:"number"`
-		Merged      bool   `json:"merged"`
-		BaseRefName string `json:"baseRefName"`
-		MergeCommit *struct {
-			OID string `json:"oid"`
-		} `json:"mergeCommit"`
-		Repository struct {
-			NameWithOwner string `json:"nameWithOwner"`
-		} `json:"repository"`
-	}
-	var out struct {
-		Repository struct {
-			Issue struct {
-				TimelineItems struct {
-					Nodes []struct {
-						Source  *pr `json:"source"`
-						Subject *pr `json:"subject"`
-					} `json:"nodes"`
-				} `json:"timelineItems"`
-			} `json:"issue"`
-		} `json:"repository"`
-	}
-	vars := map[string]any{"owner": owner, "name": name, "number": number}
-	if queryErr := g.graphql(ctx, issuePRsQuery, vars, &out); queryErr != nil {
-		return nil, fmt.Errorf("pull requests of %s#%d: %w", repo, number, queryErr)
+	nodes, nodesErr := g.issueTimelinePRs(ctx, repo, number)
+	if nodesErr != nil {
+		return nil, nodesErr
 	}
 
 	seen := map[int]bool{}
 	var prs []BumpPR
-	for _, n := range out.Repository.Issue.TimelineItems.Nodes {
+	for _, n := range nodes {
 		p := n.Source
 		if p == nil {
 			p = n.Subject
@@ -210,6 +263,52 @@ func (g *gitHub) MergedPRs(ctx context.Context, repo string, number int) ([]Bump
 	}
 
 	return prs, nil
+}
+
+type timelinePR struct {
+	Number      int    `json:"number"`
+	Merged      bool   `json:"merged"`
+	BaseRefName string `json:"baseRefName"`
+	MergeCommit *struct {
+		OID string `json:"oid"`
+	} `json:"mergeCommit"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+}
+
+type timelinePRNode struct {
+	Source  *timelinePR `json:"source"`
+	Subject *timelinePR `json:"subject"`
+}
+
+// issueTimelinePRs are the pull requests an issue's timeline references or connects, from every page.
+func (g *gitHub) issueTimelinePRs(ctx context.Context, repo string, number int) ([]timelinePRNode, error) {
+	owner, name, _ := strings.Cut(repo, "/")
+	var nodes []timelinePRNode
+	for after := ""; ; {
+		var out struct {
+			Repository struct {
+				Issue struct {
+					TimelineItems struct {
+						PageInfo pageInfo         `json:"pageInfo"`
+						Nodes    []timelinePRNode `json:"nodes"`
+					} `json:"timelineItems"`
+				} `json:"issue"`
+			} `json:"repository"`
+		}
+		vars := map[string]any{"owner": owner, "name": name, "number": number, "after": nullable(after)}
+		if queryErr := g.graphql(ctx, issuePRsQuery, vars, &out); queryErr != nil {
+			return nil, fmt.Errorf("pull requests of %s#%d: %w", repo, number, queryErr)
+		}
+
+		items := out.Repository.Issue.TimelineItems
+		nodes = append(nodes, items.Nodes...)
+		if !items.PageInfo.HasNextPage {
+			return nodes, nil
+		}
+		after = items.PageInfo.EndCursor
+	}
 }
 
 // ClosingIssue is the first issue a pull request closes (0 when none): a backport may name the

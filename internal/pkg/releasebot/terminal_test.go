@@ -25,9 +25,10 @@ type fakeJenkins struct {
 
 	mu       sync.Mutex
 	triggers map[string]int
-	queue    []string // queue item n is queue[n-1]
-	held     map[string]bool
-	results  map[string]string
+	// queue item n is queue[n-1]
+	queue   []string
+	held    map[string]bool
+	results map[string]string
 }
 
 func newFakeJenkins(t *testing.T) *fakeJenkins {
@@ -64,7 +65,8 @@ func (f *fakeJenkins) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		_, _ = fmt.Fprintf(w, `{"building":false,"result":%q}`, result)
 	default:
-		http.NotFound(w, r) // crumbIssuer included: no CSRF protection here
+		// crumbIssuer included: no CSRF protection here
+		http.NotFound(w, r)
 	}
 }
 

@@ -44,7 +44,8 @@ prepare() {
   if [ -L "$env" ] || { [ -e "$env" ] && [ ! -f "$env" ]; }; then
     die "$env is a link or not a regular file; replace it with the file itself"
   elif [ -e "$env" ]; then
-    chown root:root "$env" && chmod 0600 "$env" # holds every token: kept, but closed to others
+    # holds every token: kept, but closed to others
+    chown root:root "$env" && chmod 0600 "$env"
   else
     install -o root -g root -m 0600 "$HERE/releasebot.env.example" "$env"
     echo "fill in $env (root:root 0600) before starting the service"
@@ -132,7 +133,8 @@ enable_listener() {
 
 # start_healthy restarts the unit and reports whether it stayed up; never exits under set -e.
 start_healthy() {
-  slack_configured || return 0 # CLI-only host: no listener to start
+  # CLI-only host: no listener to start
+  slack_configured || return 0
   [ "$keep_off" != true ] || return 0
   systemctl restart releasebot || return 1
   sleep "$SETTLE_SECONDS"
@@ -169,7 +171,8 @@ deploy() {
 
   release="$sha-$(cat "$stage/releasebot" "$stage/matrix.yaml" "$stage/triage-skill.sha256" | sha256 | cut -c1-12)"
   if [ -d "$LIB_DIR/$release" ]; then
-    rm -rf "$stage" # identical release already installed
+    # identical release already installed
+    rm -rf "$stage"
   else
     mv "$stage" "$LIB_DIR/$release"
   fi

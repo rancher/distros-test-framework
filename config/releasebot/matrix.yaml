@@ -27,8 +27,7 @@ optionalParams: [REPORT_TO_QASE, QASE_RUN_ID]
 
 jobs:
   ## rke2
-  # Phase 1, smoke: validate-cluster and validate-cluster-rpm share the RCs (newest half tarball;
-  # rke2's tarball job needs INSTALL_METHOD tar, its installer would pick rpm on SLES 16).
+  # Phase 1, smoke: validate-cluster (tarball: the installer picks rpm on SLES 16) and -rpm share the RCs.
   - {name: rke2-validate-cluster, product: rke2, controller: mower, phase: 1, code: vc, split: install,
      path: distros_qa/rke2-tests/rke2_validate_cluster_qainfra,
      params: {INSTALL_METHOD: tar}}

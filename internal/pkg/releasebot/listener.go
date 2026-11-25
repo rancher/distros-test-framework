@@ -217,7 +217,8 @@ func (l *Listener) ResumeRuns(ctx context.Context) int {
 			"and Qase workflow runs, then ask again.")
 	}
 	for _, run := range resumed {
-		saved := l.savedProgress(run) // the run's own copy: it changes it (Qase run ids) as it goes
+		// the run's own copy: it changes it (Qase run ids) as it goes
+		saved := l.savedProgress(run)
 		l.postDetached(ctx, run.channel, run.ts, "The bot restarted; resuming this run where it was "+
 			"(builds are followed again, failed jobs waiting for help are listed again).")
 		l.start(ctx, run, &Planned{Run: func(ctx context.Context, rc *RunControl) error {
@@ -636,7 +637,8 @@ func (l *Listener) onStop(ctx context.Context, e *slack.Event) {
 	close(run.stop)
 	if sr := l.saved[threadKey(e.Channel, e.ThreadTS)]; sr != nil {
 		sr.Progress.Stopped = true
-		_ = l.saveLocked() // the scheduler saves it too once it stops
+		// the scheduler saves it too once it stops
+		_ = l.saveLocked()
 	}
 	l.mu.Unlock()
 	l.post(ctx, e.Channel, e.ThreadTS, "Stopped by <@"+e.User+">: no new job will start; running builds are "+
@@ -657,7 +659,8 @@ func (l *Listener) start(ctx context.Context, run *activeRun, planned *Planned) 
 		err := planned.Run(ctx, run.ctl)
 		progress.close()
 		if run.ctl.Ready != nil {
-			run.ctl.Ready() // a resume that ended early must not hold the others back
+			// a resume that ended early must not hold the others back
+			run.ctl.Ready()
 		}
 
 		// Cut by shutdown, the run stays saved and the next bot process resumes it; one that ended

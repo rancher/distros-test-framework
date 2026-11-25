@@ -74,9 +74,8 @@ type Scheduler struct {
 	// MaxPollErrors bounds consecutive failed queue/build queries per job (default 10).
 	MaxPollErrors int
 
-	// Journal saves the run's jobs (and whether it was stopped) whenever they change; while it fails,
-	// nothing is triggered. Resume, when set, is a saved run to carry on instead of the jobs given to
-	// Run (see runrecord.go), stopped if ResumeStopped.
+	// Journal saves the jobs at each change (nothing is triggered while it fails); Resume is a saved run
+	// to carry on instead of Run's jobs (runrecord.go).
 	Journal       func(jobs []JobRecord, stopped bool) error
 	Resume        []JobRecord
 	ResumeStopped bool
@@ -124,9 +123,12 @@ func askTriager(context.Context, *Outcome) Decision {
 
 // Actions a person can take on a job waiting for help.
 const (
-	CommandRetry  = "retry"  // run it again
-	CommandSkip   = "skip"   // count it as passed
-	CommandTriage = "triage" // run the full triage and post it; the job keeps waiting
+	// CommandRetry runs the job again.
+	CommandRetry = "retry"
+	// CommandSkip counts the job as passed.
+	CommandSkip = "skip"
+	// CommandTriage runs the full triage and posts it; the job keeps waiting.
+	CommandTriage = "triage"
 )
 
 // Command is a person's answer, from the run's thread, for a job waiting for help.
@@ -149,9 +151,8 @@ type running struct {
 	buildURL string
 	errs     int
 
-	// abandoned: state unknown (lost trigger response or too many failed queries); the entry holds
-	// its slot while the build is watched: since its state was lost, seen when jenkins last answered
-	// for it, err its outcome if the watch gives up.
+	// abandoned: state unknown (lost trigger response, failed queries); the slot stays held while the
+	// build is watched (since, seen; err if the watch gives up).
 	abandoned bool
 	since     time.Time
 	seen      time.Time
@@ -414,7 +415,8 @@ func (s *Scheduler) drain(st *runState) {
 // startWhatFits walks pending jobs in plan order and reports whether any was started or resolved.
 func (s *Scheduler) startWhatFits(ctx context.Context, st *runState) bool {
 	if ctx.Err() != nil {
-		return false // canceled: nothing is sent, Run reports the pending jobs
+		// canceled: nothing is sent, Run reports the pending jobs
+		return false
 	}
 	progressed := false
 	var rest []JenkinsJob
@@ -463,7 +465,8 @@ func (s *Scheduler) startWhatFits(ctx context.Context, st *runState) bool {
 
 		if !s.trigger(ctx, st, b, &j) {
 			s.Capacity.release(j.Controller)
-			rest = append(rest, st.pending[i:]...) // not sent: the run state could not be saved
+			// not sent: the run state could not be saved
+			rest = append(rest, st.pending[i:]...)
 			break
 		}
 		progressed = true

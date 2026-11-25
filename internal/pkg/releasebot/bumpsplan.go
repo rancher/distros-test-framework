@@ -23,6 +23,7 @@ type bumpSource interface {
 	TagContains(ctx context.Context, repo, tag, commit string) (bool, error)
 	BranchHead(ctx context.Context, repo, branch string) (string, error)
 	BackportIssues(ctx context.Context, repo string, issue int) ([]projectIssue, error)
+	IssueRef(ctx context.Context, repo string, n int) (title, body string, pull bool, err error)
 	matchingTags(ctx context.Context, product, prefix string) ([]string, error)
 }
 
@@ -102,6 +103,38 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 	return plan, nil
 }
 
+// resolveParent is the main issue a backport's body leads to: a pull request is followed to the issue
+// it closes, and another backport (k3s#14753 names #14749) to its own main issue.
+func resolveParent(ctx context.Context, src bumpSource, repo, body string) (int, error) {
+	issue, pull := ParentOf(body)
+	for range 3 {
+		if issue == 0 && pull > 0 {
+			closed, closingErr := src.ClosingIssue(ctx, repo, pull)
+			if closingErr != nil {
+				return 0, closingErr
+			}
+			issue = closed
+		}
+		if issue == 0 {
+			return 0, nil
+		}
+
+		title, next, isPull, refErr := src.IssueRef(ctx, repo, issue)
+		switch {
+		case refErr != nil:
+			return 0, fmt.Errorf("parent %s#%d: %w", repo, issue, refErr)
+		case isPull:
+			issue, pull = 0, issue
+		case BranchOf(title) == "":
+			return issue, nil
+		default:
+			issue, pull = ParentOf(next)
+		}
+	}
+
+	return 0, nil
+}
+
 // classify sorts one issue into the plan: a bump (returned; listed for a person too when it has a
 // problem) or another issue (listed as not a bump).
 func (plan *BumpPlan) classify(
@@ -160,7 +193,8 @@ func offBoardBackports(
 			}
 			issue.OffBoard = true
 			if issue.Parent == 0 {
-				issue.Parent = main.Number // found through it
+				// found through it
+				issue.Parent = main.Number
 			}
 			found = append(found, issue)
 		}
@@ -184,15 +218,12 @@ func classifyBump(
 	issue := &BumpIssue{Product: product, Repo: pi.Repo, Number: pi.Number, Title: pi.Title, URL: pi.URL,
 		Branch: BranchOf(pi.Title)}
 	if issue.Branch == "" {
-		return issue, nil, nil // the main issue: reported with its backports, never validated itself
+		// the main issue: reported with its backports, never validated itself
+		return issue, nil, nil
 	}
-	parent, pull := ParentOf(pi.Body)
-	if parent == 0 && pull > 0 {
-		closed, closingErr := src.ClosingIssue(ctx, pi.Repo, pull)
-		if closingErr != nil {
-			return nil, nil, closingErr
-		}
-		parent = closed
+	parent, parentErr := resolveParent(ctx, src, pi.Repo, pi.Body)
+	if parentErr != nil {
+		return nil, nil, parentErr
 	}
 	issue.Parent = parent
 
@@ -278,7 +309,8 @@ func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
 		}
 
 		for _, c := range b.Checks {
-			f := strings.Fields(c.What) // "<component> <chart|image> <version>"
+			// "<component> <chart|image> <version>"
+			f := strings.Fields(c.What)
 			k := b.Product + " " + b.Branch + ": " + strings.Join(f[:min(2, len(f))], " ")
 			if versions[k] == nil {
 				keys = append(keys, k)
@@ -299,7 +331,8 @@ func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
 		}
 		for _, b := range issues[k] {
 			if skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
-				continue // listed for another conflict already
+				// listed for another conflict already
+				continue
 			}
 			skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] = true
 			problems = append(problems, BumpProblem{Repo: b.Repo, Number: b.Number, Title: b.Title,
@@ -324,7 +357,8 @@ func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person
 			continue
 		}
 
-		k := b.Product + "|" + b.Branch + "|" + b.JobPath // one job per branch and CNI install
+		// one job per branch and CNI install
+		k := b.Product + "|" + b.Branch + "|" + b.JobPath
 		t := byBranch[k]
 		if t == nil {
 			t = &BumpTarget{Product: b.Product, Branch: b.Branch, JobPath: b.JobPath, JobName: b.JobName}

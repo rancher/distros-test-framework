@@ -8,10 +8,12 @@ import (
 // Capacity counts the builds each controller runs for the bot, across all runs. A build in
 // unknown state keeps its slot (abandoned) until its run sees it finish or stops watching it.
 type Capacity struct {
-	mu        sync.Mutex
-	used      map[string]int
-	abandoned map[string]map[string]int // owner -> controller -> slots
-	paused    map[string]time.Time      // controller -> no run triggers there before this
+	mu   sync.Mutex
+	used map[string]int
+	// owner -> controller -> slots
+	abandoned map[string]map[string]int
+	// controller -> no run triggers there before this
+	paused map[string]time.Time
 }
 
 // pause stops every run triggering on controller until the given time (a gateway error answered a

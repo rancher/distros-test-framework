@@ -34,7 +34,8 @@ func (s *Scheduler) settle(st *runState, o *Outcome) {
 // it; otherwise the job waits for a person.
 func (s *Scheduler) decide(st *runState, r *triageResult) {
 	if _, waiting := st.triaging[r.out.Job.key()]; !waiting {
-		return // late: stop already finished the job (drain empties triaging)
+		// late: stop already finished the job (drain empties triaging)
+		return
 	}
 	delete(st.triaging, r.out.Job.key())
 	why := rerunDenied(&r.out)

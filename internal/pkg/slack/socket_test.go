@@ -112,7 +112,8 @@ func TestSocketModeAcksDispatchesAndReconnects(t *testing.T) {
 
 	expectAcks(t, acks, ctx.Done(), "e1", "e2")
 	for opens.Load() < 2 && ctx.Err() == nil {
-		time.Sleep(10 * time.Millisecond) // disconnect leads to a new connection
+		// disconnect leads to a new connection
+		time.Sleep(10 * time.Millisecond)
 	}
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
@@ -278,7 +279,8 @@ func failingOpen(t *testing.T, code string) (*Client, *atomic.Int32) {
 
 // An ack to a peer that stopped reading fails after IdleTimeout instead of blocking the reader.
 func TestIdleConnBoundsWrites(t *testing.T) {
-	local, peer := net.Pipe() // writes block until the peer reads, and this peer never does
+	// writes block until the peer reads, and this peer never does
+	local, peer := net.Pipe()
 	defer peer.Close()
 	c := &idleConn{Conn: local, idle: 100 * time.Millisecond}
 	defer c.Close()

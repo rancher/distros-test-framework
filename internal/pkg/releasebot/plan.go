@@ -175,11 +175,6 @@ const (
 
 var jobCode = regexp.MustCompile(`^[a-z0-9]{1,2}$`)
 
-// loadMatrix reads and validates the matrix file.
-func loadMatrix(path string) (*Matrix, error) {
-	return LoadMatrixWithRef(path, "")
-}
-
 // LoadMatrixWithRef applies an explicit branch override before expanding {{DTF_REF}}.
 func LoadMatrixWithRef(path, dtfRef string) (*Matrix, error) {
 	raw, err := os.ReadFile(path)

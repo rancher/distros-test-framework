@@ -685,8 +685,9 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
 - **Which issues.** The "To Test" column of K3s Development (`k3s-io` project 6) and RKE2
   Development (`rancher` project 31). A title starting with Bump, Update or Upgrade (after an
   optional `[Release-1.3x]`) is a bump; the other issues are listed and left alone. A backport
-  belongs to the main issue its body names (an issue, or the pull request that closes it), else to
-  the main issue with the same title; one with neither goes to "needs a person". The backports of
+  belongs to the main issue its body names (an issue, or the pull request that closes it, and past
+  another backport it names: k3s#14753 names #14749), else to the main issue with the same title;
+  one with neither goes to "needs a person". The backports of
   a To Test main issue are also found on GitHub (open `[Release-1.x]` issues referencing it or its
   pull request), in any column: the team often moves only the main issue, so its backports stay in
   Working; they are classified like the board's and marked "not in To Test". The plan lists every
@@ -738,8 +739,9 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   addresses, `ip-…` node names, AMI IDs, Prime artifact URLs and the staging registry get the
   `<REDACTED_…>` placeholders. A file that would still show one of them or a Jenkins link is never
   written or posted (`-bumps-post` checks the file again, after the captain's edits). A job that
-  did not pass leaves its bumps out, and so does one whose console lacks the output of a check;
-  the run lists them. If reading the consoles or writing the MDs fails after the
+  did not pass leaves its bumps out, and so does one whose console lacks the version line or a
+  check's own output (matched by its command and value); the run lists them. A second run in the
+  same month writes `-2`, `-3` and so on: an earlier MD, posted or not, is never overwritten. If reading the consoles or writing the MDs fails after the
   run ended, the run is kept in `bumps-run-plan.json`: `-bumps -dry-run=false -resume` writes them
   again, and a new bump run refuses until then.
 - **Posting.** Only `-bumps-post <md>`, after the captain read the file and typed `yes`: the
@@ -747,8 +749,11 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   the validated backports closed. The main issue closes only when no backport of it is open: none
   of its To Test backports is left out (the section's `open=` list is empty), and GitHub shows no
   other open `[Release-1.x]` issue referencing it or its pull requests (one still In Progress, off
-  the board). `<md>.posted.json` records each step, so a rerun after a failure never posts twice;
-  a section whose results changed (a later run of the month) is a new comment, and new backports
+  the board). Before anything, every number in the file must be an issue (not a pull request).
+  The prompt counts the backports validated on a commit build only (`commit=` in the section), to
+  run again on the RC. `<md>.posted.json` records each step, a hidden marker in each comment finds
+  one whose reply was lost, and a lock keeps two posts of one file apart, so nothing posts twice; a
+  section whose results changed (a later run of the month) is a new comment, and new backports
   link to it.
 
 ### Running without Slack

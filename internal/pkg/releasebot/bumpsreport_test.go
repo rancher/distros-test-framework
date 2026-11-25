@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,7 @@ func TestRenderBumpMDRedactsEverywhere(t *testing.T) {
 	group, validated := canalValidated()
 	r := validated["release-1.37"]
 	r.Target.Checks[0].Cmd = "sudo grep -h stgregistry.suse.com /etc/rancher/rke2/registries.yaml"
+	r.Results[0].Cmd = r.Target.Checks[0].Cmd
 	r.Results[0].Output = append(r.Results[0].Output, "ami-0abcdef1234567890 fd00:42::1 https://prime.ribs.rancher.io/x.tgz")
 
 	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{group}, validated)
@@ -153,17 +155,36 @@ func TestRenderBumpMDRedactsEverywhere(t *testing.T) {
 	}
 }
 
-// fakePoster records what was posted and fails the first call when failOnce is set; open are the
-// open backports GitHub knows of.
+// fakePoster records what was posted ("repo#n: first line") and fails the first call when failOnce is
+// set; open are the open backports GitHub knows of, pulls the numbers that are pull requests.
 type fakePoster struct {
-	comments []string // "repo#n: body"
+	comments []string
+	bodies   map[string]string
 	closed   []int
 	open     []int
+	pulls    map[int]bool
 	failOnce bool
+	// lostReply: the comment is created but its reply never arrives
+	lostReply bool
 }
 
 func (f *fakePoster) OpenBackports(context.Context, string, int) ([]int, error) {
 	return f.open, nil
+}
+
+func (f *fakePoster) IssueRef(_ context.Context, _ string, n int) (title, body string, pull bool, err error) {
+	return "", "", f.pulls[n], nil
+}
+
+func (f *fakePoster) FindComment(_ context.Context, repo string, issue int, marker string) (string, error) {
+	for url, body := range f.bodies {
+		if strings.HasPrefix(url, fmt.Sprintf("https://github.com/%s/issues/%d#", repo, issue)) &&
+			strings.Contains(body, marker) {
+			return url, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (f *fakePoster) Comment(_ context.Context, repo string, issue int, body string) (string, error) {
@@ -172,8 +193,17 @@ func (f *fakePoster) Comment(_ context.Context, repo string, issue int, body str
 		return "", errors.New("github is down")
 	}
 	f.comments = append(f.comments, fmt.Sprintf("%s#%d: %s", repo, issue, strings.SplitN(body, "\n", 2)[0]))
+	url := fmt.Sprintf("https://github.com/%s/issues/%d#issuecomment-%d", repo, issue, len(f.comments))
+	if f.bodies == nil {
+		f.bodies = map[string]string{}
+	}
+	f.bodies[url] = body
+	if f.lostReply {
+		f.lostReply = false
+		return "", errors.New("reply lost")
+	}
 
-	return fmt.Sprintf("https://github.com/%s/issues/%d#issuecomment-%d", repo, issue, len(f.comments)), nil
+	return url, nil
 }
 
 func (f *fakePoster) CloseIssue(_ context.Context, _ string, issue int) error {
@@ -246,7 +276,7 @@ func TestPostBumpMDAgainInTheMonth(t *testing.T) {
 	post()
 
 	md, _ := os.ReadFile(file)
-	if !strings.Contains(string(md), "backports=11921,11922 open=11923 -->") {
+	if !strings.Contains(string(md), "backports=11921,11922 open=11923 commit=11921,11922 -->") {
 		t.Fatalf("section header:\n%s", md)
 	}
 	if len(gh.comments) != 4 || gh.comments[2] != "rancher/rke2#11882: ## Validated on Version" ||
@@ -286,18 +316,33 @@ func TestPostBumpMDKeepsMainOpen(t *testing.T) {
 	}
 }
 
-// A passed job whose console lacks a check's output is no evidence: the branch stays out of the MD.
-func TestNoOutputIsNoEvidence(t *testing.T) {
+// A passed job whose console lacks the version line or a check's own output is no evidence; two checks
+// expecting one value each need their own block (two Cilium images share a tag).
+func TestMissingEvidence(t *testing.T) {
 	_, validated := canalValidated()
 	r := validated["release-1.37"]
-	if missing := noOutput(r.Target.Checks, r.Results); missing != "" {
-		t.Fatalf("complete console: %q missing", missing)
+	if why := missingEvidence(r.Target.Checks, r.Version, r.Results); why != "" {
+		t.Fatalf("complete console: %q", why)
+	}
+	if why := missingEvidence(r.Target.Checks, "", r.Results); why != "no version line" {
+		t.Fatalf("no version line: %q", why)
 	}
 
 	before, _, _ := strings.Cut(bumpConsole, "[2026-11-25T04:40:05.000Z] Matched")
 	_, cut := ParseBumpConsole(before)
-	if missing := noOutput(r.Target.Checks, cut); !strings.HasPrefix(missing, "hardened-calico image") {
-		t.Fatalf("console without the image's output: %q", missing)
+	if why := missingEvidence(r.Target.Checks, r.Version, cut); !strings.HasPrefix(why, "no output for hardened-calico") {
+		t.Fatalf("console without the image's output: %q", why)
+	}
+
+	relay := BumpCheck{What: "hubble-relay image v1.20.5 in rke2-cilium values", Cmd: "grep relay", Expected: "v1.20.5"}
+	envoy := BumpCheck{What: "envoy image v1.20.5 in rke2-cilium values", Cmd: "grep envoy", Expected: "v1.20.5"}
+	_, results := ParseBumpConsole("Command to Execute: grep relay\nExpected Value: v1.20.5\nMatched with result:\n" +
+		"  tag: v1.20.5\n\nCommand to Execute: grep envoy\nExpected Value: v1.20.5\n")
+	if got := resultFor(results, relay); len(got.Output) != 1 || got.Cmd != "grep relay" {
+		t.Fatalf("relay's block: %+v", got)
+	}
+	if why := missingEvidence([]BumpCheck{relay, envoy}, "rke2 version v1", results); why != "no output for "+envoy.What {
+		t.Fatalf("envoy took relay's output: %q", why)
 	}
 }
 
@@ -369,7 +414,8 @@ func TestRenderBumpMDTwoJobsOnABranch(t *testing.T) {
 	nodes, flags := clusterConfig("server_flags = \"profile: cis\\nselinux: true\\ncni: cilium\"\n" +
 		"nodes = [\n  {\n    count = 1\n    role  = [\"etcd\", \"cp\", \"worker\"]\n  }\n]\n")
 	validated["rke2-bumps-137"] = &BranchResult{Target: generic, NodeOS: "rhel9", Arch: "amd64", Nodes: nodes,
-		Flags: flags, Results: []BumpResult{{Expected: "rke2-gateway-api-crd-1.7.1.tgz",
+		Flags: flags, Version: "rke2 version v1.37.2-rc1+rke2r1 (1234abcd)", Results: []BumpResult{{
+			Cmd: generic.Checks[0].Cmd, Expected: "rke2-gateway-api-crd-1.7.1.tgz",
 			Output: []string{"chart-url: rke2-gateway-api-crd-1.7.1.tgz"}}}}
 
 	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{canal, gateway}, validated)
@@ -400,5 +446,86 @@ func TestSectionWhatsOfAValuesCheck(t *testing.T) {
 	if len(got) != 2 || got[0] != "the rke2-metrics-server values carry the hardened-addon-resizer image 1.8.24" ||
 		got[1] != "the hardened-k8s-metrics-server image is v0.9.1" {
 		t.Fatalf("steps %q", got)
+	}
+}
+
+// A second bump run of the month gets a new MD name: the earlier one (maybe not posted, maybe edited)
+// stays as it was.
+func TestWriteBumpMDsKeepsEarlierMD(t *testing.T) {
+	group, validated := canalValidated()
+	plan := &BumpPlan{Month: "2026-11", Groups: []*BumpGroup{group}}
+	dir := t.TempDir()
+	first, err := WriteBumpMDs(dir, plan, map[string]map[string]*BranchResult{"rke2": validated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(first[0], []byte("edited by hand"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := WriteBumpMDs(dir, plan, map[string]map[string]*BranchResult{"rke2": validated})
+	if err != nil || len(second) != 1 || !strings.HasSuffix(second[0], "rke2-bumps-release-2026-11-2.md") {
+		t.Fatalf("second MD %v, %v", second, err)
+	}
+	if kept, _ := os.ReadFile(first[0]); string(kept) != "edited by hand" {
+		t.Fatalf("the first MD was overwritten: %q", kept)
+	}
+}
+
+// A section naming a pull request is refused before anything is posted or closed; one validated on
+// a commit build says so in its header.
+func TestPostBumpMDChecksIssuesFirst(t *testing.T) {
+	group, validated := canalValidated()
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{group}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sections, _ := ParseBumpMD(md)
+	if len(sections) != 1 || !slices.Equal(sections[0].Commit, []int{11921}) {
+		t.Fatalf("commit-only backports: %+v", sections)
+	}
+
+	file := filepath.Join(t.TempDir(), "rke2.md")
+	if err = os.WriteFile(file, []byte(md), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := &fakePoster{pulls: map[int]bool{11921: true}}
+	if err = PostBumpMD(testContext(t), gh, file, true, func(string, string, ...any) {}); err == nil ||
+		!strings.Contains(err.Error(), "#11921 is a pull request") || len(gh.comments)+len(gh.closed) != 0 {
+		t.Fatalf("posted next to a pull request: %v, comments %q, closed %v", err, gh.comments, gh.closed)
+	}
+}
+
+// A comment GitHub created but whose reply was lost is found by its marker, not posted again; a second
+// -bumps-post of the same file waits for the first one's lock.
+func TestPostBumpMDNeverPostsTwice(t *testing.T) {
+	group, validated := canalValidated()
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{group}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "rke2.md")
+	if err = os.WriteFile(file, []byte(md), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	gh := &fakePoster{lostReply: true}
+	if err = PostBumpMD(testContext(t), gh, file, false, func(string, string, ...any) {}); err == nil {
+		t.Fatal("the lost reply was not reported")
+	}
+	if err = PostBumpMD(testContext(t), gh, file, false, func(string, string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	if len(gh.comments) != 2 || !strings.HasPrefix(gh.comments[1], "rancher/rke2#11921: Validated here: ") {
+		t.Fatalf("comments %q", gh.comments)
+	}
+
+	release, lockErr := AcquireInstanceLock(file + ".lock")
+	if lockErr != nil {
+		t.Fatal(lockErr)
+	}
+	defer release()
+	if err = PostBumpMD(testContext(t), &fakePoster{}, file, false, func(string, string, ...any) {}); err == nil {
+		t.Fatal("a second post ran next to the first one")
 	}
 }

@@ -920,16 +920,25 @@ func TestRedactSecrets(t *testing.T) {
 		}
 	}
 	for _, secret := range []string{
-		"11d3f9e8a7b6c5d4e3f2a1b0c9d8e7f6a5",                                            // jenkins API token (hex)
-		"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",                                      // AWS secret key
-		"ghp_R3aLlyL0ngT0kenValue1234567890abcd",                                        // gitHub token
-		"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n", // JWT
-		"abc123.0123456789abcdef",                                                       // k3s join token
-		"K10" + strings.Repeat("ab", 32) + "::abc123.0123456789abcdef",                  // k3s token with CA hash
+		// jenkins API token (hex)
+		"11d3f9e8a7b6c5d4e3f2a1b0c9d8e7f6a5",
+		// AWS secret key
+		"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		// gitHub token
+		"ghp_R3aLlyL0ngT0kenValue1234567890abcd",
+		// JWT
+		"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n",
+		// k3s join token
+		"abc123.0123456789abcdef",
+		// k3s token with CA hash
+		"K10" + strings.Repeat("ab", 32) + "::abc123.0123456789abcdef",
 		"K10" + strings.Repeat("ab", 32) + "::server:hunter2",
-		"AKIAIOSFODNN7EXAMPLE",                                        // AWS access key id (20 chars)
-		"xoxb" + "-1234567890-1234567890123-abcdefghijklmnopqrstuvwx", // Slack bot token, lowercase (split: not a real one)
-		"xapp" + "-1-a0123456789-1234567890123-abcdef0123456789",      // Slack app token
+		// AWS access key id (20 chars)
+		"AKIAIOSFODNN7EXAMPLE",
+		// Slack bot token, lowercase (split: not a real one)
+		"xoxb" + "-1234567890-1234567890123-abcdefghijklmnopqrstuvwx",
+		// Slack app token
+		"xapp" + "-1-a0123456789-1234567890123-abcdef0123456789",
 	} {
 		if got := redactSecrets("got " + secret + " end"); got != "got [redacted] end" {
 			t.Fatalf("not redacted: %q", got)
@@ -1018,7 +1027,8 @@ func TestQuickTriageTimeout(t *testing.T) {
 // A wait the bot ends itself (stop, shutdown) says so, instead of "no verdict within 1h".
 func TestCanceledWaitSaysCanceled(t *testing.T) {
 	spool := newSpool(t)
-	holdBrokerLock(t, spool) // a broker "runs" but never answers
+	// a broker "runs" but never answers
+	holdBrokerLock(t, spool)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	c := &BrokerClient{Dir: spool, Timeout: time.Hour, Poll: time.Millisecond}
@@ -1104,7 +1114,8 @@ func TestStoppedBrokerClaimsNothing(t *testing.T) {
 	calls := 0
 	b := &Broker{Spool: spool, Poll: time.Millisecond, Triage: func(context.Context, *TriageRequest) (*Verdict, error) {
 		calls++
-		cancel() // the broker is told to stop during its first triage
+		// the broker is told to stop during its first triage
+		cancel()
 		return &Verdict{Action: "ask", Bucket: "PRODUCT", Confidence: 90, Summary: "s"}, nil
 	}}
 	_ = b.Serve(ctx)
@@ -1133,7 +1144,8 @@ func TestBrokerLockWaitsOutAProbe(t *testing.T) {
 		_ = syscall.Flock(fd, syscall.LOCK_UN)
 	}()
 	release, err := AcquireBrokerLock(dir)
-	<-unlocked // the probe file is closed (deferred) only after the goroutine is done with it
+	// the probe file is closed (deferred) only after the goroutine is done with it
+	<-unlocked
 	if err != nil {
 		t.Fatalf("broker refused because of a probe: %v", err)
 	}
@@ -1307,9 +1319,10 @@ func TestBrokerRecoveryReportsFailureAndRecoversOtherRequests(t *testing.T) {
 // countingBroker answers every request with the same verdict, counting calls; hold makes the
 // first call wait until released, like a triage in progress.
 type countingBroker struct {
-	calls     atomic.Int32
-	hold      chan struct{}
-	failFirst bool // only the first request fails (the broker recovers)
+	calls atomic.Int32
+	hold  chan struct{}
+	// only the first request fails (the broker recovers)
+	failFirst bool
 }
 
 func (b *countingBroker) serve(t *testing.T, spool string) {
@@ -1376,7 +1389,8 @@ func TestFailureTriageReusesVerdict(t *testing.T) {
 			defer wg.Done()
 			ds[i] = ft.Quick(context.Background(), failureOn(v))
 		}()
-		for b.calls.Load() == 0 { // v1.35 arrives while v1.37 is being triaged
+		// v1.35 arrives while v1.37 is being triaged
+		for b.calls.Load() == 0 {
 			time.Sleep(time.Millisecond)
 		}
 	}
@@ -1557,7 +1571,8 @@ func TestRunEndsAfterHelpIsDelivered(t *testing.T) {
 	h.s.Help = func(m string) {
 		if strings.HasPrefix(m, "Full triage") {
 			close(posting)
-			time.Sleep(100 * time.Millisecond) // a slow post
+			// a slow post
+			time.Sleep(100 * time.Millisecond)
 			defer close(delivered)
 		}
 		plain(m)
@@ -1682,7 +1697,8 @@ func TestFailureTriageRecoversTogether(t *testing.T) {
 			defer wg.Done()
 			ft.Quick(context.Background(), failureOn(v))
 		}()
-		for b.calls.Load() == 0 { // the others arrive while the first triage is held
+		// the others arrive while the first triage is held
+		for b.calls.Load() == 0 {
 			time.Sleep(time.Millisecond)
 		}
 	}

@@ -19,7 +19,7 @@ The bot runs on the captain's laptop (v1). The VM and Slack hosting (v2) is park
 
 | What | From |
 |---|---|
-| GitHub token: Actions write on `rancher/distros-test-framework`; `read:project` and issue comments on `k3s-io/k3s` and `rancher/rke2` for bumps | GitHub settings |
+| GitHub token: Actions write on `rancher/distros-test-framework`; for bumps, `read:project` and commenting on and closing issues in `k3s-io/k3s` and `rancher/rke2` (closing needs your triage role there) | GitHub settings |
 | Mower `user:apitoken` (Baler too, for `baler` requests) | Jenkins → your user → Security |
 | Qase automation token (project `K3SRKE2`) | team vault |
 | Your SUSE login (e.g. `fmoral`): every `HOSTNAME_PREFIX` starts with its first 4 letters | you |
@@ -73,18 +73,19 @@ checkout or an edit in the DTF tree never changes the plan mid-release:
 
 ```
 SHA=$(git -C ~/suse/distros-test-framework rev-parse <reviewed ref>); D=~/releasebot/${SHA:0:7}
-mkdir -p "$D" && cd ~/suse/distros-test-framework
-git show "${SHA}:config/releasebot/matrix.yaml" > "$D/matrix.yaml"
-git show "${SHA}:config/releasebot/bumps.yaml" > "$D/bumps.yaml"
-git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$D/triage-skill.sha256"
-git worktree add --detach /tmp/releasebot-$SHA "$SHA" && (cd /tmp/releasebot-$SHA && go build -o "$D/releasebot" ./cmd/releasebot)
+cd ~/suse/distros-test-framework && mkdir -p ~/releasebot && P=$(mktemp -d ~/releasebot/.pin.XXXXXX)
+git show "${SHA}:config/releasebot/matrix.yaml" > "$P/matrix.yaml"
+git show "${SHA}:config/releasebot/bumps.yaml" > "$P/bumps.yaml"
+git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$P/triage-skill.sha256"
+git worktree add --detach /tmp/releasebot-$SHA "$SHA" && (cd /tmp/releasebot-$SHA && go build -o "$P/releasebot" ./cmd/releasebot)
 git worktree remove --force /tmp/releasebot-$SHA
-chmod a-w "$D"/*
-"$D/releasebot" -validate -matrix "$D/matrix.yaml"
+"$P/releasebot" -validate -matrix "$P/matrix.yaml" && chmod a-w "$P"/* && mv "$P" "$D"
 ```
 
-The skill does the same atomically ("new release commit"): `$D` appears only once the build and
-the validation passed. Never edit a pinned folder; a new commit gets a new folder.
+Run it only when `$D` does not exist yet (an existing `$D` is already pinned: just validate it).
+The folder is built in a temporary `$P` and becomes `$D` only once every step passed. If any step
+fails, run `rm -rf "$P"` and start again; `$D` was never touched. The skill does the same
+("new release commit"). Never edit a pinned folder; a new commit gets a new folder.
 
 ## 3. Check before release day
 
@@ -173,8 +174,8 @@ to Qase; their results go on their own issues.
    `-triage-local -triage-manifest "$D/triage-skill.sha256"`. It prints the plan again and asks
    `Validate these <n> issues with <m> jobs? Type yes to start:`. Nothing starts without `yes`.
    During the run, the terminal commands, Ctrl-C and `-resume` work as in a release.
-3. **The MDs:** at the end, `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md`, one
-   section per main issue. Jobs that did not pass are listed as "Not in the MDs". Read the file:
+3. **The MDs:** at the end, `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md` (a
+   later run of the month writes `-2`, `-3`), one section per main issue. Jobs that did not pass are listed as "Not in the MDs". Read the file:
    it is what goes on the public issues, redacted, and the bot refuses one that would show a
    Jenkins link or an infrastructure detail.
 4. **Posting**, only after reading the MD:
@@ -182,7 +183,8 @@ to Qase; their results go on their own issues.
    ( set -a; . ~/.config/releasebot/releasebot.env; set +a
      exec "$D/releasebot" -bumps-post ~/releasebot/bumps/2026-11/rke2-bumps-release-2026-11.md )
    ```
-   It lists each section and asks `yes`. It comments the section on the main issue and "Validated
+   It lists each section, counts the backports validated on a commit build only (run them again on
+   the RC), and asks `yes`. It comments the section on the main issue and "Validated
    here: <link>" on each backport. Add `-bumps-close` to also close the validated backports; the
    main issue closes only once no backport of it is open on GitHub. `<md>.posted.json` records
    each step, so a rerun after a failure never posts twice.
@@ -217,7 +219,7 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 | `not running: a bump run is saved in .../bumps-run.json` | Same, for bumps (a saved bump run also blocks a release run, and the reverse) | `-bumps -dry-run=false -resume`, or remove it once the builds ended |
 | `not running: the last bump run ended without its MDs` | Reading the consoles or writing the MDs failed after the run | `-bumps -dry-run=false -resume` writes them again |
 | `not running (stop the Slack bot or the other CLI run first)` | Another bot holds the lock | Only one run per laptop |
-| `RELEASEBOT_SUSE_LOGIN="": set it to your SUSE login` | No login in the env file | Add `RELEASEBOT_SUSE_LOGIN=<login>` |
+| `RELEASEBOT_SUSE_LOGIN="": set it to your SUSE login` | No login in the env file | Add `RELEASEBOT_SUSE_LOGIN=<login>`, or with the skill `python3 -I bin/credentials.py login <login>` |
 | `not checked on jenkins ... is not set` | A controller's credential is missing | Add its `JENKINS_<CONTROLLER>_AUTH` |
 | Failures say the model is not reachable | The Bedrock session expired | `claude-sandbox bedrock login --no-browser` |
 | `bump MD would show a jenkins link or a private infrastructure detail` | Something unsafe reached the MD (also after your edits) | Remove it from the MD; never post it by hand |

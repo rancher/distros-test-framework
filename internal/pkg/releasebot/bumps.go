@@ -13,24 +13,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Bump mode: the "To Test" issues of the K3s and RKE2 projects that are only version bumps are
-// validated with one version-bump job per product and release branch, and reported in one MD per
-// product and month (bumpsreport.go); bumpsgithub.go reads the issues and their PRs.
+// Bump mode: the boards' version-bump issues, validated by version-bump jobs and reported in one MD
+// per product and month (docs/releasebot.md, "Bump issues").
 
-// BumpConfig is config/releasebot/bumps.yaml.
+// BumpConfig is config/releasebot/bumps.yaml; the CLI sets PrefixBase (PrefixFromLogin) and Products
+// (-bumps-product, empty for both boards).
 type BumpConfig struct {
-	Controller string            `yaml:"controller"`
-	PrefixBase string            `yaml:"-"` // the captain's (PrefixFromLogin), set by the CLI
-	Products   []string          `yaml:"-"` // the boards to read (-bumps-product); empty: both
-	Jobs       map[string]string `yaml:"jobs"`
-
-	// DefaultImages run on the install their issue's job makes, so their tag shows on the node; any
-	// other bumped image is checked in its chart's values, or left to a person.
+	Controller    string              `yaml:"controller"`
+	Jobs          map[string]string   `yaml:"jobs"`
+	CNIJobs       map[string][]CNIJob `yaml:"cniJobs"`
 	DefaultImages map[string][]string `yaml:"defaultImages"`
-
-	// CNIJobs: an issue whose checks touch a CNI's components runs on the job that installs that
-	// CNI; every other issue on Jobs.
-	CNIJobs map[string][]CNIJob `yaml:"cniJobs"`
+	PrefixBase    string              `yaml:"-"`
+	Products      []string            `yaml:"-"`
 }
 
 // CNIJob is a version-bump job that installs a CNI, and the components (charts, images) that need it.
@@ -419,18 +413,16 @@ func dedupChecks(in []BumpCheck) []BumpCheck {
 	return out
 }
 
-// BumpTarget is one version-bump job: a product's release branch, the version it installs and every
-// bump check of that branch.
+// BumpTarget is one version-bump job: a branch, the RC tag or latest commit it installs, its checks and
+// its job (JobName names a CNI job, "canal"; empty for the product's).
 type BumpTarget struct {
 	Product string      `json:"product"`
 	Branch  string      `json:"branch"`
-	Version string      `json:"version"` // an RC tag, or the branch's latest commit
+	Version string      `json:"version"`
 	Commit  bool        `json:"commit,omitempty"`
 	Checks  []BumpCheck `json:"checks"`
-
-	// JobPath is the version-bump job; JobName names a CNI job ("canal"), empty for the product's.
-	JobPath string `json:"job,omitempty"`
-	JobName string `json:"job_name,omitempty"`
+	JobPath string      `json:"job,omitempty"`
+	JobName string      `json:"job_name,omitempty"`
 }
 
 // Name is the run's name for the target's job: "rke2-bumps-137", "rke2-bumps-137-canal".
@@ -479,7 +471,8 @@ func (t *BumpTarget) Job(c *BumpConfig, controller, dtfRef string) (JenkinsJob, 
 	}
 	prefix := c.PrefixBase + t.Minor() + t.Product[:1]
 	if t.JobName != "" {
-		prefix += t.JobName[:1] // fmor137rc: tells the canal job's nodes from the other job's
+		// fmor137rc: tells the canal job's nodes from the other job's
+		prefix += t.JobName[:1]
 	}
 	if budget := hostnameBudget - len(t.Product); len(prefix) > budget {
 		return JenkinsJob{}, fmt.Errorf("hostname prefix %q is longer than %d characters", prefix, budget)

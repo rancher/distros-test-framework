@@ -14,14 +14,15 @@ import (
 	"time"
 )
 
-// TerminalRun drives one run from a terminal as a Slack thread does: help, status and command replies
-// go to Out, commands (status, stop, retry|skip|triage <job> [rc]) come from In, and the progress is
-// saved to StatePath at each change, so a CLI started again with -resume carries the run on.
+// TerminalRun drives one run from a terminal as a Slack thread does: commands come from In, replies go
+// to Out, and the progress is saved to StatePath for -resume.
 type TerminalRun struct {
 	StatePath string
-	In        io.Reader // nil: no commands, so a job that fails just fails
-	Out       io.Writer
-	User      string // who answers, in the run's messages
+	// nil: no commands, so a job that fails just fails
+	In  io.Reader
+	Out io.Writer
+	// who answers, in the run's messages
+	User string
 
 	// LimitFor lowers a controller's limit before each trigger (Scheduler.LimitFor); may be nil.
 	LimitFor func(controller string, configured, ours int) int
@@ -117,7 +118,8 @@ func (t *TerminalRun) drive(ctx context.Context, saved *SavedTerminalRun, body f
 		stopOnce.Do(func() {
 			close(stop)
 			t.mu.Lock()
-			saved.Progress.Stopped = true // a restart right after keeps the run stopped
+			// a restart right after keeps the run stopped
+			saved.Progress.Stopped = true
 			_ = t.writeLocked(saved)
 			t.mu.Unlock()
 		})
@@ -152,9 +154,8 @@ func (t *TerminalRun) drive(ctx context.Context, saved *SavedTerminalRun, body f
 // ErrInterrupted: the run was cut (Ctrl-C) and stays saved for -resume, as the terminal already said.
 var ErrInterrupted = errors.New("run interrupted and saved for -resume")
 
-// uncertainOutcome: workflows may have been dispatched (a dispatch failed part-way, or a resume found
-// the run cut while dispatching) or builds may still run; the state then stays as the guard against a
-// duplicate until a person checks and removes it.
+// uncertainOutcome: workflows may have been dispatched or builds may still run, so the state stays as
+// the guard against a duplicate until a person checks and removes it.
 func uncertainOutcome(err error, stage string) bool {
 	dispatching := stage == StageDispatching && errors.Is(err, errPartialRun)
 

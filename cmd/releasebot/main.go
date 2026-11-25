@@ -14,7 +14,8 @@ func main() {
 
 	runFn := run
 	switch {
-	case o.validate: // wins over -listen: a deploy check must never connect to Slack
+	// wins over -listen: a deploy check must never connect to Slack
+	case o.validate:
 		runFn = validateMatrix
 	case o.triageBroker:
 		runFn = runBroker
@@ -27,11 +28,13 @@ func main() {
 	}
 	if err := runFn(o); err != nil {
 		if errors.Is(err, releasebot.ErrInterrupted) {
-			os.Exit(130) // saved for -resume, as the terminal said: not an error to log
+			// saved for -resume, as the terminal said: not an error to log
+			os.Exit(130)
 		}
 		resources.LogLevel("error", "releasebot: %v", err)
 		if errors.Is(err, releasebot.ErrModelAccess) {
-			os.Exit(77) // releasebot-triage@.service does not restart on it: a person signs in first
+			// releasebot-triage@.service does not restart on it: a person signs in first
+			os.Exit(77)
 		}
 		os.Exit(1)
 	}

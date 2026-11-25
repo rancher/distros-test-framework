@@ -25,7 +25,8 @@ func (a *App) planned(
 	if err != nil {
 		return nil, err
 	}
-	a.PrintPlan(p.Plan, "") // no mode: whether it runs is decided later (allowlist, dry-run)
+	// no mode: whether it runs is decided later (allowlist, dry-run)
+	a.PrintPlan(p.Plan, "")
 
 	run := func(ctx context.Context, rc *RunControl) error {
 		return a.Execute(ctx, p, a.runHooks(rc, capacity, failures))

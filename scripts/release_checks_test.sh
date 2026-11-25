@@ -27,16 +27,19 @@ case "\$url" in
 esac
 EOF
 chmod +x "$root/bin/curl"
-PATH="$root/bin:$PATH" # every check below runs against the stub
+# every check below runs against the stub
+PATH="$root/bin:$PATH"
 
-refs() { # refs <tag>...: the matching-refs answer for these tags, in the given order
+# refs <tag>...: the matching-refs answer for these tags, in the given order
+refs() {
   printf '[' > "$root/refs.json"
   sep=""
   for t; do printf '%s{"ref":"refs/tags/%s"}' "$sep" "$t" >> "$root/refs.json"; sep=","; done
   printf ']\n' >> "$root/refs.json"
 }
 
-lookup() { # lookup <version>: runs the packaging check and prints its output
+# lookup <version>: runs the packaging check and prints its output
+lookup() {
   (
     version="$1"
     cd "$root" || exit 1
@@ -49,7 +52,8 @@ lookup() { # lookup <version>: runs the packaging check and prints its output
   ) 2>&1
 }
 
-check() { # check <name> <condition-exit-code> <output>
+# check <name> <condition-exit-code> <output>
+check() {
   if [ "$2" = 0 ]; then echo "PASS: $1"; pass=$((pass + 1)); else echo "FAIL: $1"; echo "$3"; fail=$((fail + 1)); fi
 }
 

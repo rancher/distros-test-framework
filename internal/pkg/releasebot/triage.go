@@ -38,7 +38,8 @@ type TriageRequest struct {
 
 // Verdict is the broker's answer. Error means triage could not run; the bot then asks a person.
 type Verdict struct {
-	Action     string   `json:"action"` // "rerun" or "ask"
+	// "rerun" or "ask"
+	Action     string   `json:"action"`
 	Bucket     string   `json:"bucket"`
 	Confidence int      `json:"confidence"`
 	Summary    string   `json:"summary"`

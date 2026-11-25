@@ -9,9 +9,8 @@ import (
 	"strings"
 )
 
-// The bump MD: one file per product and month, one section per main issue (with the backports it
-// validates), each shaped like the team's bump template; the section between its markers is what
-// -bumps-post puts on the issue. Nothing in it may point at jenkins or show an address.
+// The bump MD: one section per main issue, in the team's bump template, posted by -bumps-post; it is
+// public, so nothing in it may point at jenkins or show an infrastructure detail.
 
 // BumpResult is one check as the job ran it.
 type BumpResult struct {
@@ -21,8 +20,9 @@ type BumpResult struct {
 
 // BranchResult is a passed version-bump job: what it installed and what its checks printed.
 type BranchResult struct {
-	Target  *BumpTarget
-	Version string // "rke2 version v1.37.2+dev.4b027024 (4b02...)", from the console when it says
+	Target *BumpTarget
+	// "rke2 version v1.37.2+dev.4b027024 (4b02...)", from the console when it says
+	Version string
 	NodeOS  string
 	Arch    string
 	Results []BumpResult
@@ -161,7 +161,8 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 		return "", nil
 	}
 
-	md := redact(b.String()) // commands, titles and outputs alike
+	// commands, titles and outputs alike
+	md := redact(b.String())
 	if unsafeErr := CheckBumpMD(md); unsafeErr != nil {
 		return "", unsafeErr
 	}
@@ -169,34 +170,33 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 	return md, nil
 }
 
-// writeSectionHeader writes the section's title and marker: the backports it validates and those it
-// does not (open), which keep the main issue open.
-func writeSectionHeader(b *strings.Builder, g *BumpGroup, done []*BumpIssue) {
-	var numbers, open []string
+// writeSectionHeader writes the section's title and marker: the backports it validates, those it does
+// not (open: they keep the main issue open) and those validated on a commit build only.
+func writeSectionHeader(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validated map[string]*BranchResult) {
+	var numbers, open, commit []string
 	for _, bp := range g.Backports {
-		if slices.Contains(done, bp) {
-			numbers = append(numbers, strconv.Itoa(bp.Number))
-		} else {
+		if !slices.Contains(done, bp) {
 			open = append(open, strconv.Itoa(bp.Number))
+			continue
+		}
+		numbers = append(numbers, strconv.Itoa(bp.Number))
+		if issueResult(validated, bp).Target.Commit {
+			commit = append(commit, strconv.Itoa(bp.Number))
 		}
 	}
 
 	fmt.Fprintf(b, "\n# %s#%d %s\n\n", g.Main.Repo, g.Main.Number, g.Main.Title)
-	fmt.Fprintf(b, "%s%s#%d backports=%s open=%s -->\n", sectionStart, g.Main.Repo, g.Main.Number,
-		strings.Join(numbers, ","), strings.Join(open, ","))
+	fmt.Fprintf(b, "%s%s#%d backports=%s open=%s commit=%s -->\n", sectionStart, g.Main.Repo, g.Main.Number,
+		strings.Join(numbers, ","), strings.Join(open, ","), strings.Join(commit, ","))
 }
 
 func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validated map[string]*BranchResult) {
-	writeSectionHeader(b, g, done)
+	writeSectionHeader(b, g, done, validated)
 
 	b.WriteString("## Validated on Version\n\n```console\n")
 	for _, bp := range done {
 		r := issueResult(validated, bp)
-		version := r.Version
-		if version == "" {
-			version = fmt.Sprintf("%s version %s", r.Target.Product, r.Target.Version)
-		}
-		fmt.Fprintf(b, "# %s\n-$ %s\n", bp.Branch, version)
+		fmt.Fprintf(b, "# %s\n-$ %s\n", bp.Branch, r.Version)
 	}
 	b.WriteString("```\n\n")
 
@@ -221,7 +221,7 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 			if c.Issue != bp.Number {
 				continue
 			}
-			res := resultFor(r.Results, c.Expected)
+			res := resultFor(r.Results, c)
 			fmt.Fprintf(b, "$ %s\n", displayCmd(c.Cmd))
 			for _, out := range res.Output {
 				b.WriteString(out + "\n")
@@ -256,7 +256,8 @@ func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []strin
 	var whats []string
 	for _, bp := range done {
 		for _, c := range issueResult(validated, bp).Target.Checks {
-			f := strings.Fields(c.What) // "<component> <chart|image> <version> [in <chart> values]"
+			// "<component> <chart|image> <version> [in <chart> values]"
+			f := strings.Fields(c.What)
 			if c.Issue != bp.Number || len(f) < 3 {
 				continue
 			}
@@ -274,29 +275,30 @@ func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []strin
 	return whats
 }
 
-// resultFor is the console's result of the check expecting this value (the job runs them in order).
-func resultFor(results []BumpResult, expected string) BumpResult {
+// resultFor is the check's own console block: its command and its value (two checks can share either).
+func resultFor(results []BumpResult, c BumpCheck) BumpResult {
 	for _, r := range results {
-		if r.Expected == expected {
+		if r.Cmd == c.Cmd && r.Expected == c.Expected {
 			return r
 		}
 	}
 
-	return BumpResult{Expected: expected}
+	return BumpResult{Cmd: c.Cmd, Expected: c.Expected}
 }
 
-// BumpSection is one section of a bump MD: the issue it goes on, the backports linked to it and those
-// of its backports it does not validate (Open), which keep the issue open.
+// BumpSection is one section of a bump MD: its issue, the backports linked to it, those it does not
+// validate (Open, keeping the issue open) and those validated on a commit build only (Commit).
 type BumpSection struct {
 	Repo      string
 	Issue     int
 	Backports []int
 	Open      []int
+	Commit    []int
 	Body      string
 }
 
 var sectionHeader = regexp.MustCompile(
-	`^<!-- bump-section ([\w.-]+/[\w.-]+)#(\d+) backports=([\d,]*) open=([\d,]*) -->$`)
+	`^<!-- bump-section ([\w.-]+/[\w.-]+)#(\d+) backports=([\d,]*) open=([\d,]*)(?: commit=([\d,]*))? -->$`)
 
 // issueNumbers reads the header's "1,2" lists.
 func issueNumbers(list string) []int {
@@ -322,7 +324,8 @@ func ParseBumpMD(md string) ([]BumpSection, error) {
 	for _, line := range strings.Split(md, "\n") {
 		if m := sectionHeader.FindStringSubmatch(line); m != nil {
 			n, _ := strconv.Atoi(m[2])
-			cur = &BumpSection{Repo: m[1], Issue: n, Backports: issueNumbers(m[3]), Open: issueNumbers(m[4])}
+			cur = &BumpSection{Repo: m[1], Issue: n, Backports: issueNumbers(m[3]), Open: issueNumbers(m[4]),
+				Commit: issueNumbers(m[5])}
 			body = nil
 			continue
 		}

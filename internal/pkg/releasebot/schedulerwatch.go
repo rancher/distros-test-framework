@@ -34,7 +34,8 @@ func (s *Scheduler) watch(ctx context.Context, st *runState, ctrl string, r *run
 				s.settle(st, &Outcome{Job: r.job, Err: errQueueCanceled})
 				return true
 			case err == nil:
-				r.seen = now // the queue answered: still waiting to start, or started
+				// the queue answered: still waiting to start, or started
+				r.seen = now
 				r.buildURL = u
 			}
 		}
