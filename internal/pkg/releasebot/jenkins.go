@@ -187,6 +187,43 @@ func (j *jenkins) Finished(ctx context.Context, buildURL string) (done bool, res
 	return !b.Building && b.Result != "", b.Result, nil
 }
 
+// botMark is the description the bot gives its builds: another bot's BusyLimit counts only those.
+const botMark = "releasebot"
+
+// MarkBuild sets the build's description to botMark.
+func (j *jenkins) MarkBuild(ctx context.Context, buildURL string) error {
+	originErr := j.checkOrigin(buildURL)
+	if originErr != nil {
+		return originErr
+	}
+
+	crumbField, crumb, crumbErr := j.crumb(ctx)
+	if crumbErr != nil {
+		return crumbErr
+	}
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(buildURL, "/")+"/submitDescription",
+		strings.NewReader(url.Values{"description": {botMark}}.Encode()))
+	if reqErr != nil {
+		return reqErr
+	}
+	req.SetBasicAuth(j.User, j.Token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if crumbField != "" {
+		req.Header.Set(crumbField, crumb)
+	}
+
+	resp, doErr := j.HTTP.Do(req)
+	if doErr != nil {
+		return fmt.Errorf("describe %s: %w", buildURL, doErr)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("describe %s: %s", buildURL, resp.Status)
+	}
+
+	return nil
+}
+
 func (j *jenkins) crumb(ctx context.Context) (field, value string, err error) {
 	var c struct {
 		Field string `json:"crumbRequestField"`

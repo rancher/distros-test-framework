@@ -731,9 +731,10 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   3.33.101-build20261120 (bumped again by rancher/rke2#11949 on release-1.34)". Several versions in
   that place, or an older or incomparable one, send the issue to a person at plan time and out of
   the job: the issue's old tag could still be on the node and match.
-- **Mower load.** At most 6 bump builds run at a time on Mower,
-  4 while other people's builds run there (counted before a trigger, at most every 2 minutes, by
-  job: a build of ours still in the queue does not hide someone else's).
+- **Mower load.** At most 6 bump builds run at a time on Mower, 4 while another bot's builds run
+  there: every build the bot starts (any mode, any captain) gets the description `releasebot`, and
+  only those count, not a person's builds (counted before a trigger, at most every 2 minutes, by
+  job: a build of ours still in the queue does not hide another bot's).
 - **Accept first.** With `-dry-run=false` the bot prints the bump issues it found and starts
   nothing until the captain types `yes`. During the run the terminal commands, Ctrl-C and `-resume`
   work as for a release (the run is saved in `bumps-run.json` next to `cli-run.json`). A saved bump

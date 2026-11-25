@@ -127,3 +127,38 @@ func TestJenkinsKeepsTheCredentialOnItsController(t *testing.T) {
 		t.Fatalf("the credential reached another host %d times", leaked.Load())
 	}
 }
+
+// A build the bot starts is described "releasebot", and only builds so described count as running:
+// a person's build on the controller does not cap a bump batch.
+func TestJenkinsMarksAndCountsBotBuilds(t *testing.T) {
+	var described, base string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/crumbIssuer/api/json":
+			_, _ = w.Write([]byte(`{"crumbRequestField": "Jenkins-Crumb", "crumb": "c1"}`))
+		case "/job/k3s/12/submitDescription":
+			if r.Header.Get("Jenkins-Crumb") != "c1" || r.FormValue("description") != botMark {
+				t.Errorf("describe: crumb %q, form %v", r.Header.Get("Jenkins-Crumb"), r.Form)
+			}
+			described = r.URL.Path
+		case "/computer/api/json":
+			_, _ = w.Write([]byte(`{"computer": [{"executors": [
+				{"currentExecutable": {"url": "` + base + `/job/k3s/12/", "description": "releasebot"}},
+				{"currentExecutable": {"url": "` + base + `/job/deploy/10/", "description": null}},
+				{"currentExecutable": null}]}]}`))
+		default:
+			t.Errorf("unexpected %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	base = srv.URL
+	j := NewJenkins(srv.URL, "u", "tok")
+
+	if err := j.MarkBuild(testContext(t), srv.URL+"/job/k3s/12/"); err != nil || described == "" {
+		t.Fatalf("MarkBuild: %v (described %q)", err, described)
+	}
+	builds, err := j.RunningBuilds(testContext(t))
+	if err != nil || len(builds) != 1 || !strings.HasSuffix(builds[0], "/job/k3s/12/") {
+		t.Fatalf("RunningBuilds = %v, %v", builds, err)
+	}
+}

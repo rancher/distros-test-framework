@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// RunningBuilds are the URLs of the builds running on the controller now (each once, wherever it runs).
+// RunningBuilds are the URLs of the bot's builds (described botMark, by any captain) running on the
+// controller now, each once: a person's build does not cap the bump batch.
 func (j *jenkins) RunningBuilds(ctx context.Context) ([]string, error) {
 	var c struct {
 		Computer []struct {
@@ -22,8 +23,8 @@ func (j *jenkins) RunningBuilds(ctx context.Context) ([]string, error) {
 			OneOffExecutors []executor `json:"oneOffExecutors"`
 		} `json:"computer"`
 	}
-	u := j.BaseURL + "/computer/api/json?depth=2&tree=computer%5Bexecutors%5BcurrentExecutable%5Burl%5D%5D," +
-		"oneOffExecutors%5BcurrentExecutable%5Burl%5D%5D%5D"
+	u := j.BaseURL + "/computer/api/json?depth=2&tree=computer%5Bexecutors%5BcurrentExecutable%5Burl,description" +
+		"%5D%5D,oneOffExecutors%5BcurrentExecutable%5Burl,description%5D%5D%5D"
 	if getErr := j.getJSON(ctx, u, &c); getErr != nil {
 		return nil, getErr
 	}
@@ -32,7 +33,8 @@ func (j *jenkins) RunningBuilds(ctx context.Context) ([]string, error) {
 	var builds []string
 	for _, node := range c.Computer {
 		for _, e := range append(node.Executors, node.OneOffExecutors...) {
-			if e.CurrentExecutable == nil || e.CurrentExecutable.URL == "" {
+			if e.CurrentExecutable == nil || e.CurrentExecutable.URL == "" ||
+				!strings.HasPrefix(e.CurrentExecutable.Description, botMark) {
 				continue
 			}
 			if b := strings.TrimRight(e.CurrentExecutable.URL, "/") + "/"; !seen[b] {
@@ -47,12 +49,13 @@ func (j *jenkins) RunningBuilds(ctx context.Context) ([]string, error) {
 
 type executor struct {
 	CurrentExecutable *struct {
-		URL string `json:"url"`
+		URL         string `json:"url"`
+		Description string `json:"description"`
 	} `json:"currentExecutable"`
 }
 
-// BusyLimit caps our builds at busy while other builds run (ours told by job path, as a queued one holds
-// a slot without running); the count is cached for ttl, and an unreadable one counts as busy.
+// BusyLimit caps our builds at busy while other bot builds run (running lists the bot's; ours told by
+// job path, as a queued one holds a slot); the count is cached for ttl, and an unreadable one is busy.
 func BusyLimit(
 	running func(context.Context) ([]string, error), ourJobs []string, busy int, ttl time.Duration,
 ) func(string, int, int) int {
@@ -86,8 +89,8 @@ func BusyLimit(
 	}
 }
 
-// otherBuilds counts the running builds that are not ours: those of other jobs, plus any of our jobs'
-// builds beyond the ours we hold (someone else running the same job).
+// otherBuilds counts the running bot builds that are not ours: those of other jobs, plus any of our
+// jobs' builds beyond the ours we hold (another captain's bot running the same job).
 func otherBuilds(builds, ourJobs []string, ours int) int {
 	mine, others := 0, 0
 	for _, b := range builds {

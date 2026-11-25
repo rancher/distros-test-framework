@@ -640,6 +640,24 @@ func (s *Scheduler) markUnreachable(st *runState) {
 	}
 }
 
+// buildMarker is a Builder that labels its builds as the bot's (jenkins.MarkBuild).
+type buildMarker interface {
+	MarkBuild(ctx context.Context, buildURL string) error
+}
+
+// markBuild labels a started build for other bots' BusyLimit; a failure only means they will not count it.
+func (s *Scheduler) markBuild(ctx context.Context, b Builder, buildURL string) {
+	m, ok := b.(buildMarker)
+	if !ok {
+		return
+	}
+
+	markErr := m.MarkBuild(ctx, buildURL)
+	if markErr != nil {
+		s.notify("warn", "%s not marked as a releasebot build (other bots will not count it): %v", buildURL, markErr)
+	}
+}
+
 // check polls one job; done=true means an outcome is final (finished, canceled or given up).
 func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, bool) {
 	maxErrs := s.MaxPollErrors
@@ -659,6 +677,7 @@ func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, 
 		if err == nil && u != "" {
 			r.buildURL = u
 			s.notify("info", "started %s %s: %s", r.job.Path, r.job.Version, u)
+			s.markBuild(ctx, b, u)
 		}
 	}
 
