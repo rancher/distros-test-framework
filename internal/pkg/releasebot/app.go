@@ -109,6 +109,9 @@ type hooks struct {
 	// Scheduler.Ready); both may be nil.
 	Ready func()
 	Go    <-chan struct{}
+
+	// LimitFor lowers a controller's limit before each trigger (Scheduler.LimitFor); may be nil.
+	LimitFor func(controller string, configured, ours int) int
 }
 
 func (h *hooks) save(p *Progress) error {
@@ -419,6 +422,7 @@ func (a *App) runJobs(
 		ResumeStopped: progress.Stopped,
 		Ready:         h.Ready,
 		Go:            h.Go,
+		LimitFor:      h.LimitFor,
 		Journal: func(recs []JobRecord, stopped bool) error {
 			progress.Stage, progress.Jobs, progress.Stopped = StageJobs, recs, stopped
 			return h.save(progress)

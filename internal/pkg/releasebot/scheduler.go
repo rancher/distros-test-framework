@@ -92,6 +92,10 @@ type Scheduler struct {
 	WatchLimit time.Duration
 	Now        func() time.Time
 
+	// LimitFor, when set, lowers a controller's MaxConcurrent before each trigger (ours: its slots in
+	// use), e.g. while other people's builds run there.
+	LimitFor func(controller string, configured, ours int) int
+
 	// TriggerBackoff (default 5m): after a trigger's outcome is unknown, no run triggers on that
 	// controller for this long, so one outage does not fill its slots with unknown builds.
 	TriggerBackoff time.Duration
@@ -448,7 +452,11 @@ func (s *Scheduler) startWhatFits(ctx context.Context, st *runState) bool {
 			rest = append(rest, st.pending[i:]...)
 			break
 		}
-		if !s.Capacity.acquire(j.Controller, s.Limits[j.Controller].MaxConcurrent) {
+		limit := s.Limits[j.Controller].MaxConcurrent
+		if s.LimitFor != nil {
+			limit = min(limit, s.LimitFor(j.Controller, limit, s.Capacity.InUse(j.Controller)))
+		}
+		if !s.Capacity.acquire(j.Controller, limit) {
 			rest = append(rest, j)
 			continue
 		}

@@ -1,0 +1,12 @@
+# Release bot bump mode (-bumps): the jobs that validate bumps and the images a default install runs
+# (docs/releasebot.md, "Bump issues"). Bumps never report to Qase: their MD goes on their issues.
+controller: mower
+prefixBase: rb
+jobs:
+  k3s: distros_qa/k3s-tests/k3s-version-bump_qainfra
+  rke2: distros_qa/rke2-tests/rke2-version-bump_qainfra
+# Their tag shows on the node (kubectl get node -o yaml); a bump of any other image goes to a person.
+defaultImages:
+  rke2: [hardened-calico, hardened-flannel, hardened-coredns, hardened-k8s-metrics-server, hardened-etcd]
+  k3s: [mirrored-coredns-coredns, mirrored-metrics-server, local-path-provisioner, klipper-lb, klipper-helm,
+        mirrored-library-traefik]

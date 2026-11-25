@@ -45,6 +45,9 @@ type RunControl struct {
 	Ready func()
 	Go    <-chan struct{}
 
+	// LimitFor lowers a controller's limit before each trigger (Scheduler.LimitFor); may be nil.
+	LimitFor func(controller string, configured, ours int) int
+
 	mu     sync.Mutex
 	status func() string
 }

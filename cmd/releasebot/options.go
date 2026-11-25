@@ -19,6 +19,12 @@ type options struct {
 	qaseTimeout   time.Duration
 	listen        bool
 	resume        bool
+	bumps         bool
+	bumpsConfig   string
+	bumpsDir      string
+	bumpsPost     string
+	bumpsClose    bool
+	month         string
 	stateFile     string
 	validate      bool
 
@@ -54,6 +60,14 @@ func parseFlags() *options {
 	flag.DurationVar(&o.poll, "poll", 60*time.Second, "Jenkins polling interval")
 	flag.DurationVar(&o.qaseTimeout, "qase-timeout", 15*time.Minute, "how long to wait for the Qase runs to appear")
 	flag.BoolVar(&o.listen, "listen", false, "serve release requests from Slack (Socket Mode) instead of -message")
+	flag.BoolVar(&o.bumps, "bumps", false,
+		"plan (and with -dry-run=false run) the month's version-bump issues of the K3s and RKE2 boards")
+	flag.StringVar(&o.bumpsConfig, "bumps-config", "config/releasebot/bumps.yaml", "bump mode: jobs and default images")
+	flag.StringVar(&o.bumpsDir, "bumps-dir", "", "bump mode: where the MDs go (default ~/releasebot/bumps/<month>)")
+	flag.StringVar(&o.bumpsPost, "bumps-post", "",
+		"bump mode: post this MD (each section on its issue, a link on its backports), after a yes")
+	flag.BoolVar(&o.bumpsClose, "bumps-close", false, "with -bumps-post: also close the issues")
+	flag.StringVar(&o.month, "month", time.Now().Format("2006-01"), "bump mode: the release month the MDs are named after")
 	flag.BoolVar(&o.resume, "resume", false,
 		"carry on the run a CLI execution saved (interrupted, killed or rebooted) instead of -message; with -dry-run=false")
 	flag.StringVar(&o.stateFile, "state-file", defaultStateFile(),

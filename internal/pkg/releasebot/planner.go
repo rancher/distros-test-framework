@@ -59,6 +59,7 @@ func (a *App) runHooks(rc *RunControl, capacity *Capacity, failures *FailureTria
 	h := &hooks{
 		Stop: rc.Stop, SetStatus: rc.SetStatus, Capacity: capacity, Owner: rc.ID,
 		Commands: rc.Commands, Help: rc.Help, Triage: askTriager, Save: rc.Save, Ready: rc.Ready, Go: rc.Go,
+		LimitFor: rc.LimitFor,
 		Notify: func(level, format string, args ...any) {
 			a.cfg.Log(level, format, args...)
 			if level != "debug" {

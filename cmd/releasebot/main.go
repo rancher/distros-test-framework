@@ -22,6 +22,8 @@ func main() {
 		runFn = runTriageBuild
 	case o.listen:
 		runFn = runListen
+	case o.bumps || o.bumpsPost != "":
+		runFn = runBumps
 	}
 	if err := runFn(o); err != nil {
 		if errors.Is(err, releasebot.ErrInterrupted) {

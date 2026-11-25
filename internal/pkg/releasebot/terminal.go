@@ -23,7 +23,22 @@ type TerminalRun struct {
 	Out       io.Writer
 	User      string // who answers, in the run's messages
 
-	mu sync.Mutex
+	// LimitFor lowers a controller's limit before each trigger (Scheduler.LimitFor); may be nil.
+	LimitFor func(controller string, configured, ours int) int
+
+	mu   sync.Mutex
+	last *SavedTerminalRun
+}
+
+// Last is the run's progress as last saved (its jobs, builds and results), also once the file is gone.
+func (t *TerminalRun) Last() Progress {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.last == nil {
+		return Progress{}
+	}
+
+	return t.last.Progress.clone()
 }
 
 // SavedTerminalRun is what StatePath keeps.
@@ -82,8 +97,11 @@ func (t *TerminalRun) drive(ctx context.Context, saved *SavedTerminalRun, body f
 	stop := make(chan struct{})
 	commands := make(chan Command, 4)
 	var stopOnce sync.Once
+	t.mu.Lock()
+	t.last = saved
+	t.mu.Unlock()
 	rc := &RunControl{
-		ID: saved.Progress.RequestID, Stop: stop, Notify: func(string) {},
+		ID: saved.Progress.RequestID, Stop: stop, Notify: func(string) {}, LimitFor: t.LimitFor,
 		Help: func(text string) { t.print("\aNEEDS HELP: %s", text) },
 		Save: func(p Progress) error {
 			t.mu.Lock()
