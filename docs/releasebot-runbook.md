@@ -65,11 +65,15 @@ type each one at a hidden prompt), and ends with `bin/check.sh` saying `READY` a
    revision the release's manifest pins, and the Mower MCP config. The skill installs both
    (`bin/install-triage-skill.sh ~/releasebot/current/triage-skill.sha256` and `bin/credentials.py mcp`); the
    bot refuses a skill that differs from the manifest in any file.
-5. **`rb`**, the command you run the bot with: `install -m 0755 ops/releasebot/rb ~/.local/bin/rb`
-   from the DTF clone (any directory on your `PATH`). It runs the pinned release
-   (`~/releasebot/current`, step 2) and loads the env file in its own process only. `rb` alone
-   lists its commands; it expects the DTF clone in `~/suse/distros-test-framework`
-   (`RELEASEBOT_DTF_DIR` for another place).
+5. **`rb`**, the command you run the bot with, from the DTF clone (any directory on your `PATH`):
+   ```
+   install -m 0755 ops/releasebot/rb ~/.local/bin/rb
+   ln -sfn ~/suse/distros-qa-skills/skills/releasebot-captain-setup/bin/credentials.py ~/.config/releasebot/credentials.py
+   ```
+   It runs the pinned release (`~/releasebot/current`, step 2), and reads the env file only through
+   the skill's `credentials.py run` (owner-only file, known keys, never run as shell, inherited
+   credentials dropped). `rb` alone lists its commands; it expects the DTF clone in
+   `~/suse/distros-test-framework` (`RELEASEBOT_DTF_DIR` for another place).
 
 ## 2. Pin the release (once per release commit)
 
@@ -113,8 +117,8 @@ rb run v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1
 
 Add `baler` after the tags to send every job that has a Baler path in the matrix to Baler. `rb run`
 keeps a Mac awake (`caffeinate -i`) and triages failures on the laptop (`-triage-local`).
-Do not export `RELEASEBOT_DTF_REF` in that terminal: every job would run from that branch (`rb`
-warns when it is set).
+A release runs from the matrix's `dtfRef`: `rb` warns (also before bumps) when the env file sets
+`RELEASEBOT_DTF_REF`, as every job would run from that branch; `rb dtf-ref ""` clears it.
 
 Type these in the same terminal while it runs:
 
@@ -226,9 +230,9 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 
 - **K3s commit installs** need the `GITHUB_TOKEN` credential on Mower (configured), the DTF
   Jenkinsfile that binds it and rancher/qa-infra-automation#269. Until the bot PR
-  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, run K3s commit bumps as
-  `RELEASEBOT_DTF_REF=releasebot-qainfra-rc1 rb bumps k3s`, never with it in the env file: it sets
-  the branch of every run, releases included, and that branch can lag `qa-infra-RC-1`. `k3s-version-bump_qainfra` points at those branches meanwhile
+  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, run K3s commit bumps between
+  `rb dtf-ref releasebot-qainfra-rc1` and `rb dtf-ref ""`: it sets the branch of every run, releases
+  included, and that branch can lag `qa-infra-RC-1`. `k3s-version-bump_qainfra` points at those branches meanwhile
   (rancherlabs/jenkins-job-builder#1354, revert after the merges).
 - **RKE2 commit installs** on RHEL hung at `Start rke2-server`: a tarball install skipped the
   `rke2-selinux` policy. Fixed in rancher/qa-infra-automation#269; `rke2-version-bump_qainfra`
@@ -239,7 +243,7 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 | What | Where |
 |---|---|
 | Pinned release | `~/releasebot/<sha7>/` (`releasebot`, `matrix.yaml`, `bumps.yaml`, `triage-skill.sha256`); `~/releasebot/current` is the one `rb` runs |
-| `rb` | `~/.local/bin/rb`, from `ops/releasebot/rb` |
+| `rb` | `~/.local/bin/rb`, from `ops/releasebot/rb`; it reads the env through `~/.config/releasebot/credentials.py` (a link to the skill's) |
 | Tokens and settings | `~/.config/releasebot/releasebot.env` (0600) |
 | Saved runs and lock | `~/Library/Application Support/releasebot/` (macOS), `~/.config/releasebot/` (Linux) |
 | Bump MDs and post ledgers | `~/releasebot/bumps/<month>/` |

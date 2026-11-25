@@ -1,10 +1,10 @@
 #!/bin/sh
-# rb: the captain's release bot on the pinned ~/releasebot/current, the env file loaded in this process
-# only (docs/releasebot-runbook.md); install -m 0755 ops/releasebot/rb ~/.local/bin/rb
+# rb: the captain's release bot on the pinned ~/releasebot/current, its env read by the captain-setup
+# skill's credentials.py (docs/releasebot-runbook.md); install -m 0755 ops/releasebot/rb ~/.local/bin/rb
 set -eu
 
 D=${RELEASEBOT_PIN:-$HOME/releasebot/current}
-ENV_FILE=${RELEASEBOT_ENV:-$HOME/.config/releasebot/releasebot.env}
+CREDENTIALS=${RELEASEBOT_CREDENTIALS:-$HOME/.config/releasebot/credentials.py}
 DTF=${RELEASEBOT_DTF_DIR:-$HOME/suse/distros-test-framework}
 
 usage() {
@@ -17,57 +17,84 @@ usage: rb plan <rc-tag>... [baler]   the release plan (dry-run: triggers nothing
        rb resume-bumps               carry on a paused bump run
        rb post <bump-md> [close]     post a bump MD on its issues (and close them)
        rb pin <dtf-ref>              pin that DTF commit and use it from now on
+       rb dtf-ref <branch|"">        the DTF branch every job runs ("" back to the matrix's)
 EOF
 	exit 64
 }
 
-load_env() {
+need_credentials() {
+	if [ ! -f "$CREDENTIALS" ]; then
+		echo "rb: no $CREDENTIALS: link the captain-setup skill's bin/credentials.py there (runbook, step 1)" >&2
+		exit 2
+	fi
+}
+
+# with_credentials runs the pinned bot with the env file's values as credentials.py reads them: an
+# owner-only file, known keys only, never run as shell, and inherited credentials dropped.
+with_credentials() {
+	need_credentials
 	if [ ! -x "$D/releasebot" ]; then
 		echo "rb: no pinned release at $D: run rb pin <dtf-ref> first" >&2
 		exit 2
 	fi
 
-	set -a
-	# shellcheck source=/dev/null
-	. "$ENV_FILE"
-	set +a
-	if [ -n "${RELEASEBOT_DTF_REF:-}" ]; then
-		echo "rb: RELEASEBOT_DTF_REF=$RELEASEBOT_DTF_REF: every job runs from that DTF branch" >&2
-	fi
+	exec python3 -I "$CREDENTIALS" run -- "$@"
 }
 
-# caffeinate keeps a Mac awake while builds run; elsewhere the command runs as is.
+# awake keeps a Mac awake (caffeinate) while builds run.
 awake() {
 	if command -v caffeinate >/dev/null 2>&1; then
-		exec caffeinate -i "$@"
+		with_credentials caffeinate -i "$@"
 	fi
 
-	exec "$@"
+	with_credentials "$@"
+}
+
+# warn_dtf_ref: every run uses the matrix's branch unless the env file names another (rb dtf-ref).
+warn_dtf_ref() {
+	if grep -Eq "^RELEASEBOT_DTF_REF=['\"]?[A-Za-z0-9]" "${RELEASEBOT_ENV_FILE:-$HOME/.config/releasebot/releasebot.env}" 2>/dev/null; then
+		echo "rb: the env file sets RELEASEBOT_DTF_REF: every job runs from that branch (rb dtf-ref \"\" clears it)" >&2
+	fi
 }
 
 pin() {
 	sha=$(git -C "$DTF" rev-parse --verify "$1^{commit}")
 	dir=$HOME/releasebot/$(printf %.7s "$sha")
 	if [ ! -d "$dir" ]; then
-		mkdir -p "$HOME/releasebot"
-		tmp=$(mktemp -d "$HOME/releasebot/.pin.XXXXXX")
-		tree=/tmp/releasebot-$sha
-		trap 'rm -rf "$tmp"; git -C "$DTF" worktree remove --force "$tree" 2>/dev/null || true' EXIT
-
-		git -C "$DTF" show "$sha:config/releasebot/matrix.yaml" >"$tmp/matrix.yaml"
-		git -C "$DTF" show "$sha:config/releasebot/bumps.yaml" >"$tmp/bumps.yaml"
-		git -C "$DTF" show "$sha:ops/releasebot/triage-skill.sha256" >"$tmp/triage-skill.sha256"
-		git -C "$DTF" worktree add --detach "$tree" "$sha" >/dev/null
-		(cd "$tree" && go build -o "$tmp/releasebot" ./cmd/releasebot)
-
-		"$tmp/releasebot" -validate -matrix "$tmp/matrix.yaml"
-		chmod a-w "$tmp"/*
-		mv "$tmp" "$dir"
+		build_pin "$sha" "$dir"
 	fi
 
 	"$dir/releasebot" -validate -matrix "$dir/matrix.yaml"
 	ln -sfn "$dir" "$HOME/releasebot/current"
 	echo "rb: pinned $sha in $dir; rb uses it from now on"
+}
+
+# build_pin builds the commit in a worktree under a directory of its own and moves the folder in place
+# only once every step passed; on any failure it removes only what it created.
+build_pin() {
+	tmp='' work='' tree=''
+	trap cleanup_pin EXIT
+	mkdir -p "$HOME/releasebot"
+	tmp=$(mktemp -d "$HOME/releasebot/.pin.XXXXXX")
+	work=$(mktemp -d "${TMPDIR:-/tmp}/releasebot-pin.XXXXXX")
+
+	for file in config/releasebot/matrix.yaml config/releasebot/bumps.yaml ops/releasebot/triage-skill.sha256; do
+		git -C "$DTF" show "$1:$file" >"$tmp/${file##*/}"
+	done
+	git -C "$DTF" worktree add --detach "$work/dtf" "$1" >/dev/null
+	tree=$work/dtf
+	(cd "$tree" && go build -o "$tmp/releasebot" ./cmd/releasebot)
+
+	"$tmp/releasebot" -validate -matrix "$tmp/matrix.yaml"
+	chmod a-w "$tmp"/*
+	mv "$tmp" "$2"
+}
+
+cleanup_pin() {
+	if [ -n "$tree" ]; then
+		git -C "$DTF" worktree remove --force "$tree" || true
+	fi
+	rm -rf "$tmp" "$work"
 }
 
 cmd=${1:-}
@@ -80,15 +107,15 @@ plan | run)
 	if [ $# -eq 0 ]; then
 		usage
 	fi
-	load_env
+	warn_dtf_ref
 	if [ "$cmd" = plan ]; then
-		exec "$D/releasebot" -message "$*" -matrix "$D/matrix.yaml"
+		with_credentials "$D/releasebot" -message "$*" -matrix "$D/matrix.yaml"
 	fi
 	awake "$D/releasebot" -message "$*" -dry-run=false -matrix "$D/matrix.yaml" \
 		-triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
 resume)
-	load_env
+	warn_dtf_ref
 	awake "$D/releasebot" -resume -dry-run=false -matrix "$D/matrix.yaml" \
 		-triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
@@ -97,35 +124,42 @@ bumps-plan | bumps)
 	"" | k3s | rke2) ;;
 	*) usage ;;
 	esac
-	load_env
+	warn_dtf_ref
 	if [ "$cmd" = bumps-plan ]; then
-		exec "$D/releasebot" -bumps -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" ${1:+-bumps-product "$1"}
+		with_credentials "$D/releasebot" -bumps -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" \
+			${1:+-bumps-product "$1"}
 	fi
 	awake "$D/releasebot" -bumps -dry-run=false -poll 30s -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" \
-		${1:+-bumps-product "$1"}
+		${1:+-bumps-product "$1"} -triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
 resume-bumps)
-	load_env
+	warn_dtf_ref
 	awake "$D/releasebot" -bumps -resume -dry-run=false -poll 30s -matrix "$D/matrix.yaml" \
-		-bumps-config "$D/bumps.yaml"
+		-bumps-config "$D/bumps.yaml" -triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
 post)
 	case "${2:-}" in
-	"") close= ;;
+	"") close='' ;;
 	close) close=-bumps-close ;;
 	*) usage ;;
 	esac
 	if [ $# -eq 0 ]; then
 		usage
 	fi
-	load_env
-	exec "$D/releasebot" -bumps-post "$1" $close
+	with_credentials "$D/releasebot" -bumps-post "$1" $close
 	;;
 pin)
 	if [ $# -ne 1 ]; then
 		usage
 	fi
 	pin "$1"
+	;;
+dtf-ref)
+	if [ $# -ne 1 ]; then
+		usage
+	fi
+	need_credentials
+	exec python3 -I "$CREDENTIALS" dtf-ref "$1"
 	;;
 *) usage ;;
 esac
