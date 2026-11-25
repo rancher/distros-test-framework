@@ -120,9 +120,8 @@ func (plan *BumpPlan) classify(
 	return issue, nil
 }
 
-// offBoardBackports are the backports of the To Test main issues that sit in another column (the
-// team moves the main issue; its backports often stay in Working): GitHub knows them by their
-// reference to the main issue or its pull request. They are classified like the board's.
+// offBoardBackports finds the To Test main issues' backports in other columns (they often stay in
+// Working) through GitHub's references, and classifies them like the board's.
 func offBoardBackports(
 	ctx context.Context, src bumpSource, cfg *BumpConfig, plan *BumpPlan, bumps []*BumpIssue,
 ) ([]*BumpIssue, error) {
@@ -220,6 +219,12 @@ func classifyBump(
 	if len(issue.Checks) == 0 {
 		return issue, problem("its pull requests change nothing a job can check (a non-default image?)"), nil
 	}
+
+	path, name, why := cfg.jobFor(issue)
+	if why != "" {
+		return issue, problem(why), nil
+	}
+	issue.JobPath, issue.JobName = path, name
 
 	return issue, nil, nil
 }
@@ -319,10 +324,10 @@ func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person
 			continue
 		}
 
-		k := b.Product + "|" + b.Branch
+		k := b.Product + "|" + b.Branch + "|" + b.JobPath // one job per branch and CNI install
 		t := byBranch[k]
 		if t == nil {
-			t = &BumpTarget{Product: b.Product, Branch: b.Branch}
+			t = &BumpTarget{Product: b.Product, Branch: b.Branch, JobPath: b.JobPath, JobName: b.JobName}
 			byBranch[k] = t
 			keys = append(keys, k)
 		}
@@ -427,7 +432,11 @@ func (a *App) PrintBumpPlan(plan *BumpPlan, cfg *BumpConfig, dtfRef, mode string
 		if t.Commit {
 			what = "latest commit: no RC holds every merge yet, so validate again on the RC"
 		}
-		log("info", "  %s %s on %s (%s)", t.Product, t.Branch, t.Version, what)
+		on := ""
+		if t.JobName != "" {
+			on = ", " + t.JobName + " job"
+		}
+		log("info", "  %s %s on %s (%s%s)", t.Product, t.Branch, t.Version, what, on)
 		for _, c := range t.Checks {
 			log("info", "    #%d %s: %s -> %s", c.Issue, c.What, c.Cmd, c.Expected)
 		}

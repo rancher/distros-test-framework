@@ -133,9 +133,8 @@ func claimListener(o *options) (release func(), err error) {
 	return release, nil
 }
 
-// refuseNextToCLIRun: a run an interrupted CLI (a release or bumps) saved may still have builds on
-// jenkins, so the bot would exceed maxConcurrent and could test the same RCs twice; a dry-run bot
-// triggers nothing.
+// refuseNextToCLIRun: a CLI run (release or bumps) an interruption saved may still have builds, so the
+// bot would exceed maxConcurrent; a dry-run bot triggers nothing.
 func refuseNextToCLIRun(o *options) error {
 	if o.dryRun {
 		return nil

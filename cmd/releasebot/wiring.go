@@ -153,9 +153,8 @@ func bumpsStatePath(stateFile string) string {
 	return filepath.Join(filepath.Dir(stateFile), "bumps-run.json")
 }
 
-// refuseSavedTerminalRuns: a CLI or bump run saved by an interruption may still have builds on
-// jenkins, so any other run would exceed the controllers' capacity. own is the state the caller
-// carries on itself (-resume); "" refuses both.
+// refuseSavedTerminalRuns refuses while a saved CLI or bump run may still have builds; own is the state
+// the caller resumes itself, "" refuses both.
 func refuseSavedTerminalRuns(stateFile, own string) error {
 	for _, mode := range []struct{ path, name, resume string }{
 		{cliStatePath(stateFile), "CLI run", "releasebot -resume -dry-run=false"},
@@ -185,9 +184,8 @@ func isTerminal(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
-// claimExecution takes the -listen lock and refuses while the Slack bot, or a CLI or bump run other
-// than own (the state this execution carries on), has saved runs: their builds may still run, so this
-// run would exceed the controllers' capacity and test the same RCs twice.
+// claimExecution takes the -listen lock and refuses while the Slack bot, or a CLI or bump run other than
+// own, has saved runs: their builds may still run and would exceed the controllers' capacity.
 func claimExecution(stateFile, own string) (release func(), err error) {
 	release, lockErr := releasebot.AcquireInstanceLock(stateFile + ".lock")
 	if lockErr != nil {

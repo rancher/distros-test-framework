@@ -3,6 +3,7 @@ package releasebot
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -103,9 +104,8 @@ func TestPureBump(t *testing.T) {
 	}
 }
 
-// The checks come from the PR: the chart file every RKE2 install bundles, the K3s server manifest, and
-// the node image of a default component; a file no rule covers, or a bumped image no default install
-// runs, is left to a person.
+// The checks come from the PR: RKE2 chart files, the K3s server manifest and default node images; a
+// file no rule covers is left to a person.
 func TestBumpChecks(t *testing.T) {
 	rke2Images := []string{"hardened-calico", "hardened-flannel"}
 
@@ -130,11 +130,11 @@ func TestBumpChecks(t *testing.T) {
 			t.Fatalf("the job runs %q", runs)
 		}
 	}
-	if len(checks) != 3 || !got["rke2-canal-3.33.101-build20261120.tgz"] ||
+	if len(checks) != 4 || !got["rke2-canal-3.33.101-build20261120.tgz"] ||
 		!got["rancher/hardened-calico:v3.33.1-build20261120"] || !got["rancher/hardened-flannel:v0.28.11-build20261120"] ||
-		len(unsupported) != 1 || unsupported[0] != "rancher/hardened-cni-plugins:v1.10.0-build20261110 "+
-		"(not a default image)" {
-		t.Fatalf("canal (cni-plugins is no default image): %+v, unsupported %v", checks, unsupported)
+		!got["v1.10.0-build20261110"] || len(unsupported) != 0 {
+		t.Fatalf("canal (cni-plugins, no default image here, is read from the canal chart): %+v, unsupported %v",
+			checks, unsupported)
 	}
 
 	// Calico is checked, Cilium is not: the issue cannot pass on Calico alone.
@@ -314,9 +314,8 @@ func planSource() *fakeBumpSource {
 	}
 }
 
-// A plan validates only clean backports: the RC when it holds the merge, the branch head when not.
-// A non-bump, a PR that changes more than versions, a main issue without backports, a backport
-// without a main issue and two bumps of one chart on a branch are listed instead.
+// A plan validates clean backports, on the RC holding the merge or the branch head; every other issue
+// is listed with its reason.
 func TestPlanBumps(t *testing.T) {
 	src := planSource()
 	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"k3s": "k", "rke2": "r"}}
@@ -370,5 +369,116 @@ func TestPlanBumps(t *testing.T) {
 	if only, onlyErr := PlanBumps(testContext(t), src, cfg, "2026-11"); onlyErr != nil ||
 		len(only.Targets)+len(only.Person)+len(only.NotBumps) != 0 {
 		t.Fatalf("k3s only: %+v, %v", only, onlyErr)
+	}
+}
+
+// metricsServerPatch is rke2#11847: the chart, its default image and addon-resizer, which the chart ships
+// disabled.
+const metricsServerPatch = `@@ -49,8 +49,8 @@ xargs -n1 -t $PULL_CMD_CORE << EOF >> $BUILD_DIR/images-core.txt
+-    ${REGISTRY}/rancher/hardened-k8s-metrics-server:v0.9.0-build20261020
+-    ${REGISTRY}/rancher/hardened-addon-resizer:1.8.24-build20261021
++    ${REGISTRY}/rancher/hardened-k8s-metrics-server:v0.9.1-build20261119
++    ${REGISTRY}/rancher/hardened-addon-resizer:1.8.24-build20261110`
+
+// An image no default install runs is checked in the values of the one chart its pull request bumps,
+// in the chart file on the node; with no chart, two charts, or on K3s, it is left to a person.
+func TestBumpValuesChecks(t *testing.T) {
+	chart := PRFile{Name: "charts/chart_versions.yaml",
+		Patch: "-  - version: 3.14.004\n+  - version: 3.14.7\n     filename: /charts/rke2-metrics-server.yaml"}
+	images := PRFile{Name: "scripts/build-images", Patch: metricsServerPatch}
+
+	checks, unsupported := BumpChecks("rke2", []PRFile{chart, images}, []string{"hardened-k8s-metrics-server"})
+	want := "sudo grep -h chartContent /var/lib/rancher/rke2/data/*/charts/rke2-metrics-server.yaml" +
+		" | sed s/.*chartContent.// | base64 -di | tar xzOf - rke2-metrics-server/values.yaml" +
+		" | grep -A1 rancher/hardened-addon-resizer"
+	if len(unsupported) != 0 || len(checks) != 3 || checks[2].Cmd != want || checks[2].Expected != "1.8.24-build20261110" ||
+		checks[2].What != "hardened-addon-resizer image 1.8.24-build20261110 in rke2-metrics-server values" {
+		t.Fatalf("metrics-server: %+v, unsupported %v", checks, unsupported)
+	}
+	if _, argsErr := (&BumpTarget{Checks: checks}).TestArgs(); argsErr != nil {
+		t.Fatalf("the values check cannot be given to the job: %v", argsErr)
+	}
+
+	// The cilium chart names one operator image; its cloud variants are read from it.
+	cilium := []PRFile{
+		{Name: "charts/chart_versions.yaml", Patch: "-  - version: 1.20.500\n+  - version: 1.20.501\n" +
+			"     filename: /charts/rke2-cilium.yaml"},
+		{Name: "scripts/build-images", Patch: "+    ${REGISTRY}/rancher/mirrored-cilium-operator-aws:v1.20.5"},
+	}
+	if checks, _ = BumpChecks("rke2", cilium, nil); len(checks) != 2 ||
+		!strings.HasSuffix(checks[1].Cmd, "| grep -A1 rancher/mirrored-cilium-operator") {
+		t.Fatalf("cilium operator-aws: %+v", checks)
+	}
+
+	twoCharts := PRFile{Name: "charts/chart_versions.yaml", Patch: chart.Patch +
+		"\n-  - version: 1.0.0\n+  - version: 1.0.1\n     filename: /charts/rke2-coredns.yaml"}
+	for name, run := range map[string]func() []string{
+		"no chart":   func() []string { _, u := BumpChecks("rke2", []PRFile{images}, nil); return u },
+		"two charts": func() []string { _, u := BumpChecks("rke2", []PRFile{twoCharts, images}, nil); return u },
+		"k3s":        func() []string { _, u := BumpChecks("k3s", []PRFile{images}, nil); return u },
+	} {
+		if u := run(); len(u) == 0 || !strings.Contains(u[0], "no single chart") {
+			t.Fatalf("%s: unsupported %v", name, u)
+		}
+	}
+}
+
+// An issue runs on the job that installs the CNI its checks need (canal on the canal job), the others
+// on the product's; one needing two CNIs goes to a person.
+func TestBumpRoutesByCNI(t *testing.T) {
+	cniPatch := func(chart, version string) string {
+		return "-  - version: 0.0.1\n+  - version: " + version + "\n     filename: /charts/" + chart + ".yaml"
+	}
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": {
+			{Repo: "rancher/rke2", Number: 60, Title: "Update Canal"},
+			{Repo: "rancher/rke2", Number: 61, Title: "[Release 1.37] Update Canal", Body: "#60"},
+			{Repo: "rancher/rke2", Number: 62, Title: "Bump gateway API"},
+			{Repo: "rancher/rke2", Number: 63, Title: "[Release 1.37] Bump gateway API", Body: "#62"},
+			{Repo: "rancher/rke2", Number: 64, Title: "Update Canal and Cilium"},
+			{Repo: "rancher/rke2", Number: 65, Title: "[Release 1.36] Update Canal and Cilium", Body: "#64"},
+		}},
+		prs: map[int][]BumpPR{
+			61: {{Number: 161, Base: "release-1.37", MergeCommit: "c1"}},
+			63: {{Number: 163, Base: "release-1.37", MergeCommit: "c2"}},
+			65: {{Number: 165, Base: "release-1.36", MergeCommit: "c3"}},
+		},
+		files: map[int][]PRFile{
+			161: {{Name: "charts/chart_versions.yaml", Patch: cniPatch("rke2-canal", "3.33.101")}},
+			163: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
+			165: {{Name: "charts/chart_versions.yaml",
+				Patch: cniPatch("rke2-canal", "3.33.101") + "\n" + cniPatch("rke2-cilium", "1.20.501")}},
+		},
+		head: "deadbeef",
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"k3s": "k", "rke2": "r/generic"},
+		CNIJobs: map[string][]CNIJob{"rke2": {
+			{Name: "canal", Job: "r/canal", Components: []string{"rke2-canal", "hardened-calico"}},
+			{Name: "cilium", Job: "r/generic", Components: []string{"rke2-cilium"}},
+		}}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	paths := map[string]string{}
+	for _, tg := range plan.Targets {
+		j, jobErr := tg.Job(cfg, "mower", "main")
+		if jobErr != nil {
+			t.Fatal(jobErr)
+		}
+		paths[j.Name] = fmt.Sprintf("%s %d %s", j.Path, tg.Checks[0].Issue, j.Params["HOSTNAME_PREFIX"])
+	}
+	if len(paths) != 2 || paths["rke2-bumps-137-canal"] != "r/canal 61 fmor137rc" ||
+		paths["rke2-bumps-137"] != "r/generic 63 fmor137r" {
+		t.Fatalf("jobs %v", paths)
+	}
+	if got := cfg.JobPaths(); !slices.Equal(got, []string{"k", "r/generic", "r/canal"}) {
+		t.Fatalf("BusyLimit's job paths: %v", got)
+	}
+	if len(plan.Person) != 1 || plan.Person[0].Number != 65 ||
+		plan.Person[0].Reason != "its checks need both the canal and the cilium install" {
+		t.Fatalf("person %+v", plan.Person)
 	}
 }

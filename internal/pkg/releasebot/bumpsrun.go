@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -50,11 +51,8 @@ type executor struct {
 	} `json:"currentExecutable"`
 }
 
-// BusyLimit is the bump mode's Scheduler.LimitFor: while builds other than ours run on the controller,
-// at most busy of ours (the team's rule: 4 with other runs active, the configured 6 without). Ours
-// are told by their job path (ourJobs, "/job/a/job/b/"): a build of ours still queued holds a slot
-// without running, so the slot count alone would hide another build. The count is cached for ttl;
-// when it cannot be read the busy limit applies.
+// BusyLimit caps our builds at busy while other builds run (ours told by job path, as a queued one holds
+// a slot without running); the count is cached for ttl, and an unreadable one counts as busy.
 func BusyLimit(
 	running func(context.Context) ([]string, error), ourJobs []string, busy int, ttl time.Duration,
 ) func(string, int, int) int {
@@ -102,9 +100,8 @@ func otherBuilds(builds, ourJobs []string, ours int) int {
 	return others + max(mine-ours, 0)
 }
 
-// BumpRun is the plan and the jobs of a bump run, saved next to its progress so a resume (and the MDs
-// written once it ends) know which issue each check belongs to. Final is the progress the run ended
-// with, kept until its MDs are written so a report that failed can be written again.
+// BumpRun is a bump run's plan and jobs, saved for its resume and MDs; Final is the progress it ended
+// with, kept until the MDs are written.
 type BumpRun struct {
 	Plan  *BumpPlan    `json:"plan"`
 	Jobs  []JenkinsJob `json:"jobs"`
@@ -223,7 +220,7 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 ) {
 	targets := map[string]*BumpTarget{}
 	for _, t := range run.Plan.Targets {
-		targets[t.Product+"-bumps-"+t.Minor()] = t
+		targets[t.Name()] = t
 	}
 
 	results = map[string]map[string]*BranchResult{}
@@ -262,12 +259,35 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 		if results[t.Product] == nil {
 			results[t.Product] = map[string]*BranchResult{}
 		}
-		results[t.Product][t.Branch] = &BranchResult{
+		nodes, flags := clusterConfig(params["TFVARS"])
+		results[t.Product][t.Name()] = &BranchResult{ // by job: a branch has one per CNI install
 			Target: t, Version: version, NodeOS: params["NODE_OS"], Arch: params["ARCH"], Results: checks,
+			Nodes: nodes, Flags: flags,
 		}
 	}
 
 	return results, notPassed, nil
+}
+
+var (
+	tfvarsServerFlags = regexp.MustCompile(`(?m)^\s*server_flags\s*=\s*"(.*)"\s*$`)
+	tfvarsNodes       = regexp.MustCompile(`(?s)count\s*=\s*(\d+)\s*role\s*=\s*\[([^\]]*)\]`)
+)
+
+// clusterConfig is the cluster a qainfra job's TFVARS build: its node groups ("1 node: etcd, cp,
+// worker") and the server flags, one per line; empty when the build has no TFVARS.
+func clusterConfig(tfvars string) (nodes, flags string) {
+	var groups []string
+	for _, m := range tfvarsNodes.FindAllStringSubmatch(tfvars, -1) {
+		roles := strings.Fields(strings.NewReplacer(`"`, " ", ",", " ").Replace(m[2]))
+		groups = append(groups, fmt.Sprintf("%s node: %s", m[1], strings.Join(roles, ", ")))
+	}
+
+	if m := tfvarsServerFlags.FindStringSubmatch(tfvars); m != nil {
+		flags = strings.NewReplacer(`\n`, "\n", `\"`, `"`).Replace(m[1])
+	}
+
+	return strings.Join(groups, "; "), strings.TrimSpace(flags)
 }
 
 // noOutput is the first check whose output the console does not show (a command with no output is no

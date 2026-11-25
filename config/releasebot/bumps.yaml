@@ -3,12 +3,22 @@
 controller: mower
 jobs:
   k3s: distros_qa/k3s-tests/k3s-version-bump_qainfra
+  # Its TFVARS installs cni: cilium.
   rke2: distros_qa/rke2-tests/rke2-version-bump_qainfra
-# Their tag shows on the node (kubectl get node -o yaml); a bump of any other image goes to a person,
-# and so does its issue even when its other changes are checked. hardened-cni-plugins runs in the
-# rke2-canal pods; rke2-security-responder is not here: a CronJob, on the node only after a run.
+# An issue whose checks touch a CNI's components (a chart or an image) runs on the job that installs
+# that CNI; every other issue on the job above. One needing two CNIs goes to a person.
+cniJobs:
+  rke2:
+    - name: canal
+      job: distros_qa/rke2-tests/rke2-canal-version-bump_qainfra
+      components: [rke2-canal, hardened-calico, hardened-flannel]
+    - name: cilium
+      job: distros_qa/rke2-tests/rke2-version-bump_qainfra
+      components: [rke2-cilium, mirrored-cilium-cilium, mirrored-cilium-operator-generic]
+# Their tag shows on the node of their issue's job; any other bumped image is read from the values of
+# the one chart its PR bumps, or goes to a person (docs/releasebot.md, "Bump issues").
 defaultImages:
   rke2: [hardened-calico, hardened-flannel, hardened-cni-plugins, hardened-coredns, hardened-k8s-metrics-server,
-         hardened-etcd]
+         hardened-etcd, mirrored-cilium-cilium, mirrored-cilium-operator-generic]
   k3s: [mirrored-coredns-coredns, mirrored-metrics-server, local-path-provisioner, klipper-lb, klipper-helm,
         mirrored-library-traefik]

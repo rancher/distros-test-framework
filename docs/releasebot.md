@@ -700,18 +700,26 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   by its `chart-url` in the bundled chart file (`/var/lib/rancher/rke2/data/*/charts/<chart>.yaml`,
   there whether or not the chart is enabled); a K3s chart URL in `manifests/*.yaml` on the server
   manifest; an image tag of a default image (`defaultImages` in `bumps.yaml`) on the node's images.
-  A bumped image that is not a default one sends the whole issue to a person, even when its other
-  changes are checked (it would otherwise pass, and close, untested).
+  An image the install does not run (metrics-server's addon-resizer, Cilium's envoy, hubble and
+  cloud operators, all shipped disabled) is read from the values of the one RKE2 chart the same pull
+  request bumps, in its chart file's `chartContent` on the node; with no such chart, or several, or
+  on K3s, the whole issue goes to a person (it would otherwise pass, and close, untested).
+  `hardened-cni-plugins` runs in both the Canal and the Cilium pods; `rke2-security-responder` is
+  a CronJob, on the node only after a run, so its image is read from its chart's values.
   The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
   1.7.1 its pull request ships. A change no rule covers goes to a person, and so do bumps that want
   one chart or image at two versions on the same branch (two issues, or two pull requests of one):
   a single job cannot pass both. The image check greps `rancher/<image>` with no `:` (the job's
   `JoinCommands` turns every `:` of a `kubectl` command into `,`); the expected `rancher/<image>:<tag>`
   keeps it exact.
-- **One job per branch.** All the checks of a product's release branch go to one
-  `<product>-version-bump_qainfra` build (`-cmd`, `-expectedValue`), on the branch's newest RC when
-  it holds every merge, else on its latest commit (`INSTALL_<PRODUCT>_COMMIT`; validate again on the
-  RC). Bumps never report to Qase: their MD goes on their issues. At most 6 run at a time on Mower,
+- **One job per branch and CNI.** The checks of a product's release branch go to one
+  `<product>-version-bump_qainfra` build (`-cmd`, `-expectedValue`), except an issue touching a CNI's
+  components (`cniJobs` in `bumps.yaml`): it runs on the job that installs that CNI. The RKE2 job's
+  TFVARS install `cni: cilium`, so Cilium issues and the non-CNI ones share it, and Canal issues run
+  on `rke2-canal-version-bump_qainfra` (`rke2-bumps-137-canal`); an issue needing two CNIs goes to a
+  person; the canal job's `HOSTNAME_PREFIX` ends in `c` (`fmor137rc`). Each build installs the
+  branch's newest RC when it holds every merge, else its latest commit (`INSTALL_<PRODUCT>_COMMIT`;
+  validate again on the RC). Bumps never report to Qase: their MD goes on their issues. At most 6 run at a time on Mower,
   4 while other people's builds run there (counted before a trigger, at most every 2 minutes, by
   job: a build of ours still in the queue does not hide someone else's).
 - **Accept first.** With `-dry-run=false` the bot prints the bump issues it found and starts
@@ -721,7 +729,9 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   resumed in its own mode or its builds ended and the file is removed: both would fill Mower.
 - **The MDs.** When the run ends: `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md`,
   one section per main issue in the bump template (one Validated on Version line per branch, the
-  build's `NODE_OS` and `ARCH`, the steps, and each check's `$ command` with its output). Addresses
+  build's `NODE_OS` and `ARCH`, its cluster from its TFVARS (node groups and `server_flags`), the
+  steps, and each check's `$ command` with its output). A values check's step says the chart's
+  values carry the image: it proves what the chart ships, not that the image runs. Addresses
   are redacted across the whole file (commands, titles, links and outputs): IPv4 and IPv6
   addresses, `ip-…` node names, AMI IDs, Prime artifact URLs and the staging registry get the
   `<REDACTED_…>` placeholders. A file that would still show one of them or a Jenkins link is never

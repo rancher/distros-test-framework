@@ -26,6 +26,21 @@ type BranchResult struct {
 	NodeOS  string
 	Arch    string
 	Results []BumpResult
+
+	// Nodes and Flags are the cluster the job built, from its TFVARS ("1 node: etcd, cp, worker").
+	Nodes, Flags string
+}
+
+// issueResult is the passed job that validated the backport (a branch can have one per CNI install).
+func issueResult(validated map[string]*BranchResult, bp *BumpIssue) *BranchResult {
+	for _, r := range validated {
+		if r.Target.Branch == bp.Branch && slices.ContainsFunc(r.Target.Checks,
+			func(c BumpCheck) bool { return c.Issue == bp.Number }) {
+			return r
+		}
+	}
+
+	return nil
 }
 
 var (
@@ -34,9 +49,8 @@ var (
 	jenkinsPointer = regexp.MustCompile(`(?i)https?://[^\s)"]*jenkins[^\s)"]*|/job/[^\s)"]+/\d+/?`)
 )
 
-// private is what a public issue must not show, and its placeholder (the team's publication rule):
-// Prime artifact URLs, the staging registry, AMIs, node names and IPv4/IPv6 addresses. An IPv6 is
-// eight groups or has a "::", so times and image tags ("04:40:05", "x:v1") are left alone.
+// private is what a public issue must not show, with its placeholder; an IPv6 is eight groups or has a
+// "::", so times and image tags ("04:40:05", "x:v1") are left alone.
 var private = []struct {
 	re          *regexp.Regexp
 	placeholder string
@@ -117,8 +131,8 @@ const (
 	sectionEnd   = "<!-- /bump-section -->"
 )
 
-// RenderBumpMD writes the product's MD: a section per main issue with at least one validated
-// backport. Validated is "branch" → result; groups without one are left out (the run lists them).
+// RenderBumpMD writes the product's MD: a section per main issue with a validated backport; validated
+// is target name → result, and groups without one are left out (the run lists them).
 func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[string]*BranchResult) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<!-- %s version bumps, %s release: one section per issue; releasebot -bumps-post posts each "+
@@ -132,8 +146,7 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 
 		var done []*BumpIssue
 		for _, bp := range g.Backports {
-			if validated[bp.Branch] != nil && slices.ContainsFunc(validated[bp.Branch].Target.Checks,
-				func(c BumpCheck) bool { return c.Issue == bp.Number }) {
+			if issueResult(validated, bp) != nil {
 				done = append(done, bp)
 			}
 		}
@@ -178,7 +191,7 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 
 	b.WriteString("## Validated on Version\n\n```console\n")
 	for _, bp := range done {
-		r := validated[bp.Branch]
+		r := issueResult(validated, bp)
 		version := r.Version
 		if version == "" {
 			version = fmt.Sprintf("%s version %s", r.Target.Product, r.Target.Version)
@@ -187,14 +200,11 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 	}
 	b.WriteString("```\n\n")
 
-	first := validated[done[0].Branch]
-	b.WriteString("## Environment Details\n\n*Infrastructure*\nAWS EC2 instances\n\n")
-	fmt.Fprintf(b, "*Node(s) CPU architecture, OS, and Version:*\n%s, %s\n\n", first.NodeOS, first.Arch)
-	b.WriteString("*Cluster Configuration:*\nDefault configuration\n\n")
+	writeEnvironment(b, issueResult(validated, done[0]))
 
 	b.WriteString("## Steps to validate the fix\n\n<details>\n<summary>Steps</summary>\n\n")
 	installs := "Install each version listed above"
-	if slices.ContainsFunc(done, func(bp *BumpIssue) bool { return validated[bp.Branch].Target.Commit }) {
+	if slices.ContainsFunc(done, func(bp *BumpIssue) bool { return issueResult(validated, bp).Target.Commit }) {
 		installs += " (the latest commit of a release branch whose RC does not hold the bump yet)"
 	}
 	fmt.Fprintf(b, "1. %s.\n", installs)
@@ -204,7 +214,7 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 	b.WriteString("\n</details>\n\n## **Validation Results:**\n\n<details>\n<summary>Validation Results</summary>\n\n")
 
 	for _, bp := range done {
-		r := validated[bp.Branch]
+		r := issueResult(validated, bp)
 		version := r.Target.Version
 		fmt.Fprintf(b, "<details>\n<summary>%s (%s)</summary>\n\n```\n", version, bp.Branch)
 		for _, c := range r.Target.Checks {
@@ -223,16 +233,39 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 	b.WriteString("</details>\n" + sectionEnd + "\n")
 }
 
-// sectionWhats are the steps' "the rke2-canal chart is 3.33.101-build20261120", once each.
+// writeEnvironment is the Environment Details of the job that ran the checks: its node and the cluster
+// its TFVARS built.
+func writeEnvironment(b *strings.Builder, r *BranchResult) {
+	b.WriteString("## Environment Details\n\n*Infrastructure*\nAWS EC2 instances\n\n")
+	fmt.Fprintf(b, "*Node(s) CPU architecture, OS, and Version:*\n%s, %s\n\n", r.NodeOS, r.Arch)
+
+	b.WriteString("*Cluster Configuration:*\n")
+	switch {
+	case r.Nodes == "" && r.Flags == "":
+		b.WriteString("Not recorded by the job\n\n")
+	case r.Flags == "":
+		fmt.Fprintf(b, "%s, no server flags\n\n", r.Nodes)
+	default:
+		fmt.Fprintf(b, "%s\n\n```yaml\n%s\n```\n\n", r.Nodes, r.Flags)
+	}
+}
+
+// sectionWhats are the steps' "the rke2-canal chart is 3.33.101-build20261120", once each; a values
+// check says the chart carries the image, which is what it proves.
 func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []string {
 	var whats []string
 	for _, bp := range done {
-		for _, c := range validated[bp.Branch].Target.Checks {
-			f := strings.Fields(c.What) // "<component> <chart|image> <version>"
+		for _, c := range issueResult(validated, bp).Target.Checks {
+			f := strings.Fields(c.What) // "<component> <chart|image> <version> [in <chart> values]"
 			if c.Issue != bp.Number || len(f) < 3 {
 				continue
 			}
-			if w := fmt.Sprintf("the %s %s is %s", f[0], f[1], f[2]); !slices.Contains(whats, w) {
+
+			w := fmt.Sprintf("the %s %s is %s", f[0], f[1], f[2])
+			if len(f) == 6 && f[3] == "in" {
+				w = fmt.Sprintf("the %s values carry the %s image %s", f[4], f[0], f[2])
+			}
+			if !slices.Contains(whats, w) {
 				whats = append(whats, w)
 			}
 		}

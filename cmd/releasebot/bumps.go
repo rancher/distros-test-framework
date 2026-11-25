@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 
@@ -144,7 +142,7 @@ func bumpTerminal(
 		terminal.In = in
 	}
 
-	limit, limitErr := app.ControllerBusyLimit(cfg.Controller, slices.Collect(maps.Values(cfg.Jobs)), 4)
+	limit, limitErr := app.ControllerBusyLimit(cfg.Controller, cfg.JobPaths(), 4)
 	if limitErr != nil {
 		return nil, nil, limitErr
 	}

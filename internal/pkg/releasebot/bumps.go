@@ -2,6 +2,7 @@ package releasebot
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -23,9 +24,58 @@ type BumpConfig struct {
 	Products   []string          `yaml:"-"` // the boards to read (-bumps-product); empty: both
 	Jobs       map[string]string `yaml:"jobs"`
 
-	// DefaultImages run on a default install, so their tag shows on the node; a bump of any other
-	// image is left to a person.
+	// DefaultImages run on the install their issue's job makes, so their tag shows on the node; any
+	// other bumped image is checked in its chart's values, or left to a person.
 	DefaultImages map[string][]string `yaml:"defaultImages"`
+
+	// CNIJobs: an issue whose checks touch a CNI's components runs on the job that installs that
+	// CNI; every other issue on Jobs.
+	CNIJobs map[string][]CNIJob `yaml:"cniJobs"`
+}
+
+// CNIJob is a version-bump job that installs a CNI, and the components (charts, images) that need it.
+type CNIJob struct {
+	Name       string   `yaml:"name"`
+	Job        string   `yaml:"job"`
+	Components []string `yaml:"components"`
+}
+
+// JobPaths are every bump job, the CNI ones included (BusyLimit tells our builds by them).
+func (c *BumpConfig) JobPaths() []string {
+	paths := slices.Sorted(maps.Values(c.Jobs))
+	for _, jobs := range c.CNIJobs {
+		for _, j := range jobs {
+			if !slices.Contains(paths, j.Job) {
+				paths = append(paths, j.Job)
+			}
+		}
+	}
+
+	return paths
+}
+
+// jobFor is the job an issue's checks run on: the CNI job of its components, else the product's.
+// An issue that needs two CNIs cannot run on one job (why).
+func (c *BumpConfig) jobFor(issue *BumpIssue) (path, name, why string) {
+	var matched []CNIJob
+	for _, j := range c.CNIJobs[issue.Product] {
+		if slices.ContainsFunc(issue.Checks, func(ch BumpCheck) bool {
+			return slices.Contains(j.Components, strings.Fields(ch.What)[0])
+		}) && !slices.ContainsFunc(matched, func(m CNIJob) bool { return m.Job == j.Job }) {
+			matched = append(matched, j)
+		}
+	}
+
+	switch {
+	case len(matched) == 0:
+		return c.Jobs[issue.Product], "", ""
+	case len(matched) > 1:
+		return "", "", fmt.Sprintf("its checks need both the %s and the %s install", matched[0].Name, matched[1].Name)
+	case matched[0].Job == c.Jobs[issue.Product]:
+		return matched[0].Job, "", ""
+	}
+
+	return matched[0].Job, matched[0].Name, ""
 }
 
 // LoadBumpConfig reads and checks the bump mode's config.
@@ -69,6 +119,10 @@ type BumpIssue struct {
 	OffBoard bool        `json:"off_board,omitempty"`
 	PRs      []BumpPR    `json:"prs,omitempty"`
 	Checks   []BumpCheck `json:"checks,omitempty"`
+
+	// JobPath and JobName are the version-bump job its checks run on (BumpConfig.jobFor).
+	JobPath string `json:"job,omitempty"`
+	JobName string `json:"job_name,omitempty"`
 }
 
 type BumpPR struct {
@@ -140,9 +194,8 @@ func sameBump(title string) string {
 	return strings.Join(strings.Fields(strings.ReplaceAll(t, "-", " ")), " ")
 }
 
-// PureBump reports whether every changed line only changes versions: removed and added lines match
-// once their versions and image tags are masked, the rest of an image line included. An added line
-// that is only an image (a new entry of an image list) passes too; go.sum is versions by nature.
+// PureBump: removed and added lines match once versions and image tags are masked; an added image-only
+// line (a new image-list entry) and go.sum pass too.
 func PureBump(files []PRFile) (pure bool, why string) {
 	for _, f := range files {
 		if strings.HasSuffix(f.Name, "go.sum") {
@@ -205,11 +258,10 @@ func changedLines(patch string) (removed, added []string) {
 	return removed, added
 }
 
-// BumpChecks derives what the job checks from the PR's changes; a change no rule covers is returned
-// as unsupported, for a person: a file, or a bumped image a default install does not run. RKE2 charts
-// are checked on the chart file every install bundles, K3s charts on the server manifest, and images
-// (default ones only) on the node.
+// BumpChecks derives the job's checks from the PR's changes (charts, node images, chart values); what
+// no rule covers is returned as unsupported, for a person.
 func BumpChecks(product string, files []PRFile, defaultImages []string) (checks []BumpCheck, unsupported []string) {
+	var untested []bumpedImage
 	for _, f := range files {
 		var got []BumpCheck
 		switch {
@@ -218,22 +270,62 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 		case product == "k3s" && strings.HasPrefix(f.Name, "manifests/") && strings.HasSuffix(f.Name, ".yaml"):
 			got = k3sChartChecks(f.Name, f.Patch)
 		}
-		images, untested := imageChecks(f.Patch, defaultImages)
+		images, others := imageChecks(f.Patch, defaultImages)
 		got = append(got, images...)
+		untested = append(untested, others...)
 
-		for _, u := range untested {
-			if !slices.Contains(unsupported, u) {
-				unsupported = append(unsupported, u)
-			}
-		}
-		if len(got) == 0 && len(untested) == 0 && !strings.HasSuffix(f.Name, "go.sum") &&
+		if len(got) == 0 && len(others) == 0 && !strings.HasSuffix(f.Name, "go.sum") &&
 			f.Name != "scripts/build-images" && f.Name != "scripts/airgap/image-list.txt" {
 			unsupported = append(unsupported, f.Name)
 		}
 		checks = append(checks, got...)
 	}
 
+	values, left := valuesChecks(product, checks, untested)
+	checks = append(checks, values...)
+	for _, u := range left {
+		if !slices.Contains(unsupported, u) {
+			unsupported = append(unsupported, u)
+		}
+	}
+
 	return dedupChecks(checks), unsupported
+}
+
+// bumpedImage is an image tag a pull request adds.
+type bumpedImage struct{ name, tag string }
+
+// operatorVariant: the cilium chart names one operator image; its template adds the cloud suffix.
+var operatorVariant = regexp.MustCompile(`-(?:aws|azure|alibabacloud|generic)$`)
+
+// valuesChecks reads the images no default install runs from the values of the one RKE2 chart the PR
+// bumps, in its bundled chart file on the node; with no such chart, or several, a person checks them.
+func valuesChecks(product string, checks []BumpCheck, images []bumpedImage) (values []BumpCheck, left []string) {
+	var charts []string
+	for _, c := range checks {
+		if f := strings.Fields(c.What); f[1] == "chart" && !slices.Contains(charts, f[0]) {
+			charts = append(charts, f[0])
+		}
+	}
+
+	for _, img := range images {
+		if product != "rke2" || len(charts) != 1 {
+			left = append(left, fmt.Sprintf("rancher/%s:%s (not a default image, and no single chart to read it from)",
+				img.name, img.tag))
+			continue
+		}
+
+		chart := charts[0]
+		values = append(values, BumpCheck{
+			What: fmt.Sprintf("%s image %s in %s values", img.name, img.tag, chart),
+			Cmd: "sudo grep -h chartContent /var/lib/rancher/rke2/data/*/charts/" + chart + ".yaml" +
+				" | sed s/.*chartContent.// | base64 -di | tar xzOf - " + chart + "/values.yaml" +
+				" | grep -A1 rancher/" + operatorVariant.ReplaceAllString(img.name, ""),
+			Expected: img.tag,
+		})
+	}
+
+	return values, left
 }
 
 // rke2ChartChecks: a "- version: X" line followed by "filename: /charts/<chart>.yaml" bumps that chart.
@@ -288,14 +380,16 @@ func k3sChartChecks(name, patch string) []BumpCheck {
 	return checks
 }
 
-// imageChecks: an added image tag of an image a default install runs, seen in the node's images; any
-// other added image is untested, so its issue goes to a person instead of passing on its other checks.
-func imageChecks(patch string, defaultImages []string) (checks []BumpCheck, untested []string) {
+// imageChecks: an added image tag of an image a default install runs, seen in the node's images; the
+// others are returned, to be checked in their chart (valuesChecks) or left to a person.
+func imageChecks(patch string, defaultImages []string) (checks []BumpCheck, others []bumpedImage) {
 	_, added := changedLines(patch)
 	for _, l := range added {
 		for _, m := range imageRef.FindAllStringSubmatch(l, -1) {
 			if !slices.Contains(defaultImages, m[1]) {
-				untested = append(untested, fmt.Sprintf("rancher/%s:%s (not a default image)", m[1], m[2]))
+				if img := (bumpedImage{m[1], m[2]}); !slices.Contains(others, img) {
+					others = append(others, img)
+				}
 				continue
 			}
 
@@ -309,7 +403,7 @@ func imageChecks(patch string, defaultImages []string) (checks []BumpCheck, unte
 		}
 	}
 
-	return checks, untested
+	return checks, others
 }
 
 func dedupChecks(in []BumpCheck) []BumpCheck {
@@ -333,6 +427,20 @@ type BumpTarget struct {
 	Version string      `json:"version"` // an RC tag, or the branch's latest commit
 	Commit  bool        `json:"commit,omitempty"`
 	Checks  []BumpCheck `json:"checks"`
+
+	// JobPath is the version-bump job; JobName names a CNI job ("canal"), empty for the product's.
+	JobPath string `json:"job,omitempty"`
+	JobName string `json:"job_name,omitempty"`
+}
+
+// Name is the run's name for the target's job: "rke2-bumps-137", "rke2-bumps-137-canal".
+func (t *BumpTarget) Name() string {
+	name := t.Product + "-bumps-" + t.Minor()
+	if t.JobName != "" {
+		name += "-" + t.JobName
+	}
+
+	return name
 }
 
 // Minor is "137" for release-1.37, the part of the hostname prefix that names the branch.
@@ -370,6 +478,9 @@ func (t *BumpTarget) Job(c *BumpConfig, controller, dtfRef string) (JenkinsJob, 
 		return JenkinsJob{}, fmt.Errorf("no HOSTNAME_PREFIX base: set %s to your SUSE login", SUSELoginEnv)
 	}
 	prefix := c.PrefixBase + t.Minor() + t.Product[:1]
+	if t.JobName != "" {
+		prefix += t.JobName[:1] // fmor137rc: tells the canal job's nodes from the other job's
+	}
 	if budget := hostnameBudget - len(t.Product); len(prefix) > budget {
 		return JenkinsJob{}, fmt.Errorf("hostname prefix %q is longer than %d characters", prefix, budget)
 	}
@@ -379,9 +490,13 @@ func (t *BumpTarget) Job(c *BumpConfig, controller, dtfRef string) (JenkinsJob, 
 		mode = "INSTALL_" + strings.ToUpper(t.Product) + "_COMMIT"
 	}
 
+	path := t.JobPath
+	if path == "" {
+		path = c.Jobs[t.Product]
+	}
+
 	return JenkinsJob{
-		Name: t.Product + "-bumps-" + t.Minor(), Product: t.Product, Version: t.Version, Controller: controller,
-		Path: c.Jobs[t.Product], Phase: 1,
+		Name: t.Name(), Product: t.Product, Version: t.Version, Controller: controller, Path: path, Phase: 1,
 		Params: map[string]string{
 			"INSTALL_MODE": mode, "INSTALL_VERSION": t.Version, "TEST_ARGS": args,
 			"HOSTNAME_PREFIX": prefix, "BRANCH": dtfRef,

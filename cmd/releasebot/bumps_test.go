@@ -23,7 +23,9 @@ func TestBumpReportIsWrittenAgainWithResume(t *testing.T) {
 			http.Error(w, "down", http.StatusInternalServerError)
 		case strings.HasSuffix(r.URL.Path, "/consoleText"):
 			_, _ = w.Write([]byte("Command to Execute: sudo grep -h chart-url /x.yaml\nExpected Value: rke2-x-1.0.tgz\n" +
-				"Matched with result:\n  chart-url: rke2-x-1.0.tgz\n\n"))
+				"Matched with result:\n  chart-url: rke2-x-1.0.tgz\n\n" +
+				"Command to Execute: sudo grep -h chart-url /c.yaml\nExpected Value: rke2-canal-2.0.tgz\n" +
+				"Matched with result:\n  chart-url: rke2-canal-2.0.tgz\n\n"))
 		default:
 			_, _ = w.Write([]byte(`{"actions":[{"parameters":[{"name":"NODE_OS","value":"sles15"}]}]}`))
 		}
@@ -53,8 +55,10 @@ func TestBumpReportIsWrittenAgainWithResume(t *testing.T) {
 	if err := executeBumps(t.Context(), o, cfg, "main"); err != nil {
 		t.Fatal(err)
 	}
+	// Both jobs of the branch (the canal install and the other) report their own issue.
 	md, readErr := os.ReadFile(filepath.Join(o.bumpsDir, "rke2-bumps-release-2026-11.md"))
-	if readErr != nil || !strings.Contains(string(md), "rke2-x-1.0.tgz") {
+	if readErr != nil || !strings.Contains(string(md), "rke2-x-1.0.tgz") ||
+		!strings.Contains(string(md), "rke2-canal-2.0.tgz") {
 		t.Fatalf("MD %q, %v", md, readErr)
 	}
 	if _, err := os.Stat(runFile); !os.IsNotExist(err) {
@@ -81,13 +85,25 @@ func bumpReportFixture(
 	target := &releasebot.BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "v1.37.2-rc1+rke2r1",
 		Checks: []releasebot.BumpCheck{{What: "rke2-x chart 1.0", Cmd: "sudo grep -h chart-url /x.yaml",
 			Expected: "rke2-x-1.0.tgz", Issue: 2}}}
+	canal := &releasebot.BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "v1.37.2-rc1+rke2r1",
+		JobPath: "r/c", JobName: "canal", Checks: []releasebot.BumpCheck{{What: "rke2-canal chart 2.0",
+			Cmd: "sudo grep -h chart-url /c.yaml", Expected: "rke2-canal-2.0.tgz", Issue: 4}}}
 	backport := &releasebot.BumpIssue{Product: "rke2", Repo: "rancher/rke2", Number: 2, Branch: "release-1.37"}
+	canalBackport := &releasebot.BumpIssue{Product: "rke2", Repo: "rancher/rke2", Number: 4, Branch: "release-1.37"}
 	run = &releasebot.BumpRun{
-		Plan: &releasebot.BumpPlan{Month: "2026-11", Targets: []*releasebot.BumpTarget{target},
-			Groups: []*releasebot.BumpGroup{{Product: "rke2", Main: releasebot.BumpIssue{Repo: "rancher/rke2", Number: 1,
-				Title: "Bump x"}, Backports: []*releasebot.BumpIssue{backport}}}},
-		Final: &releasebot.Progress{Jobs: []releasebot.JobRecord{{Job: releasebot.JenkinsJob{Name: "rke2-bumps-137"},
-			State: "finished", Result: "SUCCESS", BuildURL: url + "/job/r/job/v/7/"}}},
+		Plan: &releasebot.BumpPlan{Month: "2026-11", Targets: []*releasebot.BumpTarget{target, canal},
+			Groups: []*releasebot.BumpGroup{
+				{Product: "rke2", Main: releasebot.BumpIssue{Repo: "rancher/rke2", Number: 1, Title: "Bump x"},
+					Backports: []*releasebot.BumpIssue{backport}},
+				{Product: "rke2", Main: releasebot.BumpIssue{Repo: "rancher/rke2", Number: 3, Title: "Update Canal"},
+					Backports: []*releasebot.BumpIssue{canalBackport}},
+			}},
+		Final: &releasebot.Progress{Jobs: []releasebot.JobRecord{
+			{Job: releasebot.JenkinsJob{Name: "rke2-bumps-137"}, State: "finished", Result: "SUCCESS",
+				BuildURL: url + "/job/r/job/v/7/"},
+			{Job: releasebot.JenkinsJob{Name: "rke2-bumps-137-canal"}, State: "finished", Result: "SUCCESS",
+				BuildURL: url + "/job/r/job/c/8/"},
+		}},
 	}
 	runFile = filepath.Join(dir, "bumps-run-plan.json")
 	if err := releasebot.SaveBumpRun(runFile, run); err != nil {

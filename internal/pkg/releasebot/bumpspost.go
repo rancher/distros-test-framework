@@ -119,9 +119,8 @@ func PostBumpMD(ctx context.Context, gh bumpPoster, file string, closeIssues boo
 	return nil
 }
 
-// postBumpSection posts s on its main issue, a link to it on each backport and, when asked, closes
-// them (the main issue only once none of its backports is open); done and record are the ledger of
-// what was already done.
+// postBumpSection posts s on its main issue, links it on each backport and, when asked, closes them;
+// done and record are the ledger of what was already done.
 func postBumpSection(
 	ctx context.Context, gh bumpPoster, s *BumpSection, closeIssues bool, done map[string]string,
 	record func(key, value string) error, log logFunc,

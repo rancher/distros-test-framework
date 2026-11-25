@@ -351,3 +351,54 @@ func TestSchedulerLimitFor(t *testing.T) {
 		t.Fatalf("outcomes %d, peak %d (want 1)", len(out), b.peak)
 	}
 }
+
+// Two jobs on one branch (the canal install and the other): each issue is reported from the job that
+// validated it, with that job's cluster.
+func TestRenderBumpMDTwoJobsOnABranch(t *testing.T) {
+	canal, validated := canalValidated()
+	validated["rke2-bumps-137-canal"] = validated["release-1.37"]
+	delete(validated, "release-1.37")
+	validated["rke2-bumps-137-canal"].Target.JobName = "canal"
+
+	gateway := &BumpGroup{Product: "rke2", Main: BumpIssue{Repo: "rancher/rke2", Number: 11722, Title: "Bump gateway-api"},
+		Backports: []*BumpIssue{{Repo: "rancher/rke2", Number: 11742, Branch: "release-1.37"}}}
+	generic := &BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "v1.37.2-rc1+rke2r1",
+		Checks: []BumpCheck{{What: "rke2-gateway-api-crd chart 1.7.1", Issue: 11742,
+			Cmd:      "sudo grep -h chart-url /var/lib/rancher/rke2/data/*/charts/rke2-gateway-api-crd.yaml",
+			Expected: "rke2-gateway-api-crd-1.7.1.tgz"}}}
+	nodes, flags := clusterConfig("server_flags = \"profile: cis\\nselinux: true\\ncni: cilium\"\n" +
+		"nodes = [\n  {\n    count = 1\n    role  = [\"etcd\", \"cp\", \"worker\"]\n  }\n]\n")
+	validated["rke2-bumps-137"] = &BranchResult{Target: generic, NodeOS: "rhel9", Arch: "amd64", Nodes: nodes,
+		Flags: flags, Results: []BumpResult{{Expected: "rke2-gateway-api-crd-1.7.1.tgz",
+			Output: []string{"chart-url: rke2-gateway-api-crd-1.7.1.tgz"}}}}
+
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{canal, gateway}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sections, _ := ParseBumpMD(md)
+	if len(sections) != 2 {
+		t.Fatalf("sections %+v:\n%s", sections, md)
+	}
+	if !strings.Contains(sections[0].Body, "rke2-canal-3.33.101") || strings.Contains(sections[0].Body, "gateway") ||
+		!strings.Contains(sections[1].Body, "rke2-gateway-api-crd-1.7.1.tgz") ||
+		!strings.Contains(sections[1].Body,
+			"1 node: etcd, cp, worker\n\n```yaml\nprofile: cis\nselinux: true\ncni: cilium\n```") ||
+		!strings.Contains(sections[1].Body, "rhel9, amd64") {
+		t.Fatalf("MD:\n%s", md)
+	}
+}
+
+// A values check's step says what it proves: the chart carries the image.
+func TestSectionWhatsOfAValuesCheck(t *testing.T) {
+	bp := &BumpIssue{Number: 1, Branch: "release-1.37"}
+	r := &BranchResult{Target: &BumpTarget{Branch: "release-1.37", Checks: []BumpCheck{
+		{What: "hardened-addon-resizer image 1.8.24 in rke2-metrics-server values", Issue: 1},
+		{What: "hardened-k8s-metrics-server image v0.9.1", Issue: 1},
+	}}}
+	got := sectionWhats([]*BumpIssue{bp}, map[string]*BranchResult{"x": r})
+	if len(got) != 2 || got[0] != "the rke2-metrics-server values carry the hardened-addon-resizer image 1.8.24" ||
+		got[1] != "the hardened-k8s-metrics-server image is v0.9.1" {
+		t.Fatalf("steps %q", got)
+	}
+}

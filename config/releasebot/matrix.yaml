@@ -1,9 +1,5 @@
-# Release bot job matrix. Each job runs once per RC of its product, in phases: an RC starts phase N
-# once all of its phase N-1 jobs passed (docs/releasebot.md). {{VERSION}}, {{PREFIX}} (the captain's
-# base from RELEASEBOT_SUSE_LOGIN + major/minor + code, e.g. fmor137vc), {{UPGRADE_FROM}} and
-# {{QASE_RUN_ID}} are filled per RC; other
-# params keep the job's defaults. optional jobs may be missing on the controller (skipped); any
-# other job that is missing or cannot take the bot's params refuses the plan.
+# Release bot job matrix: each job runs once per RC of its product, in phases. Placeholders, optional
+# jobs and refusals: docs/releasebot.md, "Jenkins matrix".
 dtfRepo: rancher/distros-test-framework
 # Until qa-infra-RC-1 merges into main; RELEASEBOT_DTF_REF in the env file overrides it.
 dtfRef: qa-infra-RC-1
