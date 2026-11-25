@@ -23,6 +23,7 @@ type BumpConfig struct {
 	Jobs          map[string]string   `yaml:"jobs"`
 	CNIJobs       map[string][]CNIJob `yaml:"cniJobs"`
 	DefaultImages map[string][]string `yaml:"defaultImages"`
+	TitleChecks   []TitleCheck        `yaml:"titleChecks"`
 	PrefixBase    string              `yaml:"-"`
 	Products      []string            `yaml:"-"`
 	Accepted      []int               `yaml:"-"`
@@ -73,6 +74,37 @@ func (c *BumpConfig) jobFor(issue *BumpIssue) (path, name, why string) {
 	return matched[0].Job, matched[0].Name, ""
 }
 
+// TitleCheck is a check a bump's title asks for beyond its PR's versions: a title matching Title (the
+// gateway-api bump, which ships inside the Traefik chart) checks the version the title names.
+type TitleCheck struct {
+	Title    string `yaml:"title"`
+	What     string `yaml:"what"`
+	Cmd      string `yaml:"cmd"`
+	Expected string `yaml:"expected"`
+
+	title *regexp.Regexp
+}
+
+// titleChecks are the issue's checks its title asks for, with {{VERSION}} the title's last version.
+func (c *BumpConfig) titleChecks(issue *BumpIssue) []BumpCheck {
+	title := releasePrefix.ReplaceAllString(issue.Title, "")
+	versions := versionToken.FindAllString(title, -1)
+	if len(versions) == 0 {
+		return nil
+	}
+
+	version := strings.TrimPrefix(versions[len(versions)-1], "v")
+	var checks []BumpCheck
+	for _, tc := range c.TitleChecks {
+		if tc.title.MatchString(title) {
+			checks = append(checks, BumpCheck{What: tc.What + " v" + version, Cmd: tc.Cmd, Issue: issue.Number,
+				Expected: strings.ReplaceAll(tc.Expected, "{{VERSION}}", version)})
+		}
+	}
+
+	return checks
+}
+
 // LoadBumpConfig reads and checks the bump mode's config.
 func LoadBumpConfig(path string) (*BumpConfig, error) {
 	raw, readErr := os.ReadFile(path)
@@ -91,6 +123,16 @@ func LoadBumpConfig(path string) (*BumpConfig, error) {
 	}
 	if c.Controller == "" {
 		c.Controller = "mower"
+	}
+	for i := range c.TitleChecks {
+		tc := &c.TitleChecks[i]
+		re, reErr := regexp.Compile(tc.Title)
+		if reErr != nil || len(strings.Fields(tc.What)) != 2 || tc.Cmd == "" ||
+			!strings.Contains(tc.Expected, "{{VERSION}}") {
+			return nil, fmt.Errorf("bump config %s: titleChecks[%d] needs a title regexp, a two-word what, a cmd "+
+				"and an expected value with {{VERSION}}", path, i)
+		}
+		tc.title = re
 	}
 
 	return &c, nil

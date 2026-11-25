@@ -251,6 +251,7 @@ func classifyBump(
 	if len(issue.Checks) == 0 {
 		return issue, problem("its pull requests change nothing a job can check (a non-default image?)"), nil
 	}
+	issue.Checks = append(issue.Checks, cfg.titleChecks(issue)...)
 
 	path, name, why := cfg.jobFor(issue)
 	if why != "" {

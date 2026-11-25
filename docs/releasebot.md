@@ -716,7 +716,9 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   `hardened-cni-plugins` runs in both the Canal and the Cilium pods; `rke2-security-responder` is
   a CronJob, on the node only after a run, so its image is read from its chart's values.
   The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
-  1.7.1 its pull request ships. A change no rule covers goes to a person, and so do bumps that
+  1.7.1 its pull request ships. A component that ships inside a chart also gets the checks its
+  title asks for (`titleChecks` in `bumps.yaml`, `{{VERSION}}` the title's version): the gateway-api
+  bump checks its CRDs' `gateway.networking.k8s.io/bundle-version` on the cluster. A change no rule covers goes to a person, and so do bumps that
   still want one chart or image at two versions in the same job once the branch's newer version is
   followed (two issues, or two pull requests of one): a single job cannot pass both. A backport
   whose PR changes more than versions (a `package:` line) is validated anyway when the captain

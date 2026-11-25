@@ -7,6 +7,8 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -615,6 +617,37 @@ func TestPlanBumpsAcceptsACaptainsIssue(t *testing.T) {
 	}
 	if got := plan.backportStates(plan.Groups[1]); got != "#71 release-1.36 validate (accepted)" {
 		t.Fatalf("states %q", got)
+	}
+}
+
+// A gateway-api bump ships inside a chart: its title asks for the CRDs' bundle version on the cluster,
+// the version the title names; other titles get no such check, and a check without {{VERSION}} is refused.
+func TestBumpTitleChecks(t *testing.T) {
+	cfg, err := LoadBumpConfig("../../../config/releasebot/bumps.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := cfg.titleChecks(&BumpIssue{Number: 5, Title: "[Release-1.34] Bump gateway-api to 1.7.0"})
+	if len(got) != 1 || got[0].What != "gateway-api bundle v1.7.0" || got[0].Expected != "bundle-version: v1.7.0" ||
+		got[0].Cmd != "kubectl get crd gateways.gateway.networking.k8s.io -o yaml : | grep bundle-version" ||
+		got[0].Issue != 5 {
+		t.Fatalf("gateway-api checks %+v", got)
+	}
+	if _, argsErr := (&BumpTarget{Checks: got}).TestArgs(); argsErr != nil {
+		t.Fatalf("the job cannot take the check: %v", argsErr)
+	}
+	if other := cfg.titleChecks(&BumpIssue{Title: "Bump Traefik to v3.7.20"}); len(other) != 0 {
+		t.Fatalf("traefik got %+v", other)
+	}
+
+	bad := filepath.Join(t.TempDir(), "bumps.yaml")
+	raw := "jobs: {k3s: k, rke2: r}\ntitleChecks:\n  - {title: x, what: a b, cmd: c, expected: v1}\n"
+	if writeErr := os.WriteFile(bad, []byte(raw), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if _, loadErr := LoadBumpConfig(bad); loadErr == nil || !strings.Contains(loadErr.Error(), "{{VERSION}}") {
+		t.Fatalf("a check without {{VERSION}} loaded: %v", loadErr)
 	}
 }
 

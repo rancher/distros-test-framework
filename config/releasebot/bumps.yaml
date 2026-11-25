@@ -12,6 +12,13 @@ cniJobs:
     - name: cilium
       job: distros_qa/rke2-tests/rke2-version-bump_qainfra
       components: [rke2-cilium, mirrored-cilium-cilium, mirrored-cilium-operator-generic]
+# Checks a bump's title asks for beyond its PR's versions, {{VERSION}} the version the title names:
+# the gateway-api bump ships inside a chart, so its CRDs' bundle version is checked on the cluster.
+titleChecks:
+  - title: (?i)\bgateway[- ]api\b
+    what: gateway-api bundle
+    cmd: "kubectl get crd gateways.gateway.networking.k8s.io -o yaml : | grep bundle-version"
+    expected: "bundle-version: v{{VERSION}}"
 defaultImages:
   rke2: [hardened-calico, hardened-flannel, hardened-cni-plugins, hardened-coredns, hardened-k8s-metrics-server,
          hardened-etcd, mirrored-cilium-cilium, mirrored-cilium-operator-generic]
