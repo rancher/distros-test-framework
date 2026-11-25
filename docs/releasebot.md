@@ -590,25 +590,33 @@ The release captain runs the whole release from their own laptop, in a terminal:
 command works there too, and the run survives an interrupt. The VM hosting below is the v2, kept
 for when there is a Bedrock-only credential.
 
-Once per captain:
+Once per captain, and per release commit: everything the run reads is pinned in one folder, so a
+checkout or an edit in the DTF tree never changes the matrix mid-release.
 
 ```
-$ go build -o ~/bin/releasebot ./cmd/releasebot        # from a clean checkout of the reviewed commit
+$ SHA=<reviewed commit>; D=~/releasebot/${SHA:0:7}; mkdir -p "$D"
+$ git show "${SHA}:config/releasebot/matrix.yaml" > "$D/matrix.yaml"
+$ git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$D/triage-skill.sha256"
+$ git worktree add /tmp/releasebot-$SHA $SHA && (cd /tmp/releasebot-$SHA && go build -o "$D/releasebot" ./cmd/releasebot)
 $ (umask 077; mkdir -p ~/.config/releasebot && $EDITOR ~/.config/releasebot/releasebot.env)
 #   GITHUB_TOKEN, JENKINS_MOWER_AUTH, JENKINS_BALER_AUTH (for baler requests), QASE_AUTOMATION_TOKEN;
-#   the captain's own tokens, from the team vault; nothing of Slack is needed
+#   the captain's own tokens, from the team vault; nothing of Slack is needed; and
+#   CLAUDE_SANDBOX_PROVIDER=bedrock, so -triage-local never falls back to the wrapper's Vertex default
 # for -triage-local: claude-sandbox with the Bedrock provider and its sign-in (distros-qa-skills,
-# claude-sandbox SKILL.md), and the triage workspace (skill, private/mcp.json) as in "Hosting" below
+# claude-sandbox SKILL.md), and the triage workspace: the skill revision the manifest pins in
+# ~/releasebot-triage/skill and private/mcp.json, as in "Hosting" below
 ```
 
-A release day (`caffeinate -i` keeps a Mac awake; a sleeping laptop only delays polling):
+A release day (`caffeinate -i` keeps a Mac awake; a sleeping laptop only delays polling). The tokens
+are loaded in a subshell, so the rest of the terminal never holds them:
 
 ```
-$ set -a; . ~/.config/releasebot/releasebot.env; set +a
-$ export CLAUDE_SANDBOX_PROVIDER=bedrock && claude-sandbox bedrock login --no-browser   # for -triage-local
-$ releasebot -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1'                  # the plan (dry-run)
-$ caffeinate -i releasebot -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -dry-run=false \
-    -triage-local -triage-manifest ops/releasebot/triage-skill.sha256
+$ CLAUDE_SANDBOX_PROVIDER=bedrock claude-sandbox bedrock login --no-browser       # for -triage-local
+$ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
+    exec "$D/releasebot" -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -matrix "$D/matrix.yaml" )   # the plan
+$ ( set -a; . ~/.config/releasebot/releasebot.env; set +a; export CLAUDE_SANDBOX_PROVIDER=bedrock
+    exec caffeinate -i "$D/releasebot" -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -dry-run=false \
+      -matrix "$D/matrix.yaml" -triage-local -triage-manifest "$D/triage-skill.sha256" )
 ```
 
 - **Commands.** Typed in the same terminal while the run goes: `status`, `stop`,
