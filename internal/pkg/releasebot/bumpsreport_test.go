@@ -101,7 +101,7 @@ func TestBumpMDRefusesJenkinsAndAddresses(t *testing.T) {
 	for _, bad := range []string{
 		"see https://mower.jenkins.qa.rancher.space/job/x/1/",
 		"build at /job/distros_qa/job/rke2-tests/job/x/47/",
-		"node 18.119.0.144 answered",
+		"node 203.0.113.10 answered",
 	} {
 		if err := CheckBumpMD(bad); !errors.Is(err, ErrBumpMDUnsafe) {
 			t.Fatalf("%q passed: %v", bad, err)
