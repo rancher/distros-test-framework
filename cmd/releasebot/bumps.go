@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -22,20 +23,9 @@ func runBumps(o *options) error {
 		return postBumps(o)
 	}
 
-	cfg, cfgErr := releasebot.LoadBumpConfig(o.bumpsConfig)
+	cfg, cfgErr := bumpConfig(o)
 	if cfgErr != nil {
 		return cfgErr
-	}
-	prefix, prefixErr := releasebot.PrefixFromLogin(os.Getenv(releasebot.SUSELoginEnv))
-	if prefixErr != nil {
-		return prefixErr
-	}
-	cfg.PrefixBase = prefix
-	if o.bumpsProduct != "" {
-		if cfg.Jobs[o.bumpsProduct] == "" {
-			return fmt.Errorf("-bumps-product %q: want k3s or rke2", o.bumpsProduct)
-		}
-		cfg.Products = []string{o.bumpsProduct}
 	}
 	matrix, matrixErr := releasebot.LoadMatrixWithRef(o.matrixPath, os.Getenv(releasebot.DTFRefEnv))
 	if matrixErr != nil {
@@ -206,14 +196,11 @@ func acceptBumps(plan *releasebot.BumpPlan, in *bufio.Reader, atTerminal bool) e
 		var branches []string
 		for _, bp := range g.Backports {
 			for _, t := range plan.Targets {
-				if t.Product == g.Product && t.Branch == bp.Branch && hasIssue(t, bp.Number) {
-					branch := fmt.Sprintf("#%d %s", bp.Number, bp.Branch)
-					if bp.OffBoard {
-						branch += " (not in To Test)"
-					}
-					branches = append(branches, branch)
-					issues++
+				if t.Product != g.Product || t.Branch != bp.Branch || !hasIssue(t, bp.Number) {
+					continue
 				}
+				branches = append(branches, backportLabel(bp))
+				issues++
 			}
 		}
 		if len(branches) > 0 {
@@ -231,6 +218,67 @@ func acceptBumps(plan *releasebot.BumpPlan, in *bufio.Reader, atTerminal bool) e
 	}
 
 	return nil
+}
+
+// bumpConfig is bumps.yaml with what the command line adds: the login's prefix, the board and the
+// accepted backports.
+func bumpConfig(o *options) (*releasebot.BumpConfig, error) {
+	cfg, cfgErr := releasebot.LoadBumpConfig(o.bumpsConfig)
+	if cfgErr != nil {
+		return nil, cfgErr
+	}
+
+	prefix, prefixErr := releasebot.PrefixFromLogin(os.Getenv(releasebot.SUSELoginEnv))
+	if prefixErr != nil {
+		return nil, prefixErr
+	}
+	cfg.PrefixBase = prefix
+
+	if o.bumpsProduct != "" {
+		if cfg.Jobs[o.bumpsProduct] == "" {
+			return nil, fmt.Errorf("-bumps-product %q: want k3s or rke2", o.bumpsProduct)
+		}
+		cfg.Products = []string{o.bumpsProduct}
+	}
+
+	accepted, acceptErr := parseAccepted(o.bumpsAccept)
+	if acceptErr != nil {
+		return nil, acceptErr
+	}
+	cfg.Accepted = accepted
+
+	return cfg, nil
+}
+
+// parseAccepted reads -bumps-accept: issue numbers separated by commas ("" accepts none).
+func parseAccepted(list string) ([]int, error) {
+	if list == "" {
+		return nil, nil
+	}
+
+	var numbers []int
+	for _, word := range strings.Split(list, ",") {
+		n, atoiErr := strconv.Atoi(word)
+		if atoiErr != nil || n <= 0 {
+			return nil, fmt.Errorf("-bumps-accept %q: want issue numbers separated by commas", list)
+		}
+		numbers = append(numbers, n)
+	}
+
+	return numbers, nil
+}
+
+// backportLabel is "#11744 release-1.36", with "(not in To Test)" and "(accepted)" when they apply.
+func backportLabel(bp *releasebot.BumpIssue) string {
+	label := fmt.Sprintf("#%d %s", bp.Number, bp.Branch)
+	if bp.OffBoard {
+		label += " (not in To Test)"
+	}
+	if bp.Accepted {
+		label += " (accepted)"
+	}
+
+	return label
 }
 
 func hasIssue(t *releasebot.BumpTarget, issue int) bool {

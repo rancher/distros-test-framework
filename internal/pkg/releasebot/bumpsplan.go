@@ -94,8 +94,6 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 		}
 		plan.Groups = append(plan.Groups, g)
 	}
-	plan.Person = append(plan.Person, conflictingBumps(bumps, plan.Person)...)
-
 	targets, unsure, targetErr := bumpTargets(ctx, src, bumps, plan.Person)
 	if targetErr != nil {
 		return nil, targetErr
@@ -274,7 +272,10 @@ func addBumpChecks(ctx context.Context, src bumpSource, cfg *BumpConfig, issue *
 		issue.PRs[i].Files = files
 
 		if pure, why := PureBump(files); !pure {
-			return fmt.Sprintf("#%d is not only a version bump: %s", issue.PRs[i].Number, why), nil
+			if !slices.Contains(cfg.Accepted, issue.Number) {
+				return fmt.Sprintf("#%d is not only a version bump: %s", issue.PRs[i].Number, why), nil
+			}
+			issue.Accepted = true
 		}
 
 		checks, unsupported := BumpChecks(issue.Product, files, cfg.DefaultImages[issue.Product])
@@ -299,31 +300,32 @@ func personSet(person []BumpProblem) map[string]bool {
 	return skip
 }
 
-// conflictingBumps: checks of one branch that want the same chart or image at different versions (two
-// issues, or two PRs of one) cannot all pass and would fail the branch's job, so a person takes them.
-func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
-	skip := personSet(person)
-	versions := map[string][]string{}
-	issues := map[string][]*BumpIssue{}
-	var keys []string
-	for _, b := range bumps {
-		if b.Branch == "" || skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
-			continue
-		}
+// dropIssues takes the checks of the issues a person takes out of the target.
+func dropIssues(t *BumpTarget, problems []BumpProblem) {
+	t.Checks = slices.DeleteFunc(t.Checks, func(c BumpCheck) bool {
+		return slices.ContainsFunc(problems, func(p BumpProblem) bool { return p.Number == c.Issue })
+	})
+}
 
-		for _, c := range b.Checks {
-			// "<component> <chart|image> <version>"
-			f := strings.Fields(c.What)
-			k := b.Product + " " + b.Branch + ": " + strings.Join(f[:min(2, len(f))], " ")
-			if versions[k] == nil {
-				keys = append(keys, k)
-			}
-			if !slices.Contains(versions[k], c.Expected) {
-				versions[k] = append(versions[k], c.Expected)
-			}
-			if !slices.Contains(issues[k], b) {
-				issues[k] = append(issues[k], b)
-			}
+// conflictingChecks: checks of one job that still want the same chart or image at different versions
+// once a later bump on the branch is followed (two issues, or two PRs of one) cannot all pass, so a
+// person takes them.
+func conflictingChecks(t *BumpTarget, issues []*BumpIssue) []BumpProblem {
+	versions := map[string][]string{}
+	numbers := map[string][]int{}
+	var keys []string
+	for _, c := range t.Checks {
+		// "<component> <chart|image> <version>"
+		f := strings.Fields(c.What)
+		k := t.Product + " " + t.Branch + ": " + strings.Join(f[:min(2, len(f))], " ")
+		if versions[k] == nil {
+			keys = append(keys, k)
+		}
+		if !slices.Contains(versions[k], c.Expected) {
+			versions[k] = append(versions[k], c.Expected)
+		}
+		if !slices.Contains(numbers[k], c.Issue) {
+			numbers[k] = append(numbers[k], c.Issue)
 		}
 	}
 
@@ -332,12 +334,12 @@ func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
 		if len(versions[k]) < 2 {
 			continue
 		}
-		for _, b := range issues[k] {
-			if skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
+		for _, n := range numbers[k] {
+			if slices.ContainsFunc(problems, func(p BumpProblem) bool { return p.Number == n }) {
 				// listed for another conflict already
 				continue
 			}
-			skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] = true
+			b := issues[slices.IndexFunc(issues, func(b *BumpIssue) bool { return b.Number == n })]
 			problems = append(problems, BumpProblem{Repo: b.Repo, Number: b.Number, Title: b.Title,
 				Reason: fmt.Sprintf("%s is bumped to %d versions (%s): one job cannot check them all",
 					k, len(versions[k]), strings.Join(versions[k], ", "))})
@@ -349,7 +351,7 @@ func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
 
 // bumpTargets groups the valid backports by product and branch, with the version to install: the
 // branch's newest RC when it holds every merge, otherwise the branch's latest commit. unsure are the
-// issues taken out because that version does not set one newer or equal version (followNewerBumps).
+// issues taken out: that version does not set one newer or equal version, or a job's checks conflict.
 func bumpTargets(
 	ctx context.Context, src bumpSource, bumps []*BumpIssue, person []BumpProblem,
 ) (targets []*BumpTarget, unsure []BumpProblem, err error) {
@@ -392,10 +394,11 @@ func bumpTargets(
 		if followErr != nil {
 			return nil, nil, followErr
 		}
+		dropIssues(t, problems)
+		conflicts := conflictingChecks(t, members[k])
+		dropIssues(t, conflicts)
 		unsure = append(unsure, problems...)
-		t.Checks = slices.DeleteFunc(t.Checks, func(c BumpCheck) bool {
-			return slices.ContainsFunc(problems, func(p BumpProblem) bool { return p.Number == c.Issue })
-		})
+		unsure = append(unsure, conflicts...)
 		if len(t.Checks) > 0 {
 			targets = append(targets, t)
 		}
@@ -584,6 +587,9 @@ func (plan *BumpPlan) backportStates(g *BumpGroup) string {
 				slices.ContainsFunc(t.Checks, func(c BumpCheck) bool { return c.Issue == bp.Number })
 		}) {
 			state = "validate"
+			if bp.Accepted {
+				state += " (accepted)"
+			}
 		}
 		if bp.OffBoard {
 			state += " (not in To Test)"
@@ -640,6 +646,13 @@ func (a *App) PrintBumpPlan(plan *BumpPlan, cfg *BumpConfig, dtfRef, mode string
 		log("info", "Needs a person (%d):", len(plan.Person))
 		for _, p := range plan.Person {
 			log("info", "  %s#%d %s: %s", p.Repo, p.Number, p.Title, p.Reason)
+		}
+	}
+	for _, n := range cfg.Accepted {
+		if !slices.ContainsFunc(plan.Targets, func(t *BumpTarget) bool {
+			return slices.ContainsFunc(t.Checks, func(c BumpCheck) bool { return c.Issue == n })
+		}) {
+			log("warn", "  accepted #%d is not validated: acceptance covers only a change beyond versions", n)
 		}
 	}
 	if len(plan.NotBumps) > 0 {

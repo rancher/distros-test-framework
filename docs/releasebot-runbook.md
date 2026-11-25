@@ -171,7 +171,10 @@ to Qase; their results go on their own issues.
    It lists each job (product, branch, version, its issues and checks), every main issue with
    what happens to each backport (`validate` or `person`, and "not in To Test" for backports
    found outside the column), the bumps for a person with the reason, and the other To Test
-   issues. `rb bumps-plan rke2` (or `k3s`) reads one board only.
+   issues. `rb bumps-plan rke2` (or `k3s`) reads one board only. A backport the bot gives a person
+   only because its PR changes more than versions (a `package:` line, say) can be validated on
+   your word: add `accept=11744,11746` to `rb bumps-plan` and `rb bumps`; the plan and the prompt
+   mark it "(accepted)".
 2. **The run:** `rb bumps` (or `rb bumps rke2`). It prints the plan again and asks
    `Validate these <n> issues with <m> jobs? Type yes to start:`. Nothing starts without `yes`.
    During the run, the terminal commands and Ctrl-C work as in a release; `rb resume-bumps`

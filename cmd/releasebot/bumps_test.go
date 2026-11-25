@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -114,4 +115,19 @@ func bumpReportFixture(
 	}
 
 	return o, cfg, run, runFile
+}
+
+// -bumps-accept takes issue numbers separated by commas, nothing else.
+func TestParseAccepted(t *testing.T) {
+	for list, want := range map[string]string{"": "[]", "11744": "[11744]", "11744,11746": "[11744 11746]"} {
+		got, err := parseAccepted(list)
+		if err != nil || fmt.Sprint(got) != want {
+			t.Fatalf("parseAccepted(%q) = %v, %v; want %s", list, got, err, want)
+		}
+	}
+	for _, list := range []string{"11744,", "x", "0", "11744 11746", "-1"} {
+		if _, err := parseAccepted(list); err == nil {
+			t.Fatalf("parseAccepted(%q): no error", list)
+		}
+	}
 }

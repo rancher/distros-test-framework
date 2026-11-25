@@ -16,8 +16,8 @@ import (
 // Bump mode: the boards' version-bump issues, validated by version-bump jobs and reported in one MD
 // per product and month (docs/releasebot.md, "Bump issues").
 
-// BumpConfig is config/releasebot/bumps.yaml; the CLI sets PrefixBase (PrefixFromLogin) and Products
-// (-bumps-product, empty for both boards).
+// BumpConfig is config/releasebot/bumps.yaml; the CLI sets PrefixBase (PrefixFromLogin), Products
+// (-bumps-product, empty for both boards) and Accepted (-bumps-accept).
 type BumpConfig struct {
 	Controller    string              `yaml:"controller"`
 	Jobs          map[string]string   `yaml:"jobs"`
@@ -25,6 +25,7 @@ type BumpConfig struct {
 	DefaultImages map[string][]string `yaml:"defaultImages"`
 	PrefixBase    string              `yaml:"-"`
 	Products      []string            `yaml:"-"`
+	Accepted      []int               `yaml:"-"`
 }
 
 // CNIJob is a version-bump job that installs a CNI, and the components (charts, images) that need it.
@@ -110,7 +111,10 @@ type BumpIssue struct {
 	Parent int `json:"parent,omitempty"`
 
 	// OffBoard: a backport of a To Test main issue that sits in another column of the board.
-	OffBoard bool        `json:"off_board,omitempty"`
+	OffBoard bool `json:"off_board,omitempty"`
+
+	// Accepted: the captain had it validated although its PR changes more than versions (-bumps-accept).
+	Accepted bool        `json:"accepted,omitempty"`
 	PRs      []BumpPR    `json:"prs,omitempty"`
 	Checks   []BumpCheck `json:"checks,omitempty"`
 

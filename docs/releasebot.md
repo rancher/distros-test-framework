@@ -569,6 +569,7 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-month` | the current `YYYY-MM` | Bump mode: the release month the MDs are named after |
 | `-bumps-config` / `-bumps-dir` | `config/releasebot/bumps.yaml` / `~/releasebot/bumps/<month>` | Bump mode: jobs and default images; where the MDs go |
 | `-bumps-product` | | Bump mode: only this product's board (`k3s` or `rke2`); empty reads both |
+| `-bumps-accept` | | Bump mode: backports (`11744,11746`) to validate although their PR changes more than versions, on the captain's word |
 | `-bumps-post <md>` / `-bumps-close` | | Post a bump MD the captain read (each section on its issue, a link on its backports), after a `yes`; also close them |
 | `-validate` | `false` | Load and check `-matrix`, then exit (`setup.sh deploy` runs it on the candidate) |
 | `-triage-spool` | | Listen mode: ask the triage broker through this spool (empty: every failure asks a person); broker mode: the spool to serve |
@@ -715,9 +716,13 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   `hardened-cni-plugins` runs in both the Canal and the Cilium pods; `rke2-security-responder` is
   a CronJob, on the node only after a run, so its image is read from its chart's values.
   The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
-  1.7.1 its pull request ships. A change no rule covers goes to a person, and so do bumps that want
-  one chart or image at two versions on the same branch (two issues, or two pull requests of one):
-  a single job cannot pass both. The image check greps `rancher/<image>` with no `:` (the job's
+  1.7.1 its pull request ships. A change no rule covers goes to a person, and so do bumps that
+  still want one chart or image at two versions in the same job once the branch's newer version is
+  followed (two issues, or two pull requests of one): a single job cannot pass both. A backport
+  whose PR changes more than versions (a `package:` line) is validated anyway when the captain
+  lists it in `-bumps-accept` (`rb bumps accept=11744,11746`): its version checks run, the other
+  change is the captain's call, and the plan and the `yes` prompt mark it "(accepted)"; one with no
+  check, no merged PR or two CNIs stays with a person. The image check greps `rancher/<image>` with no `:` (the job's
   `JoinCommands` turns every `:` of a `kubectl` command into `,`); the expected `rancher/<image>:<tag>`
   keeps it exact.
 - **One job per branch and CNI.** The checks of a product's release branch go to one

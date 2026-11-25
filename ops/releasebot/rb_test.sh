@@ -44,11 +44,12 @@ check "tok -message v1.37.3-rc1+k3s1 baler -dry-run=false -matrix $P/matrix.yaml
 check "tok -resume -dry-run=false -matrix $P/matrix.yaml $triage" resume
 check "tok -bumps $bumps -bumps-product rke2" bumps-plan rke2
 check "tok -bumps -dry-run=false -poll 30s $bumps $triage" bumps
+check "tok -bumps -dry-run=false -poll 30s $bumps -bumps-product rke2 -bumps-accept 11744,11746 $triage" bumps accept=11744,11746 rke2
 check "tok -bumps -resume -dry-run=false -poll 30s $bumps $triage" resume-bumps
 check "tok -bumps-post k3s.md -bumps-close" post k3s.md close
 check "dtf-ref " dtf-ref ""
 
-for bad in "run" "bumps k8s" "post" "post k3s.md now" "dtf-ref" "nothing"; do
+for bad in "run" "bumps k8s" "bumps accept=" "bumps accept=1,x" "bumps accept=1," "post" "post k3s.md now" "dtf-ref" "nothing"; do
 	# shellcheck disable=SC2086 # each case is its words
 	if rb $bad >/dev/null 2>&1; then
 		echo "rb $bad: no usage error" >&2

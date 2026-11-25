@@ -563,6 +563,61 @@ func TestBumpRoutesByCNI(t *testing.T) {
 	}
 }
 
+// A backport the captain accepts is validated although its PR changes more than versions (a package
+// line), and the older Traefik it set follows the branch's newer one instead of conflicting with the
+// issue that bumped it; one not accepted, or with nothing to check, stays with a person.
+func TestPlanBumpsAcceptsACaptainsIssue(t *testing.T) {
+	traefik := func(from, to string) string {
+		return "-  - version: " + from + "\n+  - version: " + to + "\n     filename: /charts/rke2-traefik.yaml\n"
+	}
+	issue := func(n int, title string) []projectIssue {
+		return []projectIssue{{Repo: "rancher/rke2", Number: n - 1, Title: title},
+			{Repo: "rancher/rke2", Number: n, Title: "[Release 1.36] " + title, Body: fmt.Sprintf("#%d", n-1)}}
+	}
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": slices.Concat(issue(61, "Bump Traefik to v3.7.20"),
+			issue(71, "Bump gateway-api to 1.7.0"), issue(81, "Bump Traefik to v3.7.19"), issue(91, "Bump x"))},
+		prs: map[int][]BumpPR{61: {{Number: 161, Base: "release-1.36"}}, 71: {{Number: 171, Base: "release-1.36"}},
+			81: {{Number: 171, Base: "release-1.36"}}, 91: {{Number: 191, Base: "release-1.36"}}},
+		files: map[int][]PRFile{
+			161: {{Name: "charts/chart_versions.yaml", Patch: traefik("40.1.27", "40.1.28")}},
+			171: {{Name: "charts/chart_versions.yaml",
+				Patch: traefik("40.1.022", "40.1.27") + "     bootstrap: false\n-    package: rke2-traefik-1.34-1.36"}},
+			191: {{Name: "charts/chart_versions.yaml", Patch: "-  bootstrap: false\n+  bootstrap: true"}},
+		},
+		head: "deadbeef",
+		atRef: map[string]string{"deadbeef|charts/chart_versions.yaml": "charts:\n" + strings.ReplaceAll(
+			strings.TrimPrefix(traefik("40.1.27", "40.1.28"), "-  - version: 40.1.27\n"), "+", "")},
+		later: map[string][]fakeCommit{"charts/chart_versions.yaml": {{by: "rancher/rke2#12010",
+			patch: traefik("40.1.27", "40.1.28")}}},
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}, Accepted: []int{71, 91}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(plan.Targets) != 1 || len(plan.Targets[0].Checks) != 2 {
+		t.Fatalf("targets %+v, person %+v", plan.Targets, plan.Person)
+	}
+	if c := plan.Targets[0].Checks[1]; c.Issue != 71 || c.Expected != "rke2-traefik-40.1.28.tgz" ||
+		c.Replaced != "40.1.27" || c.ReplacedBy != "rancher/rke2#12010" {
+		t.Fatalf("accepted check %+v", c)
+	}
+	reasons := map[int]string{}
+	for _, p := range plan.Person {
+		reasons[p.Number] = p.Reason
+	}
+	if len(reasons) != 2 || !strings.Contains(reasons[81], "is not only a version bump") ||
+		!strings.Contains(reasons[91], "no check yet for charts/chart_versions.yaml") {
+		t.Fatalf("person %+v", plan.Person)
+	}
+	if got := plan.backportStates(plan.Groups[1]); got != "#71 release-1.36 validate (accepted)" {
+		t.Fatalf("states %q", got)
+	}
+}
+
 func TestNewerVersion(t *testing.T) {
 	for _, tc := range []struct {
 		a, b  string

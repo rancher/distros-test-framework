@@ -9,15 +9,16 @@ DTF=${RELEASEBOT_DTF_DIR:-$HOME/suse/distros-test-framework}
 
 usage() {
 	cat >&2 <<'EOF'
-usage: rb plan <rc-tag>... [baler]   the release plan (dry-run: triggers nothing)
-       rb run <rc-tag>... [baler]    run the release
-       rb resume                     carry on a paused or stopped release run
-       rb bumps-plan [k3s|rke2]      the bump plan (dry-run)
-       rb bumps [k3s|rke2]           validate the bump issues
-       rb resume-bumps               carry on a paused bump run
-       rb post <bump-md> [close]     post a bump MD on its issues (and close them)
-       rb pin <dtf-ref>              pin that DTF commit and use it from now on
-       rb dtf-ref <branch|"">        the DTF branch every job runs ("" back to the matrix's)
+usage: rb plan <rc-tag>... [baler]                 the release plan (dry-run: triggers nothing)
+       rb run <rc-tag>... [baler]                  run the release
+       rb resume                                   carry on a paused or stopped release run
+       rb bumps-plan [k3s|rke2] [accept=<n,...>]   the bump plan (dry-run)
+       rb bumps [k3s|rke2] [accept=<n,...>]        validate the bump issues (accept=: backports whose
+                                                   PR changes more than versions, on your word)
+       rb resume-bumps                             carry on a paused bump run
+       rb post <bump-md> [close]                   post a bump MD on its issues (and close them)
+       rb pin <dtf-ref>                            pin that DTF commit and use it from now on
+       rb dtf-ref <branch|"">                      the DTF branch every job runs ("" back to the matrix's)
 EOF
 	exit 64
 }
@@ -120,17 +121,25 @@ resume)
 		-triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
 bumps-plan | bumps)
-	case "${1:-}" in
-	"" | k3s | rke2) ;;
-	*) usage ;;
+	product='' accept=''
+	for arg in "$@"; do
+		case "$arg" in
+		k3s | rke2) product=$arg ;;
+		accept=[0-9]*) accept=${arg#accept=} ;;
+		*) usage ;;
+		esac
+	done
+	case "$accept" in
+	*[!0-9,]* | *,) usage ;;
 	esac
 	warn_dtf_ref
 	if [ "$cmd" = bumps-plan ]; then
 		with_credentials "$D/releasebot" -bumps -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" \
-			${1:+-bumps-product "$1"}
+			${product:+-bumps-product "$product"} ${accept:+-bumps-accept "$accept"}
 	fi
 	awake "$D/releasebot" -bumps -dry-run=false -poll 30s -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" \
-		${1:+-bumps-product "$1"} -triage-local -triage-manifest "$D/triage-skill.sha256"
+		${product:+-bumps-product "$product"} ${accept:+-bumps-accept "$accept"} \
+		-triage-local -triage-manifest "$D/triage-skill.sha256"
 	;;
 resume-bumps)
 	warn_dtf_ref
