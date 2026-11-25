@@ -54,6 +54,7 @@ func loadMatrixText(t *testing.T, body string) *Matrix {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m.PrefixBase = "fmor" // what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
 
 	return m
 }
@@ -141,7 +142,7 @@ func TestBuildPlanSplitsSmokeAndGatesPhases(t *testing.T) {
 
 	up := jobsFor(p, "v1.37.1-rc1+rke2r1")["up"]
 	if up.Params["INSTALL_VERSION"] != "v1.37.0+rke2r1" || up.Params["UPGRADE_VERSION"] != "v1.37.1-rc1+rke2r1" ||
-		up.Params["HOSTNAME_PREFIX"] != "rbr137su" || p.UpgradeFrom["v1.37.1-rc1+rke2r1"] != "v1.37.0+rke2r1" {
+		up.Params["HOSTNAME_PREFIX"] != "fmor137su" || p.UpgradeFrom["v1.37.1-rc1+rke2r1"] != "v1.37.0+rke2r1" {
 		t.Fatalf("upgrade job params: %v (from %v)", up.Params, p.UpgradeFrom)
 	}
 }
@@ -662,7 +663,7 @@ func TestBuildPlan(t *testing.T) {
 	}
 
 	k := p.Jobs[1]
-	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "rbk137kx" {
+	if k.Params["INSTALL_VERSION"] != "v1.37.1-rc1+k3s1" || k.Params["HOSTNAME_PREFIX"] != "fmor137kx" {
 		t.Fatalf("params: %v", k.Params)
 	}
 }
@@ -790,7 +791,7 @@ func TestBuildPlanBalerMovesJobsWithABalerPath(t *testing.T) {
 			t.Fatalf("baler=%v: conf = %s:%s BRANCH=%s, want %s:%s BRANCH=%s", c.baler,
 				conf.Controller, conf.Path, conf.Params["BRANCH"], c.confCtrl, c.confPath, c.branch)
 		}
-		if conf.Params["HOSTNAME_PREFIX"] != "rbr137cf" || !slices.Contains(conf.DependsOn, "smoke") {
+		if conf.Params["HOSTNAME_PREFIX"] != "fmor137cf" || !slices.Contains(conf.DependsOn, "smoke") {
 			t.Fatalf("baler=%v: conf lost its prefix or phase gate: %+v", c.baler, conf)
 		}
 	}
@@ -807,5 +808,19 @@ func TestLoadMatrixRejectsBalerPathWithoutController(t *testing.T) {
 
 	if _, err := loadMatrix(path); err == nil || !strings.Contains(err.Error(), `controller "baler"`) {
 		t.Fatalf("expected an error about the baler controller, got %v", err)
+	}
+}
+
+// HOSTNAME_PREFIX starts with the captain's SUSE login: its first 4 letters, or 3 when that is all.
+func TestPrefixFromLogin(t *testing.T) {
+	for login, want := range map[string]string{"fmoral": "fmor", "FMoral\n": "fmor", "abe": "abe", "abe2x": "abe"} {
+		if got, err := PrefixFromLogin(login); err != nil || got != want {
+			t.Fatalf("PrefixFromLogin(%q) = %q, %v; want %q", login, got, err, want)
+		}
+	}
+	for _, bad := range []string{"", "ab", "f.moral", "st"} {
+		if got, err := PrefixFromLogin(bad); err == nil {
+			t.Fatalf("PrefixFromLogin(%q) = %q, want an error", bad, got)
+		}
 	}
 }

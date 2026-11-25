@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -96,6 +97,72 @@ const issuePRsQuery = `query($owner: String!, $name: String!, $number: Int!) {
         mergeCommit { oid } repository { nameWithOwner } } } }
       ... on ConnectedEvent { subject { ... on PullRequest { number merged baseRefName
         mergeCommit { oid } repository { nameWithOwner } } } } } } } } }`
+
+const crossRefIssuesQuery = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) {
+    ... on Issue { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
+      ... on CrossReferencedEvent { source { ... on Issue { number title url body state
+        repository { nameWithOwner } } } } } } }
+    ... on PullRequest { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
+      ... on CrossReferencedEvent { source { ... on Issue { number title url body state
+        repository { nameWithOwner } } } } } } }
+  } } }`
+
+// BackportIssues are the open backport issues ("[Release-1.37] ...") of repo that reference the issue
+// or a pull request that fixed it (a backport's body names one or the other), on any board column.
+func (g *gitHub) BackportIssues(ctx context.Context, repo string, issue int) ([]projectIssue, error) {
+	prs, prsErr := g.MergedPRs(ctx, repo, issue)
+	if prsErr != nil {
+		return nil, prsErr
+	}
+
+	refs := []int{issue}
+	for _, pr := range prs {
+		refs = append(refs, pr.Number)
+	}
+
+	owner, name, _ := strings.Cut(repo, "/")
+	var backports []projectIssue
+	for _, n := range refs {
+		var out struct {
+			Repository struct {
+				Item struct {
+					TimelineItems struct {
+						Nodes []struct {
+							Source *struct {
+								Number     int    `json:"number"`
+								Title      string `json:"title"`
+								URL        string `json:"url"`
+								Body       string `json:"body"`
+								State      string `json:"state"`
+								Repository struct {
+									NameWithOwner string `json:"nameWithOwner"`
+								} `json:"repository"`
+							} `json:"source"`
+						} `json:"nodes"`
+					} `json:"timelineItems"`
+				} `json:"issueOrPullRequest"`
+			} `json:"repository"`
+		}
+		vars := map[string]any{"owner": owner, "name": name, "number": n}
+		if queryErr := g.graphql(ctx, crossRefIssuesQuery, vars, &out); queryErr != nil {
+			return nil, fmt.Errorf("issues referencing %s#%d: %w", repo, n, queryErr)
+		}
+
+		for _, node := range out.Repository.Item.TimelineItems.Nodes {
+			s := node.Source
+			seen := slices.ContainsFunc(backports, func(b projectIssue) bool { return s != nil && b.Number == s.Number })
+			if s == nil || s.Number == 0 || s.State != "OPEN" || s.Repository.NameWithOwner != repo ||
+				BranchOf(s.Title) == "" || seen {
+				continue
+			}
+			backports = append(backports, projectIssue{Repo: repo, Number: s.Number, Title: s.Title, URL: s.URL,
+				Body: s.Body, State: s.State})
+		}
+	}
+
+	return backports, nil
+}
 
 // MergedPRs lists the merged pull requests of repo that reference or close the issue, with their base.
 func (g *gitHub) MergedPRs(ctx context.Context, repo string, number int) ([]BumpPR, error) {

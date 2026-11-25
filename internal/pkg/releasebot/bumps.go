@@ -19,7 +19,8 @@ import (
 // BumpConfig is config/releasebot/bumps.yaml.
 type BumpConfig struct {
 	Controller string            `yaml:"controller"`
-	PrefixBase string            `yaml:"prefixBase"`
+	PrefixBase string            `yaml:"-"` // the captain's (PrefixFromLogin), set by the CLI
+	Products   []string          `yaml:"-"` // the boards to read (-bumps-product); empty: both
 	Jobs       map[string]string `yaml:"jobs"`
 
 	// DefaultImages run on a default install, so their tag shows on the node; a bump of any other
@@ -43,9 +44,6 @@ func LoadBumpConfig(path string) (*BumpConfig, error) {
 			return nil, fmt.Errorf("bump config %s: no job for %s", path, product)
 		}
 	}
-	if c.PrefixBase == "" {
-		c.PrefixBase = "rb"
-	}
 	if c.Controller == "" {
 		c.Controller = "mower"
 	}
@@ -65,9 +63,12 @@ type BumpIssue struct {
 	Branch string `json:"branch,omitempty"`
 
 	// Parent is the main issue a backport's body points at (0 when none).
-	Parent int         `json:"parent,omitempty"`
-	PRs    []BumpPR    `json:"prs,omitempty"`
-	Checks []BumpCheck `json:"checks,omitempty"`
+	Parent int `json:"parent,omitempty"`
+
+	// OffBoard: a backport of a To Test main issue that sits in another column of the board.
+	OffBoard bool        `json:"off_board,omitempty"`
+	PRs      []BumpPR    `json:"prs,omitempty"`
+	Checks   []BumpCheck `json:"checks,omitempty"`
 }
 
 type BumpPR struct {
@@ -364,9 +365,13 @@ func (t *BumpTarget) Job(c *BumpConfig, controller, dtfRef string) (JenkinsJob, 
 		return JenkinsJob{}, argsErr
 	}
 
-	prefix := c.PrefixBase + t.Product[:1] + t.Minor() + "b"
-	if len(prefix) > 8 {
-		return JenkinsJob{}, fmt.Errorf("hostname prefix %q is longer than 8 characters", prefix)
+	// <base><minor><product letter>, e.g. fmor137r: within qainfra's 9 characters for rke2.
+	if c.PrefixBase == "" {
+		return JenkinsJob{}, fmt.Errorf("no HOSTNAME_PREFIX base: set %s to your SUSE login", SUSELoginEnv)
+	}
+	prefix := c.PrefixBase + t.Minor() + t.Product[:1]
+	if budget := hostnameBudget - len(t.Product); len(prefix) > budget {
+		return JenkinsJob{}, fmt.Errorf("hostname prefix %q is longer than %d characters", prefix, budget)
 	}
 
 	mode := "INSTALL_" + strings.ToUpper(t.Product) + "_VERSION"

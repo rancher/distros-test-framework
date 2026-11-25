@@ -22,6 +22,7 @@ type bumpSource interface {
 	PRFiles(ctx context.Context, repo string, number int) ([]PRFile, error)
 	TagContains(ctx context.Context, repo, tag, commit string) (bool, error)
 	BranchHead(ctx context.Context, repo, branch string) (string, error)
+	BackportIssues(ctx context.Context, repo string, issue int) ([]projectIssue, error)
 	matchingTags(ctx context.Context, product, prefix string) ([]string, error)
 }
 
@@ -50,26 +51,31 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 	plan := &BumpPlan{Month: month}
 	var bumps []*BumpIssue
 	for _, p := range bumpProjects {
+		if len(cfg.Products) > 0 && !slices.Contains(cfg.Products, p.product) {
+			continue
+		}
+
 		issues, listErr := src.ToTestIssues(ctx, p.org, p.number)
 		if listErr != nil {
 			return nil, listErr
 		}
 
 		for _, pi := range issues {
-			issue, problem, checkErr := classifyBump(ctx, src, cfg, p.product, &pi)
-			switch {
-			case checkErr != nil:
-				return nil, checkErr
-			case problem != nil && issue == nil:
-				plan.NotBumps = append(plan.NotBumps, *problem)
-			case problem != nil:
-				plan.Person = append(plan.Person, *problem)
-				bumps = append(bumps, issue)
-			default:
+			issue, classifyErr := plan.classify(ctx, src, cfg, p.product, &pi)
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			if issue != nil {
 				bumps = append(bumps, issue)
 			}
 		}
 	}
+
+	offBoard, offBoardErr := offBoardBackports(ctx, src, cfg, plan, bumps)
+	if offBoardErr != nil {
+		return nil, offBoardErr
+	}
+	bumps = append(bumps, offBoard...)
 
 	for _, g := range GroupBumps(bumps) {
 		switch {
@@ -81,7 +87,7 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 			continue
 		case len(g.Backports) == 0:
 			plan.Person = append(plan.Person, BumpProblem{Repo: g.Main.Repo, Number: g.Main.Number, Title: g.Main.Title,
-				Reason: "no backport in To Test: master is never validated"})
+				Reason: "no open backport issue: master is never validated"})
 		}
 		plan.Groups = append(plan.Groups, g)
 	}
@@ -94,6 +100,74 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 	plan.Targets = targets
 
 	return plan, nil
+}
+
+// classify sorts one issue into the plan: a bump (returned; listed for a person too when it has a
+// problem) or another issue (listed as not a bump).
+func (plan *BumpPlan) classify(
+	ctx context.Context, src bumpSource, cfg *BumpConfig, product string, pi *projectIssue,
+) (*BumpIssue, error) {
+	issue, problem, checkErr := classifyBump(ctx, src, cfg, product, pi)
+	switch {
+	case checkErr != nil:
+		return nil, checkErr
+	case problem != nil && issue == nil:
+		plan.NotBumps = append(plan.NotBumps, *problem)
+	case problem != nil:
+		plan.Person = append(plan.Person, *problem)
+	}
+
+	return issue, nil
+}
+
+// offBoardBackports are the backports of the To Test main issues that sit in another column (the
+// team moves the main issue; its backports often stay in Working): GitHub knows them by their
+// reference to the main issue or its pull request. They are classified like the board's.
+func offBoardBackports(
+	ctx context.Context, src bumpSource, cfg *BumpConfig, plan *BumpPlan, bumps []*BumpIssue,
+) ([]*BumpIssue, error) {
+	known := map[string]bool{}
+	for _, b := range bumps {
+		known[fmt.Sprintf("%s#%d", b.Repo, b.Number)] = true
+	}
+	for _, p := range append(append([]BumpProblem{}, plan.NotBumps...), plan.Person...) {
+		known[fmt.Sprintf("%s#%d", p.Repo, p.Number)] = true
+	}
+
+	var found []*BumpIssue
+	for _, main := range bumps {
+		if main.Branch != "" {
+			continue
+		}
+
+		backports, backportsErr := src.BackportIssues(ctx, main.Repo, main.Number)
+		if backportsErr != nil {
+			return nil, backportsErr
+		}
+		for i := range backports {
+			pi := &backports[i]
+			key := fmt.Sprintf("%s#%d", pi.Repo, pi.Number)
+			if known[key] || !IsBumpTitle(pi.Title) {
+				continue
+			}
+			known[key] = true
+
+			issue, classifyErr := plan.classify(ctx, src, cfg, main.Product, pi)
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			if issue == nil {
+				continue
+			}
+			issue.OffBoard = true
+			if issue.Parent == 0 {
+				issue.Parent = main.Number // found through it
+			}
+			found = append(found, issue)
+		}
+	}
+
+	return found, nil
 }
 
 // classifyBump returns the bump (with its PRs and checks), or a problem: a non-bump (no issue) or a
@@ -312,6 +386,31 @@ func bumpVersion(
 	return head, true, nil
 }
 
+// backportStates is "#11827 release-1.37 validate (not in To Test), #11829 release-1.36 person": what
+// the run does with each backport of the group, so every issue it read shows.
+func (plan *BumpPlan) backportStates(g *BumpGroup) string {
+	if len(g.Backports) == 0 {
+		return "no backport"
+	}
+
+	states := make([]string, 0, len(g.Backports))
+	for _, bp := range g.Backports {
+		state := "person"
+		if slices.ContainsFunc(plan.Targets, func(t *BumpTarget) bool {
+			return t.Product == bp.Product && t.Branch == bp.Branch &&
+				slices.ContainsFunc(t.Checks, func(c BumpCheck) bool { return c.Issue == bp.Number })
+		}) {
+			state = "validate"
+		}
+		if bp.OffBoard {
+			state += " (not in To Test)"
+		}
+		states = append(states, fmt.Sprintf("#%d %s %s", bp.Number, bp.Branch, state))
+	}
+
+	return strings.Join(states, ", ")
+}
+
 // PlanBumps reads the boards with the app's GitHub token (it needs read:project).
 func (a *App) PlanBumps(ctx context.Context, cfg *BumpConfig, month string) (*BumpPlan, error) {
 	return PlanBumps(ctx, a.cfg.NewGitHub(a.cfg.GitHubToken), cfg, month)
@@ -339,6 +438,11 @@ func (a *App) PrintBumpPlan(plan *BumpPlan, cfg *BumpConfig, dtfRef, mode string
 			continue
 		}
 		log("debug", "    %s:%s params: %s", job.Controller, job.Path, sortedParams(job.Params))
+	}
+
+	log("info", "Issues by main issue (%d groups):", len(plan.Groups))
+	for _, g := range plan.Groups {
+		log("info", "  %s#%d %s: %s", g.Main.Repo, g.Main.Number, g.Main.Title, plan.backportStates(g))
 	}
 
 	if len(plan.Person) > 0 {

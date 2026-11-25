@@ -1,7 +1,6 @@
 # Release bot bump mode (-bumps): the jobs that validate bumps and the images a default install runs
 # (docs/releasebot.md, "Bump issues"). Bumps never report to Qase: their MD goes on their issues.
 controller: mower
-prefixBase: rb
 jobs:
   k3s: distros_qa/k3s-tests/k3s-version-bump_qainfra
   rke2: distros_qa/rke2-tests/rke2-version-bump_qainfra

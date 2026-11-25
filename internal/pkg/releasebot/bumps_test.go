@@ -161,7 +161,8 @@ func TestBumpChecks(t *testing.T) {
 // One job per branch: every check in -cmd/-expectedValue, the install mode of an RC or a commit, an
 // 8-character hostname prefix; a check the job cannot be given (a comma) is refused.
 func TestBumpTargetJob(t *testing.T) {
-	cfg := &BumpConfig{PrefixBase: "rb", Jobs: map[string]string{"rke2": "distros_qa/rke2-tests/rke2-version-bump_qainfra"}}
+	cfg := &BumpConfig{PrefixBase: "fmor",
+		Jobs: map[string]string{"rke2": "distros_qa/rke2-tests/rke2-version-bump_qainfra"}}
 	target := &BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "0123abcd", Commit: true, Checks: []BumpCheck{
 		{What: "a", Cmd: "sudo grep -h chart-url /x/a.yaml", Expected: "a-1.tgz"},
 		{What: "b", Cmd: "kubectl get node -o yaml : | grep rancher/b", Expected: "rancher/b:v2"},
@@ -174,7 +175,7 @@ func TestBumpTargetJob(t *testing.T) {
 	want := `-tags=versionbump -cmd="sudo grep -h chart-url /x/a.yaml, kubectl get node -o yaml : | grep rancher/b" ` +
 		`-expectedValue="a-1.tgz,rancher/b:v2" -destroy true`
 	if j.Params["TEST_ARGS"] != want || j.Params["INSTALL_MODE"] != "INSTALL_RKE2_COMMIT" ||
-		j.Params["HOSTNAME_PREFIX"] != "rbr137b" || j.Path != cfg.Jobs["rke2"] || j.Params["REPORT_TO_QASE"] != "" {
+		j.Params["HOSTNAME_PREFIX"] != "fmor137r" || j.Path != cfg.Jobs["rke2"] || j.Params["REPORT_TO_QASE"] != "" {
 		t.Fatalf("job %+v", j)
 	}
 
@@ -210,12 +211,17 @@ func TestGroupBumps(t *testing.T) {
 
 // fakeBumpSource answers the planner from tables.
 type fakeBumpSource struct {
-	issues   map[string][]projectIssue // "org/number"
-	prs      map[int][]BumpPR          // by issue
-	files    map[int][]PRFile          // by pull request
-	tags     []string
-	contains map[string]bool // "tag|commit"
-	head     string
+	issues    map[string][]projectIssue // "org/number"
+	prs       map[int][]BumpPR          // by issue
+	files     map[int][]PRFile          // by pull request
+	tags      []string
+	contains  map[string]bool // "tag|commit"
+	head      string
+	backports map[int][]projectIssue // by main issue: its backports in any column
+}
+
+func (f *fakeBumpSource) BackportIssues(_ context.Context, _ string, issue int) ([]projectIssue, error) {
+	return f.backports[issue], nil
 }
 
 func (f *fakeBumpSource) ToTestIssues(_ context.Context, org string, number int) ([]projectIssue, error) {
@@ -267,6 +273,9 @@ func planSource() *fakeBumpSource {
 			// No main issue: the body names none and no To Test issue has the title.
 			{Repo: "rancher/rke2", Number: 18, Title: "[Release 1.37] Bump gateway API CRDs"},
 
+			// Cilium: the main issue is on the board, its backports in another column (Working).
+			{Repo: "rancher/rke2", Number: 40, Title: "Update Cilium chart to 1.20.501"},
+
 			// Two bumps of the same chart on release-1.34, to different versions.
 			{Repo: "rancher/rke2", Number: 15, Title: "[Release 1.34] Bump gateway API to 1.7.0", Body: "Backport: #10"},
 			{Repo: "rancher/rke2", Number: 17, Title: "Bump gateway API to 1.7.2"},
@@ -279,6 +288,15 @@ func planSource() *fakeBumpSource {
 			15: {{Number: 115, Base: "release-1.34", MergeCommit: "c134a"}},
 			16: {{Number: 116, Base: "release-1.34", MergeCommit: "c134b"}},
 			18: {{Number: 118, Base: "release-1.37", MergeCommit: "c137b"}},
+			41: {{Number: 141, Base: "release-1.35", MergeCommit: "c135c"}},
+		},
+		backports: map[int][]projectIssue{
+			10: {{Repo: "rancher/rke2", Number: 11, Title: "[Release 1.37] Bump gateway API to 1.7.0"}}, // on the board too
+			40: {
+				{Repo: "rancher/rke2", Number: 41, Title: "[Release-1.35] Update Cilium chart to 1.20.501",
+					Body: "Backport #40"},
+				{Repo: "rancher/rke2", Number: 42, Title: "[Release-1.36] Update Cilium chart to 1.20.501"}, // not merged
+			},
 		},
 		files: map[int][]PRFile{
 			111: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
@@ -287,6 +305,8 @@ func planSource() *fakeBumpSource {
 			115: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
 			116: {{Name: "charts/chart_versions.yaml", Patch: strings.ReplaceAll(gatewayAPIPatch, "1.7.1", "1.7.2")}},
 			118: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
+			141: {{Name: "charts/chart_versions.yaml", Patch: "-  - version: 1.20.500\n+  - version: 1.20.501\n" +
+				"     filename: /charts/rke2-cilium.yaml"}},
 		},
 		tags:     []string{"v1.37.2-rc1+rke2r1", "v1.37.2-rc2+rke2r1", "v1.36.6-rc2+rke2r1"},
 		contains: map[string]bool{"v1.37.2-rc2+rke2r1|c137": true},
@@ -299,17 +319,21 @@ func planSource() *fakeBumpSource {
 // without a main issue and two bumps of one chart on a branch are listed instead.
 func TestPlanBumps(t *testing.T) {
 	src := planSource()
-	cfg := &BumpConfig{PrefixBase: "rb", Jobs: map[string]string{"k3s": "k", "rke2": "r"}}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"k3s": "k", "rke2": "r"}}
 
 	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(plan.Targets) != 2 {
+	if len(plan.Targets) != 3 {
 		t.Fatalf("targets %+v", plan.Targets)
 	}
-	r136, r137 := plan.Targets[0], plan.Targets[1]
+	r135, r136, r137 := plan.Targets[0], plan.Targets[1], plan.Targets[2]
+	if r135.Branch != "release-1.35" || len(r135.Checks) != 1 || r135.Checks[0].Issue != 41 ||
+		r135.Checks[0].Expected != "rke2-cilium-1.20.501.tgz" {
+		t.Fatalf("the off-board Cilium backport is validated: %+v", r135)
+	}
 	if r137.Branch != "release-1.37" || r137.Version != "v1.37.2-rc2+rke2r1" || r137.Commit || len(r137.Checks) != 1 ||
 		r137.Checks[0].Issue != 11 {
 		t.Fatalf("1.37 on its RC: %+v", r137)
@@ -324,15 +348,27 @@ func TestPlanBumps(t *testing.T) {
 	}
 	if !strings.Contains(reasons[13], "not only a version bump") ||
 		!strings.Contains(reasons[20], "master is never validated") || !strings.Contains(reasons[18], "no main issue") ||
-		!strings.Contains(reasons[15], "2 versions") || !strings.Contains(reasons[16], "2 versions") {
+		!strings.Contains(reasons[15], "2 versions") || !strings.Contains(reasons[16], "2 versions") ||
+		!strings.Contains(reasons[42], "no merged pull request into release-1.36") || reasons[40] != "" {
 		t.Fatalf("person: %+v", plan.Person)
 	}
 	for _, g := range plan.Groups {
 		if g.Main.Number == 0 {
 			t.Fatalf("a group for issue #0: %+v", g.Backports)
 		}
+		if g.Main.Number == 40 && plan.backportStates(g) !=
+			"#42 release-1.36 person (not in To Test), #41 release-1.35 validate (not in To Test)" {
+			t.Fatalf("Cilium's backports: %s", plan.backportStates(g))
+		}
 	}
 	if len(plan.NotBumps) != 1 || plan.NotBumps[0].Number != 30 {
 		t.Fatalf("not bumps: %+v", plan.NotBumps)
+	}
+
+	// -bumps-product k3s: the RKE2 board is not read.
+	cfg.Products = []string{"k3s"}
+	if only, onlyErr := PlanBumps(testContext(t), src, cfg, "2026-11"); onlyErr != nil ||
+		len(only.Targets)+len(only.Person)+len(only.NotBumps) != 0 {
+		t.Fatalf("k3s only: %+v, %v", only, onlyErr)
 	}
 }

@@ -16,6 +16,16 @@ func TestWiringAppliesDTFRefEnvironment(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
+
+	// No SUSE login, no plan: every HOSTNAME_PREFIX starts with it.
+	t.Setenv(releasebot.SUSELoginEnv, "")
+	_, prepareErr := newApp(&options{matrixPath: path, skipTagCheck: true}).Prepare(t.Context(),
+		releasebot.Request{RKE2: []string{"v1.37.1-rc1+rke2r1"}})
+	if prepareErr == nil || !strings.Contains(prepareErr.Error(), releasebot.SUSELoginEnv) {
+		t.Fatalf("planned without a SUSE login: %v", prepareErr)
+	}
+
+	t.Setenv(releasebot.SUSELoginEnv, "fmoral")
 	app := newApp(&options{matrixPath: path, skipTagCheck: true})
 	p, err := app.Prepare(t.Context(), releasebot.Request{RKE2: []string{"v1.37.1-rc2+rke2r1"}})
 	if err != nil {
@@ -140,6 +150,7 @@ func TestIsTerminalRefusesDevNull(t *testing.T) {
 // A saved CLI run and a saved bump run block each other and the Slack bot (their builds may still
 // run); each mode still carries on its own with -resume.
 func TestModesRefuseEachOthersSavedRun(t *testing.T) {
+	t.Setenv(releasebot.SUSELoginEnv, "fmoral")
 	dir := t.TempDir()
 	state := filepath.Join(dir, "state.json")
 	matrix := filepath.Join(dir, "matrix.yaml")

@@ -210,8 +210,11 @@ silently dropping a dependency.
 Each template runs once per RC of its product. In params:
 
 - `{{VERSION}}` becomes the full tag, and `{{QASE_RUN_ID}}` the Qase run id (see above).
-- `{{PREFIX}}` becomes `HOSTNAME_PREFIX`: `<prefixBase><k|r><major><minor><code>`, for example
-  `rbr137vc` for `rke2-validate-cluster` on v1.37. qa-infra caps `dsf-<prefix>-<product>-<id>` at
+- `{{PREFIX}}` becomes `HOSTNAME_PREFIX`: `<base><major><minor><code>`, for example `fmor137vc`
+  for `rke2-validate-cluster` on v1.37. The base is the first 4 letters (3 when that is all) of the
+  captain's SUSE login, `RELEASEBOT_SUSE_LOGIN` (`fmoral` gives `fmor`): the team's cleanup and
+  ownership tooling goes by it, and nothing is planned without it. The resource names add the
+  product. qa-infra caps `dsf-<prefix>-<product>-<id>` at
   24 characters, so the prefix has at most 9 (rke2) or 10 (k3s); `loadMatrix` rejects a template
   that could exceed it. The 5-character id is unique per build, so reruns keep the same prefix.
 - `{{UPGRADE_FROM}}` becomes the latest published GA release of the RC's minor that is older than
@@ -256,7 +259,8 @@ an upgrade job without `UPGRADE_VERSION` would otherwise test its default versio
 
 The expanded plan's dependency graph (phases included) is validated before anything is
 dispatched, and `loadMatrix` rejects a `dependsOn` on a job of a later phase. Job `code`s are
-required (1 or 2 characters, unique per product), so two jobs never share a hostname prefix.
+required (1 or 2 characters, unique per product), so two jobs of a product never share a hostname
+prefix.
 `rke2-validate-cluster` sets `INSTALL_METHOD: tar`: on SLES 16 the installer would otherwise pick
 rpm, and the tarball half of the smoke split would not test the tarball.
 
@@ -564,6 +568,7 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-bumps` | `false` | Bump mode: plan the month's version-bump issues of both boards (dry-run), or run them with `-dry-run=false` (see "Bump issues") |
 | `-month` | the current `YYYY-MM` | Bump mode: the release month the MDs are named after |
 | `-bumps-config` / `-bumps-dir` | `config/releasebot/bumps.yaml` / `~/releasebot/bumps/<month>` | Bump mode: jobs and default images; where the MDs go |
+| `-bumps-product` | | Bump mode: only this product's board (`k3s` or `rke2`); empty reads both |
 | `-bumps-post <md>` / `-bumps-close` | | Post a bump MD the captain read (each section on its issue, a link on its backports), after a `yes`; also close them |
 | `-validate` | `false` | Load and check `-matrix`, then exit (`setup.sh deploy` runs it on the candidate) |
 | `-triage-spool` | | Listen mode: ask the triage broker through this spool (empty: every failure asks a person); broker mode: the spool to serve |
@@ -591,6 +596,7 @@ Environment:
 | `RELEASEBOT_OPEN_CHANNELS` | Listen mode: channels (also served) where anyone may start and steer runs |
 | `RELEASEBOT_ALLOWED_USERS` | Listen mode: comma-separated Slack user ids who may run plans in the other channels |
 | `RELEASEBOT_DRY_RUN` | systemd unit only: passed as `-dry-run`; `true` (default) or `false` in `/etc/releasebot/releasebot.env` |
+| `RELEASEBOT_SUSE_LOGIN` | The captain's SUSE login, e.g. `fmoral`: every `HOSTNAME_PREFIX` starts with its first 4 letters (`fmor137vc`, bumps `fmor137r`); required to plan |
 | `RELEASEBOT_DTF_REF` | Overrides the matrix's `dtfRef` (the workflow ref and every job's `BRANCH`, `{{DTF_REF}}`); set it to `main` once `qa-infra-RC-1` merges |
 
 `-dry-run=false` takes the same lock as `-listen` (`<state-file>.lock`), so a CLI run never
@@ -610,11 +616,13 @@ checkout or an edit in the DTF tree never changes the matrix mid-release.
 ```
 $ SHA=<reviewed commit>; D=~/releasebot/${SHA:0:7}; mkdir -p "$D"
 $ git show "${SHA}:config/releasebot/matrix.yaml" > "$D/matrix.yaml"
+$ git show "${SHA}:config/releasebot/bumps.yaml" > "$D/bumps.yaml"
 $ git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$D/triage-skill.sha256"
 $ git worktree add /tmp/releasebot-$SHA $SHA && (cd /tmp/releasebot-$SHA && go build -o "$D/releasebot" ./cmd/releasebot)
 $ (umask 077; mkdir -p ~/.config/releasebot && $EDITOR ~/.config/releasebot/releasebot.env)
 #   GITHUB_TOKEN, JENKINS_MOWER_AUTH, JENKINS_BALER_AUTH (for baler requests), QASE_AUTOMATION_TOKEN;
-#   the captain's own tokens, from the team vault; nothing of Slack is needed; and
+#   the captain's own tokens, from the team vault; nothing of Slack is needed;
+#   RELEASEBOT_SUSE_LOGIN=<your SUSE login> (the HOSTNAME_PREFIX base: fmoral -> fmor); and
 #   CLAUDE_SANDBOX_PROVIDER=bedrock, so -triage-local never falls back to the wrapper's Vertex default
 # for -triage-local: claude-sandbox with the Bedrock provider and its sign-in (distros-qa-skills,
 # claude-sandbox SKILL.md), and the triage workspace: the skill revision the manifest pins in
@@ -659,8 +667,8 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a; export CLAUDE_SANDBOX
 ### Bump issues (`-bumps`)
 
 Validates the month's version-bump issues of both boards and writes their results MDs; posting them
-is a separate step the captain takes after reading them. Pin `config/releasebot/bumps.yaml` with
-the matrix (`git show "${SHA}:config/releasebot/bumps.yaml" > "$D/bumps.yaml"`).
+is a separate step the captain takes after reading them. `config/releasebot/bumps.yaml` is pinned
+with the matrix (above). Each job's `HOSTNAME_PREFIX` is `<base><minor><k|r>`, e.g. `fmor137r`.
 
 ```
 $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
@@ -676,7 +684,11 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   Development (`rancher` project 31). A title starting with Bump, Update or Upgrade (after an
   optional `[Release-1.3x]`) is a bump; the other issues are listed and left alone. A backport
   belongs to the main issue its body names (an issue, or the pull request that closes it), else to
-  the main issue with the same title; one with neither goes to "needs a person".
+  the main issue with the same title; one with neither goes to "needs a person". The backports of
+  a To Test main issue are also found on GitHub (open `[Release-1.x]` issues referencing it or its
+  pull request), in any column: the team often moves only the main issue, so its backports stay in
+  Working; they are classified like the board's and marked "not in To Test". The plan lists every
+  main issue with each backport and what the run does with it (validate or person).
 - **Only a bump.** A backport is validated when its merged pull request into its release branch
   changes nothing but versions: removed and added lines match once versions and image tags are
   masked (the rest of an image's line too, so `privileged: true` next to a new tag is caught), an

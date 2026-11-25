@@ -29,6 +29,17 @@ func runBumps(o *options) error {
 	if cfgErr != nil {
 		return cfgErr
 	}
+	prefix, prefixErr := releasebot.PrefixFromLogin(os.Getenv(releasebot.SUSELoginEnv))
+	if prefixErr != nil {
+		return prefixErr
+	}
+	cfg.PrefixBase = prefix
+	if o.bumpsProduct != "" {
+		if cfg.Jobs[o.bumpsProduct] == "" {
+			return fmt.Errorf("-bumps-product %q: want k3s or rke2", o.bumpsProduct)
+		}
+		cfg.Products = []string{o.bumpsProduct}
+	}
 	matrix, matrixErr := releasebot.LoadMatrixWithRef(o.matrixPath, os.Getenv(releasebot.DTFRefEnv))
 	if matrixErr != nil {
 		return matrixErr
@@ -198,7 +209,11 @@ func acceptBumps(plan *releasebot.BumpPlan, in *bufio.Reader, atTerminal bool) e
 		for _, bp := range g.Backports {
 			for _, t := range plan.Targets {
 				if t.Product == g.Product && t.Branch == bp.Branch && hasIssue(t, bp.Number) {
-					branches = append(branches, fmt.Sprintf("#%d %s", bp.Number, bp.Branch))
+					branch := fmt.Sprintf("#%d %s", bp.Number, bp.Branch)
+					if bp.OffBoard {
+						branch += " (not in To Test)"
+					}
+					branches = append(branches, branch)
 					issues++
 				}
 			}

@@ -76,7 +76,7 @@ func bumpReportFixture(
 	t.Setenv("JENKINS_MOWER_AUTH", "u:t")
 	o = &options{matrixPath: matrix, stateFile: filepath.Join(dir, "state.json"), bumpsDir: filepath.Join(dir, "md"),
 		skipWorkflows: true}
-	cfg = &releasebot.BumpConfig{Controller: "mower", PrefixBase: "rb", Jobs: map[string]string{"rke2": "r/v"}}
+	cfg = &releasebot.BumpConfig{Controller: "mower", PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r/v"}}
 
 	target := &releasebot.BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "v1.37.2-rc1+rke2r1",
 		Checks: []releasebot.BumpCheck{{What: "rke2-x chart 1.0", Cmd: "sudo grep -h chart-url /x.yaml",

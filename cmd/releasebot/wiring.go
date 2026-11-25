@@ -21,6 +21,7 @@ func newApp(o *options) *releasebot.App {
 	return releasebot.New(&releasebot.Config{
 		MatrixPath:    o.matrixPath,
 		DTFRef:        os.Getenv(releasebot.DTFRefEnv),
+		SUSELogin:     os.Getenv(releasebot.SUSELoginEnv),
 		SkipTagCheck:  o.skipTagCheck,
 		SkipWorkflows: o.skipWorkflows,
 		SkipJobs:      o.skipJobs,

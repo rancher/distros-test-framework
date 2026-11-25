@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"slices"
-	"strings"
 )
 
 // Posting a bump MD, only when the captain runs -bumps-post after reading it: each section on its
@@ -60,64 +59,19 @@ func (g *gitHub) CloseIssue(ctx context.Context, repo string, issue int) error {
 	return nil
 }
 
-const crossRefIssuesQuery = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { issueOrPullRequest(number: $number) {
-    ... on Issue { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
-      ... on CrossReferencedEvent { source { ... on Issue { number title state repository { nameWithOwner } } } } } } }
-    ... on PullRequest { timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes {
-      ... on CrossReferencedEvent { source { ... on Issue { number title state repository { nameWithOwner } } } } } } }
-  } } }`
-
-// OpenBackports are the open backport issues ("[Release-1.37] ...") of repo that reference the issue
-// or a pull request that fixed it (a backport's body names one or the other), on the board or not.
+// OpenBackports are the numbers of the open backports of the issue (BackportIssues).
 func (g *gitHub) OpenBackports(ctx context.Context, repo string, issue int) ([]int, error) {
-	prs, prsErr := g.MergedPRs(ctx, repo, issue)
-	if prsErr != nil {
-		return nil, prsErr
+	backports, backportsErr := g.BackportIssues(ctx, repo, issue)
+	if backportsErr != nil {
+		return nil, backportsErr
 	}
 
-	refs := []int{issue}
-	for _, pr := range prs {
-		refs = append(refs, pr.Number)
+	numbers := make([]int, 0, len(backports))
+	for _, b := range backports {
+		numbers = append(numbers, b.Number)
 	}
 
-	owner, name, _ := strings.Cut(repo, "/")
-	var open []int
-	for _, n := range refs {
-		var out struct {
-			Repository struct {
-				Item struct {
-					TimelineItems struct {
-						Nodes []struct {
-							Source *struct {
-								Number     int    `json:"number"`
-								Title      string `json:"title"`
-								State      string `json:"state"`
-								Repository struct {
-									NameWithOwner string `json:"nameWithOwner"`
-								} `json:"repository"`
-							} `json:"source"`
-						} `json:"nodes"`
-					} `json:"timelineItems"`
-				} `json:"issueOrPullRequest"`
-			} `json:"repository"`
-		}
-		vars := map[string]any{"owner": owner, "name": name, "number": n}
-		if queryErr := g.graphql(ctx, crossRefIssuesQuery, vars, &out); queryErr != nil {
-			return nil, fmt.Errorf("issues referencing %s#%d: %w", repo, n, queryErr)
-		}
-
-		for _, node := range out.Repository.Item.TimelineItems.Nodes {
-			s := node.Source
-			if s == nil || s.Number == 0 || s.State != "OPEN" || s.Repository.NameWithOwner != repo ||
-				BranchOf(s.Title) == "" || slices.Contains(open, s.Number) {
-				continue
-			}
-			open = append(open, s.Number)
-		}
-	}
-
-	return open, nil
+	return numbers, nil
 }
 
 // bumpPoster is what posting needs from GitHub (gitHub; a fake in tests).

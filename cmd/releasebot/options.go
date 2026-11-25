@@ -24,6 +24,7 @@ type options struct {
 	bumpsDir      string
 	bumpsPost     string
 	bumpsClose    bool
+	bumpsProduct  string
 	month         string
 	stateFile     string
 	validate      bool
@@ -67,6 +68,7 @@ func parseFlags() *options {
 	flag.StringVar(&o.bumpsPost, "bumps-post", "",
 		"bump mode: post this MD (each section on its issue, a link on its backports), after a yes")
 	flag.BoolVar(&o.bumpsClose, "bumps-close", false, "with -bumps-post: also close the issues")
+	flag.StringVar(&o.bumpsProduct, "bumps-product", "", "bump mode: only this product's board (k3s or rke2; empty: both)")
 	flag.StringVar(&o.month, "month", time.Now().Format("2006-01"), "bump mode: the release month the MDs are named after")
 	flag.BoolVar(&o.resume, "resume", false,
 		"carry on the run a CLI execution saved (interrupted, killed or rebooted) instead of -message; with -dry-run=false")

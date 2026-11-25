@@ -71,6 +71,7 @@ jobs:
 	if err != nil {
 		t.Fatal(err)
 	}
+	m.PrefixBase = "fmor" // what the app sets from RELEASEBOT_SUSE_LOGIN=fmoral
 
 	return m
 }

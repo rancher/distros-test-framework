@@ -108,9 +108,10 @@ type Resolver interface {
 
 // Matrix is the versioned job list (config/releasebot/matrix.yaml).
 type Matrix struct {
-	DTFRepo    string            `yaml:"dtfRepo"`
-	DTFRef     string            `yaml:"dtfRef"`
-	PrefixBase string            `yaml:"prefixBase"`
+	DTFRepo string `yaml:"dtfRepo"`
+	DTFRef  string `yaml:"dtfRef"`
+	// PrefixBase starts every HOSTNAME_PREFIX: the captain's, from their SUSE login (PrefixFromLogin).
+	PrefixBase string            `yaml:"-"`
 	Controller map[string]Limits `yaml:"controllers"`
 	Jobs       []MatrixJob       `yaml:"jobs"`
 	Defaults   map[string]string `yaml:"defaultParams"`
@@ -167,6 +168,9 @@ const (
 
 	// qainfra names resources dsf-<HOSTNAME_PREFIX>-<product>-<5-char id> within 24 chars.
 	hostnameBudget = 24 - len("dsf-") - len("--") - 5
+
+	// maxPrefixBase is the longest base a SUSE login gives (its first 4 letters).
+	maxPrefixBase = 4
 )
 
 var jobCode = regexp.MustCompile(`^[a-z0-9]{1,2}$`)
@@ -191,9 +195,6 @@ func LoadMatrixWithRef(path, dtfRef string) (*Matrix, error) {
 		return nil, fmt.Errorf("parse matrix: %w", err)
 	}
 
-	if m.PrefixBase == "" {
-		m.PrefixBase = "rb"
-	}
 	if jobsErr := validateJobs(&m); jobsErr != nil {
 		return nil, jobsErr
 	}
@@ -226,6 +227,24 @@ func LoadMatrixWithRef(path, dtfRef string) (*Matrix, error) {
 
 // DTFRefEnv is read by the CLI, not by matrix loading.
 const DTFRefEnv = "RELEASEBOT_DTF_REF"
+
+// SUSELoginEnv is the captain's SUSE login ("fmoral"): every HOSTNAME_PREFIX starts with its first
+// letters, so the team's cleanup and ownership tooling knows whose resources they are.
+const SUSELoginEnv = "RELEASEBOT_SUSE_LOGIN"
+
+var loginLetters = regexp.MustCompile(`^[a-z]+`)
+
+// PrefixFromLogin is the base of every HOSTNAME_PREFIX: the login's first 4 letters (all of them
+// when it has 3), "fmor" for "fmoral".
+func PrefixFromLogin(login string) (string, error) {
+	letters := loginLetters.FindString(strings.ToLower(strings.TrimSpace(login)))
+	if len(letters) < 3 {
+		return "", fmt.Errorf("%s=%q: set it to your SUSE login (e.g. fmoral); every HOSTNAME_PREFIX starts "+
+			"with its first 3 or 4 letters", SUSELoginEnv, login)
+	}
+
+	return letters[:min(len(letters), maxPrefixBase)], nil
+}
 
 const dtfRefPlaceholder = "{{DTF_REF}}"
 
@@ -314,8 +333,8 @@ func checkPrefix(m *Matrix, j *MatrixJob, codes map[string]string) error {
 	if !ok {
 		tmpl = m.Defaults["HOSTNAME_PREFIX"]
 	}
-	// Budget for a two-digit minor (every current one: v1.37 -> "137").
-	longest := strings.ReplaceAll(tmpl, "{{PREFIX}}", m.PrefixBase+j.Product[:1]+"110"+j.Code)
+	// Budget for the longest base and a two-digit minor (every current one: v1.37 -> "137").
+	longest := strings.ReplaceAll(tmpl, "{{PREFIX}}", strings.Repeat("x", maxPrefixBase)+"110"+j.Code)
 	if budget := hostnameBudget - len(j.Product); len(longest) > budget {
 		return fmt.Errorf("job %q: HOSTNAME_PREFIX %q can reach %d chars; qainfra allows %d for %s",
 			j.Name, tmpl, len(longest), budget, j.Product)
@@ -332,7 +351,6 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 	if req.Empty() {
 		return nil, errors.New("no release candidate tags found in the message")
 	}
-
 	p := &Plan{Request: req, RequestID: requestID}
 	checks := map[string]string{
 		"k3s_versions":  strings.Join(req.K3s, ","),
@@ -715,10 +733,10 @@ func gatePhases(jobs []JenkinsJob, note func(string)) []JenkinsJob {
 }
 
 // expandJob keeps HOSTNAME_PREFIX short: qainfra caps dsf-<prefix>-<product>-<id> at 24 chars.
-// The prefix is <base><product letter><major><minor><code>, e.g. rbr137vc.
+// The prefix is <base><major><minor><code>, e.g. fmor137vc (the resource names add the product).
 func expandJob(mj *MatrixJob, tag string, m *Matrix, baler bool) JenkinsJob {
 	r, _ := parseRelease(tag)
-	prefix := fmt.Sprintf("%s%s%d%d%s", m.PrefixBase, mj.Product[:1], r.major, r.minor, mj.Code)
+	prefix := fmt.Sprintf("%s%d%d%s", m.PrefixBase, r.major, r.minor, mj.Code)
 
 	controller, path := mj.Controller, mj.Path
 	if baler && mj.Baler != "" {

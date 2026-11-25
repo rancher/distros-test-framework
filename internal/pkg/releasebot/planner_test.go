@@ -22,7 +22,7 @@ jobs:
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	plan := New(&Config{MatrixPath: matrix, SkipTagCheck: true}).Planner(nil, nil)
+	plan := New(&Config{MatrixPath: matrix, SkipTagCheck: true, SUSELogin: "fmoral"}).Planner(nil, nil)
 
 	p, err := plan(context.Background(), "please test v1.37.1-rc1+rke2r1 v1.36.5-rc1+rke2r1")
 	if err != nil {

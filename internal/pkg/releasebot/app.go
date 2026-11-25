@@ -15,6 +15,7 @@ type logFunc func(level, format string, args ...any)
 type Config struct {
 	MatrixPath    string
 	DTFRef        string
+	SUSELogin     string // the captain's; their HOSTNAME_PREFIX base (PrefixFromLogin)
 	SkipTagCheck  bool
 	SkipWorkflows bool
 	SkipJobs      bool
@@ -68,6 +69,7 @@ func (a *App) loadMatrix() (*Matrix, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.PrefixBase, _ = PrefixFromLogin(a.cfg.SUSELogin) // without one, Prepare refuses to plan
 
 	for name, lim := range m.Controller {
 		override := a.cfg.ControllerURL(name)
@@ -143,6 +145,9 @@ func (a *App) Prepare(ctx context.Context, req Request) (*prepared, error) {
 	matrix, err := a.loadMatrix()
 	if err != nil {
 		return nil, err
+	}
+	if _, prefixErr := PrefixFromLogin(a.cfg.SUSELogin); prefixErr != nil {
+		return nil, prefixErr
 	}
 
 	gh := a.cfg.NewGitHub(a.cfg.GitHubToken)
