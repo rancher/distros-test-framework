@@ -126,15 +126,24 @@ configure_output=$(
         AWS_REGION=us-east-2 \
         AWS_SSH_PEM_KEY=PEM_CONFIG_SENTINEL \
         RKE2_TOKEN=RKE2_CONFIG_SENTINEL \
+        GITHUB_TOKEN=GITHUB_CONFIG_SENTINEL \
         bash "$repo_root/scripts/configure.sh" 2>&1
 )
-if printf '%s' "$configure_output" | grep -Eq 'AKIA_CONFIG_SENTINEL|SECRET_CONFIG_SENTINEL|SESSION_CONFIG_SENTINEL|PEM_CONFIG_SENTINEL|RKE2_CONFIG_SENTINEL'; then
+if printf '%s' "$configure_output" | grep -Eq 'AKIA_CONFIG_SENTINEL|SECRET_CONFIG_SENTINEL|SESSION_CONFIG_SENTINEL|PEM_CONFIG_SENTINEL|RKE2_CONFIG_SENTINEL|GITHUB_CONFIG_SENTINEL'; then
     echo "configure.sh exposed a secret sentinel" >&2
     exit 1
 fi
 if ! grep -q '^AWS_REGION=us-east-2$' "$configure_root/.env" || \
+    ! grep -q '^GITHUB_TOKEN=GITHUB_CONFIG_SENTINEL$' "$configure_root/.env" || \
     grep -Eq 'AWS_SSH_PEM_KEY|RKE2_TOKEN' "$configure_root/.env"; then
     echo "configure.sh did not enforce its environment allowlist" >&2
+    exit 1
+fi
+# Only K3s commit installs get the GitHub token, and only when the controller has it.
+if ! grep -Fq "if (env.INSTALL_MODE == 'INSTALL_K3S_COMMIT') {" "$jenkinsfile" || \
+    ! grep -Fq "string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')" "$jenkinsfile" || \
+    [ "$(grep -c "credentialsId: 'GITHUB_TOKEN'" "$jenkinsfile")" != 1 ]; then
+    echo "Jenkinsfile must bind GITHUB_TOKEN once, for K3s commit installs only" >&2
     exit 1
 fi
 

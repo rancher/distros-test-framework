@@ -25,6 +25,8 @@ trap 'rm -f "$env_tmp"' EXIT
     write_env AWS_SESSION_TOKEN "${AWS_SESSION_TOKEN:-}"
     write_env AWS_REGION "${AWS_REGION:-}"
     write_env AWS_DEFAULT_REGION "${AWS_DEFAULT_REGION:-}"
+    # K3s commit installs download their build from GitHub Actions artifacts.
+    write_env GITHUB_TOKEN "${GITHUB_TOKEN:-}"
 } > "$env_tmp"
 chmod 600 "$env_tmp"
 mv -f "$env_tmp" .env

@@ -72,6 +72,17 @@ node {
             echo 'AIRGAP_REGISTRY_CREDENTIALS not configured; the private registry gets a per-run generated password'
           }
         }
+        // K3s commit builds come from GitHub Actions artifacts, so only those runs get the token;
+        // it is optional: a controller without the credential runs every other job unchanged.
+        if (env.INSTALL_MODE == 'INSTALL_K3S_COMMIT') {
+          def githubBinding = string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')
+          try {
+            withCredentials([githubBinding]) { echo 'GITHUB_TOKEN found; the K3s commit build can be downloaded' }
+            bindings << githubBinding
+          } catch (org.jenkinsci.plugins.credentialsbinding.impl.CredentialNotFoundException ignored) {
+            echo 'GITHUB_TOKEN not configured; installing a K3s commit build will fail without it'
+          }
+        }
         withCredentials(bindings) {
           stage('Checkout') {
             deleteDir()
