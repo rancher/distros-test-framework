@@ -3,7 +3,6 @@ package qainfra
 import (
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -31,7 +30,7 @@ var nodesStartRE = regexp.MustCompile(`(?m)^\s*nodes\s*=\s*\[`)
 
 var (
 	nodeEntryRE = regexp.MustCompile(`\{[^{}]*\}`)
-	nodeCountRE = regexp.MustCompile(`"?\bcount"?\s*[=:]\s*"?(\d+)`)
+	nodeCountRE = regexp.MustCompile(`"?\bcount"?\s*[=:]\s*([^,}\n]+)`)
 )
 
 var windowsNodeRE = regexp.MustCompile(`(?i)"?\bos"?\s*[=:]\s*"windows"`)
@@ -62,7 +61,7 @@ func windowsRequested(tfvarsPath string) (bool, error) {
 	return hasWindowsGroup(nodesBlock(string(content))), nil
 }
 
-// hasWindowsGroup reports a Windows entry with a positive (or unparseable) count; count = 0 creates no instances.
+// hasWindowsGroup reports a Windows entry unless its count is the literal 0; computed counts are treated as requested.
 func hasWindowsGroup(block string) bool {
 	for _, entry := range nodeEntryRE.FindAllString(block, -1) {
 		if !windowsNodeRE.MatchString(entry) {
@@ -72,7 +71,8 @@ func hasWindowsGroup(block string) bool {
 		if m == nil {
 			return true
 		}
-		if n, err := strconv.Atoi(m[1]); err != nil || n > 0 {
+		// Only a plain literal 0 is provably empty; expressions like `0 + 1` must count as requested.
+		if strings.Trim(strings.TrimSpace(m[1]), `"`) != "0" {
 			return true
 		}
 	}

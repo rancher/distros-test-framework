@@ -30,6 +30,9 @@ func TestWindowsRequestedIgnoresCommentsAndStrings(t *testing.T) {
 			`nodes = [{ count = 0, role = ["worker"], ` + win + ` }, { count = 2, role = ["worker"], ` + win + ` }]` + "\n",
 			true,
 		},
+		"computed count":  {`nodes = [{ count = 0 + 1, role = ["worker"], ` + win + ` }]` + "\n", true},
+		"variable count":  {`nodes = [{ count = var.n, role = ["worker"], ` + win + ` }]` + "\n", true},
+		"quoted zero":     {`nodes = [{ count = "0", role = ["worker"], ` + win + ` }]` + "\n", false},
 		"after nodes var": {etcd + "foo = { " + win + " }\n", false},
 		"real node": {
 			"nodes = [\n  { count = 1, role = [\"etcd\"] },\n" +
