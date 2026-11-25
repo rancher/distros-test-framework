@@ -25,7 +25,8 @@ const bumpConsole = "[2026-11-25T04:38:52.413Z] rke2 version v1.37.2+dev.4b02702
 	"[2026-11-25T04:40:02.949Z] Matched with result:\n" +
 	"[2026-11-25T04:40:02.949Z]     helm.cattle.io/chart-url: " +
 	"\"https://rke2-charts.rancher.io/assets/rke2-canal/rke2-canal-3.33.101-build20261120.tgz\"\n" +
-	"[2026-11-25T04:40:02.949Z]\n" +
+	"[2026-11-25T04:40:02.949Z] \x1b[37mDEBU\x1b[0m[2026-11-25T04:40:02Z] Version Check: rke2 version v1.37.2\n" +
+	"[2026-11-25T04:40:02.949Z] go version go1.26.10\n" +
 	"[2026-11-25T04:40:03.000Z] Command to Execute: kubectl get node -o yaml : | grep rancher/hardened-calico\n" +
 	"[2026-11-25T04:40:03.000Z] Expected Value: rancher/hardened-calico:v3.33.1-build20261120\n" +
 	"[2026-11-25T04:40:05.000Z] Matched with result:\n" +
@@ -338,7 +339,7 @@ func TestMissingEvidence(t *testing.T) {
 	envoy := BumpCheck{What: "envoy image v1.20.5 in rke2-cilium values", Cmd: "grep envoy", Expected: "v1.20.5"}
 	_, results := ParseBumpConsole("Command to Execute: grep relay\nExpected Value: v1.20.5\nMatched with result:\n" +
 		"  tag: v1.20.5\n\nCommand to Execute: grep envoy\nExpected Value: v1.20.5\n")
-	if got := resultFor(results, relay); len(got.Output) != 1 || got.Cmd != "grep relay" {
+	if got := resultFor(results, &relay); len(got.Output) != 1 || got.Cmd != "grep relay" {
 		t.Fatalf("relay's block: %+v", got)
 	}
 	if why := missingEvidence([]BumpCheck{relay, envoy}, "rke2 version v1", results); why != "no output for "+envoy.What {
@@ -446,6 +447,48 @@ func TestSectionWhatsOfAValuesCheck(t *testing.T) {
 	if len(got) != 2 || got[0] != "the rke2-metrics-server values carry the hardened-addon-resizer image 1.8.24" ||
 		got[1] != "the hardened-k8s-metrics-server image is v0.9.1" {
 		t.Fatalf("steps %q", got)
+	}
+}
+
+// A version a later change replaced says so once, with what replaced it on each branch.
+func TestSectionWhatsOfAReplacedVersion(t *testing.T) {
+	checks := func(branch, by string) *BranchResult {
+		return &BranchResult{Target: &BumpTarget{Branch: branch, Checks: []BumpCheck{
+			{What: "rke2-canal chart 3.33.103", Issue: 1, Replaced: "3.33.101", ReplacedBy: by},
+			{What: "hardened-calico image v3.33.1", Issue: 1},
+		}}}
+	}
+	done := []*BumpIssue{{Number: 1, Branch: "release-1.34"}, {Number: 1, Branch: "release-1.35"}}
+	got := sectionWhats(done, map[string]*BranchResult{
+		"a": checks("release-1.34", "rancher/rke2#11949"), "b": checks("release-1.35", ""),
+	})
+	if len(got) != 2 || got[0] != "the rke2-canal chart is 3.33.103, newer than this issue's 3.33.101 (bumped again "+
+		"by rancher/rke2#11949 on release-1.34, a later commit on release-1.35)" ||
+		got[1] != "the hardened-calico image is v3.33.1" {
+		t.Fatalf("steps %q", got)
+	}
+}
+
+// Two checks of one command (k3s traefik.yaml: traefik and traefik-crd) show their block once.
+func TestRenderBumpMDOneBlockPerCommand(t *testing.T) {
+	cmd := "sudo grep -h static/charts/ /var/lib/rancher/k3s/server/manifests/traefik.yaml"
+	out := []string{"chart: traefik-crd-40.1.8.tgz", "  chart: traefik-40.1.8.tgz"}
+	target := &BumpTarget{Product: "k3s", Branch: "release-1.36", Version: "55d0a922", Checks: []BumpCheck{
+		{What: "traefik-crd chart 40.1.8", Cmd: cmd, Expected: "traefik-crd-40.1.8.tgz", Issue: 2},
+		{What: "traefik chart 40.1.8", Cmd: cmd, Expected: "traefik-40.1.8.tgz", Issue: 2},
+	}}
+	group := &BumpGroup{Product: "k3s", Main: BumpIssue{Repo: "k3s-io/k3s", Number: 1, Title: "Bump traefik"},
+		Backports: []*BumpIssue{{Repo: "k3s-io/k3s", Number: 2, Branch: "release-1.36"}}}
+	validated := map[string]*BranchResult{"k3s-bumps-136": {Target: target, Version: "k3s version v1.36.6 (55d0a922)",
+		Results: []BumpResult{{Cmd: cmd, Expected: "traefik-crd-40.1.8.tgz", Output: out},
+			{Cmd: cmd, Expected: "traefik-40.1.8.tgz", Output: out}}}}
+
+	md, err := RenderBumpMD("k3s", "2026-11", []*BumpGroup{group}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(md, "$ "+cmd); n != 1 {
+		t.Fatalf("command shown %d times:\n%s", n, md)
 	}
 }
 

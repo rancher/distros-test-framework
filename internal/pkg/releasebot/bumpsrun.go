@@ -298,7 +298,7 @@ func missingEvidence(checks []BumpCheck, version string, results []BumpResult) s
 		return "no version line"
 	}
 	for _, c := range checks {
-		if len(resultFor(results, c).Output) == 0 {
+		if len(resultFor(results, &c).Output) == 0 {
 			return "no output for " + c.What
 		}
 	}

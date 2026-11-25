@@ -24,6 +24,8 @@ type bumpSource interface {
 	BranchHead(ctx context.Context, repo, branch string) (string, error)
 	BackportIssues(ctx context.Context, repo string, issue int) ([]projectIssue, error)
 	IssueRef(ctx context.Context, repo string, n int) (title, body string, pull bool, err error)
+	FileAt(ctx context.Context, repo, path, ref string) (string, error)
+	BumpedBy(ctx context.Context, repo, ref, path string, adds func(patch string) bool, since []string) (string, error)
 	matchingTags(ctx context.Context, product, prefix string) ([]string, error)
 }
 
@@ -94,11 +96,12 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 	}
 	plan.Person = append(plan.Person, conflictingBumps(bumps, plan.Person)...)
 
-	targets, targetErr := bumpTargets(ctx, src, bumps, plan.Person)
+	targets, unsure, targetErr := bumpTargets(ctx, src, bumps, plan.Person)
 	if targetErr != nil {
 		return nil, targetErr
 	}
 	plan.Targets = targets
+	plan.Person = append(plan.Person, unsure...)
 
 	return plan, nil
 }
@@ -345,12 +348,16 @@ func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
 }
 
 // bumpTargets groups the valid backports by product and branch, with the version to install: the
-// branch's newest RC when it holds every merge, otherwise the branch's latest commit.
-func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person []BumpProblem) ([]*BumpTarget, error) {
+// branch's newest RC when it holds every merge, otherwise the branch's latest commit. unsure are the
+// issues taken out because that version does not set one newer or equal version (followNewerBumps).
+func bumpTargets(
+	ctx context.Context, src bumpSource, bumps []*BumpIssue, person []BumpProblem,
+) (targets []*BumpTarget, unsure []BumpProblem, err error) {
 	skip := personSet(person)
 
 	byBranch := map[string]*BumpTarget{}
 	commits := map[string][]string{}
+	members := map[string][]*BumpIssue{}
 	var keys []string
 	for _, b := range bumps {
 		if b.Branch == "" || skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
@@ -366,24 +373,150 @@ func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person
 			keys = append(keys, k)
 		}
 		t.Checks = append(t.Checks, b.Checks...)
+		members[k] = append(members[k], b)
 		for _, pr := range b.PRs {
 			commits[k] = append(commits[k], pr.MergeCommit)
 		}
 	}
 	sort.Strings(keys)
 
-	targets := make([]*BumpTarget, 0, len(keys))
 	for _, k := range keys {
 		t := byBranch[k]
 		version, isCommit, versionErr := bumpVersion(ctx, src, t.Product, t.Branch, commits[k])
 		if versionErr != nil {
-			return nil, versionErr
+			return nil, nil, versionErr
 		}
 		t.Version, t.Commit = version, isCommit
-		targets = append(targets, t)
+
+		problems, followErr := followNewerBumps(ctx, src, t, members[k])
+		if followErr != nil {
+			return nil, nil, followErr
+		}
+		unsure = append(unsure, problems...)
+		t.Checks = slices.DeleteFunc(t.Checks, func(c BumpCheck) bool {
+			return slices.ContainsFunc(problems, func(p BumpProblem) bool { return p.Number == c.Issue })
+		})
+		if len(t.Checks) > 0 {
+			targets = append(targets, t)
+		}
 	}
 
-	return targets, nil
+	return targets, unsure, nil
+}
+
+// replacedBy names the change that bumped the check's component again, for the plan and the MD.
+func replacedBy(c *BumpCheck) string {
+	if c.ReplacedBy == "" {
+		return "a later commit"
+	}
+
+	return c.ReplacedBy
+}
+
+// followNewerBumps points a check at a later bump of its component in the version the target installs
+// (a CNI charts update merged after the issue's PR): that newer version holds the issue's bump. Several
+// versions, or an older or other one, where the issue's PR set it go to a person: the old text could match.
+func followNewerBumps(ctx context.Context, src bumpSource, t *BumpTarget, issues []*BumpIssue) ([]BumpProblem, error) {
+	files := map[string]map[string][]string{}
+	versionsAt := func(path string) (map[string][]string, error) {
+		if v, ok := files[path]; ok {
+			return v, nil
+		}
+		content, fileErr := src.FileAt(ctx, productRepo[t.Product], path, t.Version)
+		if fileErr != nil {
+			return nil, fmt.Errorf("read %s at %s: %w", path, t.Version, fileErr)
+		}
+		files[path] = versionsIn(t.Product, path, content)
+
+		return files[path], nil
+	}
+
+	var person []BumpProblem
+	for i := range t.Checks {
+		c := &t.Checks[i]
+		issue := issues[slices.IndexFunc(issues, func(b *BumpIssue) bool { return b.Number == c.Issue })]
+		at, findErr := findAtRef(issue, c, versionsAt)
+		if findErr != nil {
+			return nil, findErr
+		}
+
+		// "<component> <chart|image> <version> ..."
+		f := strings.Fields(c.What)
+		switch {
+		case at == nil || len(at.versions) == 0 || slices.Equal(at.versions, []string{f[2]}):
+		case len(at.versions) == 1 && newerVersion(f[2], at.versions[0]):
+			if replaceErr := replaceCheck(ctx, src, t, issue, c, at); replaceErr != nil {
+				return nil, replaceErr
+			}
+		case !slices.ContainsFunc(person, func(p BumpProblem) bool { return p.Number == issue.Number }):
+			person = append(person, BumpProblem{Repo: issue.Repo, Number: issue.Number, Title: issue.Title,
+				Reason: fmt.Sprintf("%s at %.12s sets %s %s to %q in %s, where its PR set %s: not one newer version",
+					t.Branch, t.Version, f[0], f[1], strings.Join(at.versions, ", "), at.path, f[2])})
+		}
+	}
+
+	return person, nil
+}
+
+// refBump is where the issue's PR set a check's component (a versionsIn key of a file) and the
+// versions the installed ref sets there.
+type refBump struct {
+	path, key string
+	versions  []string
+}
+
+// findAtRef reads, at the installed ref, the place the issue's PR set the check's component (an image
+// in the same image-list section); nil when no PR file of the issue sets it.
+func findAtRef(
+	issue *BumpIssue, c *BumpCheck, versionsAt func(path string) (map[string][]string, error),
+) (*refBump, error) {
+	f := strings.Fields(c.What)
+	for _, pr := range issue.PRs {
+		for _, file := range pr.Files {
+			key := f[0] + " chart"
+			if f[1] == "image" {
+				section, ok := imageSections(file.Patch)["rancher/"+f[0]+":"+f[2]]
+				if !ok {
+					continue
+				}
+				key = f[0] + " image|" + section
+			} else if !slices.ContainsFunc(chartChecks(issue.Product, file.Name, file.Patch),
+				func(b BumpCheck) bool { return b.What == c.What }) {
+				continue
+			}
+
+			versions, readErr := versionsAt(file.Name)
+			if readErr != nil {
+				return nil, readErr
+			}
+
+			return &refBump{path: file.Name, key: key, versions: versions[key]}, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// replaceCheck points the check at the one newer version and names the change that set it there.
+func replaceCheck(ctx context.Context, src bumpSource, t *BumpTarget, issue *BumpIssue, c *BumpCheck, at *refBump) error {
+	f := strings.Fields(c.What)
+	newer := at.versions[0]
+	adds := func(patch string) bool { return setsVersion(t.Product, at.path, patch, at.key, newer) }
+	var since []string
+	for _, pr := range issue.PRs {
+		since = append(since, pr.MergeCommit)
+	}
+
+	by, byErr := src.BumpedBy(ctx, productRepo[t.Product], t.Version, at.path, adds, since)
+	if byErr != nil {
+		return fmt.Errorf("find what bumped %s %s to %s on %s: %w", f[0], f[1], newer, t.Branch, byErr)
+	}
+
+	c.Replaced, c.ReplacedBy = f[2], by
+	c.What = strings.Replace(c.What, f[2], newer, 1)
+	c.Expected = strings.Replace(c.Expected, f[2], newer, 1)
+
+	return nil
 }
 
 // bumpVersion: the newest RC of the branch's minor if it holds every commit, else the branch head.
@@ -472,7 +605,11 @@ func (a *App) PrintBumpPlan(plan *BumpPlan, cfg *BumpConfig, dtfRef, mode string
 		}
 		log("info", "  %s %s on %s (%s%s)", t.Product, t.Branch, t.Version, what, on)
 		for _, c := range t.Checks {
-			log("info", "    #%d %s: %s -> %s", c.Issue, c.What, c.Cmd, c.Expected)
+			replaced := ""
+			if c.Replaced != "" {
+				replaced = fmt.Sprintf(" (replaces the issue's %s: %s)", c.Replaced, replacedBy(&c))
+			}
+			log("info", "    #%d %s%s: %s -> %s", c.Issue, c.What, replaced, c.Cmd, c.Expected)
 		}
 
 		job, jobErr := t.Job(cfg, cfg.Controller, dtfRef)

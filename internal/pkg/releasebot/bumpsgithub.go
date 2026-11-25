@@ -3,11 +3,13 @@ package releasebot
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 )
@@ -390,6 +392,109 @@ func (g *gitHub) BranchHead(ctx context.Context, repo, branch string) (string, e
 	}
 
 	return b.Commit.SHA, nil
+}
+
+// FileAt is a file's content at ref (a tag or commit); "" when the file is not there.
+func (g *gitHub) FileAt(ctx context.Context, repo, path, ref string) (string, error) {
+	segments := strings.Split(path, "/")
+	for i, s := range segments {
+		segments[i] = url.PathEscape(s)
+	}
+	resp, doErr := g.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/contents/%s?ref=%s", repo,
+		strings.Join(segments, "/"), url.QueryEscape(ref)), nil)
+	if doErr != nil {
+		return "", doErr
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		return "", nil
+	case http.StatusOK:
+	default:
+		return "", fmt.Errorf("github %s %s at %s: %s", repo, path, ref, resp.Status)
+	}
+
+	var file struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&file); decodeErr != nil {
+		return "", fmt.Errorf("github %s %s at %s: %w", repo, path, ref, decodeErr)
+	}
+	if file.Encoding != "base64" {
+		return "", fmt.Errorf("github %s %s at %s: content not returned (%q, a file over 1 MB?)", repo, path, ref,
+			file.Encoding)
+	}
+
+	content, base64Err := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
+	if base64Err != nil {
+		return "", fmt.Errorf("github %s %s at %s: %w", repo, path, ref, base64Err)
+	}
+
+	return string(content), nil
+}
+
+// BumpedBy is the merged pull request ("rancher/rke2#11949", else the commit) of the newest commit whose
+// patch of path adds says yes to, among ref's last 30 commits of that path newer than since; "" if none.
+func (g *gitHub) BumpedBy(
+	ctx context.Context, repo, ref, path string, adds func(patch string) bool, since []string,
+) (string, error) {
+	var commits []struct {
+		SHA string `json:"sha"`
+	}
+	listPath := fmt.Sprintf("/repos/%s/commits?sha=%s&path=%s&per_page=30", repo, url.QueryEscape(ref),
+		url.QueryEscape(path))
+	if _, listErr := g.getJSON(ctx, listPath, &commits); listErr != nil {
+		return "", listErr
+	}
+
+	by := ""
+	for _, c := range commits {
+		if slices.Contains(since, c.SHA) {
+			break
+		}
+
+		var commit struct {
+			Files []commitFile `json:"files"`
+		}
+		if _, getErr := g.getJSON(ctx, "/repos/"+repo+"/commits/"+c.SHA, &commit); getErr != nil {
+			return "", getErr
+		}
+		if slices.ContainsFunc(commit.Files, func(f commitFile) bool { return f.Filename == path && adds(f.Patch) }) {
+			by = c.SHA
+			break
+		}
+	}
+	if by == "" {
+		return "", nil
+	}
+
+	return g.mergedPullOf(ctx, repo, by)
+}
+
+// commitFile is a file a commit changes, with its patch.
+type commitFile struct {
+	Filename string `json:"filename"`
+	Patch    string `json:"patch"`
+}
+
+// mergedPullOf is the merged pull request that holds commit, or the commit when none does.
+func (g *gitHub) mergedPullOf(ctx context.Context, repo, commit string) (string, error) {
+	var pulls []struct {
+		Number   int     `json:"number"`
+		MergedAt *string `json:"merged_at"`
+	}
+	if _, getErr := g.getJSON(ctx, "/repos/"+repo+"/commits/"+commit+"/pulls", &pulls); getErr != nil {
+		return "", getErr
+	}
+	for _, p := range pulls {
+		if p.MergedAt != nil {
+			return fmt.Sprintf("%s#%d", repo, p.Number), nil
+		}
+	}
+
+	return repo + "@" + commit[:min(12, len(commit))], nil
 }
 
 // getJSON decodes a GET; paged reports a next page (the caller decides whether that is an error).

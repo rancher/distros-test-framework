@@ -722,7 +722,16 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   on `rke2-canal-version-bump_qainfra` (`rke2-bumps-137-canal`); an issue needing two CNIs goes to a
   person; the canal job's `HOSTNAME_PREFIX` ends in `c` (`fmor137rc`). Each build installs the
   branch's newest RC when it holds every merge, else its latest commit (`INSTALL_<PRODUCT>_COMMIT`;
-  validate again on the RC). Bumps never report to Qase: their MD goes on their issues. At most 6 run at a time on Mower,
+  validate again on the RC). Bumps never report to Qase: their MD goes on their issues.
+- **A newer version passes.** When the version installed carries a later bump of the component (an
+  automated "Update CNI charts" PR merged after the issue's), the check expects that version: the
+  bot reads the issue's files at that ref, in the image-list section the issue's PR changed, and
+  takes the one version there when it is higher than the issue's. The plan and the MD step name the
+  newest PR that set it there (same chart, same section): "newer than this issue's
+  3.33.101-build20261120 (bumped again by rancher/rke2#11949 on release-1.34)". Several versions in
+  that place, or an older or incomparable one, send the issue to a person at plan time and out of
+  the job: the issue's old tag could still be on the node and match.
+- **Mower load.** At most 6 bump builds run at a time on Mower,
   4 while other people's builds run there (counted before a trigger, at most every 2 minutes, by
   job: a build of ours still in the queue does not hide someone else's).
 - **Accept first.** With `-dry-run=false` the bot prints the bump issues it found and starts

@@ -136,6 +136,11 @@ type BumpCheck struct {
 	Cmd      string `json:"cmd"`
 	Expected string `json:"expected"`
 	Issue    int    `json:"issue"`
+
+	// Replaced is the issue's version when a later change (ReplacedBy, "rancher/rke2#11949") bumped it
+	// again in the version installed: the check expects that newer version.
+	Replaced   string `json:"replaced,omitempty"`
+	ReplacedBy string `json:"replaced_by,omitempty"`
 }
 
 var (
@@ -257,13 +262,7 @@ func changedLines(patch string) (removed, added []string) {
 func BumpChecks(product string, files []PRFile, defaultImages []string) (checks []BumpCheck, unsupported []string) {
 	var untested []bumpedImage
 	for _, f := range files {
-		var got []BumpCheck
-		switch {
-		case product == "rke2" && f.Name == "charts/chart_versions.yaml":
-			got = rke2ChartChecks(f.Patch)
-		case product == "k3s" && strings.HasPrefix(f.Name, "manifests/") && strings.HasSuffix(f.Name, ".yaml"):
-			got = k3sChartChecks(f.Name, f.Patch)
-		}
+		got := chartChecks(product, f.Name, f.Patch)
 		images, others := imageChecks(f.Patch, defaultImages)
 		got = append(got, images...)
 		untested = append(untested, others...)
@@ -284,6 +283,116 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 	}
 
 	return dedupChecks(checks), unsupported
+}
+
+// chartChecks are the chart bumps of one changed file: RKE2's chart_versions.yaml, a K3s manifest.
+func chartChecks(product, name, patch string) []BumpCheck {
+	switch {
+	case product == "rke2" && name == "charts/chart_versions.yaml":
+		return rke2ChartChecks(patch)
+	case product == "k3s" && strings.HasPrefix(name, "manifests/") && strings.HasSuffix(name, ".yaml"):
+		return k3sChartChecks(name, patch)
+	}
+
+	return nil
+}
+
+// versionsIn are the versions a whole file sets: "<chart> chart" and "<image> image|<section>" (an
+// image list repeats an image per CNI, at different tags), read with the same rules as a bump's patch.
+func versionsIn(product, name, content string) map[string][]string {
+	versions := map[string][]string{}
+	add := func(key, version string) {
+		if !slices.Contains(versions[key], version) {
+			versions[key] = append(versions[key], version)
+		}
+	}
+
+	for _, c := range chartChecks(product, name, "+"+strings.ReplaceAll(content, "\n", "\n+")) {
+		f := strings.Fields(c.What)
+		add(f[0]+" chart", f[2])
+	}
+
+	section := ""
+	for _, l := range strings.Split(content, "\n") {
+		for _, m := range imageRef.FindAllStringSubmatch(l, -1) {
+			add(m[1]+" image|"+section, m[2])
+		}
+		if sectionLine.MatchString(l) {
+			section = sectionOf(l)
+		}
+	}
+
+	return versions
+}
+
+// setsVersion: the patch adds version for key, a versionsIn key ("rke2-canal chart", "<image>
+// image|<section>"), read as BumpChecks reads it: a chart with its filename line, an image in its section.
+func setsVersion(product, path, patch, key, version string) bool {
+	name, kind, _ := strings.Cut(key, " ")
+	if kind == "chart" {
+		return slices.ContainsFunc(chartChecks(product, path, patch),
+			func(c BumpCheck) bool { return c.What == name+" chart "+version })
+	}
+
+	section, ok := imageSections(patch)["rancher/"+name+":"+version]
+
+	return ok && "image|"+section == kind
+}
+
+// sectionLine is a line git names in a hunk header ("@@ -72,7 +72,7 @@ xargs ... images-cilium.txt").
+var sectionLine = regexp.MustCompile(`^[A-Za-z$_]`)
+
+// sectionOf is a section line as both a patch's hunk header and the whole file show it.
+func sectionOf(line string) string {
+	return maskVersions(strings.TrimRight(line[:min(72, len(line))], " \t"))
+}
+
+// imageSections maps each image an added line sets ("rancher/x:tag") to its section, the last section
+// line before it in the new file.
+func imageSections(patch string) map[string]string {
+	sections := map[string]string{}
+	section := ""
+	for _, l := range strings.Split(patch, "\n") {
+		switch {
+		case strings.HasPrefix(l, "@@"):
+			if _, name, ok := strings.Cut(strings.TrimPrefix(l, "@@"), "@@"); ok {
+				section = sectionOf(strings.TrimSpace(name))
+			}
+			continue
+		case l == "" || l[0] == '-' || l[0] == '\\':
+			continue
+		case l[0] == '+':
+			for _, m := range imageRef.FindAllStringSubmatch(l[1:], -1) {
+				sections["rancher/"+m[1]+":"+m[2]] = section
+			}
+		}
+		if sectionLine.MatchString(l[1:]) {
+			section = sectionOf(l[1:])
+		}
+	}
+
+	return sections
+}
+
+var digitRun = regexp.MustCompile(`\d+`)
+
+// newerVersion: b is a later release of a, the same shape once numbers are masked ("v" aside) and
+// higher at its first different number (3.33.103-build20261120 after 3.33.101-build20261120).
+func newerVersion(a, b string) bool {
+	a, b = strings.TrimPrefix(a, "v"), strings.TrimPrefix(b, "v")
+	if digitRun.ReplaceAllString(a, "0") != digitRun.ReplaceAllString(b, "0") {
+		return false
+	}
+
+	na, nb := digitRun.FindAllString(a, -1), digitRun.FindAllString(b, -1)
+	for i := range na {
+		x, y := strings.TrimLeft(na[i], "0"), strings.TrimLeft(nb[i], "0")
+		if x != y {
+			return len(y) > len(x) || (len(y) == len(x) && y > x)
+		}
+	}
+
+	return false
 }
 
 // bumpedImage is an image tag a pull request adds.

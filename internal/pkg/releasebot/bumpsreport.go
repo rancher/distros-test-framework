@@ -47,6 +47,9 @@ var (
 	consoleStamp   = regexp.MustCompile(`^\[\d{4}-\d\d-\d\dT[^\]]*\]\s?`)
 	versionLine    = regexp.MustCompile(`\b(?:rke2|k3s) version v\S+ \([0-9a-f]{7,}\)`)
 	jenkinsPointer = regexp.MustCompile(`(?i)https?://[^\s)"]*jenkins[^\s)"]*|/job/[^\s)"]+/\d+/?`)
+
+	// logLine is the framework's own log ("DEBU[...] Version Check: ..."), printed right after an output.
+	logLine = regexp.MustCompile(`^(?:TRAC|DEBU|INFO|WARN|ERRO|FATA|PANI)\[`)
 )
 
 // private is what a public issue must not show, with its placeholder; an IPv6 is eight groups or has a
@@ -85,7 +88,8 @@ func ParseBumpConsole(console string) (version string, results []BumpResult) {
 		case strings.HasPrefix(line, "Matched with result:"):
 			matching = true
 		case matching && (strings.TrimSpace(line) == "" || strings.HasPrefix(line, "PASSED!") ||
-			strings.HasPrefix(line, "FAILED!") || strings.HasPrefix(line, "IP Address:") || strings.HasPrefix(line, "----")):
+			strings.HasPrefix(line, "FAILED!") || strings.HasPrefix(line, "IP Address:") ||
+			strings.HasPrefix(line, "----") || logLine.MatchString(line)):
 			matching = false
 		case matching:
 			cur.Output = append(cur.Output, line)
@@ -217,11 +221,18 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 		r := issueResult(validated, bp)
 		version := r.Target.Version
 		fmt.Fprintf(b, "<details>\n<summary>%s (%s)</summary>\n\n```\n", version, bp.Branch)
+		shown := map[string]bool{}
 		for _, c := range r.Target.Checks {
 			if c.Issue != bp.Number {
 				continue
 			}
-			res := resultFor(r.Results, c)
+			res := resultFor(r.Results, &c)
+			// two checks of one command (traefik and traefik-crd) print one block
+			block := c.Cmd + "\n" + strings.Join(res.Output, "\n")
+			if shown[block] {
+				continue
+			}
+			shown[block] = true
 			fmt.Fprintf(b, "$ %s\n", displayCmd(c.Cmd))
 			for _, out := range res.Output {
 				b.WriteString(out + "\n")
@@ -251,9 +262,10 @@ func writeEnvironment(b *strings.Builder, r *BranchResult) {
 }
 
 // sectionWhats are the steps' "the rke2-canal chart is 3.33.101-build20261120", once each; a values
-// check says the chart carries the image, which is what it proves.
+// check says the chart carries the image, and a replaced version names what replaced it on each branch.
 func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []string {
 	var whats []string
+	replaced := map[string][]string{}
 	for _, bp := range done {
 		for _, c := range issueResult(validated, bp).Target.Checks {
 			// "<component> <chart|image> <version> [in <chart> values]"
@@ -266,9 +278,19 @@ func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []strin
 			if len(f) == 6 && f[3] == "in" {
 				w = fmt.Sprintf("the %s values carry the %s image %s", f[4], f[0], f[2])
 			}
+			if c.Replaced != "" {
+				w += ", newer than this issue's " + c.Replaced
+				replaced[w] = append(replaced[w], replacedBy(&c)+" on "+bp.Branch)
+			}
 			if !slices.Contains(whats, w) {
 				whats = append(whats, w)
 			}
+		}
+	}
+
+	for i, w := range whats {
+		if by := replaced[w]; len(by) > 0 {
+			whats[i] = fmt.Sprintf("%s (bumped again by %s)", w, strings.Join(by, ", "))
 		}
 	}
 
@@ -276,7 +298,7 @@ func sectionWhats(done []*BumpIssue, validated map[string]*BranchResult) []strin
 }
 
 // resultFor is the check's own console block: its command and its value (two checks can share either).
-func resultFor(results []BumpResult, c BumpCheck) BumpResult {
+func resultFor(results []BumpResult, c *BumpCheck) BumpResult {
 	for _, r := range results {
 		if r.Cmd == c.Cmd && r.Expected == c.Expected {
 			return r
