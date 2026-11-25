@@ -13,7 +13,7 @@ import (
 
 // A console as the version-bump job prints it (timestamps, colors, the kubeconfig the framework adds).
 const bumpConsole = "[2026-11-25T04:38:52.413Z] rke2 version v1.37.2+dev.4b027024 (4b0270244ca6d1a2)\n" +
-	"[2026-11-25T04:39:57.678Z] IP Address: 18.119.0.144\n" +
+	"[2026-11-25T04:39:57.678Z] IP Address: 203.0.113.10\n" +
 	"[2026-11-25T04:39:57.678Z] Command to Execute: " +
 	"sudo grep -h chart-url /var/lib/rancher/rke2/data/*/charts/rke2-canal.yaml\n" +
 	"[2026-11-25T04:39:57.678Z] Execution Location: Node\n" +
