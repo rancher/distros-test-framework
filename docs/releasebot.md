@@ -13,8 +13,10 @@ into the three things we do by hand today for every RC round:
    A parity test against the batch parameters is still to do (see "Execution model").
 
 The bot reacts to a Slack mention (Socket Mode, `-listen`). It does not poll the channel.
-Without Slack, `releasebot-run` on the bot host starts the same plan over SSH (see
-"Running without Slack").
+The v1 runs from the release captain's laptop instead: the CLI executes the whole plan in a
+terminal, with every Slack command typed in and a resume after an interrupt (see "Running on a
+laptop (v1)"); the VM hosting is the v2. A second mode, `-bumps`, validates the month's
+version-bump issues of the K3s and RKE2 boards and writes their results MDs (see "Bump issues").
 
 ## Status
 
@@ -30,6 +32,8 @@ Without Slack, `releasebot-run` on the bot host starts the same plan over SSH (s
 | Qase run id → `QASE_RUN_ID` of every job | Done (`qase.go`); title and `search` lookup checked read-only against the real API |
 | Job matrix | Five phases, smoke split, upgrade starts, jobs checked on Jenkins (`config/releasebot/matrix.yaml`) |
 | CLI with dry-run (`cmd/releasebot`) | Done |
+| CLI execution from a laptop (v1): terminal commands, saved run and `-resume`, `-triage-local` | Done (`terminal.go`); first real run 2026-11-25 (2 K3s jobs on Mower, no workflows or Qase), interrupted and resumed without a second trigger |
+| Bump mode (`-bumps`): board issues, bump-only check, one job per branch, MDs, `-bumps-post` | Done (`bumps*.go`); dry-run checked against both boards, not yet run with `-dry-run=false` |
 | Run without Slack over SSH (`releasebot-run`, dry-run by default) | Done (`ops/releasebot/releasebot-run`, `releasebot-run@.service`); not yet run on the host |
 | Mower default, `baler` split for airgap + conformance | Done (`matrix.yaml`); **temporary** Mower default, see "Jenkins matrix" |
 | Unit tests | Done (`releasebot_test.go`: parsing, plan/order/prefix, Qase RC dedupe, Qase title/request-id matching/timeout, scheduler limits, transient and persistent query errors, lost trigger responses, canceled queue items, `dependsOn` release/block/validation, Jenkins trigger error classification over HTTP) |
@@ -37,7 +41,7 @@ Without Slack, `releasebot-run` on the bot host starts the same plan over SSH (s
 | Slack scopes `groups:read`, `groups:history`, `app_mentions:read` | **Waiting for workspace admin approval** |
 | Resume after a restart; builds in unknown state watched instead of blocking new plans | Done (`runrecord.go`, `schedulerwatch.go`, `listener.go`) |
 | Socket Mode listener (`-listen`): auto-start, `status`/`stop`, concurrent runs | Done (`internal/pkg/slack`, `listener.go`, `planner.go`); dry-run verified live in #distros-test-reports, not yet run with `-dry-run=false` |
-| Hosting (vSphere VM) | Host prepared (`setup.sh prepare`, env file, hardened unit); first `deploy` waits for the reviewed commit |
+| Hosting (vSphere VM) | v2, parked: deployed once (CLI only), then its env file was removed; the laptop is the v1 |
 
 Verified so far: `go build`, `go vet`, `go test -race`, `golangci-lint` and the `ops/` and
 `scripts/` shell tests are clean (`make pre-commit`). A dry-run plan against real tags lists the
@@ -50,7 +54,8 @@ Output goes through `resources.LogLevel`: the plan, dispatches, job progress and
 `info`; warnings, query failures and non-SUCCESS results are `warn`; fatal errors are `error`.
 With `LOG_LEVEL=debug`, each job also logs its full expanded parameters.
 
-Nothing has been dispatched or triggered for real yet (`-dry-run=false` has not been run).
+Real runs so far: one CLI run of a reduced matrix (two K3s jobs on Mower, `-skip-workflows`,
+`REPORT_TO_QASE=false`) on 2026-11-25. Nothing has been dispatched to GitHub or Qase yet.
 
 ## How it works
 
@@ -65,6 +70,9 @@ The application lives in `internal/pkg/releasebot`, split by responsibility with
 - `triage.go`: the request/verdict contract and rerun gate.
 - `triagebroker.go`: broker transport, spool, isolation checks, verdict reuse and the Claude runner.
 - `failurelog.go`, `transient.go`, `redact.go`: failure extraction, fixed retry rules and secret redaction.
+- `terminal.go`: a CLI run driven from the terminal (commands, saved run, resume) and in-process triage.
+- `bumps.go`, `bumpsgithub.go`, `bumpsplan.go`, `bumpsrun.go`, `bumpsreport.go`, `bumpspost.go`: the bump
+  mode (rules, board reads, plan, run, MD and posting).
 
 File names use lowercase joined words; test files retain Go's `_test.go` suffix.
 An additional directory would be a separate package, not just a visual grouping. Keep these
@@ -553,6 +561,10 @@ $ go run ./cmd/releasebot -message-file req.txt -dry-run=false                  
 | `-resume` | `false` | With `-dry-run=false`: carry on the run a CLI execution saved (interrupted, killed, rebooted) instead of `-message` |
 | `-state-file` | `<user config dir>/releasebot/state.json` | Every run in progress (stage and jobs), saved at each change and resumed after a restart; the CLI keeps its run in `cli-run.json` next to it |
 | `-triage-local` | `false` | CLI execution: triage failed builds in this process with claude-sandbox (the broker flags below apply) |
+| `-bumps` | `false` | Bump mode: plan the month's version-bump issues of both boards (dry-run), or run them with `-dry-run=false` (see "Bump issues") |
+| `-month` | the current `YYYY-MM` | Bump mode: the release month the MDs are named after |
+| `-bumps-config` / `-bumps-dir` | `config/releasebot/bumps.yaml` / `~/releasebot/bumps/<month>` | Bump mode: jobs and default images; where the MDs go |
+| `-bumps-post <md>` / `-bumps-close` | | Post a bump MD the captain read (each section on its issue, a link on its backports), after a `yes`; also close them |
 | `-validate` | `false` | Load and check `-matrix`, then exit (`setup.sh deploy` runs it on the candidate) |
 | `-triage-spool` | | Listen mode: ask the triage broker through this spool (empty: every failure asks a person); broker mode: the spool to serve |
 | `-triage-wait` | `1h` | How long a failure waits for a verdict (listen mode) or for the triage slot (`-triage-local`) |
@@ -569,7 +581,7 @@ Environment:
 
 | Variable | Used for |
 |---|---|
-| `GITHUB_TOKEN` | Tag check (optional, avoids rate limits) and `workflow_dispatch` (needs Actions write on this repo) |
+| `GITHUB_TOKEN` | Tag check (optional, avoids rate limits) and `workflow_dispatch` (needs Actions write on this repo); `-bumps` reads the boards (`read:project`), `-bumps-post` comments on and closes issues of `k3s-io/k3s` and `rancher/rke2` |
 | `QASE_AUTOMATION_TOKEN` | Finding the new Qase run ids (required when a job uses `{{QASE_RUN_ID}}`) |
 | `JENKINS_<CONTROLLER>_AUTH` | `user:apitoken` per controller a plan uses, e.g. `JENKINS_MOWER_AUTH`; `JENKINS_BALER_AUTH` only for `baler` requests |
 | `JENKINS_<CONTROLLER>_URL` | Overrides the controller's matrix `url`, e.g. `JENKINS_MOWER_URL`, `JENKINS_BALER_URL` (https only) |
@@ -588,7 +600,9 @@ schedules next to the Slack bot or another CLI run: both would fill a controller
 
 The release captain runs the whole release from their own laptop, in a terminal: every Slack
 command works there too, and the run survives an interrupt. The VM hosting below is the v2, kept
-for when there is a Bedrock-only credential.
+for when there is a Bedrock-only credential. The `releasebot-captain-setup` skill
+(distros-qa-skills) walks a captain through this setup and proves it with its `bin/check.sh`; this
+section is its spec, so a change here needs the same change there.
 
 Once per captain, and per release commit: everything the run reads is pinned in one folder, so a
 checkout or an edit in the DTF tree never changes the matrix mid-release.
@@ -641,6 +655,56 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a; export CLAUDE_SANDBOX
   `dockerd (moby)` container engine (with containerd the sandbox has no `docker` CLI) and
   `docker context use rancher-desktop`. Images and volumes do not move between engines: rebuild the
   sandbox (`install.sh`) and sign in to Bedrock again there.
+
+### Bump issues (`-bumps`)
+
+Validates the month's version-bump issues of both boards and writes their results MDs; posting them
+is a separate step the captain takes after reading them. Pin `config/releasebot/bumps.yaml` with
+the matrix (`git show "${SHA}:config/releasebot/bumps.yaml" > "$D/bumps.yaml"`).
+
+```
+$ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
+    exec "$D/releasebot" -bumps -month 2026-11 -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" )   # the plan
+$ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
+    exec caffeinate -i "$D/releasebot" -bumps -month 2026-11 -dry-run=false \
+      -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" )
+$ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
+    exec "$D/releasebot" -bumps-post ~/releasebot/bumps/2026-11/rke2-bumps-release-2026-11.md -bumps-close )
+```
+
+- **Which issues.** The "To Test" column of K3s Development (`k3s-io` project 6) and RKE2
+  Development (`rancher` project 31). A title starting with Bump, Update or Upgrade (after an
+  optional `[Release-1.3x]`) is a bump; the other issues are listed and left alone. A backport
+  belongs to the main issue its body names (an issue, or the pull request that closes it), else to
+  the main issue with the same title.
+- **Only a bump.** A backport is validated when its merged pull request into its release branch
+  changes nothing but versions: removed and added lines match once versions are masked, and image
+  lines and `go.sum` count as versions. Anything else (a setting, a CI change, a new `package:`
+  line) goes to "needs a person", with the line. A main issue is never validated itself (master):
+  it is reported with its backports, and one without a backport in To Test is listed.
+- **What is checked.** Taken from the pull request: an RKE2 chart in `charts/chart_versions.yaml`
+  by its `chart-url` in the bundled chart file (`/var/lib/rancher/rke2/data/*/charts/<chart>.yaml`,
+  there whether or not the chart is enabled); a K3s chart URL in `manifests/*.yaml` on the server
+  manifest; an image tag of a default image (`defaultImages` in `bumps.yaml`) on the node's images.
+  The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
+  1.7.1 its pull request ships. A change no rule covers goes to a person.
+- **One job per branch.** All the checks of a product's release branch go to one
+  `<product>-version-bump_qainfra` build (`-cmd`, `-expectedValue`), on the branch's newest RC when
+  it holds every merge, else on its latest commit (`INSTALL_<PRODUCT>_COMMIT`; validate again on the
+  RC). Bumps never report to Qase: their MD goes on their issues. At most 6 run at a time on Mower,
+  4 while other people's builds run there (counted before each trigger).
+- **Accept first.** With `-dry-run=false` the bot prints the bump issues it found and starts
+  nothing until the captain types `yes`. During the run the terminal commands, Ctrl-C and `-resume`
+  work as for a release (the run is saved in `bumps-run.json` next to `cli-run.json`).
+- **The MDs.** When the run ends: `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md`,
+  one section per main issue in the bump template (one Validated on Version line per branch, the
+  build's `NODE_OS` and `ARCH`, the steps, and each check's `$ command` with its output). Addresses
+  are redacted, and a file that would still show a Jenkins link or an address is never written or
+  posted. A job that did not pass leaves its bumps out; the run lists them.
+- **Posting.** Only `-bumps-post <md>`, after the captain read the file and typed `yes`: the
+  section on the main issue, "Validated here: <link>" on each backport, and with `-bumps-close`
+  every issue closed. `<md>.posted.json` records each step, so a rerun after a failure never
+  posts twice.
 
 ### Running without Slack
 
