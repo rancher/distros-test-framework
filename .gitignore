@@ -20,3 +20,5 @@ infrastructure/qainfra/vars.tfvars
 
 # qainfra run state (tofu state, manifests, destroy scripts) persisted outside the container
 qainfra-state/
+# go build ./cmd/releasebot leaves the binary here
+/releasebot

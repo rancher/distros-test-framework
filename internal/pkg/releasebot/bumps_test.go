@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/rancher/distros-test-framework/internal/resources"
 )
 
 // Patches as GitHub returns them for real bump PRs (rke2#11743, rke2#11926, k3s#14989).
@@ -69,8 +71,8 @@ func TestBumpTitlesAndBranches(t *testing.T) {
 	}
 }
 
-// Only version changes pass; an added image (canal's cni-plugins) is a version change, a changed
-// setting is not.
+// Only version changes pass; an added image-only line (canal's cni-plugins) is a version change, a
+// changed setting is not, also on an image's line.
 func TestPureBump(t *testing.T) {
 	for name, files := range map[string][]PRFile{
 		"chart version": {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
@@ -90,6 +92,10 @@ func TestPureBump(t *testing.T) {
 		"setting changed": "-  bootstrap: false\n+  bootstrap: true",
 		"line added":      "+  newFlag: enabled",
 		"line removed":    "-  oldFlag: enabled",
+		"setting on an image's line": "-  - {image: rancher/hardened-calico:v3.32.2, privileged: false}\n" +
+			"+  - {image: rancher/hardened-calico:v3.33.1, privileged: true}",
+		"image key added": "+    image: rancher/hardened-calico:v3.33.1",
+		"image removed":   "-    ${REGISTRY}/rancher/hardened-calico:v3.32.2 \\",
 	} {
 		if ok, _ := PureBump([]PRFile{{Name: "charts/chart_versions.yaml", Patch: patch}}); ok {
 			t.Fatalf("%s: taken for a pure bump", name)
@@ -98,7 +104,8 @@ func TestPureBump(t *testing.T) {
 }
 
 // The checks come from the PR: the chart file every RKE2 install bundles, the K3s server manifest, and
-// the node image of a default component; a file no rule covers is left to a person.
+// the node image of a default component; a file no rule covers, or a bumped image no default install
+// runs, is left to a person.
 func TestBumpChecks(t *testing.T) {
 	rke2Images := []string{"hardened-calico", "hardened-flannel"}
 
@@ -116,10 +123,27 @@ func TestBumpChecks(t *testing.T) {
 	got := map[string]bool{}
 	for _, c := range checks {
 		got[c.Expected] = true
+
+		// What the job runs: its JoinCommands must leave the grep pattern whole.
+		runs := resources.JoinCommands(c.Cmd, " --kubeconfig=k")
+		if strings.HasPrefix(c.Cmd, "kubectl") && !strings.HasSuffix(runs, "| grep rancher/"+strings.Fields(c.What)[0]) {
+			t.Fatalf("the job runs %q", runs)
+		}
 	}
-	if len(unsupported) != 0 || len(checks) != 3 || !got["rke2-canal-3.33.101-build20261120.tgz"] ||
-		!got["rancher/hardened-calico:v3.33.1-build20261120"] || !got["rancher/hardened-flannel:v0.28.11-build20261120"] {
+	if len(checks) != 3 || !got["rke2-canal-3.33.101-build20261120.tgz"] ||
+		!got["rancher/hardened-calico:v3.33.1-build20261120"] || !got["rancher/hardened-flannel:v0.28.11-build20261120"] ||
+		len(unsupported) != 1 || unsupported[0] != "rancher/hardened-cni-plugins:v1.10.0-build20261110 "+
+		"(not a default image)" {
 		t.Fatalf("canal (cni-plugins is no default image): %+v, unsupported %v", checks, unsupported)
+	}
+
+	// Calico is checked, Cilium is not: the issue cannot pass on Calico alone.
+	_, unsupported = BumpChecks("rke2", []PRFile{{Name: "scripts/build-images", Patch: "" +
+		"-    ${REGISTRY}/rancher/hardened-calico:v3.32.2\n+    ${REGISTRY}/rancher/hardened-calico:v3.33.1\n" +
+		"-    ${REGISTRY}/rancher/mirrored-cilium-cilium:v1.18.1\n+    ${REGISTRY}/rancher/mirrored-cilium-cilium:v1.18.2"}},
+		rke2Images)
+	if len(unsupported) != 1 || !strings.HasPrefix(unsupported[0], "rancher/mirrored-cilium-cilium:v1.18.2") {
+		t.Fatalf("calico and cilium: unsupported %v", unsupported)
 	}
 
 	checks, _ = BumpChecks("k3s", []PRFile{{Name: "manifests/traefik.yaml", Patch: traefikManifestPatch}}, nil)
@@ -140,14 +164,14 @@ func TestBumpTargetJob(t *testing.T) {
 	cfg := &BumpConfig{PrefixBase: "rb", Jobs: map[string]string{"rke2": "distros_qa/rke2-tests/rke2-version-bump_qainfra"}}
 	target := &BumpTarget{Product: "rke2", Branch: "release-1.37", Version: "0123abcd", Commit: true, Checks: []BumpCheck{
 		{What: "a", Cmd: "sudo grep -h chart-url /x/a.yaml", Expected: "a-1.tgz"},
-		{What: "b", Cmd: "kubectl get node -o yaml : | grep rancher/b:", Expected: "rancher/b:v2"},
+		{What: "b", Cmd: "kubectl get node -o yaml : | grep rancher/b", Expected: "rancher/b:v2"},
 	}}
 
 	j, err := target.Job(cfg, "mower", "qa-infra-RC-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `-tags=versionbump -cmd="sudo grep -h chart-url /x/a.yaml, kubectl get node -o yaml : | grep rancher/b:" ` +
+	want := `-tags=versionbump -cmd="sudo grep -h chart-url /x/a.yaml, kubectl get node -o yaml : | grep rancher/b" ` +
 		`-expectedValue="a-1.tgz,rancher/b:v2" -destroy true`
 	if j.Params["TEST_ARGS"] != want || j.Params["INSTALL_MODE"] != "INSTALL_RKE2_COMMIT" ||
 		j.Params["HOSTNAME_PREFIX"] != "rbr137b" || j.Path != cfg.Jobs["rke2"] || j.Params["REPORT_TO_QASE"] != "" {
@@ -229,10 +253,9 @@ func (f *fakeBumpSource) matchingTags(_ context.Context, _, prefix string) ([]st
 	return out, nil
 }
 
-// A plan validates only clean backports: the RC when it holds the merge, the branch head when not;
-// a non-bump, a PR that changes more than versions and a main issue without backports are listed.
-func TestPlanBumps(t *testing.T) {
-	src := &fakeBumpSource{
+// planSource is the RKE2 board TestPlanBumps plans.
+func planSource() *fakeBumpSource {
+	return &fakeBumpSource{
 		issues: map[string][]projectIssue{"rancher/31": {
 			{Repo: "rancher/rke2", Number: 10, Title: "Bump gateway-api to 1.7.0"},
 			{Repo: "rancher/rke2", Number: 11, Title: "[Release 1.37] Bump gateway API to 1.7.0", Body: "Backport: #10"},
@@ -240,21 +263,42 @@ func TestPlanBumps(t *testing.T) {
 			{Repo: "rancher/rke2", Number: 13, Title: "[Release 1.35] Bump gateway API to 1.7.0", Body: "Backport: #10"},
 			{Repo: "rancher/rke2", Number: 20, Title: "Update CoreDNS chart to 1.50.801"},
 			{Repo: "rancher/rke2", Number: 30, Title: "FIPS provider missing in NGINX"},
+
+			// No main issue: the body names none and no To Test issue has the title.
+			{Repo: "rancher/rke2", Number: 18, Title: "[Release 1.37] Bump gateway API CRDs"},
+
+			// Two bumps of the same chart on release-1.34, to different versions.
+			{Repo: "rancher/rke2", Number: 15, Title: "[Release 1.34] Bump gateway API to 1.7.0", Body: "Backport: #10"},
+			{Repo: "rancher/rke2", Number: 17, Title: "Bump gateway API to 1.7.2"},
+			{Repo: "rancher/rke2", Number: 16, Title: "[Release 1.34] Bump gateway API to 1.7.2", Body: "Backport: #17"},
 		}},
 		prs: map[int][]BumpPR{
 			11: {{Number: 111, Base: "release-1.37", MergeCommit: "c137"}},
 			12: {{Number: 112, Base: "release-1.36", MergeCommit: "c136"}},
 			13: {{Number: 113, Base: "release-1.35", MergeCommit: "c135"}},
+			15: {{Number: 115, Base: "release-1.34", MergeCommit: "c134a"}},
+			16: {{Number: 116, Base: "release-1.34", MergeCommit: "c134b"}},
+			18: {{Number: 118, Base: "release-1.37", MergeCommit: "c137b"}},
 		},
 		files: map[int][]PRFile{
 			111: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
 			112: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
 			113: {{Name: "charts/chart_versions.yaml", Patch: "-  bootstrap: false\n+  bootstrap: true"}},
+			115: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
+			116: {{Name: "charts/chart_versions.yaml", Patch: strings.ReplaceAll(gatewayAPIPatch, "1.7.1", "1.7.2")}},
+			118: {{Name: "charts/chart_versions.yaml", Patch: gatewayAPIPatch}},
 		},
 		tags:     []string{"v1.37.2-rc1+rke2r1", "v1.37.2-rc2+rke2r1", "v1.36.6-rc2+rke2r1"},
 		contains: map[string]bool{"v1.37.2-rc2+rke2r1|c137": true},
 		head:     "deadbeef",
 	}
+}
+
+// A plan validates only clean backports: the RC when it holds the merge, the branch head when not.
+// A non-bump, a PR that changes more than versions, a main issue without backports, a backport
+// without a main issue and two bumps of one chart on a branch are listed instead.
+func TestPlanBumps(t *testing.T) {
+	src := planSource()
 	cfg := &BumpConfig{PrefixBase: "rb", Jobs: map[string]string{"k3s": "k", "rke2": "r"}}
 
 	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
@@ -279,8 +323,14 @@ func TestPlanBumps(t *testing.T) {
 		reasons[p.Number] = p.Reason
 	}
 	if !strings.Contains(reasons[13], "not only a version bump") ||
-		!strings.Contains(reasons[20], "master is never validated") {
+		!strings.Contains(reasons[20], "master is never validated") || !strings.Contains(reasons[18], "no main issue") ||
+		!strings.Contains(reasons[15], "2 versions") || !strings.Contains(reasons[16], "2 versions") {
 		t.Fatalf("person: %+v", plan.Person)
+	}
+	for _, g := range plan.Groups {
+		if g.Main.Number == 0 {
+			t.Fatalf("a group for issue #0: %+v", g.Backports)
+		}
 	}
 	if len(plan.NotBumps) != 1 || plan.NotBumps[0].Number != 30 {
 		t.Fatalf("not bumps: %+v", plan.NotBumps)

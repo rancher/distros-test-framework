@@ -5,8 +5,11 @@ prefixBase: rb
 jobs:
   k3s: distros_qa/k3s-tests/k3s-version-bump_qainfra
   rke2: distros_qa/rke2-tests/rke2-version-bump_qainfra
-# Their tag shows on the node (kubectl get node -o yaml); a bump of any other image goes to a person.
+# Their tag shows on the node (kubectl get node -o yaml); a bump of any other image goes to a person,
+# and so does its issue even when its other changes are checked. hardened-cni-plugins runs in the
+# rke2-canal pods; rke2-security-responder is not here: a CronJob, on the node only after a run.
 defaultImages:
-  rke2: [hardened-calico, hardened-flannel, hardened-coredns, hardened-k8s-metrics-server, hardened-etcd]
+  rke2: [hardened-calico, hardened-flannel, hardened-cni-plugins, hardened-coredns, hardened-k8s-metrics-server,
+         hardened-etcd]
   k3s: [mirrored-coredns-coredns, mirrored-metrics-server, local-path-provisioner, klipper-lb, klipper-helm,
         mirrored-library-traefik]

@@ -136,3 +136,42 @@ func TestIsTerminalRefusesDevNull(t *testing.T) {
 		t.Fatal("/dev/null taken for a terminal")
 	}
 }
+
+// A saved CLI run and a saved bump run block each other and the Slack bot (their builds may still
+// run); each mode still carries on its own with -resume.
+func TestModesRefuseEachOthersSavedRun(t *testing.T) {
+	dir := t.TempDir()
+	state := filepath.Join(dir, "state.json")
+	matrix := filepath.Join(dir, "matrix.yaml")
+	bumps := filepath.Join(dir, "bumps.yaml")
+	controllers := []byte("controllers:\n  mower:\n    url: https://m\n    maxConcurrent: 6\n")
+	if err := os.WriteFile(matrix, controllers, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bumps, []byte("jobs: {k3s: k, rke2: r}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	saved := []byte(`{"version":1,"request":"bumps 2026-11","progress":{"request_id":"rb-1","stage":"jobs"}}`)
+
+	if err := os.WriteFile(bumpsStatePath(state), saved, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cli := &options{message: "v1.37.1-rc1+rke2r1", stateFile: state, matrixPath: "missing.yaml"}
+	if err := run(cli); err == nil || !strings.Contains(err.Error(), "the bump run") {
+		t.Fatalf("a CLI run next to a saved bump run: %v", err)
+	}
+	if err := refuseNextToCLIRun(&options{stateFile: state}); err == nil || !strings.Contains(err.Error(), "the bump run") {
+		t.Fatalf("the Slack bot next to a saved bump run: %v", err)
+	}
+
+	if err := os.Rename(bumpsStatePath(state), cliStatePath(state)); err != nil {
+		t.Fatal(err)
+	}
+	bump := &options{bumps: true, bumpsConfig: bumps, matrixPath: matrix, stateFile: state}
+	if err := runBumps(bump); err == nil || !strings.Contains(err.Error(), "the CLI run") {
+		t.Fatalf("a bump run next to a saved CLI run: %v", err)
+	}
+	if err := refuseSavedTerminalRuns(state, cliStatePath(state)); err != nil {
+		t.Fatalf("the CLI's own saved run blocks its -resume: %v", err)
+	}
+}

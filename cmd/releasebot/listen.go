@@ -133,22 +133,16 @@ func claimListener(o *options) (release func(), err error) {
 	return release, nil
 }
 
-// refuseNextToCLIRun: a run an interrupted CLI saved may still have builds on jenkins, so the bot would
-// exceed maxConcurrent and could test the same RCs twice; a dry-run bot triggers nothing.
+// refuseNextToCLIRun: a run an interrupted CLI (a release or bumps) saved may still have builds on
+// jenkins, so the bot would exceed maxConcurrent and could test the same RCs twice; a dry-run bot
+// triggers nothing.
 func refuseNextToCLIRun(o *options) error {
 	if o.dryRun {
 		return nil
 	}
 
-	statePath := cliStatePath(o.stateFile)
-	saved, savedErr := (&releasebot.TerminalRun{StatePath: statePath}).Saved()
-	if savedErr != nil {
-		return savedErr
-	}
-	if saved != nil {
-		return fmt.Errorf("not serving: the CLI run %q (started %s UTC) is saved in %s and its builds may still "+
-			"run; carry it on with releasebot -resume -dry-run=false, or remove the file once they ended",
-			saved.Request, saved.Started.Format("2006-01-02 15:04"), statePath)
+	if refuseErr := refuseSavedTerminalRuns(o.stateFile, ""); refuseErr != nil {
+		return fmt.Errorf("not serving: %w", refuseErr)
 	}
 
 	return nil

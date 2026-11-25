@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -53,7 +55,7 @@ func runBumps(o *options) error {
 	}
 
 	o.skipWorkflows = true // bumps dispatch no workflow and report to no Qase run
-	release, claimErr := claimExecution(o.stateFile)
+	release, claimErr := claimExecution(o.stateFile, bumpsStatePath(o.stateFile))
 	if claimErr != nil {
 		return claimErr
 	}
@@ -85,6 +87,10 @@ func executeBumps(ctx context.Context, o *options, cfg *releasebot.BumpConfig, d
 		return fmt.Errorf("not running: a bump run is saved in %s and its builds may still run; carry it on "+
 			"with -resume, or remove the file once they have ended", terminal.StatePath)
 	}
+	if prev, _ := releasebot.LoadBumpRun(runFile); prev != nil && prev.Final != nil {
+		return fmt.Errorf("not running: the last bump run ended without its MDs; write them with -resume, "+
+			"or remove %s to drop them", runFile)
+	}
 
 	plan, planErr := app.PlanBumps(ctx, cfg, o.month)
 	if planErr != nil {
@@ -113,7 +119,7 @@ func executeBumps(ctx context.Context, o *options, cfg *releasebot.BumpConfig, d
 
 	runErr := terminal.Execute(ctx, app, p, "bumps "+o.month, failures)
 
-	return reportBumps(ctx, o, app, run, terminal, runErr)
+	return finishBumps(ctx, o, app, terminal, run, runFile, runErr)
 }
 
 // bumpTerminal is the terminal run of the bump jobs, saved beside the state file and limited by the
@@ -121,14 +127,13 @@ func executeBumps(ctx context.Context, o *options, cfg *releasebot.BumpConfig, d
 func bumpTerminal(
 	o *options, app *releasebot.App, cfg *releasebot.BumpConfig,
 ) (*releasebot.TerminalRun, *bufio.Reader, error) {
-	terminal := &releasebot.TerminalRun{StatePath: filepath.Join(filepath.Dir(o.stateFile), "bumps-run.json"),
-		Out: os.Stdout, User: os.Getenv("USER")}
+	terminal := &releasebot.TerminalRun{StatePath: bumpsStatePath(o.stateFile), Out: os.Stdout, User: os.Getenv("USER")}
 	in := bufio.NewReader(os.Stdin)
 	if isTerminal(os.Stdin) {
 		terminal.In = in
 	}
 
-	limit, limitErr := app.ControllerBusyLimit(cfg.Controller, 4)
+	limit, limitErr := app.ControllerBusyLimit(cfg.Controller, slices.Collect(maps.Values(cfg.Jobs)), 4)
 	if limitErr != nil {
 		return nil, nil, limitErr
 	}
@@ -137,22 +142,46 @@ func bumpTerminal(
 	return terminal, in, nil
 }
 
-// resumeBumps carries on the saved bump run with the jobs saved in runFile, then reports it.
+// resumeBumps carries on the saved bump run with the jobs saved in runFile, then reports it; a run
+// that ended but whose MDs were not written only writes them.
 func resumeBumps(
 	ctx context.Context, o *options, app *releasebot.App, terminal *releasebot.TerminalRun,
 	saved *releasebot.SavedTerminalRun, runFile string, failures *releasebot.FailureTriage,
 ) error {
-	if saved == nil {
-		return fmt.Errorf("-resume: no saved bump run in %s", terminal.StatePath)
-	}
-
 	run, loadErr := releasebot.LoadBumpRun(runFile)
+	if saved == nil {
+		if loadErr != nil || run.Final == nil {
+			return fmt.Errorf("-resume: no saved bump run in %s", terminal.StatePath)
+		}
+
+		return reportBumps(ctx, o, app, terminal, run, runFile, nil)
+	}
 	if loadErr != nil {
 		return loadErr
 	}
+
 	runErr := terminal.Resume(ctx, app, saved, failures)
 
-	return reportBumps(ctx, o, app, run, terminal, runErr)
+	return finishBumps(ctx, o, app, terminal, run, runFile, runErr)
+}
+
+// finishBumps keeps the progress the run ended with in runFile, so a report that fails can be
+// written again with -resume, then reports it (an interrupted run reports when resumed).
+func finishBumps(
+	ctx context.Context, o *options, app *releasebot.App, terminal *releasebot.TerminalRun, run *releasebot.BumpRun,
+	runFile string, runErr error,
+) error {
+	if errors.Is(runErr, releasebot.ErrInterrupted) {
+		return runErr
+	}
+
+	progress := terminal.Last()
+	run.Final = &progress
+	if saveErr := releasebot.SaveBumpRun(runFile, run); saveErr != nil {
+		return errors.Join(runErr, fmt.Errorf("keep the ended bump run: %w", saveErr))
+	}
+
+	return reportBumps(ctx, o, app, terminal, run, runFile, runErr)
 }
 
 // acceptBumps shows the issues the run validates and waits for the captain's "yes": nothing starts
@@ -201,20 +230,20 @@ func hasIssue(t *releasebot.BumpTarget, issue int) bool {
 	return false
 }
 
-// reportBumps writes the MDs of the passed jobs once the run ended (an interrupted run reports when
-// resumed) and tells the captain where they are and how to post them.
+// reportBumps writes the MDs of the ended run's passed jobs (run.Final) and tells the captain where
+// they are and how to post them; runFile goes once they are written and no run state is left.
 func reportBumps(
-	ctx context.Context, o *options, app *releasebot.App, run *releasebot.BumpRun, terminal *releasebot.TerminalRun,
-	runErr error,
+	ctx context.Context, o *options, app *releasebot.App, terminal *releasebot.TerminalRun, run *releasebot.BumpRun,
+	runFile string, runErr error,
 ) error {
-	if errors.Is(runErr, releasebot.ErrInterrupted) {
-		return runErr
+	notWritten := func(cause error) error {
+		return errors.Join(runErr, fmt.Errorf("the bump run ended but its MDs were not written: %w; write them "+
+			"with -bumps -dry-run=false -resume once that is fixed", cause))
 	}
 
-	progress := terminal.Last()
-	results, notPassed, resultsErr := app.BumpResults(ctx, run, &progress)
+	results, notPassed, resultsErr := app.BumpResults(ctx, run, run.Final)
 	if resultsErr != nil {
-		return errors.Join(runErr, resultsErr)
+		return notWritten(resultsErr)
 	}
 	dir := o.bumpsDir
 	if dir == "" {
@@ -223,7 +252,7 @@ func reportBumps(
 	}
 	files, writeErr := releasebot.WriteBumpMDs(dir, run.Plan, results)
 	if writeErr != nil {
-		return errors.Join(runErr, writeErr)
+		return notWritten(writeErr)
 	}
 
 	for _, n := range notPassed {
@@ -234,6 +263,13 @@ func reportBumps(
 	}
 	if len(files) == 0 {
 		fmt.Println("No MD written: no bump job passed.")
+	}
+
+	// Reported; the run file stays only while the run's own state does (an uncertain end resumes).
+	if saved, _ := terminal.Saved(); saved == nil {
+		if removeErr := os.Remove(runFile); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			fmt.Printf("could not remove the reported run %s: %v\n", runFile, removeErr)
+		}
 	}
 
 	return runErr
@@ -258,7 +294,11 @@ func postBumps(o *options) error {
 		what = "post and close"
 	}
 	for _, s := range sections {
-		fmt.Printf("  %s#%d (backports %v)\n", s.Repo, s.Issue, s.Backports)
+		line := fmt.Sprintf("  %s#%d (backports %v)", s.Repo, s.Issue, s.Backports)
+		if o.bumpsClose && len(s.Open) > 0 {
+			line += fmt.Sprintf(", stays open: backports %v not validated", s.Open)
+		}
+		fmt.Println(line)
 	}
 	fmt.Printf("%s these %d issues and their backports? Type yes: ", what, len(sections))
 	answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')

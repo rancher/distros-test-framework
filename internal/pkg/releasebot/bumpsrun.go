@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 )
 
-// RunningBuilds counts the builds running on the controller now (each build once, wherever it runs).
-func (j *jenkins) RunningBuilds(ctx context.Context) (int, error) {
+// RunningBuilds are the URLs of the builds running on the controller now (each once, wherever it runs).
+func (j *jenkins) RunningBuilds(ctx context.Context) ([]string, error) {
 	var c struct {
 		Computer []struct {
 			Executors       []executor `json:"executors"`
@@ -23,19 +24,24 @@ func (j *jenkins) RunningBuilds(ctx context.Context) (int, error) {
 	u := j.BaseURL + "/computer/api/json?depth=2&tree=computer%5Bexecutors%5BcurrentExecutable%5Burl%5D%5D," +
 		"oneOffExecutors%5BcurrentExecutable%5Burl%5D%5D%5D"
 	if getErr := j.getJSON(ctx, u, &c); getErr != nil {
-		return 0, getErr
+		return nil, getErr
 	}
 
-	builds := map[string]bool{}
+	seen := map[string]bool{}
+	var builds []string
 	for _, node := range c.Computer {
 		for _, e := range append(node.Executors, node.OneOffExecutors...) {
-			if e.CurrentExecutable != nil && e.CurrentExecutable.URL != "" {
-				builds[strings.TrimRight(e.CurrentExecutable.URL, "/")] = true
+			if e.CurrentExecutable == nil || e.CurrentExecutable.URL == "" {
+				continue
+			}
+			if b := strings.TrimRight(e.CurrentExecutable.URL, "/") + "/"; !seen[b] {
+				seen[b] = true
+				builds = append(builds, b)
 			}
 		}
 	}
 
-	return len(builds), nil
+	return builds, nil
 }
 
 type executor struct {
@@ -45,9 +51,13 @@ type executor struct {
 }
 
 // BusyLimit is the bump mode's Scheduler.LimitFor: while builds other than ours run on the controller,
-// at most busy of ours (the team's rule: 4 with other runs active, the configured 6 without). The
-// count is cached for ttl; when it cannot be read the busy limit applies.
-func BusyLimit(running func(context.Context) (int, error), busy int, ttl time.Duration) func(string, int, int) int {
+// at most busy of ours (the team's rule: 4 with other runs active, the configured 6 without). Ours
+// are told by their job path (ourJobs, "/job/a/job/b/"): a build of ours still queued holds a slot
+// without running, so the slot count alone would hide another build. The count is cached for ttl;
+// when it cannot be read the busy limit applies.
+func BusyLimit(
+	running func(context.Context) ([]string, error), ourJobs []string, busy int, ttl time.Duration,
+) func(string, int, int) int {
 	var (
 		mu     sync.Mutex
 		at     time.Time
@@ -60,13 +70,13 @@ func BusyLimit(running func(context.Context) (int, error), busy int, ttl time.Du
 
 		if others < 0 || time.Since(at) > ttl {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			n, countErr := running(ctx)
+			builds, countErr := running(ctx)
 			cancel()
 
 			at = time.Now()
 			others = 1 // unknown counts as busy
 			if countErr == nil {
-				others = max(n-ours, 0)
+				others = otherBuilds(builds, ourJobs, ours)
 			}
 		}
 		if others > 0 {
@@ -77,11 +87,28 @@ func BusyLimit(running func(context.Context) (int, error), busy int, ttl time.Du
 	}
 }
 
+// otherBuilds counts the running builds that are not ours: those of other jobs, plus any of our jobs'
+// builds beyond the ours we hold (someone else running the same job).
+func otherBuilds(builds, ourJobs []string, ours int) int {
+	mine, others := 0, 0
+	for _, b := range builds {
+		if slices.ContainsFunc(ourJobs, func(job string) bool { return strings.Contains(b, job) }) {
+			mine++
+		} else {
+			others++
+		}
+	}
+
+	return others + max(mine-ours, 0)
+}
+
 // BumpRun is the plan and the jobs of a bump run, saved next to its progress so a resume (and the MDs
-// written once it ends) know which issue each check belongs to.
+// written once it ends) know which issue each check belongs to. Final is the progress the run ended
+// with, kept until its MDs are written so a report that failed can be written again.
 type BumpRun struct {
-	Plan *BumpPlan    `json:"plan"`
-	Jobs []JenkinsJob `json:"jobs"`
+	Plan  *BumpPlan    `json:"plan"`
+	Jobs  []JenkinsJob `json:"jobs"`
+	Final *Progress    `json:"final,omitempty"`
 }
 
 // BumpJobs turns the plan's targets into the version-bump jobs (one per product and branch).
@@ -142,8 +169,9 @@ func (a *App) PrepareJobs(jobs []JenkinsJob) (*prepared, error) {
 	return &prepared{Plan: plan, Matrix: matrix, GitHub: a.cfg.NewGitHub(a.cfg.GitHubToken)}, nil
 }
 
-// ControllerBusyLimit is BusyLimit on the named controller, with the app's credentials.
-func (a *App) ControllerBusyLimit(controller string, busy int) (func(string, int, int) int, error) {
+// ControllerBusyLimit is BusyLimit on the named controller for our jobs (their paths), with the
+// app's credentials.
+func (a *App) ControllerBusyLimit(controller string, jobs []string, busy int) (func(string, int, int) int, error) {
 	matrix, matrixErr := a.loadMatrix()
 	if matrixErr != nil {
 		return nil, matrixErr
@@ -155,7 +183,12 @@ func (a *App) ControllerBusyLimit(controller string, busy int) (func(string, int
 		return nil, fmt.Errorf("no credentials for controller %s (JENKINS_%s_AUTH)", controller, strings.ToUpper(controller))
 	}
 
-	return BusyLimit(j.RunningBuilds, busy, 2*time.Minute), nil
+	ourJobs := make([]string, 0, len(jobs))
+	for _, path := range jobs {
+		ourJobs = append(ourJobs, strings.TrimPrefix(j.jobURL(path), j.BaseURL)+"/")
+	}
+
+	return BusyLimit(j.RunningBuilds, ourJobs, busy, 2*time.Minute), nil
 }
 
 // BuildParams are the parameters a build ran with.
@@ -220,6 +253,12 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 		}
 
 		version, checks := ParseBumpConsole(console)
+		if missing := noOutput(t.Checks, checks); missing != "" {
+			notPassed = append(notPassed, fmt.Sprintf("%s %s (passed, but its console shows no output for %s)",
+				t.Product, t.Branch, missing))
+			continue
+		}
+
 		if results[t.Product] == nil {
 			results[t.Product] = map[string]*BranchResult{}
 		}
@@ -229,6 +268,18 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 	}
 
 	return results, notPassed, nil
+}
+
+// noOutput is the first check whose output the console does not show (a command with no output is no
+// evidence), or "".
+func noOutput(checks []BumpCheck, results []BumpResult) string {
+	for _, c := range checks {
+		if len(resultFor(results, c.Expected).Output) == 0 {
+			return c.What
+		}
+	}
+
+	return ""
 }
 
 // WriteBumpMDs writes <dir>/<product>-bumps-release-<month>.md for each product with a validated bump

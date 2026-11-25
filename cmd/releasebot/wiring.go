@@ -63,7 +63,7 @@ func run(o *options) error {
 		return planOnly(o)
 	}
 
-	release, claimErr := claimExecution(o.stateFile)
+	release, claimErr := claimExecution(o.stateFile, cliStatePath(o.stateFile))
 	if claimErr != nil {
 		return claimErr
 	}
@@ -147,15 +147,47 @@ func cliStatePath(stateFile string) string {
 	return filepath.Join(filepath.Dir(stateFile), "cli-run.json")
 }
 
+// bumpsStatePath keeps the bump run there too.
+func bumpsStatePath(stateFile string) string {
+	return filepath.Join(filepath.Dir(stateFile), "bumps-run.json")
+}
+
+// refuseSavedTerminalRuns: a CLI or bump run saved by an interruption may still have builds on
+// jenkins, so any other run would exceed the controllers' capacity. own is the state the caller
+// carries on itself (-resume); "" refuses both.
+func refuseSavedTerminalRuns(stateFile, own string) error {
+	for _, mode := range []struct{ path, name, resume string }{
+		{cliStatePath(stateFile), "CLI run", "releasebot -resume -dry-run=false"},
+		{bumpsStatePath(stateFile), "bump run", "releasebot -bumps -resume -dry-run=false"},
+	} {
+		if mode.path == own {
+			continue
+		}
+
+		saved, savedErr := (&releasebot.TerminalRun{StatePath: mode.path}).Saved()
+		if savedErr != nil {
+			return savedErr
+		}
+		if saved != nil {
+			return fmt.Errorf("the %s %q (started %s UTC) is saved in %s and its builds may still run; carry it "+
+				"on with %s, or remove the file once they ended", mode.name, saved.Request,
+				saved.Started.Format("2006-01-02 15:04"), mode.path, mode.resume)
+		}
+	}
+
+	return nil
+}
+
 // isTerminal: commands are read only from a person at a terminal (not /dev/null, also a character
 // device); elsewhere a failed job just fails.
 func isTerminal(f *os.File) bool {
 	return term.IsTerminal(int(f.Fd()))
 }
 
-// claimExecution takes the -listen lock and refuses while the Slack bot has saved runs: their builds
-// may still run, so this run would exceed the controllers' capacity and test the same RCs twice.
-func claimExecution(stateFile string) (release func(), err error) {
+// claimExecution takes the -listen lock and refuses while the Slack bot, or a CLI or bump run other
+// than own (the state this execution carries on), has saved runs: their builds may still run, so this
+// run would exceed the controllers' capacity and test the same RCs twice.
+func claimExecution(stateFile, own string) (release func(), err error) {
 	release, lockErr := releasebot.AcquireInstanceLock(stateFile + ".lock")
 	if lockErr != nil {
 		return nil, fmt.Errorf("not running (stop the Slack bot or the other CLI run first): %w", lockErr)
@@ -171,6 +203,11 @@ func claimExecution(stateFile string) (release func(), err error) {
 		release()
 		return nil, fmt.Errorf("not running: the Slack bot left %d unfinished runs in %s; start releasebot.service "+
 			"so it resumes them, and run this once they end", n, stateFile)
+	}
+
+	if refuseErr := refuseSavedTerminalRuns(stateFile, own); refuseErr != nil {
+		release()
+		return nil, fmt.Errorf("not running: %w", refuseErr)
 	}
 
 	return release, nil

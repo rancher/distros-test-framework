@@ -676,35 +676,56 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   Development (`rancher` project 31). A title starting with Bump, Update or Upgrade (after an
   optional `[Release-1.3x]`) is a bump; the other issues are listed and left alone. A backport
   belongs to the main issue its body names (an issue, or the pull request that closes it), else to
-  the main issue with the same title.
+  the main issue with the same title; one with neither goes to "needs a person".
 - **Only a bump.** A backport is validated when its merged pull request into its release branch
-  changes nothing but versions: removed and added lines match once versions are masked, and image
-  lines and `go.sum` count as versions. Anything else (a setting, a CI change, a new `package:`
-  line) goes to "needs a person", with the line. A main issue is never validated itself (master):
-  it is reported with its backports, and one without a backport in To Test is listed.
+  changes nothing but versions: removed and added lines match once versions and image tags are
+  masked (the rest of an image's line too, so `privileged: true` next to a new tag is caught), an
+  added line holding only an image (a new entry of an image list) passes, and `go.sum` counts as
+  versions. Anything else (a setting, a CI change, a new `package:` line) goes to "needs a
+  person", with the line. A main issue is never validated itself (master): it is reported with its
+  backports, and one without a backport in To Test is listed.
 - **What is checked.** Taken from the pull request: an RKE2 chart in `charts/chart_versions.yaml`
   by its `chart-url` in the bundled chart file (`/var/lib/rancher/rke2/data/*/charts/<chart>.yaml`,
   there whether or not the chart is enabled); a K3s chart URL in `manifests/*.yaml` on the server
   manifest; an image tag of a default image (`defaultImages` in `bumps.yaml`) on the node's images.
+  A bumped image that is not a default one sends the whole issue to a person, even when its other
+  changes are checked (it would otherwise pass, and close, untested).
   The expected value is the pull request's version: the "gateway-api 1.7.0" issue checks the chart
-  1.7.1 its pull request ships. A change no rule covers goes to a person.
+  1.7.1 its pull request ships. A change no rule covers goes to a person, and so do bumps that want
+  one chart or image at two versions on the same branch (two issues, or two pull requests of one):
+  a single job cannot pass both. The image check greps `rancher/<image>` with no `:` (the job's
+  `JoinCommands` turns every `:` of a `kubectl` command into `,`); the expected `rancher/<image>:<tag>`
+  keeps it exact.
 - **One job per branch.** All the checks of a product's release branch go to one
   `<product>-version-bump_qainfra` build (`-cmd`, `-expectedValue`), on the branch's newest RC when
   it holds every merge, else on its latest commit (`INSTALL_<PRODUCT>_COMMIT`; validate again on the
   RC). Bumps never report to Qase: their MD goes on their issues. At most 6 run at a time on Mower,
-  4 while other people's builds run there (counted before each trigger).
+  4 while other people's builds run there (counted before a trigger, at most every 2 minutes, by
+  job: a build of ours still in the queue does not hide someone else's).
 - **Accept first.** With `-dry-run=false` the bot prints the bump issues it found and starts
   nothing until the captain types `yes`. During the run the terminal commands, Ctrl-C and `-resume`
-  work as for a release (the run is saved in `bumps-run.json` next to `cli-run.json`).
+  work as for a release (the run is saved in `bumps-run.json` next to `cli-run.json`). A saved bump
+  run blocks a release run and the Slack bot, and a saved release run blocks bumps, until it is
+  resumed in its own mode or its builds ended and the file is removed: both would fill Mower.
 - **The MDs.** When the run ends: `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md`,
   one section per main issue in the bump template (one Validated on Version line per branch, the
   build's `NODE_OS` and `ARCH`, the steps, and each check's `$ command` with its output). Addresses
-  are redacted, and a file that would still show a Jenkins link or an address is never written or
-  posted. A job that did not pass leaves its bumps out; the run lists them.
+  are redacted across the whole file (commands, titles, links and outputs): IPv4 and IPv6
+  addresses, `ip-…` node names, AMI IDs, Prime artifact URLs and the staging registry get the
+  `<REDACTED_…>` placeholders. A file that would still show one of them or a Jenkins link is never
+  written or posted (`-bumps-post` checks the file again, after the captain's edits). A job that
+  did not pass leaves its bumps out, and so does one whose console lacks the output of a check;
+  the run lists them. If reading the consoles or writing the MDs fails after the
+  run ended, the run is kept in `bumps-run-plan.json`: `-bumps -dry-run=false -resume` writes them
+  again, and a new bump run refuses until then.
 - **Posting.** Only `-bumps-post <md>`, after the captain read the file and typed `yes`: the
   section on the main issue, "Validated here: <link>" on each backport, and with `-bumps-close`
-  every issue closed. `<md>.posted.json` records each step, so a rerun after a failure never
-  posts twice.
+  the validated backports closed. The main issue closes only when no backport of it is open: none
+  of its To Test backports is left out (the section's `open=` list is empty), and GitHub shows no
+  other open `[Release-1.x]` issue referencing it or its pull requests (one still In Progress, off
+  the board). `<md>.posted.json` records each step, so a rerun after a failure never posts twice;
+  a section whose results changed (a later run of the month) is a new comment, and new backports
+  link to it.
 
 ### Running without Slack
 

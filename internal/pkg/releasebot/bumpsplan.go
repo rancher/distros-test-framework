@@ -3,6 +3,7 @@ package releasebot
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -70,13 +71,21 @@ func PlanBumps(ctx context.Context, src bumpSource, cfg *BumpConfig, month strin
 		}
 	}
 
-	plan.Groups = GroupBumps(bumps)
-	for _, g := range plan.Groups {
-		if len(g.Backports) == 0 {
+	for _, g := range GroupBumps(bumps) {
+		switch {
+		case g.Main.Number == 0:
+			for _, bp := range g.Backports {
+				plan.Person = append(plan.Person, BumpProblem{Repo: bp.Repo, Number: bp.Number, Title: bp.Title,
+					Reason: "no main issue: its body names none and no To Test issue has its title"})
+			}
+			continue
+		case len(g.Backports) == 0:
 			plan.Person = append(plan.Person, BumpProblem{Repo: g.Main.Repo, Number: g.Main.Number, Title: g.Main.Title,
 				Reason: "no backport in To Test: master is never validated"})
 		}
+		plan.Groups = append(plan.Groups, g)
 	}
+	plan.Person = append(plan.Person, conflictingBumps(bumps, plan.Person)...)
 
 	targets, targetErr := bumpTargets(ctx, src, bumps, plan.Person)
 	if targetErr != nil {
@@ -168,13 +177,65 @@ func addBumpChecks(ctx context.Context, src bumpSource, cfg *BumpConfig, issue *
 	return "", nil
 }
 
-// bumpTargets groups the valid backports by product and branch, with the version to install: the
-// branch's newest RC when it holds every merge, otherwise the branch's latest commit.
-func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person []BumpProblem) ([]*BumpTarget, error) {
+func personSet(person []BumpProblem) map[string]bool {
 	skip := map[string]bool{}
 	for _, p := range person {
 		skip[fmt.Sprintf("%s#%d", p.Repo, p.Number)] = true
 	}
+
+	return skip
+}
+
+// conflictingBumps: checks of one branch that want the same chart or image at different versions (two
+// issues, or two PRs of one) cannot all pass and would fail the branch's job, so a person takes them.
+func conflictingBumps(bumps []*BumpIssue, person []BumpProblem) []BumpProblem {
+	skip := personSet(person)
+	versions := map[string][]string{}
+	issues := map[string][]*BumpIssue{}
+	var keys []string
+	for _, b := range bumps {
+		if b.Branch == "" || skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
+			continue
+		}
+
+		for _, c := range b.Checks {
+			f := strings.Fields(c.What) // "<component> <chart|image> <version>"
+			k := b.Product + " " + b.Branch + ": " + strings.Join(f[:min(2, len(f))], " ")
+			if versions[k] == nil {
+				keys = append(keys, k)
+			}
+			if !slices.Contains(versions[k], c.Expected) {
+				versions[k] = append(versions[k], c.Expected)
+			}
+			if !slices.Contains(issues[k], b) {
+				issues[k] = append(issues[k], b)
+			}
+		}
+	}
+
+	var problems []BumpProblem
+	for _, k := range keys {
+		if len(versions[k]) < 2 {
+			continue
+		}
+		for _, b := range issues[k] {
+			if skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] {
+				continue // listed for another conflict already
+			}
+			skip[fmt.Sprintf("%s#%d", b.Repo, b.Number)] = true
+			problems = append(problems, BumpProblem{Repo: b.Repo, Number: b.Number, Title: b.Title,
+				Reason: fmt.Sprintf("%s is bumped to %d versions (%s): one job cannot check them all",
+					k, len(versions[k]), strings.Join(versions[k], ", "))})
+		}
+	}
+
+	return problems
+}
+
+// bumpTargets groups the valid backports by product and branch, with the version to install: the
+// branch's newest RC when it holds every merge, otherwise the branch's latest commit.
+func bumpTargets(ctx context.Context, src bumpSource, bumps []*BumpIssue, person []BumpProblem) ([]*BumpTarget, error) {
+	skip := personSet(person)
 
 	byBranch := map[string]*BumpTarget{}
 	commits := map[string][]string{}

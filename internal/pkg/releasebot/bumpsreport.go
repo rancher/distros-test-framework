@@ -31,10 +31,24 @@ type BranchResult struct {
 var (
 	consoleStamp   = regexp.MustCompile(`^\[\d{4}-\d\d-\d\dT[^\]]*\]\s?`)
 	versionLine    = regexp.MustCompile(`\b(?:rke2|k3s) version v\S+ \([0-9a-f]{7,}\)`)
-	ipv4           = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	awsHostname    = regexp.MustCompile(`\bip-\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3}\b`)
 	jenkinsPointer = regexp.MustCompile(`(?i)https?://[^\s)"]*jenkins[^\s)"]*|/job/[^\s)"]+/\d+/?`)
 )
+
+// private is what a public issue must not show, and its placeholder (the team's publication rule):
+// Prime artifact URLs, the staging registry, AMIs, node names and IPv4/IPv6 addresses. An IPv6 is
+// eight groups or has a "::", so times and image tags ("04:40:05", "x:v1") are left alone.
+var private = []struct {
+	re          *regexp.Regexp
+	placeholder string
+}{
+	{regexp.MustCompile(`(?i)(?:https?://)?prime\.ribs\.rancher\.io[^\s)"'<>]*`), "<REDACTED_PRIME_ARTIFACT_URL>"},
+	{regexp.MustCompile(`(?i)\bstgregistry\.suse\.com\b`), "<REDACTED_REGISTRY>"},
+	{regexp.MustCompile(`(?i)\bami-[0-9a-f]{8,17}\b`), "<REDACTED_AMI>"},
+	{regexp.MustCompile(`\bip(?:-\d{1,3}){4}(?:\.[a-z0-9-]+)*`), "<REDACTED_HOST>"},
+	{regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`), "<REDACTED_IP>"},
+	{regexp.MustCompile(`(?i)\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|(?:\b[0-9a-f]{1,4}:)+:(?:[0-9a-f]{1,4}` +
+		`(?::[0-9a-f]{1,4})*\b)?|::[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*\b`), "<REDACTED_IP>"},
+}
 
 // ParseBumpConsole reads the version-bump job's console: the installed version and, for every
 // "Command to Execute:" block, its "Expected Value:" and the lines after "Matched with result:".
@@ -72,20 +86,27 @@ func displayCmd(cmd string) string {
 	return strings.Join(strings.Fields(strings.ReplaceAll(cmd, " : ", " ")), " ")
 }
 
+// redact replaces every private detail with its placeholder, keeping the text around it.
 func redact(s string) string {
-	return awsHostname.ReplaceAllString(ipv4.ReplaceAllString(s, "<REDACTED_IP>"), "<REDACTED_HOST>")
+	for _, p := range private {
+		s = p.re.ReplaceAllString(s, p.placeholder)
+	}
+
+	return s
 }
 
-// ErrBumpMDUnsafe: the MD would show a jenkins link or an address, so it is not written (or posted).
-var ErrBumpMDUnsafe = errors.New("bump MD would show a jenkins link or an address")
+// ErrBumpMDUnsafe: the MD would show a jenkins link or a private detail, so it is not written (or posted).
+var ErrBumpMDUnsafe = errors.New("bump MD would show a jenkins link or a private infrastructure detail")
 
-// CheckBumpMD refuses text that points at jenkins or shows an address (the issues are public).
+// CheckBumpMD refuses text that points at jenkins or shows a private detail (the issues are public).
 func CheckBumpMD(md string) error {
 	if m := jenkinsPointer.FindString(md); m != "" {
 		return fmt.Errorf("%w: %q", ErrBumpMDUnsafe, m)
 	}
-	if m := ipv4.FindString(md); m != "" {
-		return fmt.Errorf("%w: %q", ErrBumpMDUnsafe, m)
+	for _, p := range private {
+		if m := p.re.FindString(md); m != "" {
+			return fmt.Errorf("%w: %q", ErrBumpMDUnsafe, m)
+		}
 	}
 
 	return nil
@@ -127,7 +148,7 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 		return "", nil
 	}
 
-	md := b.String()
+	md := redact(b.String()) // commands, titles and outputs alike
 	if unsafeErr := CheckBumpMD(md); unsafeErr != nil {
 		return "", unsafeErr
 	}
@@ -135,13 +156,25 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 	return md, nil
 }
 
-func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validated map[string]*BranchResult) {
-	numbers := make([]string, 0, len(done))
-	for _, bp := range done {
-		numbers = append(numbers, strconv.Itoa(bp.Number))
+// writeSectionHeader writes the section's title and marker: the backports it validates and those it
+// does not (open), which keep the main issue open.
+func writeSectionHeader(b *strings.Builder, g *BumpGroup, done []*BumpIssue) {
+	var numbers, open []string
+	for _, bp := range g.Backports {
+		if slices.Contains(done, bp) {
+			numbers = append(numbers, strconv.Itoa(bp.Number))
+		} else {
+			open = append(open, strconv.Itoa(bp.Number))
+		}
 	}
+
 	fmt.Fprintf(b, "\n# %s#%d %s\n\n", g.Main.Repo, g.Main.Number, g.Main.Title)
-	fmt.Fprintf(b, "%s%s#%d backports=%s -->\n", sectionStart, g.Main.Repo, g.Main.Number, strings.Join(numbers, ","))
+	fmt.Fprintf(b, "%s%s#%d backports=%s open=%s -->\n", sectionStart, g.Main.Repo, g.Main.Number,
+		strings.Join(numbers, ","), strings.Join(open, ","))
+}
+
+func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validated map[string]*BranchResult) {
+	writeSectionHeader(b, g, done)
 
 	b.WriteString("## Validated on Version\n\n```console\n")
 	for _, bp := range done {
@@ -181,7 +214,7 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 			res := resultFor(r.Results, c.Expected)
 			fmt.Fprintf(b, "$ %s\n", displayCmd(c.Cmd))
 			for _, out := range res.Output {
-				b.WriteString(redact(out) + "\n")
+				b.WriteString(out + "\n")
 			}
 			b.WriteString("\n")
 		}
@@ -219,15 +252,30 @@ func resultFor(results []BumpResult, expected string) BumpResult {
 	return BumpResult{Expected: expected}
 }
 
-// BumpSection is one section of a bump MD: the issue it goes on and the backports linked to it.
+// BumpSection is one section of a bump MD: the issue it goes on, the backports linked to it and those
+// of its backports it does not validate (Open), which keep the issue open.
 type BumpSection struct {
 	Repo      string
 	Issue     int
 	Backports []int
+	Open      []int
 	Body      string
 }
 
-var sectionHeader = regexp.MustCompile(`^<!-- bump-section ([\w.-]+/[\w.-]+)#(\d+) backports=([\d,]*) -->$`)
+var sectionHeader = regexp.MustCompile(
+	`^<!-- bump-section ([\w.-]+/[\w.-]+)#(\d+) backports=([\d,]*) open=([\d,]*) -->$`)
+
+// issueNumbers reads the header's "1,2" lists.
+func issueNumbers(list string) []int {
+	var numbers []int
+	for _, s := range strings.Split(list, ",") {
+		if n, convErr := strconv.Atoi(s); convErr == nil {
+			numbers = append(numbers, n)
+		}
+	}
+
+	return numbers
+}
 
 // ParseBumpMD splits a bump MD into its sections (what -bumps-post posts), refusing an unsafe file.
 func ParseBumpMD(md string) ([]BumpSection, error) {
@@ -241,12 +289,8 @@ func ParseBumpMD(md string) ([]BumpSection, error) {
 	for _, line := range strings.Split(md, "\n") {
 		if m := sectionHeader.FindStringSubmatch(line); m != nil {
 			n, _ := strconv.Atoi(m[2])
-			cur, body = &BumpSection{Repo: m[1], Issue: n}, nil
-			for _, s := range strings.Split(m[3], ",") {
-				if bp, convErr := strconv.Atoi(s); convErr == nil {
-					cur.Backports = append(cur.Backports, bp)
-				}
-			}
+			cur = &BumpSection{Repo: m[1], Issue: n, Backports: issueNumbers(m[3]), Open: issueNumbers(m[4])}
+			body = nil
 			continue
 		}
 		if cur == nil {

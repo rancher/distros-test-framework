@@ -140,7 +140,8 @@ func sameBump(title string) string {
 }
 
 // PureBump reports whether every changed line only changes versions: removed and added lines match
-// once their versions are masked; an added or removed image line and go.sum are versions by nature.
+// once their versions and image tags are masked, the rest of an image line included. An added line
+// that is only an image (a new entry of an image list) passes too; go.sum is versions by nature.
 func PureBump(files []PRFile) (pure bool, why string) {
 	for _, f := range files {
 		if strings.HasSuffix(f.Name, "go.sum") {
@@ -150,19 +151,17 @@ func PureBump(files []PRFile) (pure bool, why string) {
 		removed, added := changedLines(f.Patch)
 		left := map[string]int{}
 		for _, l := range removed {
-			if !imageRef.MatchString(l) {
-				left[maskVersions(l)]++
-			}
+			left[maskVersions(l)]++
 		}
 		for _, l := range added {
-			if imageRef.MatchString(l) {
-				continue
-			}
 			k := maskVersions(l)
-			if left[k] == 0 {
+			switch {
+			case left[k] > 0:
+				left[k]--
+			case imageOnly(l):
+			default:
 				return false, fmt.Sprintf("%s: %q changes more than a version", f.Name, strings.TrimSpace(l))
 			}
-			left[k]--
 		}
 		for k, n := range left {
 			if n > 0 {
@@ -174,8 +173,20 @@ func PureBump(files []PRFile) (pure bool, why string) {
 	return true, ""
 }
 
+// maskVersions masks image tags (any tag, "latest" too) and then version tokens.
 func maskVersions(line string) string {
-	return strings.TrimSpace(versionToken.ReplaceAllString(line, "<v>"))
+	tags := imageRef.ReplaceAllStringFunc(line, func(m string) string { return m[:strings.LastIndex(m, ":")+1] + "<v>" })
+
+	return strings.TrimSpace(versionToken.ReplaceAllString(tags, "<v>"))
+}
+
+// imageListRest is what an image-list line holds besides its image: a list marker, quotes, a comma or
+// a line continuation, and a registry ("${REGISTRY}", "docker.io").
+var imageListRest = regexp.MustCompile(`^[-\s"'\\,]*(?:\$\{?\w+\}?|[\w.-]+\.[a-z]{2,})?[\s"'\\,]*$`)
+
+// imageOnly: the line is only an image reference (no key, no setting next to it).
+func imageOnly(line string) bool {
+	return imageRef.MatchString(line) && imageListRest.MatchString(imageRef.ReplaceAllString(line, ""))
 }
 
 // changedLines splits a unified diff into its removed and added lines (headers excluded).
@@ -194,8 +205,9 @@ func changedLines(patch string) (removed, added []string) {
 }
 
 // BumpChecks derives what the job checks from the PR's changes; a change no rule covers is returned
-// as unsupported, for a person. RKE2 charts are checked on the chart file every install bundles,
-// K3s charts on the server manifest, and images (default ones only) on the node.
+// as unsupported, for a person: a file, or a bumped image a default install does not run. RKE2 charts
+// are checked on the chart file every install bundles, K3s charts on the server manifest, and images
+// (default ones only) on the node.
 func BumpChecks(product string, files []PRFile, defaultImages []string) (checks []BumpCheck, unsupported []string) {
 	for _, f := range files {
 		var got []BumpCheck
@@ -205,10 +217,16 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 		case product == "k3s" && strings.HasPrefix(f.Name, "manifests/") && strings.HasSuffix(f.Name, ".yaml"):
 			got = k3sChartChecks(f.Name, f.Patch)
 		}
-		got = append(got, imageChecks(f.Patch, defaultImages)...)
+		images, untested := imageChecks(f.Patch, defaultImages)
+		got = append(got, images...)
 
-		if len(got) == 0 && !strings.HasSuffix(f.Name, "go.sum") && f.Name != "scripts/build-images" &&
-			f.Name != "scripts/airgap/image-list.txt" {
+		for _, u := range untested {
+			if !slices.Contains(unsupported, u) {
+				unsupported = append(unsupported, u)
+			}
+		}
+		if len(got) == 0 && len(untested) == 0 && !strings.HasSuffix(f.Name, "go.sum") &&
+			f.Name != "scripts/build-images" && f.Name != "scripts/airgap/image-list.txt" {
 			unsupported = append(unsupported, f.Name)
 		}
 		checks = append(checks, got...)
@@ -269,25 +287,28 @@ func k3sChartChecks(name, patch string) []BumpCheck {
 	return checks
 }
 
-// imageChecks: an added image tag of an image a default install runs, seen in the node's images.
-func imageChecks(patch string, defaultImages []string) []BumpCheck {
+// imageChecks: an added image tag of an image a default install runs, seen in the node's images; any
+// other added image is untested, so its issue goes to a person instead of passing on its other checks.
+func imageChecks(patch string, defaultImages []string) (checks []BumpCheck, untested []string) {
 	_, added := changedLines(patch)
-	var checks []BumpCheck
 	for _, l := range added {
 		for _, m := range imageRef.FindAllStringSubmatch(l, -1) {
 			if !slices.Contains(defaultImages, m[1]) {
+				untested = append(untested, fmt.Sprintf("rancher/%s:%s (not a default image)", m[1], m[2]))
 				continue
 			}
 
+			// No ":" after the image: the job's resources.JoinCommands turns every ":" of a kubectl
+			// command into ",", and the expected "rancher/<img>:<tag>" keeps the check exact.
 			checks = append(checks, BumpCheck{
 				What:     fmt.Sprintf("%s image %s", m[1], m[2]),
-				Cmd:      "kubectl get node -o yaml : | grep rancher/" + m[1] + ":",
+				Cmd:      "kubectl get node -o yaml : | grep rancher/" + m[1],
 				Expected: "rancher/" + m[1] + ":" + m[2],
 			})
 		}
 	}
 
-	return checks
+	return checks, untested
 }
 
 func dedupChecks(in []BumpCheck) []BumpCheck {
