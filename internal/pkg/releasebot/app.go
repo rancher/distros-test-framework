@@ -157,6 +157,8 @@ func (a *App) Prepare(ctx context.Context, req Request) (*prepared, error) {
 		}
 	}
 
+	plan.SkipWorkflows, plan.SkipJobs = a.cfg.SkipWorkflows, a.cfg.SkipJobs
+
 	return &prepared{Plan: plan, Matrix: matrix, GitHub: gh, controllers: controllers}, nil
 }
 

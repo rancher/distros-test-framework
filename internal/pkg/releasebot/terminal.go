@@ -124,9 +124,15 @@ func (t *TerminalRun) drive(ctx context.Context, saved *SavedTerminalRun, body f
 	}
 
 	t.report(err, shutdown, notResumed, uncertain)
+	if shutdown {
+		return ErrInterrupted
+	}
 
 	return err
 }
+
+// ErrInterrupted: the run was cut (Ctrl-C) and stays saved for -resume, as the terminal already said.
+var ErrInterrupted = errors.New("run interrupted and saved for -resume")
 
 // uncertainOutcome: workflows may have been dispatched (a dispatch failed part-way, or a resume found
 // the run cut while dispatching) or builds may still run; the state then stays as the guard against a

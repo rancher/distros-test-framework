@@ -154,7 +154,9 @@ func TestTerminalRunResumesAfterInterrupt(t *testing.T) {
 		return saved != nil && len(saved.Progress.Jobs) == 2 && saved.Progress.Jobs[0].State == jobRunning
 	})
 	interrupt()
-	_ = receive(t, done) // the interrupt's error; what counts is what stays saved
+	if err := receive(t, done); !errors.Is(err, ErrInterrupted) {
+		t.Fatalf("an interrupted run returned %v, not ErrInterrupted", err)
+	}
 
 	out := first.Out.(*syncBuffer).String()
 	saved, err := first.Saved()

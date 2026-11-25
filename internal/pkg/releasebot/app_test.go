@@ -225,6 +225,30 @@ func TestPlanSummaryHasNoMode(t *testing.T) {
 	}
 }
 
+// With -skip-workflows or -skip-jobs the plan says what will not run: the workflows (and the Qase runs
+// they create) or the jenkins jobs; without them it reads as before.
+func TestPlanSaysWhatIsSkipped(t *testing.T) {
+	p := &Plan{
+		RequestID: "rb-1", Workflows: []workflowDispatch{{Repo: "o/r", Workflow: "a.yaml"}},
+		QaseTitles: []string{"K3S title"}, Jobs: []JenkinsJob{{Name: "smoke", Phase: 1}},
+	}
+	plain := planSummary(p)
+	p.SkipWorkflows, p.SkipJobs = true, true
+	skip := planSummary(p)
+
+	if strings.Contains(plain, "not ") || !strings.Contains(plain, "Qase runs the workflow creates") {
+		t.Fatalf("plain plan:\n%s", plain)
+	}
+	for _, want := range []string{
+		"gitHub workflows (1, not dispatched: -skip-workflows)", "Qase runs (not created with -skip-workflows",
+		"jenkins jobs (1, not triggered: -skip-jobs)",
+	} {
+		if !strings.Contains(skip, want) {
+			t.Fatalf("missing %q:\n%s", want, skip)
+		}
+	}
+}
+
 // flakyBuilder fails the "smoke" path and passes every other job; builds finish on the first poll.
 type flakyBuilder struct{}
 

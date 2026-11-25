@@ -31,7 +31,7 @@ func planLines(p *Plan, mode string) []planLine {
 		add("info", "  baler: jobs with a Baler path (airgap, conformance) run on baler, the rest on mower")
 	}
 
-	add("info", "gitHub workflows (%d):", len(p.Workflows))
+	add("info", "gitHub workflows (%d%s):", len(p.Workflows), skipped(p.SkipWorkflows, "dispatched", "-skip-workflows"))
 	for _, w := range p.Workflows {
 		var inputs []string
 		for k, v := range w.Inputs {
@@ -43,8 +43,13 @@ func planLines(p *Plan, mode string) []planLine {
 		add("info", "  %s@%s %s %s", w.Repo, w.Ref, w.Workflow, strings.Join(inputs, " "))
 	}
 
-	if len(p.QaseTitles) > 0 {
+	switch {
+	case len(p.QaseTitles) > 0 && p.SkipWorkflows:
+		add("info", "Qase runs (not created with -skip-workflows; {{QASE_RUN_ID}} takes the newest run with each title):")
+	case len(p.QaseTitles) > 0:
 		add("info", "Qase runs the workflow creates (ids fill {{QASE_RUN_ID}} once they exist):")
+	}
+	if len(p.QaseTitles) > 0 {
 		for _, t := range p.QaseTitles {
 			add("info", "  %s", t)
 		}
@@ -62,8 +67,8 @@ func planLines(p *Plan, mode string) []planLine {
 // jobLines lists the jobs by phase and RC (the log also gets each job's path and parameters),
 // then the upgrade starting versions and the skipped jobs grouped by job.
 func jobLines(p *Plan, add func(level, format string, args ...any)) {
-	add("info", "jenkins jobs (%d); each RC starts a phase once all its jobs of the previous phase passed:",
-		len(p.Jobs))
+	add("info", "jenkins jobs (%d%s); each RC starts a phase once all its jobs of the previous phase passed:",
+		len(p.Jobs), skipped(p.SkipJobs, "triggered", "-skip-jobs"))
 	byPhase := map[int]map[string][]string{}
 	var phases []int
 	for i := range p.Jobs {
@@ -122,6 +127,15 @@ func skippedLines(add func(level, format string, args ...any), title string, job
 	for _, k := range keys {
 		add("info", "  %s (%s)", k, strings.Join(rcs[k], " "))
 	}
+}
+
+// skipped labels a section a flag leaves out, e.g. ", not dispatched: -skip-workflows".
+func skipped(skip bool, what, flag string) string {
+	if !skip {
+		return ""
+	}
+
+	return ", not " + what + ": " + flag
 }
 
 func sortedParams(params map[string]string) string {

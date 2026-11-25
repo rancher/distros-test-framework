@@ -67,6 +67,10 @@ type Plan struct {
 	checkErr    error
 	UpgradeFrom map[string]string
 	Warnings    []string
+
+	// SkipWorkflows and SkipJobs mirror -skip-workflows and -skip-jobs, so the printed plan says what
+	// will not run.
+	SkipWorkflows, SkipJobs bool
 }
 
 type SkippedJob struct {

@@ -24,6 +24,9 @@ func main() {
 		runFn = runListen
 	}
 	if err := runFn(o); err != nil {
+		if errors.Is(err, releasebot.ErrInterrupted) {
+			os.Exit(130) // saved for -resume, as the terminal said: not an error to log
+		}
 		resources.LogLevel("error", "releasebot: %v", err)
 		if errors.Is(err, releasebot.ErrModelAccess) {
 			os.Exit(77) // releasebot-triage@.service does not restart on it: a person signs in first
