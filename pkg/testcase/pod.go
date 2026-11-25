@@ -72,9 +72,15 @@ func processPodStatus(
 	var ciliumPod bool
 
 	switch {
+	// Rancher retries a failed helm-operation in a new pod and garbage-collects the errored one later.
+	case strings.Contains(pod.Name, "helm-operation"):
+		g.Expect(pod.Status).Should(BeElementOf(statusCompleted, "Error"), pod.Name)
+		if pod.Status == "Error" {
+			shared.LogLevel("warn", "helm-operation pod %s/%s is in Error; Rancher retries it", pod.NameSpace, pod.Name)
+		}
+
 	case strings.Contains(pod.Name, "helm-install") ||
 		strings.Contains(pod.Name, "helm-delete") ||
-		strings.Contains(pod.Name, "helm-operation") ||
 		strings.Contains(pod.Name, "nvidia-cuda-validator-") ||
 		strings.Contains(pod.Name, "-benchmark"):
 		g.Expect(pod.Status).Should(Equal(statusCompleted), pod.Name)
