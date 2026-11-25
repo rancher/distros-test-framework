@@ -605,10 +605,12 @@ schedules next to the Slack bot or another CLI run: both would fill a controller
 ### Running on a laptop (v1)
 
 The release captain runs the whole release from their own laptop, in a terminal: every Slack
-command works there too, and the run survives an interrupt. The VM hosting below is the v2, kept
-for when there is a Bedrock-only credential. The `releasebot-captain-setup` skill
-(distros-qa-skills) walks a captain through this setup and proves it with its `bin/check.sh`; this
-section is its spec, so a change here needs the same change there.
+command works there too, and the run survives an interrupt. The step-by-step for captains, both
+by hand and with the agent, is [`releasebot-runbook.md`](releasebot-runbook.md). The VM hosting
+below is the v2, kept for when there is a Bedrock-only credential. The `releasebot-captain-setup`
+skill (distros-qa-skills) walks a captain through this setup, proves it with its `bin/check.sh`,
+and can run a release or the bumps for the captain (`:runrelease`, `:runbumps`); this section is
+its spec, so a change here needs the same change there.
 
 Once per captain, and per release commit: everything the run reads is pinned in one folder, so a
 checkout or an edit in the DTF tree never changes the matrix mid-release.
