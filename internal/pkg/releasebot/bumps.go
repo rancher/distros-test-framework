@@ -325,18 +325,23 @@ func versionsIn(product, name, content string) map[string][]string {
 	return versions
 }
 
-// setsVersion: the patch adds version for key, a versionsIn key ("rke2-canal chart", "<image>
+// setsVersion: the patch adds version for one of keys, versionsIn keys ("rke2-canal chart", "<image>
 // image|<section>"), read as BumpChecks reads it: a chart with its filename line, an image in its section.
-func setsVersion(product, path, patch, key, version string) bool {
-	name, kind, _ := strings.Cut(key, " ")
-	if kind == "chart" {
-		return slices.ContainsFunc(chartChecks(product, path, patch),
-			func(c BumpCheck) bool { return c.What == name+" chart "+version })
+func setsVersion(product, path, patch string, keys []string, version string) bool {
+	for _, key := range keys {
+		name, kind, _ := strings.Cut(key, " ")
+		switch {
+		case kind == "chart":
+			if slices.ContainsFunc(chartChecks(product, path, patch),
+				func(c BumpCheck) bool { return c.What == name+" chart "+version }) {
+				return true
+			}
+		case slices.Contains(imageSections(patch)["rancher/"+name+":"+version], strings.TrimPrefix(kind, "image|")):
+			return true
+		}
 	}
 
-	section, ok := imageSections(patch)["rancher/"+name+":"+version]
-
-	return ok && "image|"+section == kind
+	return false
 }
 
 // sectionLine is a line git names in a hunk header ("@@ -72,7 +72,7 @@ xargs ... images-cilium.txt").
@@ -347,10 +352,10 @@ func sectionOf(line string) string {
 	return maskVersions(strings.TrimRight(line[:min(72, len(line))], " \t"))
 }
 
-// imageSections maps each image an added line sets ("rancher/x:tag") to its section, the last section
-// line before it in the new file.
-func imageSections(patch string) map[string]string {
-	sections := map[string]string{}
+// imageSections maps each image an added line sets ("rancher/x:tag") to its sections (a PR can set one
+// tag for two CNIs), each the last section line before it in the new file.
+func imageSections(patch string) map[string][]string {
+	sections := map[string][]string{}
 	section := ""
 	for _, l := range strings.Split(patch, "\n") {
 		switch {
@@ -363,7 +368,9 @@ func imageSections(patch string) map[string]string {
 			continue
 		case l[0] == '+':
 			for _, m := range imageRef.FindAllStringSubmatch(l[1:], -1) {
-				sections["rancher/"+m[1]+":"+m[2]] = section
+				if image := "rancher/" + m[1] + ":" + m[2]; !slices.Contains(sections[image], section) {
+					sections[image] = append(sections[image], section)
+				}
 			}
 		}
 		if sectionLine.MatchString(l[1:]) {

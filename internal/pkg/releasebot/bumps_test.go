@@ -562,7 +562,8 @@ func TestNewerVersion(t *testing.T) {
 }
 
 // A later bump in the version installed (rke2#11949 after the Canal backport), where the issue's PR set
-// it (cilium's cni-plugins aside), is what the job checks; two tags there or an older one go to a person.
+// it (cilium's cni-plugins aside), is what the job checks; two tags there (also over the two sections
+// one PR set) or an older one go to a person.
 func TestPlanBumpsFollowsANewerBump(t *testing.T) {
 	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}, DefaultImages: map[string][]string{
 		"rke2": {"hardened-cni-plugins", "hardened-calico", "hardened-flannel", "hardened-multus-cni"}}}
@@ -594,14 +595,15 @@ func TestPlanBumpsFollowsANewerBump(t *testing.T) {
 	for _, p := range plan.Person {
 		reasons[p.Number] = p.Reason
 	}
-	if len(reasons) != 2 || !strings.Contains(reasons[71], `"v3.33.2-build20261125, v3.33.3-build20261125"`) ||
-		!strings.Contains(reasons[81], `"v4.0.0-build20261022" in scripts/build-images, where its PR set v4.1.0`) {
+	if len(reasons) != 3 || !strings.Contains(reasons[71], `"v3.33.2-build20261125, v3.33.3-build20261125"`) ||
+		!strings.Contains(reasons[81], `"v4.0.0-build20261022" in scripts/build-images, where its PR set v4.1.0`) ||
+		!strings.Contains(reasons[91], `"v1.10.0-build20261120, v1.10.0-build20261130"`) {
 		t.Fatalf("person %+v", plan.Person)
 	}
 }
 
 // newerBumpSource: release-1.34 backports of Canal (its head bumped the chart and cni-plugins again),
-// Calico (two tags at the head) and Multus (older at the head).
+// Calico (two tags at the head), Multus (older at the head) and cni-plugins for two CNIs.
 func newerBumpSource() *fakeBumpSource {
 	canal := "@@ -16,3 +16,3 @@ xargs -n1 -t $PULL_CMD_CORE << EOF > $BUILD_DIR/images-canal.txt\n"
 	bump := func(image, from, to string) string {
@@ -614,9 +616,10 @@ func newerBumpSource() *fakeBumpSource {
 
 	return &fakeBumpSource{
 		issues: map[string][]projectIssue{"rancher/31": slices.Concat(
-			issue(61, "Update Canal"), issue(71, "Bump Calico"), issue(81, "Bump Multus"))},
+			issue(61, "Update Canal"), issue(71, "Bump Calico"), issue(81, "Bump Multus"), issue(91, "Bump CNI plugins"))},
 		prs: map[int][]BumpPR{61: {{Number: 161, Base: "release-1.34", MergeCommit: "c1"}},
-			71: {{Number: 171, Base: "release-1.34"}}, 81: {{Number: 181, Base: "release-1.34"}}},
+			71: {{Number: 171, Base: "release-1.34"}}, 81: {{Number: 181, Base: "release-1.34"}},
+			91: {{Number: 191, Base: "release-1.34"}}},
 		files: map[int][]PRFile{
 			161: {{Name: "charts/chart_versions.yaml", Patch: "-  - version: 3.33.100-build20261022\n" +
 				"+  - version: 3.33.101-build20261120\n     filename: /charts/rke2-canal.yaml"},
@@ -625,6 +628,10 @@ func newerBumpSource() *fakeBumpSource {
 					"+    ${REGISTRY}/rancher/hardened-flannel:v0.28.11-build20261120"}},
 			171: {{Name: "scripts/build-images", Patch: bump("hardened-calico", "v3.32.0", "v3.33.1-build20261120")}},
 			181: {{Name: "scripts/build-images", Patch: bump("hardened-multus-cni", "v4.0.0", "v4.1.0")}},
+			// canal's and cilium's cni-plugins, at two tags at the head
+			191: {{Name: "scripts/build-images", Patch: bump("hardened-cni-plugins", "v1.9.1", "v1.10.0-build20261110") +
+				"\n" + strings.ReplaceAll(bump("hardened-cni-plugins", "v1.9.1", "v1.10.0-build20261110"),
+				"$PULL_CMD_CORE << EOF > $BUILD_DIR/images-canal.txt", "$PULL_CMD << EOF > $BUILD_DIR/images-cilium.txt")}},
 		},
 		head: "deadbeef",
 		atRef: map[string]string{
@@ -705,23 +712,26 @@ func TestFileAt(t *testing.T) {
 
 // BumpedBy names the merged pull request of the newest commit of the path, after the issue's merge,
 // that sets the version where the check reads it: not another chart at the same version, not another
-// CNI's section of the image list, not an older commit.
+// CNI's section of the image list (also when one commit sets both), not an older commit.
 func TestBumpedBy(t *testing.T) {
 	canalList := "xargs -n1 -t $PULL_CMD_CORE << EOF > $BUILD_DIR/images-canal.txt"
 	canal := "@@ -16,3 +16,3 @@ " + canalList + "\n"
 	cilium := "@@ -33,3 +33,3 @@ xargs -n1 -t $PULL_CMD << EOF > $BUILD_DIR/images-cilium.txt\n"
 	plugins := "+    ${REGISTRY}/rancher/hardened-cni-plugins:v1.10.0-build20261120"
+	calico := "+    ${REGISTRY}/rancher/hardened-calico:v3.33.2-build20261125"
 	chart := func(name string) string {
 		return "-  - version: 1.0.0\n+  - version: 3.33.103-build20261120\n     filename: /charts/" + name + ".yaml"
 	}
 	// each path's commits newest first, down to the issue's merge (c1, i1), and their patches
 	commits := map[string]string{
-		"charts/chart_versions.yaml": `[{"sha": "c3"}, {"sha": "c2"}, {"sha": "c1"}, {"sha": "c0"}]`,
-		"scripts/build-images":       `[{"sha": "i4"}, {"sha": "i3"}, {"sha": "i2"}, {"sha": "i1"}, {"sha": "i0"}]`,
+		"charts/chart_versions.yaml": `[{"sha":"c3"}, {"sha":"c2"}, {"sha":"c1"}, {"sha":"c0"}]`,
+		"scripts/build-images":       `[{"sha":"i5"}, {"sha":"i4"}, {"sha":"i3"}, {"sha":"i2"}, {"sha":"i1"}, {"sha":"i0"}]`,
 	}
 	files := map[byte]string{'c': "charts/chart_versions.yaml", 'i': "scripts/build-images"}
 	patches := map[string]string{"c3": chart("rke2-other"), "c2": chart("rke2-canal"),
-		"i4": cilium + plugins, "i3": canal + plugins, "i2": canal + plugins}
+		"i4": cilium + plugins, "i3": canal + plugins, "i2": canal + plugins,
+		// one tag for both CNIs in one commit: canal's section is not lost to cilium's
+		"i5": canal + calico + "\n" + cilium + calico}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sha, pulls := strings.CutSuffix(strings.TrimPrefix(r.URL.Path, "/repos/rancher/rke2/commits/"), "/pulls")
@@ -745,8 +755,9 @@ func TestBumpedBy(t *testing.T) {
 	for _, tc := range []struct{ path, key, version, want string }{
 		{files['c'], "rke2-canal chart", "3.33.103-build20261120", "rancher/rke2#11902"},
 		{files['i'], "hardened-cni-plugins image|" + sectionOf(canalList), "v1.10.0-build20261120", "rancher/rke2#11903"},
+		{files['i'], "hardened-calico image|" + sectionOf(canalList), "v3.33.2-build20261125", "rancher/rke2#11905"},
 	} {
-		adds := func(patch string) bool { return setsVersion("rke2", tc.path, patch, tc.key, tc.version) }
+		adds := func(patch string) bool { return setsVersion("rke2", tc.path, patch, []string{tc.key}, tc.version) }
 		got, err := gh.BumpedBy(testContext(t), "rancher/rke2", "deadbeef", tc.path, adds, []string{"c1", "i1"})
 		if err != nil || got != tc.want {
 			t.Errorf("BumpedBy %s = %q, %v; want %s", tc.path, got, err, tc.want)

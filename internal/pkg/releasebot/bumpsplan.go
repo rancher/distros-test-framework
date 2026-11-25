@@ -458,30 +458,33 @@ func followNewerBumps(ctx context.Context, src bumpSource, t *BumpTarget, issues
 	return person, nil
 }
 
-// refBump is where the issue's PR set a check's component (a versionsIn key of a file) and the
-// versions the installed ref sets there.
+// refBump is where the issue's PR set a check's component (versionsIn keys of one file: an image in
+// each section the PR set it) and the versions the installed ref sets there.
 type refBump struct {
-	path, key string
-	versions  []string
+	path     string
+	keys     []string
+	versions []string
 }
 
-// findAtRef reads, at the installed ref, the place the issue's PR set the check's component (an image
-// in the same image-list section); nil when no PR file of the issue sets it.
+// findAtRef reads, at the installed ref, the places the issue's PR set the check's component (an image
+// in the same image-list sections); nil when no PR file of the issue sets it.
 func findAtRef(
 	issue *BumpIssue, c *BumpCheck, versionsAt func(path string) (map[string][]string, error),
 ) (*refBump, error) {
 	f := strings.Fields(c.What)
 	for _, pr := range issue.PRs {
 		for _, file := range pr.Files {
-			key := f[0] + " chart"
+			keys := []string{f[0] + " chart"}
 			if f[1] == "image" {
-				section, ok := imageSections(file.Patch)["rancher/"+f[0]+":"+f[2]]
-				if !ok {
-					continue
+				keys = nil
+				for _, section := range imageSections(file.Patch)["rancher/"+f[0]+":"+f[2]] {
+					keys = append(keys, f[0]+" image|"+section)
 				}
-				key = f[0] + " image|" + section
 			} else if !slices.ContainsFunc(chartChecks(issue.Product, file.Name, file.Patch),
 				func(b BumpCheck) bool { return b.What == c.What }) {
+				keys = nil
+			}
+			if len(keys) == 0 {
 				continue
 			}
 
@@ -489,8 +492,16 @@ func findAtRef(
 			if readErr != nil {
 				return nil, readErr
 			}
+			at := &refBump{path: file.Name, keys: keys}
+			for _, key := range keys {
+				for _, v := range versions[key] {
+					if !slices.Contains(at.versions, v) {
+						at.versions = append(at.versions, v)
+					}
+				}
+			}
 
-			return &refBump{path: file.Name, key: key, versions: versions[key]}, nil
+			return at, nil
 		}
 	}
 
@@ -501,7 +512,7 @@ func findAtRef(
 func replaceCheck(ctx context.Context, src bumpSource, t *BumpTarget, issue *BumpIssue, c *BumpCheck, at *refBump) error {
 	f := strings.Fields(c.What)
 	newer := at.versions[0]
-	adds := func(patch string) bool { return setsVersion(t.Product, at.path, patch, at.key, newer) }
+	adds := func(patch string) bool { return setsVersion(t.Product, at.path, patch, at.keys, newer) }
 	var since []string
 	for _, pr := range issue.PRs {
 		since = append(since, pr.MergeCommit)
