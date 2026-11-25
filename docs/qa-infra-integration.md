@@ -163,6 +163,26 @@ CP_ONLY_NODES=0
 CP_WORKER_NODES=0
 ```
 
+#### Windows agents (RKE2, connected mode only)
+
+Set `NO_OF_WINDOWS_WORKER_NODES` to add Windows workers. A `nodes` entry with `os = "windows"` in `vars.tfvars` is honored only when no node-count env vars are set; Jenkins requires `NO_OF_SERVER_NODES`, so it replaces the `TFVARS` `nodes` list and the count variable is the supported path there. Requirements and behavior:
+
+- Product must be RKE2 and the CNI must be `calico` or `flannel` (set `CNI` or `cni:` in `SERVER_FLAGS`); otherwise provisioning fails before apply.
+- Airgap with Windows agents is not supported and is rejected before apply.
+- The Windows module arguments are passed to qa-infra only when Windows nodes are requested, so the selected `QA_INFRA_REF` must declare them for Windows runs. Linux-only runs are unaffected.
+
+```bash
+NO_OF_WINDOWS_WORKER_NODES=1
+AWS_AMI_WINDOWS=<ami-id>
+INSTANCE_TYPE_WINDOWS=t3.xlarge        # t3.xlarge or higher
+AWS_VOLUME_SIZE_WINDOWS=100            # optional, positive integer
+AWS_VOLUME_TYPE_WINDOWS=gp3            # optional
+AWS_WINDOWS_SSH_USER=Administrator     # optional
+WINDOWS_ENABLE_RDP=false               # optional, true|false; see note below
+```
+
+`WINDOWS_ENABLE_RDP=true` has no effect yet. The qa-infra module opens TCP 3389 only when `ssh_allowed_cidrs` is non-empty and returns Administrator passwords only when `private_ssh_key` is set. DTF does not pass either input today.
+
 ```bash
 # upgradecluster  (TEST_DIR=upgradecluster)
 TEST_TAG=upgradesuc                                        # upgradesuc | upgrademanual | upgradereplacement

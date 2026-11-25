@@ -108,16 +108,24 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	return nil
 }
 
-// installAnsibleCollection installs the required collection for dynamic inventory.
+// installAnsibleCollection installs collections needed by playbooks.
 func installAnsibleCollection(workingDir string) error {
-	resources.LogLevel("debug", "Installing cloud.terraform Ansible collection for dynamic inventory")
+	reqPath := filepath.Join(workingDir, "requirements.yml")
+	if _, err := os.Stat(reqPath); err == nil {
+		resources.LogLevel("debug", "Installing Ansible collections from requirements.yml")
+		if err := runCmdWithTimeout(workingDir, 5*time.Minute,
+			"ansible-galaxy", "collection", "install", "-r", "requirements.yml", "--force"); err != nil {
+			return fmt.Errorf("failed to install collections from requirements.yml: %w", err)
+		}
 
+		return nil
+	}
+
+	resources.LogLevel("debug", "Installing cloud.terraform Ansible collection")
 	if err := runCmdWithTimeout(workingDir, 3*time.Minute,
 		"ansible-galaxy", "collection", "install", "cloud.terraform", "--force"); err != nil {
 		return fmt.Errorf("failed to install cloud.terraform collection: %w", err)
 	}
-
-	resources.LogLevel("debug", "Successfully installed cloud.terraform collection")
 
 	return nil
 }
