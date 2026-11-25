@@ -18,6 +18,14 @@ cp_worker_nodes=$8
 product=$9
 
 role_config_yaml_path="/etc/rancher/${product}/config.yaml.d/role_config.yaml"
+
+# etcd fsyncs stall for seconds on copy-on-write btrfs (SLES default root), causing leader loss.
+# No_COW only applies to files created after it is set, so set it before the first install.
+etcd_db_dir="/var/lib/rancher/${product}/server/db"
+if [ "$(stat -f -c %T /var/lib)" = "btrfs" ] && command -v chattr >/dev/null; then
+  install -d -m 700 "/var/lib/rancher/${product}/server" "${etcd_db_dir}"
+  chattr +C "${etcd_db_dir}" && echo "Disabled btrfs copy-on-write for ${etcd_db_dir}"
+fi
 # Set the desired role into an array based on the index
 order_array=($(echo "$role_order" | tr ',' '\n'))
 role_array=()
