@@ -229,11 +229,14 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 
 - **K3s commit installs** need the `GITHUB_TOKEN` credential on Mower (configured), the DTF
   Jenkinsfile that binds it and rancher/qa-infra-automation#269. Until the bot PR
-  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, run K3s bumps with
-  `RELEASEBOT_DTF_REF=releasebot-qainfra-rc1` in the env file; `k3s-version-bump_qainfra` points
-  at those branches meanwhile (rancherlabs/jenkins-job-builder#1354, revert after the merges).
-- **RKE2 commit installs** on `rke2-version-bump_qainfra` (RHEL 9.8, `cni: cilium`, CIS) hang at
-  `Start rke2-server` and time out after 35 minutes; under diagnosis.
+  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, export
+  `RELEASEBOT_DTF_REF=releasebot-qainfra-rc1` only in the shell of a K3s commit bump run, never in
+  the env file: it sets the branch of every run, releases included, and that branch can lag
+  `qa-infra-RC-1`. `k3s-version-bump_qainfra` points at those branches meanwhile
+  (rancherlabs/jenkins-job-builder#1354, revert after the merges).
+- **RKE2 commit installs** on RHEL hung at `Start rke2-server`: a tarball install skipped the
+  `rke2-selinux` policy. Fixed in rancher/qa-infra-automation#269; `rke2-version-bump_qainfra`
+  points at it meanwhile (rancherlabs/jenkins-job-builder#1355, revert after the merge).
 
 ## Where things live
 
