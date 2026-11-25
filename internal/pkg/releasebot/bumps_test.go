@@ -629,13 +629,18 @@ func TestBumpTitleChecks(t *testing.T) {
 	}
 
 	got := cfg.titleChecks(&BumpIssue{Number: 5, Title: "[Release-1.34] Bump gateway-api to 1.7.0"})
-	if len(got) != 1 || got[0].What != "gateway-api bundle v1.7.0" || got[0].Expected != "bundle-version: v1.7.0" ||
+	if len(got) != 1 || got[0].What != "gateway-api bundle v1.7.0" || got[0].Expected != "v1.7.0" ||
 		got[0].Cmd != "kubectl get crd gateways.gateway.networking.k8s.io -o yaml : | grep bundle-version" ||
 		got[0].Issue != 5 {
 		t.Fatalf("gateway-api checks %+v", got)
 	}
 	if _, argsErr := (&BumpTarget{Checks: got}).TestArgs(); argsErr != nil {
 		t.Fatalf("the job cannot take the check: %v", argsErr)
+	}
+	// the job checks its TEST_ARGS split on spaces: "bundle-version: v1.7.0" cut its list short
+	spaced := BumpCheck{What: "x bundle v1", Cmd: "c", Expected: "bundle-version: v1.7.0"}
+	if _, argsErr := (&BumpTarget{Checks: []BumpCheck{spaced}}).TestArgs(); argsErr == nil {
+		t.Fatal("a value with a space was passed to the job")
 	}
 	if other := cfg.titleChecks(&BumpIssue{Title: "Bump Traefik to v3.7.20"}); len(other) != 0 {
 		t.Fatalf("traefik got %+v", other)

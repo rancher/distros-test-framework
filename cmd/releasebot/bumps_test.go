@@ -131,3 +131,27 @@ func TestParseAccepted(t *testing.T) {
 		}
 	}
 }
+
+// A local-triage run learns before it starts whether the sandbox reaches Bedrock: the identity, or the
+// whoami's own words (a missing image, no profile) in the error.
+func TestBedrockIdentity(t *testing.T) {
+	dir := t.TempDir()
+	signedIn := filepath.Join(dir, "signed-in")
+	missing := filepath.Join(dir, "missing")
+	for path, script := range map[string]string{
+		signedIn: "#!/bin/sh\necho 'arn:aws:sts::1:assumed-role/bedrock-user-cpqa-x/x@suse.com'\n",
+		missing:  "#!/bin/sh\necho \"Unable to find image 'claude-suse:latest' locally\"\nexit 125\n",
+	} {
+		if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if who, err := bedrockIdentity(t.Context(), signedIn); err != nil || !strings.Contains(who, "bedrock-user-cpqa") {
+		t.Fatalf("signed in: %q, %v", who, err)
+	}
+	_, err := bedrockIdentity(t.Context(), missing)
+	if err == nil || !strings.Contains(err.Error(), "Unable to find image") {
+		t.Fatalf("missing image: %v", err)
+	}
+}

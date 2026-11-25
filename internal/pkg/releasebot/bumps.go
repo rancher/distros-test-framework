@@ -638,8 +638,9 @@ func (t *BumpTarget) TestArgs() (string, error) {
 	cmds := make([]string, 0, len(t.Checks))
 	expected := make([]string, 0, len(t.Checks))
 	for _, c := range t.Checks {
-		if strings.ContainsAny(c.Cmd+c.Expected, ",'\"") {
-			return "", fmt.Errorf("check %q cannot be passed to the job (comma or quote)", c.What)
+		// the job splits -expectedValue on commas and checks its TEST_ARGS split on spaces
+		if strings.ContainsAny(c.Cmd+c.Expected, ",'\"") || strings.ContainsAny(c.Expected, " \t") {
+			return "", fmt.Errorf("check %q cannot be passed to the job (comma, quote, or space in its value)", c.What)
 		}
 		cmds = append(cmds, c.Cmd)
 		expected = append(expected, c.Expected)

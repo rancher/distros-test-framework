@@ -18,7 +18,7 @@ titleChecks:
   - title: (?i)\bgateway[- ]api\b
     what: gateway-api bundle
     cmd: "kubectl get crd gateways.gateway.networking.k8s.io -o yaml : | grep bundle-version"
-    expected: "bundle-version: v{{VERSION}}"
+    expected: "v{{VERSION}}"
 defaultImages:
   rke2: [hardened-calico, hardened-flannel, hardened-cni-plugins, hardened-coredns, hardened-k8s-metrics-server,
          hardened-etcd, mirrored-cilium-cilium, mirrored-cilium-operator-generic]

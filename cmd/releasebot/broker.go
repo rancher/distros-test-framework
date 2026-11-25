@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -47,16 +48,27 @@ func logIdentity(ctx context.Context, sandbox string) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	out, whoamiErr := exec.CommandContext(ctx, sandbox, "bedrock", "whoami", "--profile", "bedrock").CombinedOutput()
-	text := strings.Join(strings.Fields(string(out)), " ")
+	identity, whoamiErr := bedrockIdentity(ctx, sandbox)
 	if whoamiErr != nil {
-		resources.LogLevel("warn", "bedrock whoami failed (%v): %s", whoamiErr, text)
+		resources.LogLevel("warn", "%v", whoamiErr)
 		return
 	}
 
-	resources.LogLevel("info", "bedrock identity: %s", text)
+	resources.LogLevel("info", "bedrock identity: %s", identity)
+}
+
+// bedrockIdentity is whose Bedrock sign-in the sandbox spends, or why it has none (no image, no profile).
+func bedrockIdentity(ctx context.Context, sandbox string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	out, whoamiErr := exec.CommandContext(ctx, sandbox, "bedrock", "whoami", "--profile", "bedrock").CombinedOutput()
+	text := strings.Join(strings.Fields(string(out)), " ")
+	if whoamiErr != nil {
+		return "", fmt.Errorf("bedrock whoami failed (%w): %s", whoamiErr, text)
+	}
+
+	return text, nil
 }
 
 // runTriageBuild triages one build directly (no spool) and prints the verdict as JSON.

@@ -137,7 +137,17 @@ func localTriage(ctx context.Context, o *options, app *releasebot.App) (*release
 	if err != nil {
 		return nil, fmt.Errorf("-triage-local: %w", err)
 	}
-	logIdentity(ctx, o.triageCmd)
+
+	// refused before anything starts: without Bedrock every failure would wait for the captain
+	if os.Getenv("CLAUDE_SANDBOX_PROVIDER") == "bedrock" {
+		identity, whoamiErr := bedrockIdentity(ctx, o.triageCmd)
+		if whoamiErr != nil {
+			return nil, fmt.Errorf("-triage-local cannot reach Bedrock: %w; build the sandbox image "+
+				"(claude-sandbox install.sh) or sign in (claude-sandbox bedrock setup, or login --no-browser; "+
+				"bedrock doctor tells which), also after a Docker engine change", whoamiErr)
+		}
+		resources.LogLevel("info", "bedrock identity: %s", identity)
+	}
 
 	return app.LocalFailureTriage(ct.Triage, o.triageWait), nil
 }
