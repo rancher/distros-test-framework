@@ -87,9 +87,16 @@ func TestPureBump(t *testing.T) {
 		},
 		"k3s manifest chart url": {{Name: "manifests/traefik.yaml", Patch: traefikManifestPatch}},
 		"go.sum":                 {{Name: "go.sum", Patch: "-a v1 h1:x\n+a v2 h1:y\n+b v1 h1:z"}},
+		// k3s#14993: a CI line fixed with the bump
+		"CI file": {{Name: ".github/workflows/integration.yaml",
+			Patch: "-      run: go tool covdata\n+      run: sudo -E env go tool covdata"},
+			{Name: "manifests/traefik.yaml", Patch: traefikManifestPatch}},
 	} {
 		if ok, why := PureBump(files); !ok {
 			t.Fatalf("%s: not a pure bump: %s", name, why)
+		}
+		if _, unsupported := BumpChecks("k3s", files, nil); name == "CI file" && len(unsupported) != 0 {
+			t.Fatalf("CI file: unsupported %v", unsupported)
 		}
 	}
 

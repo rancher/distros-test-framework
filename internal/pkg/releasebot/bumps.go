@@ -194,10 +194,10 @@ func sameBump(title string) string {
 }
 
 // PureBump: removed and added lines match once versions and image tags are masked; an added image-only
-// line (a new image-list entry) and go.sum pass too.
+// line (a new image-list entry), go.sum and CI files (.github/, nothing ships them) pass too.
 func PureBump(files []PRFile) (pure bool, why string) {
 	for _, f := range files {
-		if strings.HasSuffix(f.Name, "go.sum") {
+		if strings.HasSuffix(f.Name, "go.sum") || ciFile(f.Name) {
 			continue
 		}
 
@@ -262,6 +262,9 @@ func changedLines(patch string) (removed, added []string) {
 func BumpChecks(product string, files []PRFile, defaultImages []string) (checks []BumpCheck, unsupported []string) {
 	var untested []bumpedImage
 	for _, f := range files {
+		if ciFile(f.Name) {
+			continue
+		}
 		got := chartChecks(product, f.Name, f.Patch)
 		images, others := imageChecks(f.Patch, defaultImages)
 		got = append(got, images...)
@@ -283,6 +286,11 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 	}
 
 	return dedupChecks(checks), unsupported
+}
+
+// ciFile is a CI file (k3s#14993 fixed a workflow line with its bump): no install has it to check.
+func ciFile(name string) bool {
+	return strings.HasPrefix(name, ".github/")
 }
 
 // chartChecks are the chart bumps of one changed file: RKE2's chart_versions.yaml, a K3s manifest.

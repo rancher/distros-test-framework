@@ -492,6 +492,59 @@ func TestRenderBumpMDOneBlockPerCommand(t *testing.T) {
 	}
 }
 
+// The job's cluster check (its Validate Nodes and Validate Pods rows) goes under each branch, with its
+// commands, a step, and the node names and addresses redacted.
+func TestRenderBumpMDShowsClusterHealth(t *testing.T) {
+	console := "[2026-11-25T17:06:34.139Z] \x1b[36mINFO\x1b[0m[2026-11-25T17:06:33Z] \n" +
+		"[2026-11-25T17:06:34.139Z] Cluster nodes:                             \n" +
+		"[2026-11-25T17:06:34.139Z] ip-172-31-30-45   Ready   control-plane,etcd   54s   v1.36.6+k3s-55d0a922" +
+		"   172.31.30.45\n" +
+		"[2026-11-25T17:06:34.139Z] \n" +
+		"[2026-11-25T17:06:34.139Z] PASSED! Version Bump Template Upgrade: Validate Nodes\n" +
+		"[2026-11-25T17:06:34.399Z] Cluster pods:                              \n" +
+		"[2026-11-25T17:06:34.399Z] kube-system   coredns-967bdb7cf-cz2pl   1/1   Running     0     49s   10.42.0.5\n" +
+		"[2026-11-25T17:06:34.399Z] kube-system   helm-install-traefik-5h9l9   0/1   Completed   0     49s   10.42.0.6\n" +
+		"[2026-11-25T17:06:34.400Z] \n" +
+		"[2026-11-25T17:06:34.400Z] Cluster nodes:                             \n" +
+		"[2026-11-25T17:06:34.400Z] a later listing is not the job's check\n"
+	nodes, pods := ParseClusterHealth(console)
+	if len(nodes) != 1 || len(pods) != 2 || !strings.HasPrefix(pods[1], "kube-system   helm-install-traefik") {
+		t.Fatalf("nodes %q, pods %q", nodes, pods)
+	}
+
+	group, validated := canalValidated()
+	validated["release-1.37"].ClusterNodes, validated["release-1.37"].ClusterPods = nodes, pods
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{group}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"4. Verify cluster health: list the cluster's nodes and pods.",
+		"$ kubectl get nodes -o wide --no-headers\n<REDACTED_HOST>   Ready   control-plane,etcd",
+		"$ kubectl get pods -o wide --no-headers -A\nkube-system   coredns-967bdb7cf-cz2pl   1/1   Running"} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("MD lacks %q:\n%s", want, md)
+		}
+	}
+}
+
+// A node name that is not an ip-… hostname is redacted wherever it shows: the nodes, the pods' NODE
+// column and a static pod's name.
+func TestRenderBumpMDRedactsNodeNames(t *testing.T) {
+	group, validated := canalValidated()
+	r := validated["release-1.37"]
+	r.ClusterNodes = []string{"qa-master-01   Ready   control-plane,etcd,master"}
+	r.ClusterPods = []string{"kube-system   etcd-qa-master-01   1/1   Running   0   5m   qa-master-01   <none>"}
+
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{group}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(md, "qa-master") || !strings.Contains(md, "kube-system   etcd-<REDACTED_HOST>   1/1") ||
+		!strings.Contains(md, "\n<REDACTED_HOST>   Ready") {
+		t.Fatalf("node names left in the MD:\n%s", md)
+	}
+}
+
 // A second bump run of the month gets a new MD name: the earlier one (maybe not posted, maybe edited)
 // stays as it was.
 func TestWriteBumpMDsKeepsEarlierMD(t *testing.T) {

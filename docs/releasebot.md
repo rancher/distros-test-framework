@@ -697,9 +697,10 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
 - **Only a bump.** A backport is validated when its merged pull request into its release branch
   changes nothing but versions: removed and added lines match once versions and image tags are
   masked (the rest of an image's line too, so `privileged: true` next to a new tag is caught), an
-  added line holding only an image (a new entry of an image list) passes, and `go.sum` counts as
-  versions. Anything else (a setting, a CI change, a new `package:` line) goes to "needs a
-  person", with the line. A main issue is never validated itself (master): it is reported with its
+  added line holding only an image (a new entry of an image list) passes, `go.sum` counts as
+  versions, and CI files (`.github/`, which no install ships, like k3s#14993's workflow line) are
+  left out. Anything else (a setting, a new `package:` line) goes to "needs a person", with the
+  line. A main issue is never validated itself (master): it is reported with its
   backports, and one without a backport in To Test is listed.
 - **What is checked.** Taken from the pull request: an RKE2 chart in `charts/chart_versions.yaml`
   by its `chart-url` in the bundled chart file (`/var/lib/rancher/rke2/data/*/charts/<chart>.yaml`,
@@ -747,7 +748,11 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
 - **The MDs.** When the run ends: `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md`,
   one section per main issue in the bump template (one Validated on Version line per branch, the
   build's `NODE_OS` and `ARCH`, its cluster from its TFVARS (node groups and `server_flags`), the
-  steps, and each check's `$ command` with its output). A values check's step says the chart's
+  steps, and each check's `$ command` with its output, then the job's own cluster check: the rows
+  its Validate Nodes and Validate Pods printed under `kubectl get nodes -o wide --no-headers` and
+  `kubectl get pods -o wide --no-headers -A`, after a "Verify cluster health: list the cluster's
+  nodes and pods" step that claims no state, as the job's own checks allow some; a console
+  without them leaves the job out). A values check's step says the chart's
   values carry the image: it proves what the chart ships, not that the image runs. Addresses
   are redacted across the whole file (commands, titles, links and outputs): IPv4 and IPv6
   addresses, `ip-…` node names, AMI IDs, Prime artifact URLs and the staging registry get the

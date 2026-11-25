@@ -26,7 +26,9 @@ func TestBumpReportIsWrittenAgainWithResume(t *testing.T) {
 				"Command to Execute: sudo grep -h chart-url /x.yaml\nExpected Value: rke2-x-1.0.tgz\n" +
 				"Matched with result:\n  chart-url: rke2-x-1.0.tgz\n\n" +
 				"Command to Execute: sudo grep -h chart-url /c.yaml\nExpected Value: rke2-canal-2.0.tgz\n" +
-				"Matched with result:\n  chart-url: rke2-canal-2.0.tgz\n\n"))
+				"Matched with result:\n  chart-url: rke2-canal-2.0.tgz\n\n" +
+				"Cluster nodes:\nnode-1   Ready   control-plane,etcd\n\n" +
+				"Cluster pods:\nkube-system   coredns-1   1/1   Running\n\n"))
 		default:
 			_, _ = w.Write([]byte(`{"actions":[{"parameters":[{"name":"NODE_OS","value":"sles15"}]}]}`))
 		}

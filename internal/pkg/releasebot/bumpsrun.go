@@ -254,7 +254,12 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 		}
 
 		version, checks := ParseBumpConsole(console)
-		if why := missingEvidence(t.Checks, version, checks); why != "" {
+		clusterNodes, clusterPods := ParseClusterHealth(console)
+		why := missingEvidence(t.Checks, version, checks)
+		if why == "" && (len(clusterNodes) == 0 || len(clusterPods) == 0) {
+			why = "no cluster nodes or pods"
+		}
+		if why != "" {
 			notPassed = append(notPassed, fmt.Sprintf("%s %s (passed, but its console shows %s)", t.Product, t.Branch, why))
 			continue
 		}
@@ -266,7 +271,7 @@ func (a *App) BumpResults(ctx context.Context, run *BumpRun, progress *Progress)
 		// by job: a branch has one per CNI install
 		results[t.Product][t.Name()] = &BranchResult{
 			Target: t, Version: version, NodeOS: params["NODE_OS"], Arch: params["ARCH"], Results: checks,
-			Nodes: nodes, Flags: flags,
+			Nodes: nodes, Flags: flags, ClusterNodes: clusterNodes, ClusterPods: clusterPods,
 		}
 	}
 

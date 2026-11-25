@@ -1,6 +1,7 @@
 package releasebot
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
@@ -29,6 +30,9 @@ type BranchResult struct {
 
 	// Nodes and Flags are the cluster the job built, from its TFVARS ("1 node: etcd, cp, worker").
 	Nodes, Flags string
+
+	// ClusterNodes and ClusterPods are the job's own cluster check (ParseClusterHealth).
+	ClusterNodes, ClusterPods []string
 }
 
 // issueResult is the passed job that validated the backport (a branch can have one per CNI install).
@@ -99,9 +103,58 @@ func ParseBumpConsole(console string) (version string, results []BumpResult) {
 	return version, results
 }
 
+// The commands the framework's Validate Nodes and Validate Pods run (internal/resources node.go, pod.go).
+const (
+	clusterNodesCmd = "kubectl get nodes -o wide --no-headers"
+	clusterPodsCmd  = "kubectl get pods -o wide --no-headers -A"
+)
+
+// ParseClusterHealth reads the rows the job printed under "Cluster nodes:" and "Cluster pods:" (the
+// first of each), up to the blank line after them.
+func ParseClusterHealth(console string) (nodes, pods []string) {
+	var cur *[]string
+	for _, raw := range strings.Split(console, "\n") {
+		line := strings.TrimRight(consoleStamp.ReplaceAllString(ansiCode.ReplaceAllString(raw, ""), ""), "\r \t")
+		switch {
+		case line == "Cluster nodes:" && nodes == nil:
+			cur = &nodes
+		case line == "Cluster pods:" && pods == nil:
+			cur = &pods
+		case cur == nil:
+		case strings.TrimSpace(line) == "" || logLine.MatchString(line):
+			cur = nil
+		default:
+			*cur = append(*cur, line)
+		}
+	}
+
+	return nodes, pods
+}
+
 // displayCmd is the command as a person runs it: the framework's " : " kubeconfig marker goes.
 func displayCmd(cmd string) string {
 	return strings.Join(strings.Fields(strings.ReplaceAll(cmd, " : ", " ")), " ")
+}
+
+// redactNodes replaces, everywhere, the node names the jobs listed (the first column of their nodes):
+// a pod row and a static pod's name ("etcd-qa-master-01") carry them too.
+func redactNodes(md string, validated map[string]*BranchResult) string {
+	var names []string
+	for _, r := range validated {
+		for _, row := range r.ClusterNodes {
+			if f := strings.Fields(row); len(f) > 0 && !slices.Contains(names, f[0]) {
+				names = append(names, f[0])
+			}
+		}
+	}
+
+	// longest first, so a name inside another is not replaced half-way
+	slices.SortFunc(names, func(a, b string) int { return cmp.Or(len(b)-len(a), strings.Compare(a, b)) })
+	for _, name := range names {
+		md = regexp.MustCompile(`\b`+regexp.QuoteMeta(name)+`\b`).ReplaceAllString(md, "<REDACTED_HOST>")
+	}
+
+	return md
 }
 
 // redact replaces every private detail with its placeholder, keeping the text around it.
@@ -166,7 +219,7 @@ func RenderBumpMD(product, month string, groups []*BumpGroup, validated map[stri
 	}
 
 	// commands, titles and outputs alike
-	md := redact(b.String())
+	md := redact(redactNodes(b.String(), validated))
 	if unsafeErr := CheckBumpMD(md); unsafeErr != nil {
 		return "", unsafeErr
 	}
@@ -212,8 +265,13 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 		installs += " (the latest commit of a release branch whose RC does not hold the bump yet)"
 	}
 	fmt.Fprintf(b, "1. %s.\n", installs)
-	for i, w := range sectionWhats(done, validated) {
+	whats := sectionWhats(done, validated)
+	for i, w := range whats {
 		fmt.Fprintf(b, "%d. Confirm %s.\n", i+2, w)
+	}
+	if slices.ContainsFunc(done, func(bp *BumpIssue) bool { return len(issueResult(validated, bp).ClusterNodes) > 0 }) {
+		// the job checked them before it listed them; its checks allow states a sentence here would deny
+		fmt.Fprintf(b, "%d. Verify cluster health: list the cluster's nodes and pods.\n", len(whats)+2)
 	}
 	b.WriteString("\n</details>\n\n## **Validation Results:**\n\n<details>\n<summary>Validation Results</summary>\n\n")
 
@@ -239,9 +297,22 @@ func renderSection(b *strings.Builder, g *BumpGroup, done []*BumpIssue, validate
 			}
 			b.WriteString("\n")
 		}
+		writeClusterHealth(b, r)
 		b.WriteString("```\n\n</details>\n\n")
 	}
 	b.WriteString("</details>\n" + sectionEnd + "\n")
+}
+
+// writeClusterHealth is the nodes and pods the job listed, under the commands that listed them.
+func writeClusterHealth(b *strings.Builder, r *BranchResult) {
+	for _, block := range []struct {
+		cmd  string
+		rows []string
+	}{{clusterNodesCmd, r.ClusterNodes}, {clusterPodsCmd, r.ClusterPods}} {
+		if len(block.rows) > 0 {
+			fmt.Fprintf(b, "$ %s\n%s\n\n", block.cmd, strings.Join(block.rows, "\n"))
+		}
+	}
 }
 
 // writeEnvironment is the Environment Details of the job that ran the checks: its node and the cluster
