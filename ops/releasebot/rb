@@ -1,0 +1,131 @@
+#!/bin/sh
+# rb: the captain's release bot on the pinned ~/releasebot/current, the env file loaded in this process
+# only (docs/releasebot-runbook.md); install -m 0755 ops/releasebot/rb ~/.local/bin/rb
+set -eu
+
+D=${RELEASEBOT_PIN:-$HOME/releasebot/current}
+ENV_FILE=${RELEASEBOT_ENV:-$HOME/.config/releasebot/releasebot.env}
+DTF=${RELEASEBOT_DTF_DIR:-$HOME/suse/distros-test-framework}
+
+usage() {
+	cat >&2 <<'EOF'
+usage: rb plan <rc-tag>... [baler]   the release plan (dry-run: triggers nothing)
+       rb run <rc-tag>... [baler]    run the release
+       rb resume                     carry on a paused or stopped release run
+       rb bumps-plan [k3s|rke2]      the bump plan (dry-run)
+       rb bumps [k3s|rke2]           validate the bump issues
+       rb resume-bumps               carry on a paused bump run
+       rb post <bump-md> [close]     post a bump MD on its issues (and close them)
+       rb pin <dtf-ref>              pin that DTF commit and use it from now on
+EOF
+	exit 64
+}
+
+load_env() {
+	if [ ! -x "$D/releasebot" ]; then
+		echo "rb: no pinned release at $D: run rb pin <dtf-ref> first" >&2
+		exit 2
+	fi
+
+	set -a
+	# shellcheck source=/dev/null
+	. "$ENV_FILE"
+	set +a
+	if [ -n "${RELEASEBOT_DTF_REF:-}" ]; then
+		echo "rb: RELEASEBOT_DTF_REF=$RELEASEBOT_DTF_REF: every job runs from that DTF branch" >&2
+	fi
+}
+
+# caffeinate keeps a Mac awake while builds run; elsewhere the command runs as is.
+awake() {
+	if command -v caffeinate >/dev/null 2>&1; then
+		exec caffeinate -i "$@"
+	fi
+
+	exec "$@"
+}
+
+pin() {
+	sha=$(git -C "$DTF" rev-parse --verify "$1^{commit}")
+	dir=$HOME/releasebot/$(printf %.7s "$sha")
+	if [ ! -d "$dir" ]; then
+		mkdir -p "$HOME/releasebot"
+		tmp=$(mktemp -d "$HOME/releasebot/.pin.XXXXXX")
+		tree=/tmp/releasebot-$sha
+		trap 'rm -rf "$tmp"; git -C "$DTF" worktree remove --force "$tree" 2>/dev/null || true' EXIT
+
+		git -C "$DTF" show "$sha:config/releasebot/matrix.yaml" >"$tmp/matrix.yaml"
+		git -C "$DTF" show "$sha:config/releasebot/bumps.yaml" >"$tmp/bumps.yaml"
+		git -C "$DTF" show "$sha:ops/releasebot/triage-skill.sha256" >"$tmp/triage-skill.sha256"
+		git -C "$DTF" worktree add --detach "$tree" "$sha" >/dev/null
+		(cd "$tree" && go build -o "$tmp/releasebot" ./cmd/releasebot)
+
+		"$tmp/releasebot" -validate -matrix "$tmp/matrix.yaml"
+		chmod a-w "$tmp"/*
+		mv "$tmp" "$dir"
+	fi
+
+	"$dir/releasebot" -validate -matrix "$dir/matrix.yaml"
+	ln -sfn "$dir" "$HOME/releasebot/current"
+	echo "rb: pinned $sha in $dir; rb uses it from now on"
+}
+
+cmd=${1:-}
+if [ $# -gt 0 ]; then
+	shift
+fi
+
+case "$cmd" in
+plan | run)
+	if [ $# -eq 0 ]; then
+		usage
+	fi
+	load_env
+	if [ "$cmd" = plan ]; then
+		exec "$D/releasebot" -message "$*" -matrix "$D/matrix.yaml"
+	fi
+	awake "$D/releasebot" -message "$*" -dry-run=false -matrix "$D/matrix.yaml" \
+		-triage-local -triage-manifest "$D/triage-skill.sha256"
+	;;
+resume)
+	load_env
+	awake "$D/releasebot" -resume -dry-run=false -matrix "$D/matrix.yaml" \
+		-triage-local -triage-manifest "$D/triage-skill.sha256"
+	;;
+bumps-plan | bumps)
+	case "${1:-}" in
+	"" | k3s | rke2) ;;
+	*) usage ;;
+	esac
+	load_env
+	if [ "$cmd" = bumps-plan ]; then
+		exec "$D/releasebot" -bumps -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" ${1:+-bumps-product "$1"}
+	fi
+	awake "$D/releasebot" -bumps -dry-run=false -poll 30s -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" \
+		${1:+-bumps-product "$1"}
+	;;
+resume-bumps)
+	load_env
+	awake "$D/releasebot" -bumps -resume -dry-run=false -poll 30s -matrix "$D/matrix.yaml" \
+		-bumps-config "$D/bumps.yaml"
+	;;
+post)
+	case "${2:-}" in
+	"") close= ;;
+	close) close=-bumps-close ;;
+	*) usage ;;
+	esac
+	if [ $# -eq 0 ]; then
+		usage
+	fi
+	load_env
+	exec "$D/releasebot" -bumps-post "$1" $close
+	;;
+pin)
+	if [ $# -ne 1 ]; then
+		usage
+	fi
+	pin "$1"
+	;;
+*) usage ;;
+esac

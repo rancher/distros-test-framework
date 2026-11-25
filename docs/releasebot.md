@@ -613,7 +613,9 @@ and can run a release or the bumps for the captain (`:runrelease`, `:runbumps`);
 its spec, so a change here needs the same change there.
 
 Once per captain, and per release commit: everything the run reads is pinned in one folder, so a
-checkout or an edit in the DTF tree never changes the matrix mid-release.
+checkout or an edit in the DTF tree never changes the matrix mid-release. `ops/releasebot/rb`
+runs these commands for a captain (`rb pin`, `plan`, `run`, `resume`, `bumps-plan`, `bumps`,
+`resume-bumps`, `post`; the runbook's way); below is what each one runs.
 
 ```
 $ SHA=<reviewed commit>; D=~/releasebot/${SHA:0:7}; mkdir -p "$D"

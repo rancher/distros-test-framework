@@ -7,7 +7,7 @@ design). When the two disagree, `releasebot.md` wins.
 
 There are two ways to drive a run, and both use the same CLI on the same laptop:
 
-- **A. In your terminal.** You run `releasebot` yourself and type its commands.
+- **A. In your terminal.** You run `rb` (the bot on your pinned release) and type its commands.
 - **B. With the agent.** The `releasebot-captain-setup` skill (`rancher/distros-qa-skills`, plugin
   0.6.0 and later) sets the laptop up and runs the CLI for you with `:runrelease` and
   `:runbumps`. It triggers nothing until you say go to the exact plan it showed you.
@@ -63,8 +63,13 @@ type each one at a hidden prompt), and ends with `bin/check.sh` saying `READY` a
    the Keychain and writes this file from it (`bin/sync-env.sh`).
 4. **Triage workspace** `~/releasebot-triage` (only for `-triage-local`): the triage skill at the
    revision the release's manifest pins, and the Mower MCP config. The skill installs both
-   (`bin/install-triage-skill.sh "$D/triage-skill.sha256"` and `bin/credentials.py mcp`); the
+   (`bin/install-triage-skill.sh ~/releasebot/current/triage-skill.sha256` and `bin/credentials.py mcp`); the
    bot refuses a skill that differs from the manifest in any file.
+5. **`rb`**, the command you run the bot with: `install -m 0755 ops/releasebot/rb ~/.local/bin/rb`
+   from the DTF clone (any directory on your `PATH`). It runs the pinned release
+   (`~/releasebot/current`, step 2) and loads the env file in its own process only. `rb` alone
+   lists its commands; it expects the DTF clone in `~/suse/distros-test-framework`
+   (`RELEASEBOT_DTF_DIR` for another place).
 
 ## 2. Pin the release (once per release commit)
 
@@ -72,34 +77,29 @@ Everything a run reads comes from one read-only folder built from the reviewed D
 checkout or an edit in the DTF tree never changes the plan mid-release:
 
 ```
-SHA=$(git -C ~/suse/distros-test-framework rev-parse <reviewed ref>); D=~/releasebot/${SHA:0:7}
-cd ~/suse/distros-test-framework && mkdir -p ~/releasebot && P=$(mktemp -d ~/releasebot/.pin.XXXXXX)
-git show "${SHA}:config/releasebot/matrix.yaml" > "$P/matrix.yaml"
-git show "${SHA}:config/releasebot/bumps.yaml" > "$P/bumps.yaml"
-git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$P/triage-skill.sha256"
-git worktree add --detach /tmp/releasebot-$SHA "$SHA" && (cd /tmp/releasebot-$SHA && go build -o "$P/releasebot" ./cmd/releasebot)
-git worktree remove --force /tmp/releasebot-$SHA
-"$P/releasebot" -validate -matrix "$P/matrix.yaml" && chmod a-w "$P"/* && mv "$P" "$D"
+rb pin <reviewed ref>
 ```
 
-Run it only when `$D` does not exist yet (an existing `$D` is already pinned: just validate it).
-The folder is built in a temporary `$P` and becomes `$D` only once every step passed. If any step
-fails, run `rm -rf "$P"` and start again; `$D` was never touched. The skill does the same
-("new release commit"). Never edit a pinned folder; a new commit gets a new folder.
+The ref is any name the DTF clone knows (`upstream/releasebot-qainfra-rc1` after a `git fetch`, a
+SHA). It builds `~/releasebot/<sha7>/` (the binary, `matrix.yaml`, `bumps.yaml` and
+`triage-skill.sha256` of that commit), validates the matrix, makes the files read-only and points
+`~/releasebot/current` at it: every `rb` command runs that folder from then on. A folder that
+exists already is only validated and made current again; one that fails half-way is removed. Never
+edit a pinned folder; a new commit gets a new folder. The skill does the same ("new release
+commit").
 
 ## 3. Check before release day
 
-- With the skill: "check", or `bash bin/check.sh "$D"` from its folder. It checks the tools, the
+- With the skill: "check", or `bash bin/check.sh ~/releasebot/current` from its folder. It checks the tools, the
   Docker engine, the pinned folder, the env file (modes and keys), the triage skill and MCP file,
   a saved run, and each token live against GitHub, Mower, Baler, Qase and Bedrock. Fix every
   `FAIL` until it says `READY`.
 - By hand, a dry-run with the release's real tags. It checks the tags on GitHub and each job and
   its parameters on Jenkins, and triggers nothing:
   ```
-  ( set -a; . ~/.config/releasebot/releasebot.env; set +a
-    exec "$D/releasebot" -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -matrix "$D/matrix.yaml" )
+  rb plan v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1
   ```
-  The tokens load in a subshell, so the rest of your terminal never holds them. A warning "not
+  The tokens load in `rb`'s own process, so your terminal never holds them. A warning "not
   checked on jenkins ... is not set" means a missing `JENKINS_<CONTROLLER>_AUTH`.
 
 ## 4. Release day
@@ -108,14 +108,13 @@ fails, run `rm -rf "$P"` and start again; `$D` was never touched. The skill does
 
 ```
 CLAUDE_SANDBOX_PROVIDER=bedrock claude-sandbox bedrock login --no-browser      # the session lasts 8 hours
-( set -a; . ~/.config/releasebot/releasebot.env; set +a
-  exec caffeinate -i "$D/releasebot" -message 'v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1' -dry-run=false \
-    -matrix "$D/matrix.yaml" -triage-local -triage-manifest "$D/triage-skill.sha256" )
+rb run v1.37.2-rc2+k3s1 v1.37.2-rc2+rke2r1
 ```
 
-Add `baler` to the message to send every job that has a Baler path in the matrix to Baler.
-`caffeinate -i` keeps a Mac awake (drop it on Linux). Without `-triage-local`, every failure asks
-you.
+Add `baler` after the tags to send every job that has a Baler path in the matrix to Baler. `rb run`
+keeps a Mac awake (`caffeinate -i`) and triages failures on the laptop (`-triage-local`).
+Do not export `RELEASEBOT_DTF_REF` in that terminal: every job would run from that branch (`rb`
+warns when it is set).
 
 Type these in the same terminal while it runs:
 
@@ -130,8 +129,8 @@ Type these in the same terminal while it runs:
 - **`NEEDS HELP`** (with the terminal bell): a job failed and the triage did not rerun it. Its RC's
   later phases wait for your `retry` or `skip`; other RCs go on.
 - **Ctrl-C** pauses: the run is saved in `cli-run.json` (exit 130), and builds already started keep
-  running on Jenkins. The same command with `-resume` instead of `-message '...'` carries it on
-  without triggering anything twice. A crash or a reboot works the same way.
+  running on Jenkins. `rb resume` carries it on without triggering anything twice. A crash or a
+  reboot works the same way.
 - **Bedrock session expired** (exit 77 for the broker; in a CLI run, failures say so and ask you):
   run `claude-sandbox bedrock login --no-browser`; the next failure is triaged again, no restart.
 - **The end** prints a summary of every job and how the plan ended.
@@ -163,29 +162,27 @@ to Qase; their results go on their own issues.
 
 1. **The plan** (reads GitHub only):
    ```
-   ( set -a; . ~/.config/releasebot/releasebot.env; set +a
-     exec "$D/releasebot" -bumps -month 2026-11 -matrix "$D/matrix.yaml" -bumps-config "$D/bumps.yaml" )
+   rb bumps-plan
    ```
    It lists each job (product, branch, version, its issues and checks), every main issue with
    what happens to each backport (`validate` or `person`, and "not in To Test" for backports
    found outside the column), the bumps for a person with the reason, and the other To Test
-   issues. Add `-bumps-product rke2` (or `k3s`) to read one board only.
-2. **The run:** the same command with `-dry-run=false`, plus `caffeinate -i` and, for triage,
-   `-triage-local -triage-manifest "$D/triage-skill.sha256"`. It prints the plan again and asks
+   issues. `rb bumps-plan rke2` (or `k3s`) reads one board only.
+2. **The run:** `rb bumps` (or `rb bumps rke2`). It prints the plan again and asks
    `Validate these <n> issues with <m> jobs? Type yes to start:`. Nothing starts without `yes`.
-   During the run, the terminal commands, Ctrl-C and `-resume` work as in a release.
+   During the run, the terminal commands and Ctrl-C work as in a release; `rb resume-bumps`
+   carries a paused one on.
 3. **The MDs:** at the end, `~/releasebot/bumps/<month>/<product>-bumps-release-<month>.md` (a
    later run of the month writes `-2`, `-3`), one section per main issue. Jobs that did not pass are listed as "Not in the MDs". Read the file:
    it is what goes on the public issues, redacted, and the bot refuses one that would show a
    Jenkins link or an infrastructure detail.
 4. **Posting**, only after reading the MD:
    ```
-   ( set -a; . ~/.config/releasebot/releasebot.env; set +a
-     exec "$D/releasebot" -bumps-post ~/releasebot/bumps/2026-11/rke2-bumps-release-2026-11.md )
+   rb post ~/releasebot/bumps/2026-11/rke2-bumps-release-2026-11.md
    ```
    It lists each section, counts the backports validated on a commit build only (run them again on
    the RC), and asks `yes`. It comments the section on the main issue and "Validated
-   here: <link>" on each backport. Add `-bumps-close` to also close the validated backports; the
+   here: <link>" on each backport. `close` after the file also closes the validated backports; the
    main issue closes only once no backport of it is open on GitHub. `<md>.posted.json` records
    each step, so a rerun after a failure never posts twice.
 
@@ -207,17 +204,17 @@ sends the saved run to the next one through an approved private channel:
 | macOS | `~/Library/Application Support/releasebot/cli-run.json` | `.../bumps-run.json` and `bumps-run-plan.json` |
 | Linux | `~/.config/releasebot/cli-run.json` | `.../bumps-run.json` and `bumps-run-plan.json` |
 
-The next captain, set up for the same release SHA, puts the file in the same place and runs the
-same command with `-resume` instead of `-message '...'`. Never run it on two laptops at once, and
+The next captain, set up for the same release SHA (`rb pin <sha>`), puts the file in the same place
+and runs `rb resume` (`rb resume-bumps` for a bump run). Never run it on two laptops at once, and
 never copy env files, Keychain items, MCP files or AWS volumes between captains.
 
 ## 7. When something goes wrong
 
 | You see | Why | Do |
 |---|---|---|
-| `not running: "<request>" ... is saved in .../cli-run.json` | A run was interrupted and its builds may still run | Carry it on with `-resume`, or remove the file once its builds ended |
-| `not running: a bump run is saved in .../bumps-run.json` | Same, for bumps (a saved bump run also blocks a release run, and the reverse) | `-bumps -dry-run=false -resume`, or remove it once the builds ended |
-| `not running: the last bump run ended without its MDs` | Reading the consoles or writing the MDs failed after the run | `-bumps -dry-run=false -resume` writes them again |
+| `not running: "<request>" ... is saved in .../cli-run.json` | A run was interrupted and its builds may still run | Carry it on with `rb resume`, or remove the file once its builds ended |
+| `not running: a bump run is saved in .../bumps-run.json` | Same, for bumps (a saved bump run also blocks a release run, and the reverse) | `rb resume-bumps`, or remove it once the builds ended |
+| `not running: the last bump run ended without its MDs` | Reading the consoles or writing the MDs failed after the run | `rb resume-bumps` writes them again |
 | `not running (stop the Slack bot or the other CLI run first)` | Another bot holds the lock | Only one run per laptop |
 | `RELEASEBOT_SUSE_LOGIN="": set it to your SUSE login` | No login in the env file | Add `RELEASEBOT_SUSE_LOGIN=<login>`, or with the skill `python3 -I bin/credentials.py login <login>` |
 | `not checked on jenkins ... is not set` | A controller's credential is missing | Add its `JENKINS_<CONTROLLER>_AUTH` |
@@ -229,10 +226,9 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 
 - **K3s commit installs** need the `GITHUB_TOKEN` credential on Mower (configured), the DTF
   Jenkinsfile that binds it and rancher/qa-infra-automation#269. Until the bot PR
-  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, export
-  `RELEASEBOT_DTF_REF=releasebot-qainfra-rc1` only in the shell of a K3s commit bump run, never in
-  the env file: it sets the branch of every run, releases included, and that branch can lag
-  `qa-infra-RC-1`. `k3s-version-bump_qainfra` points at those branches meanwhile
+  (rancher/distros-test-framework#369) merges into `qa-infra-RC-1`, run K3s commit bumps as
+  `RELEASEBOT_DTF_REF=releasebot-qainfra-rc1 rb bumps k3s`, never with it in the env file: it sets
+  the branch of every run, releases included, and that branch can lag `qa-infra-RC-1`. `k3s-version-bump_qainfra` points at those branches meanwhile
   (rancherlabs/jenkins-job-builder#1354, revert after the merges).
 - **RKE2 commit installs** on RHEL hung at `Start rke2-server`: a tarball install skipped the
   `rke2-selinux` policy. Fixed in rancher/qa-infra-automation#269; `rke2-version-bump_qainfra`
@@ -242,7 +238,8 @@ never copy env files, Keychain items, MCP files or AWS volumes between captains.
 
 | What | Where |
 |---|---|
-| Pinned release | `~/releasebot/<sha7>/` (`releasebot`, `matrix.yaml`, `bumps.yaml`, `triage-skill.sha256`) |
+| Pinned release | `~/releasebot/<sha7>/` (`releasebot`, `matrix.yaml`, `bumps.yaml`, `triage-skill.sha256`); `~/releasebot/current` is the one `rb` runs |
+| `rb` | `~/.local/bin/rb`, from `ops/releasebot/rb` |
 | Tokens and settings | `~/.config/releasebot/releasebot.env` (0600) |
 | Saved runs and lock | `~/Library/Application Support/releasebot/` (macOS), `~/.config/releasebot/` (Linux) |
 | Bump MDs and post ledgers | `~/releasebot/bumps/<month>/` |

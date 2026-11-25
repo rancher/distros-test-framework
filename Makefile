@@ -145,6 +145,7 @@ unit-tests:
 	@sh scripts/release_checks_test.sh
 	@bash scripts/compare_release_commits_test.sh
 	@bash ops/releasebot/setup_test.sh
+	@sh ops/releasebot/rb_test.sh
 
 go-check:
 	@gofmt -s -w .
