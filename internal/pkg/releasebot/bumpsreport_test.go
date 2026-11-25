@@ -529,3 +529,35 @@ func TestPostBumpMDNeverPostsTwice(t *testing.T) {
 		t.Fatal("a second post ran next to the first one")
 	}
 }
+
+// One job runs the checks of several issues (Cilium, gateway-api, metrics-server on the RKE2 job): each
+// issue's section shows only its own checks and steps.
+func TestRenderBumpMDOneJobManyIssues(t *testing.T) {
+	canal, validated := canalValidated()
+	r := validated["release-1.37"]
+	gateway := BumpCheck{What: "rke2-gateway-api-crd chart 1.7.1", Issue: 11742,
+		Cmd:      "sudo grep -h chart-url /var/lib/rancher/rke2/data/*/charts/rke2-gateway-api-crd.yaml",
+		Expected: "rke2-gateway-api-crd-1.7.1.tgz"}
+	r.Target.Checks = append(r.Target.Checks, gateway)
+	r.Results = append(r.Results, BumpResult{Cmd: gateway.Cmd, Expected: gateway.Expected,
+		Output: []string{"chart-url: rke2-gateway-api-crd-1.7.1.tgz"}})
+	gatewayGroup := &BumpGroup{Product: "rke2", Main: BumpIssue{Repo: "rancher/rke2", Number: 11722, Title: "Bump gateway"},
+		Backports: []*BumpIssue{{Repo: "rancher/rke2", Number: 11742, Branch: "release-1.37"}}}
+
+	md, err := RenderBumpMD("rke2", "2026-11", []*BumpGroup{canal, gatewayGroup}, validated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sections, _ := ParseBumpMD(md)
+	if len(sections) != 2 {
+		t.Fatalf("sections %+v:\n%s", sections, md)
+	}
+	if canalBody := sections[0].Body; !strings.Contains(canalBody, "rke2-canal-3.33.101") ||
+		strings.Contains(canalBody, "gateway") {
+		t.Fatalf("the canal section shows another issue's checks:\n%s", canalBody)
+	}
+	if gatewayBody := sections[1].Body; !strings.Contains(gatewayBody, "rke2-gateway-api-crd-1.7.1.tgz") ||
+		strings.Contains(gatewayBody, "canal") || strings.Contains(gatewayBody, "calico") {
+		t.Fatalf("the gateway section shows another issue's checks:\n%s", gatewayBody)
+	}
+}

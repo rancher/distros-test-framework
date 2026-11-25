@@ -570,7 +570,8 @@ func (st *runState) finish(o *Outcome) {
 	case o.Err != nil:
 		result = "error: " + o.Err.Error()
 	case result == ResultSkipped:
-		result = resultSuccess // a person counted it as passed: its dependents may run
+		// a person counted it as passed: its dependents may run
+		result = resultSuccess
 	}
 	st.done[o.Job.key()] = result
 }
@@ -590,7 +591,8 @@ func (st *runState) liveCount() int {
 
 func (s *Scheduler) reap(ctx context.Context, st *runState) {
 	if ctx.Err() != nil {
-		return // canceled on purpose: Run reports the builds, a failed query would only add noise
+		// canceled on purpose: Run reports the builds, a failed query would only add noise
+		return
 	}
 	for ctrl, list := range st.active {
 		var keep []*running
@@ -648,7 +650,8 @@ func (s *Scheduler) check(ctx context.Context, b Builder, r *running) (Outcome, 
 	var err error
 	if r.buildURL == "" {
 		var u string
-		u, err = s.buildFromQueue(ctx, b, r) // falls back to the job's builds if the queue forgot it
+		// falls back to the job's builds if the queue forgot it
+		u, err = s.buildFromQueue(ctx, b, r)
 		if errors.Is(err, errQueueCanceled) {
 			s.notify("warn", "%s %s: %v", r.job.Path, r.job.Version, err)
 			return Outcome{Job: r.job, Err: err}, true
