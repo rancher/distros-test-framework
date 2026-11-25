@@ -49,8 +49,8 @@ func TestNodeStatus(
 		Expect(err).NotTo(HaveOccurred())
 		resources.LogLevel("info", "Journal logs from server node-1: %v\n", cluster.ServerIPs[0])
 		logs := resources.GetJournalLogs("error", cluster.ServerIPs[0], cluster.Config.Product)
-		resources.LogLevel("info", "Journal logs from agent node-1: %v\n", cluster.AgentIPs[0])
-		if cluster.NumAgents > 0 {
+		if cluster.NumAgents > 0 && len(cluster.AgentIPs) > 0 {
+			resources.LogLevel("info", "Journal logs from agent node-1: %v\n", cluster.AgentIPs[0])
 			logs += resources.GetJournalLogs("error", cluster.AgentIPs[0], cluster.Config.Product)
 		}
 
