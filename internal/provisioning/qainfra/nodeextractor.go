@@ -39,7 +39,8 @@ func extractNodesFromTofuOutput(config *driver.InfraConfig) ([]infraNode, *clust
 	}
 
 	nodes := make([]infraNode, 0, len(data.Nodes))
-	for _, n := range data.Nodes {
+	for i := range data.Nodes {
+		n := &data.Nodes[i]
 		nodeOS := n.OS
 		if nodeOS == "" {
 			if strings.Contains(strings.ToLower(n.Name), "windows") {

@@ -368,9 +368,9 @@ func buildAirgapInventory(data *clusterNodesJSON, sshUser, keyPath, keyName stri
 	b.WriteString("  children:\n    bastion:\n      hosts:\n        bastion-0:\n")
 	for _, g := range []string{"master", "servers", "workers"} {
 		members := make([]string, 0)
-		for _, n := range data.Nodes {
-			if assigned[n.Name] == g {
-				members = append(members, n.Name)
+		for i := range data.Nodes {
+			if name := data.Nodes[i].Name; assigned[name] == g {
+				members = append(members, name)
 			}
 		}
 		if len(members) == 0 {

@@ -10,6 +10,7 @@ import (
 
 func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
+	//nolint:gosec // G204: test helper, args are literals from this file and a temp dir
 	cmd := exec.Command("git", append([]string{
 		"-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "commit.gpgsign=false",
 	}, args...)...)

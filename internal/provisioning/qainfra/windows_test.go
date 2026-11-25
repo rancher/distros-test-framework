@@ -22,9 +22,14 @@ func TestWindowsRequestedIgnoresCommentsAndStrings(t *testing.T) {
 		content string
 		want    bool
 	}{
-		"hash comment":    {"# example: " + win + "\n" + etcd, false},
-		"block comment":   {"/* " + win + " */\n" + etcd, false},
-		"description":     {`description = "os = \"windows\""` + "\n" + etcd, false},
+		"hash comment":  {"# example: " + win + "\n" + etcd, false},
+		"block comment": {"/* " + win + " */\n" + etcd, false},
+		"description":   {`description = "os = \"windows\""` + "\n" + etcd, false},
+		"zero count":    {`nodes = [{ count = 0, role = ["worker"], ` + win + ` }]` + "\n", false},
+		"zero then real": {
+			`nodes = [{ count = 0, role = ["worker"], ` + win + ` }, { count = 2, role = ["worker"], ` + win + ` }]` + "\n",
+			true,
+		},
 		"after nodes var": {etcd + "foo = { " + win + " }\n", false},
 		"real node": {
 			"nodes = [\n  { count = 1, role = [\"etcd\"] },\n" +

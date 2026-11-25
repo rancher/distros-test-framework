@@ -3,6 +3,7 @@ package qainfra
 import (
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -27,6 +28,11 @@ func injectWindowsModuleArgs(mainTf string, windows bool) string {
 }
 
 var nodesStartRE = regexp.MustCompile(`(?m)^\s*nodes\s*=\s*\[`)
+
+var (
+	nodeEntryRE = regexp.MustCompile(`\{[^{}]*\}`)
+	nodeCountRE = regexp.MustCompile(`"?\bcount"?\s*[=:]\s*"?(\d+)`)
+)
 
 var windowsNodeRE = regexp.MustCompile(`(?i)"?\bos"?\s*[=:]\s*"windows"`)
 
@@ -53,7 +59,25 @@ func windowsRequested(tfvarsPath string) (bool, error) {
 		return false, err
 	}
 
-	return windowsNodeRE.MatchString(nodesBlock(string(content))), nil
+	return hasWindowsGroup(nodesBlock(string(content))), nil
+}
+
+// hasWindowsGroup reports a Windows entry with a positive (or unparseable) count; count = 0 creates no instances.
+func hasWindowsGroup(block string) bool {
+	for _, entry := range nodeEntryRE.FindAllString(block, -1) {
+		if !windowsNodeRE.MatchString(entry) {
+			continue
+		}
+		m := nodeCountRE.FindStringSubmatch(entry)
+		if m == nil {
+			return true
+		}
+		if n, err := strconv.Atoi(m[1]); err != nil || n > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // nodesBlock returns the bracketed value of the top-level `nodes` variable with HCL

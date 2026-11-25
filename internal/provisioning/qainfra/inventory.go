@@ -277,7 +277,8 @@ func writeInventoryChildren(b *strings.Builder, data *clusterNodesJSON, assigned
 		sort.SliceStable(members, func(i, j int) bool { return members[i].Name < members[j].Name })
 		writeLine(b, "    ", g, ":")
 		b.WriteString("      hosts:\n")
-		for _, n := range members {
+		for i := range members {
+			n := &members[i]
 			writeLine(b, "        ", n.Name, ":")
 			writeLine(b, "          ansible_host: ", yamlQuote(n.PublicIP))
 		}
