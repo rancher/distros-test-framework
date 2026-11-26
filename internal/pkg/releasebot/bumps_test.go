@@ -715,6 +715,45 @@ func TestPlanBumpsChecksABackportFromItsMainPR(t *testing.T) {
 	}
 }
 
+// A backport checked from its main issue's master PR does not move its branch's job off the RC: no RC
+// holds a master merge commit.
+func TestPlanBumpsFromMainKeepsTheRC(t *testing.T) {
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": {
+			{Repo: "rancher/rke2", Number: 50, Title: "Update CoreDNS chart to 1.50.801"},
+			{Repo: "rancher/rke2", Number: 51, Title: "[Release-1.37] Update CoreDNS chart to 1.50.801", Body: "#50"},
+			{Repo: "rancher/rke2", Number: 70, Title: "Update metrics chart to 3.0.1"},
+			{Repo: "rancher/rke2", Number: 71, Title: "[Release-1.37] Update metrics chart to 3.0.1", Body: "#70"},
+		}},
+		prs: map[int][]BumpPR{
+			50: {{Number: 150, Base: "master", MergeCommit: "m1"}},
+			71: {{Number: 171, Base: "release-1.37", MergeCommit: "b1"}},
+		},
+		files: map[int][]PRFile{
+			150: {{Name: "charts/chart_versions.yaml",
+				Patch: "-  - version: 1.49.002\n+  - version: 1.50.801\n     filename: /charts/rke2-coredns.yaml"}},
+			171: {{Name: "charts/chart_versions.yaml",
+				Patch: "-  - version: 3.0.0\n+  - version: 3.0.1\n     filename: /charts/rke2-metrics-server.yaml"}},
+		},
+		tags:     []string{"v1.37.3-rc1+rke2r1"},
+		contains: map[string]bool{"v1.37.3-rc1+rke2r1|b1": true},
+		head:     "deadbeef",
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(plan.Targets) != 1 || len(plan.Targets[0].Checks) != 2 {
+		t.Fatalf("targets %+v, person %+v", plan.Targets, plan.Person)
+	}
+	if got := plan.Targets[0]; got.Version != "v1.37.3-rc1+rke2r1" || got.Commit {
+		t.Fatalf("installs %s (commit %v), want the RC", got.Version, got.Commit)
+	}
+}
+
 func TestNewerVersion(t *testing.T) {
 	for _, tc := range []struct {
 		a, b  string

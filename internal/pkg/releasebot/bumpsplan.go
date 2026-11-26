@@ -425,6 +425,11 @@ func bumpTargets(
 		}
 		t.Checks = append(t.Checks, b.Checks...)
 		members[k] = append(members[k], b)
+
+		// a master merge commit is in no RC of the branch: the version followed decides FromMain
+		if b.FromMain {
+			continue
+		}
 		for _, pr := range b.PRs {
 			commits[k] = append(commits[k], pr.MergeCommit)
 		}
