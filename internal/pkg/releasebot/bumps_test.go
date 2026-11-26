@@ -662,16 +662,21 @@ func TestVersionChecks(t *testing.T) {
 	patch := "-KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.13.3-build20261021}\n" +
 		"-KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.17}\n" +
 		"+KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}\n" +
-		"+KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.18}"
+		"+KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.18}\n" +
+		"-ETCD_IMAGE_TAG=${ETCD_IMAGE_TAG:-v3.7.0-k3s1-build20261020}\n" +
+		"+ETCD_IMAGE_TAG=${ETCD_IMAGE_TAG:-v3.7.1-k3s3-build20261119}"
 
 	checks, unsupported := versionChecks(patch, map[string]string{"KLIPPERHELM_VERSION": "klipper-helm"})
 	if len(checks) != 1 || checks[0].What != "klipper-helm image v0.14.0-build20261117" ||
 		checks[0].Expected != "rancher/klipper-helm:v0.14.0-build20261117" ||
-		!slices.Equal(unsupported, []string{"scripts/version.sh KLIPPERLB_VERSION"}) {
+		!slices.Equal(unsupported, []string{"scripts/version.sh KLIPPERLB_VERSION", "scripts/version.sh ETCD_IMAGE_TAG"}) {
 		t.Fatalf("checks %+v, unsupported %v", checks, unsupported)
 	}
-	if _, left := versionChecks("-x=1\n+x=2", nil); !slices.Equal(left, []string{"scripts/version.sh"}) {
-		t.Fatalf("a version.sh change with no default: %v", left)
+	if _, left := versionChecks("-x=1\n+x=2", nil); !slices.Equal(left, []string{"scripts/version.sh x=2"}) {
+		t.Fatalf("a version.sh line that is no default: %v", left)
+	}
+	if _, left := versionChecks("-x=1", nil); !slices.Equal(left, []string{"scripts/version.sh"}) {
+		t.Fatalf("a version.sh change that adds nothing: %v", left)
 	}
 }
 
@@ -738,6 +743,9 @@ func TestPlanBumpsFromMainKeepsTheRC(t *testing.T) {
 		tags:     []string{"v1.37.3-rc1+rke2r1"},
 		contains: map[string]bool{"v1.37.3-rc1+rke2r1|b1": true},
 		head:     "deadbeef",
+		atRef: map[string]string{"v1.37.3-rc1+rke2r1|charts/chart_versions.yaml": "charts:\n" +
+			"  - version: 1.50.801\n    filename: /charts/rke2-coredns.yaml\n" +
+			"  - version: 3.0.1\n    filename: /charts/rke2-metrics-server.yaml\n"},
 	}
 	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}}
 
@@ -751,6 +759,135 @@ func TestPlanBumpsFromMainKeepsTheRC(t *testing.T) {
 	}
 	if got := plan.Targets[0]; got.Version != "v1.37.3-rc1+rke2r1" || got.Commit {
 		t.Fatalf("installs %s (commit %v), want the RC", got.Version, got.Commit)
+	}
+}
+
+// An RC that still sets the old chart lacks the FromMain backport's bump: the job installs the head,
+// which has it.
+func TestPlanBumpsFromMainUsesTheHeadOverAnOldRC(t *testing.T) {
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": {
+			{Repo: "rancher/rke2", Number: 50, Title: "Update CoreDNS chart to 1.50.801"},
+			{Repo: "rancher/rke2", Number: 51, Title: "[Release-1.37] Update CoreDNS chart to 1.50.801", Body: "#50"},
+		}},
+		prs: map[int][]BumpPR{50: {{Number: 150, Base: "master", MergeCommit: "m1"}}},
+		files: map[int][]PRFile{150: {{Name: "charts/chart_versions.yaml",
+			Patch: "-  - version: 1.49.002\n+  - version: 1.50.801\n     filename: /charts/rke2-coredns.yaml"}}},
+		tags: []string{"v1.37.3-rc1+rke2r1"},
+		head: "deadbeef",
+		atRef: map[string]string{
+			"v1.37.3-rc1+rke2r1|charts/chart_versions.yaml": "charts:\n  - version: 1.49.002\n" +
+				"    filename: /charts/rke2-coredns.yaml\n",
+			"deadbeef|charts/chart_versions.yaml": "charts:\n  - version: 1.50.801\n" +
+				"    filename: /charts/rke2-coredns.yaml\n",
+		},
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(plan.Person) != 0 || len(plan.Targets) != 1 || len(plan.Targets[0].Checks) != 1 {
+		t.Fatalf("targets %+v, person %+v", plan.Targets, plan.Person)
+	}
+	if got := plan.Targets[0]; got.Version != "deadbeef" || !got.Commit ||
+		got.Checks[0].Expected != "rke2-coredns-1.50.801.tgz" {
+		t.Fatalf("installs %s (commit %v), check %+v", got.Version, got.Commit, got.Checks[0])
+	}
+}
+
+// The RC must show a FromMain backport's version: an older version.sh default, or a chart its file
+// does not list, sends the job to the head.
+func TestPlanBumpsFromMainUnconfirmedOnTheRCUsesTheHead(t *testing.T) {
+	for name, pr := range map[string]PRFile{
+		"older version.sh default": {Name: "scripts/version.sh",
+			Patch: "-KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.13.3-build20261021}\n" +
+				"+KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}"},
+		"chart not in the RC's file": {Name: "charts/chart_versions.yaml",
+			Patch: "-  - version: 1.49.002\n+  - version: 1.50.801\n     filename: /charts/rke2-coredns.yaml"},
+	} {
+		src := &fakeBumpSource{
+			issues: map[string][]projectIssue{"rancher/31": {
+				{Repo: "rancher/rke2", Number: 50, Title: "Bump x"},
+				{Repo: "rancher/rke2", Number: 51, Title: "[Release-1.37] Bump x", Body: "#50"},
+			}},
+			prs:   map[int][]BumpPR{50: {{Number: 150, Base: "master", MergeCommit: "m1"}}},
+			files: map[int][]PRFile{150: {pr}},
+			tags:  []string{"v1.37.3-rc1+rke2r1"},
+			head:  "deadbeef",
+			atRef: map[string]string{
+				"v1.37.3-rc1+rke2r1|scripts/version.sh": "KLIPPERHELM_VERSION=" +
+					"${KLIPPERHELM_VERSION:-v0.13.3-build20261021}\n",
+				"deadbeef|scripts/version.sh": "KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}\n",
+				"v1.37.3-rc1+rke2r1|charts/chart_versions.yaml": "charts:\n  - version: 3.0.1\n" +
+					"    filename: /charts/rke2-metrics-server.yaml\n",
+			},
+		}
+		cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"},
+			VersionImages: map[string]map[string]string{"rke2": {"KLIPPERHELM_VERSION": "klipper-helm"}}}
+
+		plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+
+		if len(plan.Person) != 0 || len(plan.Targets) != 1 {
+			t.Fatalf("%s: targets %+v, person %+v", name, plan.Targets, plan.Person)
+		}
+		if got := plan.Targets[0]; got.Version != "deadbeef" || !got.Commit {
+			t.Fatalf("%s: installs %s (commit %v), want the head", name, got.Version, got.Commit)
+		}
+	}
+}
+
+// An RC whose version.sh sets the FromMain backport's default keeps the job on the RC.
+func TestPlanBumpsFromMainVersionDefaultOnTheRC(t *testing.T) {
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": {
+			{Repo: "rancher/rke2", Number: 50, Title: "Bump klipper-helm"},
+			{Repo: "rancher/rke2", Number: 51, Title: "[Release-1.37] Bump klipper-helm", Body: "#50"},
+		}},
+		prs: map[int][]BumpPR{50: {{Number: 150, Base: "master", MergeCommit: "m1"}}},
+		files: map[int][]PRFile{150: {{Name: "scripts/version.sh",
+			Patch: "-KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.13.3-build20261021}\n" +
+				"+KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}"}}},
+		tags: []string{"v1.37.3-rc1+rke2r1"},
+		head: "deadbeef",
+		atRef: map[string]string{"v1.37.3-rc1+rke2r1|scripts/version.sh": "" +
+			"KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.18}\n" +
+			"KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}\n"},
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"},
+		VersionImages: map[string]map[string]string{"rke2": {"KLIPPERHELM_VERSION": "klipper-helm"}}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(plan.Person) != 0 || len(plan.Targets) != 1 {
+		t.Fatalf("targets %+v, person %+v", plan.Targets, plan.Person)
+	}
+	if got := plan.Targets[0]; got.Version != "v1.37.3-rc1+rke2r1" || got.Commit ||
+		got.Checks[0].Expected != "rancher/klipper-helm:v0.14.0-build20261117" {
+		t.Fatalf("installs %s (commit %v), check %+v", got.Version, got.Commit, got.Checks[0])
+	}
+}
+
+// version.sh defaults are read and matched like charts and image lists, so a later bump is followed.
+func TestVersionDefaultsAreFollowed(t *testing.T) {
+	versions := versionsIn("rke2", versionScript, "KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.1}\n")
+	if !slices.Equal(versions["KLIPPERHELM_VERSION default"], []string{"v0.14.1"}) {
+		t.Fatalf("versions %v", versions)
+	}
+
+	later := "-KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0}\n+KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.1}"
+	keys := []string{"KLIPPERHELM_VERSION default"}
+	if !setsVersion("rke2", versionScript, later, keys, "v0.14.1") ||
+		setsVersion("rke2", versionScript, later, keys, "v0.14.0") {
+		t.Fatal("setsVersion does not match the default the patch adds")
 	}
 }
 

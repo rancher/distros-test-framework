@@ -340,16 +340,39 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 	return dedupChecks(checks), unsupported
 }
 
-// versionVar is a scripts/version.sh default: KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}.
-var versionVar = regexp.MustCompile(`^([A-Z][A-Z0-9_]*_VERSION)=\$\{[A-Z0-9_]+:-([^}]+)\}`)
+// versionScript holds RKE2's image defaults (versionChecks).
+const versionScript = "scripts/version.sh"
 
-// versionChecks are the node-image checks of the defaults a scripts/version.sh patch adds; a variable
-// with no image in images (klipper-lb, which RKE2 runs only with servicelb) is left to a person.
-func versionChecks(patch string, images map[string]string) (checks []BumpCheck, unsupported []string) {
+// defaultKeys are the versionsIn keys ("KLIPPERHELM_VERSION default") of the version.sh defaults a
+// patch sets to version.
+func defaultKeys(patch, version string) []string {
+	var keys []string
 	_, added := changedLines(patch)
 	for _, l := range added {
 		m := versionVar.FindStringSubmatch(strings.TrimSpace(l))
+		if len(m) == 3 && m[2] == version {
+			keys = append(keys, m[1]+" default")
+		}
+	}
+
+	return keys
+}
+
+// versionVar is a scripts/version.sh default: KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}.
+var versionVar = regexp.MustCompile(`^([A-Z][A-Z0-9_]*)=\$\{[A-Z0-9_]+:-([^}]+)\}`)
+
+// versionChecks are the node-image checks of the defaults a scripts/version.sh patch adds; any other
+// added line, or a variable with no image in images (klipper-lb, ETCD_IMAGE_TAG), is left to a person.
+func versionChecks(patch string, images map[string]string) (checks []BumpCheck, unsupported []string) {
+	_, added := changedLines(patch)
+	for _, l := range added {
+		line := strings.TrimSpace(l)
+		if line == "" {
+			continue
+		}
+		m := versionVar.FindStringSubmatch(line)
 		if m == nil {
+			unsupported = append(unsupported, "scripts/version.sh "+line)
 			continue
 		}
 
@@ -405,6 +428,9 @@ func versionsIn(product, name, content string) map[string][]string {
 
 	section := ""
 	for _, l := range strings.Split(content, "\n") {
+		if m := versionVar.FindStringSubmatch(strings.TrimSpace(l)); m != nil && name == versionScript {
+			add(m[1]+" default", m[2])
+		}
 		for _, m := range imageRef.FindAllStringSubmatch(l, -1) {
 			add(m[1]+" image|"+section, m[2])
 		}
@@ -425,6 +451,10 @@ func setsVersion(product, path, patch string, keys []string, version string) boo
 		case kind == "chart":
 			if slices.ContainsFunc(chartChecks(product, path, patch),
 				func(c BumpCheck) bool { return c.What == name+" chart "+version }) {
+				return true
+			}
+		case kind == "default":
+			if slices.Contains(defaultKeys(patch, version), key) {
 				return true
 			}
 		case slices.Contains(imageSections(patch)["rancher/"+name+":"+version], strings.TrimPrefix(kind, "image|")):

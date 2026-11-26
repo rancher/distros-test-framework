@@ -313,11 +313,9 @@ func addBumpChecks(ctx context.Context, src bumpSource, cfg *BumpConfig, issue *
 			issue.Accepted = true
 		}
 
-		// shortcut: a later version.sh bump is not followed (findAtRef reads image lists and charts), so
-		// a branch that moved past the issue's default fails its check; read version.sh there if it bites.
 		var versionFiles, otherFiles []PRFile
 		for _, f := range files {
-			if f.Name == "scripts/version.sh" && cfg.VersionImages[issue.Product] != nil {
+			if f.Name == versionScript && cfg.VersionImages[issue.Product] != nil {
 				versionFiles = append(versionFiles, f)
 			} else {
 				otherFiles = append(otherFiles, f)
@@ -444,7 +442,7 @@ func bumpTargets(
 		}
 		t.Version, t.Commit = version, isCommit
 
-		problems, followErr := followNewerBumps(ctx, src, t, members[k])
+		problems, followErr := followOnRCOrHead(ctx, src, t, members[k])
 		if followErr != nil {
 			return nil, nil, followErr
 		}
@@ -461,6 +459,33 @@ func bumpTargets(
 	return targets, unsure, nil
 }
 
+// followOnRCOrHead keeps the RC only if it shows each FromMain check at its version or newer (their
+// commits never picked it); else the target installs the head.
+func followOnRCOrHead(ctx context.Context, src bumpSource, t *BumpTarget, issues []*BumpIssue) ([]BumpProblem, error) {
+	checks := slices.Clone(t.Checks)
+	problems, unconfirmed, followErr := followNewerBumps(ctx, src, t, issues)
+	if followErr != nil || t.Commit {
+		return problems, followErr
+	}
+
+	fromMain := func(number int) bool {
+		return slices.ContainsFunc(issues, func(b *BumpIssue) bool { return b.FromMain && b.Number == number })
+	}
+	if !slices.ContainsFunc(problems, func(p BumpProblem) bool { return fromMain(p.Number) }) &&
+		!slices.ContainsFunc(unconfirmed, fromMain) {
+		return problems, nil
+	}
+
+	head, headErr := src.BranchHead(ctx, productRepo[t.Product], t.Branch)
+	if headErr != nil {
+		return nil, headErr
+	}
+	t.Version, t.Commit, t.Checks = head, true, checks
+	problems, _, followErr = followNewerBumps(ctx, src, t, issues)
+
+	return problems, followErr
+}
+
 // replacedBy names the change that bumped the check's component again, for the plan and the MD.
 func replacedBy(c *BumpCheck) string {
 	if c.ReplacedBy == "" {
@@ -470,10 +495,11 @@ func replacedBy(c *BumpCheck) string {
 	return c.ReplacedBy
 }
 
-// followNewerBumps points a check at a later bump of its component in the version the target installs
-// (a CNI charts update merged after the issue's PR): that newer version holds the issue's bump. Several
-// versions, or an older or other one, where the issue's PR set it go to a person: the old text could match.
-func followNewerBumps(ctx context.Context, src bumpSource, t *BumpTarget, issues []*BumpIssue) ([]BumpProblem, error) {
+// followNewerBumps points a check at the one newer version the installed ref sets; several, older or
+// other versions go to a person, and issues with a check the ref does not show come back unconfirmed.
+func followNewerBumps(
+	ctx context.Context, src bumpSource, t *BumpTarget, issues []*BumpIssue,
+) ([]BumpProblem, []int, error) {
 	files := map[string]map[string][]string{}
 	versionsAt := func(path string) (map[string][]string, error) {
 		if v, ok := files[path]; ok {
@@ -489,21 +515,24 @@ func followNewerBumps(ctx context.Context, src bumpSource, t *BumpTarget, issues
 	}
 
 	var person []BumpProblem
+	var unconfirmed []int
 	for i := range t.Checks {
 		c := &t.Checks[i]
 		issue := issues[slices.IndexFunc(issues, func(b *BumpIssue) bool { return b.Number == c.Issue })]
 		at, findErr := findAtRef(issue, c, versionsAt)
 		if findErr != nil {
-			return nil, findErr
+			return nil, nil, findErr
 		}
 
 		// "<component> <chart|image> <version> ..."
 		f := strings.Fields(c.What)
 		switch {
-		case at == nil || len(at.versions) == 0 || slices.Equal(at.versions, []string{f[2]}):
+		case at == nil || len(at.versions) == 0:
+			unconfirmed = append(unconfirmed, issue.Number)
+		case slices.Equal(at.versions, []string{f[2]}):
 		case len(at.versions) == 1 && newerVersion(f[2], at.versions[0]):
 			if replaceErr := replaceCheck(ctx, src, t, issue, c, at); replaceErr != nil {
-				return nil, replaceErr
+				return nil, nil, replaceErr
 			}
 		case !slices.ContainsFunc(person, func(p BumpProblem) bool { return p.Number == issue.Number }):
 			person = append(person, BumpProblem{Repo: issue.Repo, Number: issue.Number, Title: issue.Title,
@@ -512,7 +541,7 @@ func followNewerBumps(ctx context.Context, src bumpSource, t *BumpTarget, issues
 		}
 	}
 
-	return person, nil
+	return person, unconfirmed, nil
 }
 
 // refBump is where the issue's PR set a check's component (versionsIn keys of one file: an image in
@@ -532,13 +561,16 @@ func findAtRef(
 	for _, pr := range issue.PRs {
 		for _, file := range pr.Files {
 			keys := []string{f[0] + " chart"}
-			if f[1] == "image" {
+			switch {
+			case f[1] == "image" && file.Name == versionScript:
+				keys = defaultKeys(file.Patch, f[2])
+			case f[1] == "image":
 				keys = nil
 				for _, section := range imageSections(file.Patch)["rancher/"+f[0]+":"+f[2]] {
 					keys = append(keys, f[0]+" image|"+section)
 				}
-			} else if !slices.ContainsFunc(chartChecks(issue.Product, file.Name, file.Patch),
-				func(b BumpCheck) bool { return b.What == c.What }) {
+			case !slices.ContainsFunc(chartChecks(issue.Product, file.Name, file.Patch),
+				func(b BumpCheck) bool { return b.What == c.What }):
 				keys = nil
 			}
 			if len(keys) == 0 {

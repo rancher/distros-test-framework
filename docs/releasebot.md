@@ -719,11 +719,12 @@ $ ( set -a; . ~/.config/releasebot/releasebot.env; set +a
   1.7.1 its pull request ships. A component that ships inside a chart also gets the checks its
   title asks for (`titleChecks` in `bumps.yaml`, `{{VERSION}}` the title's version): the gateway-api
   bump checks its CRDs' `gateway.networking.k8s.io/bundle-version` on the cluster.
-  RKE2's `scripts/version.sh` defaults become node-image checks for the variables `versionImages`
-  maps (`KLIPPERHELM_VERSION` → `klipper-helm`); one it does not map (klipper-lb, run only with
-  servicelb) goes to a person. A backport with no PR merged into its branch (the branch took the
+  RKE2's `scripts/version.sh` defaults become node-image checks (a later default on the branch
+  followed like a chart) for the variables `versionImages` maps (`KLIPPERHELM_VERSION` → `klipper-helm`); one it does not map (klipper-lb, run only with
+  servicelb; `ETCD_IMAGE_TAG`) or any other added line goes to a person. A backport with no PR merged into its branch (the branch took the
   bump in an automated commit that names no issue, as CoreDNS did) is checked against its main
-  issue's master PR, the branch's version followed as above, and shows "(checks from the main
+  issue's master PR, the branch's version followed as above (the RC only when its files, `version.sh`
+  included, show that version or a newer one, else the branch head), and shows "(checks from the main
   issue's PR)"; with no master PR either, it goes to a person. A change no rule covers goes to a person, and so do bumps that
   still want one chart or image at two versions in the same job once the branch's newer version is
   followed (two issues, or two pull requests of one): a single job cannot pass both. A backport
