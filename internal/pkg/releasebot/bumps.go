@@ -24,9 +24,12 @@ type BumpConfig struct {
 	CNIJobs       map[string][]CNIJob `yaml:"cniJobs"`
 	DefaultImages map[string][]string `yaml:"defaultImages"`
 	TitleChecks   []TitleCheck        `yaml:"titleChecks"`
-	PrefixBase    string              `yaml:"-"`
-	Products      []string            `yaml:"-"`
-	Accepted      []int               `yaml:"-"`
+
+	// VersionImages maps a scripts/version.sh variable to the image it sets, by product.
+	VersionImages map[string]map[string]string `yaml:"versionImages"`
+	PrefixBase    string                       `yaml:"-"`
+	Products      []string                     `yaml:"-"`
+	Accepted      []int                        `yaml:"-"`
 }
 
 // CNIJob is a version-bump job that installs a CNI, and the components (charts, images) that need it.
@@ -156,7 +159,10 @@ type BumpIssue struct {
 	OffBoard bool `json:"off_board,omitempty"`
 
 	// Accepted: the captain had it validated although its PR changes more than versions (-bumps-accept).
-	Accepted bool        `json:"accepted,omitempty"`
+	Accepted bool `json:"accepted,omitempty"`
+
+	// FromMain: no PR merged into the backport's branch, so its checks come from the main issue's PR.
+	FromMain bool        `json:"from_main,omitempty"`
 	PRs      []BumpPR    `json:"prs,omitempty"`
 	Checks   []BumpCheck `json:"checks,omitempty"`
 
@@ -332,6 +338,37 @@ func BumpChecks(product string, files []PRFile, defaultImages []string) (checks 
 	}
 
 	return dedupChecks(checks), unsupported
+}
+
+// versionVar is a scripts/version.sh default: KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}.
+var versionVar = regexp.MustCompile(`^([A-Z][A-Z0-9_]*_VERSION)=\$\{[A-Z0-9_]+:-([^}]+)\}`)
+
+// versionChecks are the node-image checks of the defaults a scripts/version.sh patch adds; a variable
+// with no image in images (klipper-lb, which RKE2 runs only with servicelb) is left to a person.
+func versionChecks(patch string, images map[string]string) (checks []BumpCheck, unsupported []string) {
+	_, added := changedLines(patch)
+	for _, l := range added {
+		m := versionVar.FindStringSubmatch(strings.TrimSpace(l))
+		if m == nil {
+			continue
+		}
+
+		image, ok := images[m[1]]
+		if !ok {
+			unsupported = append(unsupported, "scripts/version.sh "+m[1])
+			continue
+		}
+		checks = append(checks, BumpCheck{
+			What:     fmt.Sprintf("%s image %s", image, m[2]),
+			Cmd:      "kubectl get node -o yaml : | grep rancher/" + image,
+			Expected: "rancher/" + image + ":" + m[2],
+		})
+	}
+	if len(checks) == 0 && len(unsupported) == 0 {
+		unsupported = append(unsupported, "scripts/version.sh")
+	}
+
+	return checks, unsupported
 }
 
 // ciFile is a CI file (k3s#14993 fixed a workflow line with its bump): no install has it to check.

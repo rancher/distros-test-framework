@@ -277,6 +277,9 @@ func backportLabel(bp *releasebot.BumpIssue) string {
 	if bp.Accepted {
 		label += " (accepted)"
 	}
+	if bp.FromMain {
+		label += " (checks from the main issue's PR)"
+	}
 
 	return label
 }

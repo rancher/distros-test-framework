@@ -656,6 +656,65 @@ func TestBumpTitleChecks(t *testing.T) {
 	}
 }
 
+// rke2#11824: scripts/version.sh defaults become node-image checks for the variables with an image;
+// klipper-lb has none (RKE2 runs it only with servicelb), so the issue goes to a person with the reason.
+func TestVersionChecks(t *testing.T) {
+	patch := "-KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.13.3-build20261021}\n" +
+		"-KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.17}\n" +
+		"+KLIPPERHELM_VERSION=${KLIPPERHELM_VERSION:-v0.14.0-build20261117}\n" +
+		"+KLIPPERLB_VERSION=${KLIPPERLB_VERSION:-v0.4.18}"
+
+	checks, unsupported := versionChecks(patch, map[string]string{"KLIPPERHELM_VERSION": "klipper-helm"})
+	if len(checks) != 1 || checks[0].What != "klipper-helm image v0.14.0-build20261117" ||
+		checks[0].Expected != "rancher/klipper-helm:v0.14.0-build20261117" ||
+		!slices.Equal(unsupported, []string{"scripts/version.sh KLIPPERLB_VERSION"}) {
+		t.Fatalf("checks %+v, unsupported %v", checks, unsupported)
+	}
+	if _, left := versionChecks("-x=1\n+x=2", nil); !slices.Equal(left, []string{"scripts/version.sh"}) {
+		t.Fatalf("a version.sh change with no default: %v", left)
+	}
+}
+
+// rke2#11835: the backports have no PR (the branches took CoreDNS in commits that name no issue), so
+// their checks come from the main issue's master PR and follow the branch's newer chart; with no
+// master PR either, a person takes it.
+func TestPlanBumpsChecksABackportFromItsMainPR(t *testing.T) {
+	src := &fakeBumpSource{
+		issues: map[string][]projectIssue{"rancher/31": {
+			{Repo: "rancher/rke2", Number: 50, Title: "Update CoreDNS chart to 1.50.801"},
+			{Repo: "rancher/rke2", Number: 51, Title: "[Release-1.37] Update CoreDNS chart to 1.50.801", Body: "#50"},
+			{Repo: "rancher/rke2", Number: 60, Title: "Bump x"},
+			{Repo: "rancher/rke2", Number: 61, Title: "[Release-1.37] Bump x", Body: "#60"},
+		}},
+		prs: map[int][]BumpPR{50: {{Number: 150, Base: "master", MergeCommit: "m1"}}},
+		files: map[int][]PRFile{150: {{Name: "charts/chart_versions.yaml",
+			Patch: "-  - version: 1.49.002\n+  - version: 1.50.801\n     filename: /charts/rke2-coredns.yaml"}}},
+		head: "deadbeef",
+		atRef: map[string]string{"deadbeef|charts/chart_versions.yaml": "charts:\n  - version: 1.50.802\n" +
+			"    filename: /charts/rke2-coredns.yaml\n"},
+	}
+	cfg := &BumpConfig{PrefixBase: "fmor", Jobs: map[string]string{"rke2": "r"}}
+
+	plan, err := PlanBumps(testContext(t), src, cfg, "2026-11")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(plan.Targets) != 1 || len(plan.Targets[0].Checks) != 1 {
+		t.Fatalf("targets %+v, person %+v", plan.Targets, plan.Person)
+	}
+	c := plan.Targets[0].Checks[0]
+	if c.Issue != 51 || c.Expected != "rke2-coredns-1.50.802.tgz" || c.Replaced != "1.50.801" {
+		t.Fatalf("check %+v", c)
+	}
+	if got := plan.backportStates(plan.Groups[0]); got != "#51 release-1.37 validate (checks from the main issue's PR)" {
+		t.Fatalf("states %q", got)
+	}
+	if len(plan.Person) != 1 || plan.Person[0].Number != 61 || !strings.Contains(plan.Person[0].Reason, "nor into master") {
+		t.Fatalf("person %+v", plan.Person)
+	}
+}
+
 func TestNewerVersion(t *testing.T) {
 	for _, tc := range []struct {
 		a, b  string

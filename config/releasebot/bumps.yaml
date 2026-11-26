@@ -19,6 +19,10 @@ titleChecks:
     what: gateway-api bundle
     cmd: "kubectl get crd gateways.gateway.networking.k8s.io -o yaml : | grep bundle-version"
     expected: "v{{VERSION}}"
+# scripts/version.sh defaults and the image each sets; klipper-lb is left out, RKE2 runs it only with
+# servicelb, so a default install has nothing to check.
+versionImages:
+  rke2: {KLIPPERHELM_VERSION: klipper-helm}
 defaultImages:
   rke2: [hardened-calico, hardened-flannel, hardened-cni-plugins, hardened-coredns, hardened-k8s-metrics-server,
          hardened-etcd, mirrored-cilium-cilium, mirrored-cilium-operator-generic]

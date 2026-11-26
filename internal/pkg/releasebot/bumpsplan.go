@@ -228,17 +228,12 @@ func classifyBump(
 	}
 	issue.Parent = parent
 
-	prs, prsErr := src.MergedPRs(ctx, pi.Repo, pi.Number)
+	prsErr := addIssuePRs(ctx, src, issue)
 	if prsErr != nil {
 		return nil, nil, prsErr
 	}
-	for _, pr := range prs {
-		if pr.Base == issue.Branch {
-			issue.PRs = append(issue.PRs, pr)
-		}
-	}
 	if len(issue.PRs) == 0 {
-		return issue, problem("no merged pull request into " + issue.Branch), nil
+		return issue, problem("no merged pull request into " + issue.Branch + " nor into master on its main issue"), nil
 	}
 
 	reason, checksErr := addBumpChecks(ctx, src, cfg, issue)
@@ -262,6 +257,45 @@ func classifyBump(
 	return issue, nil, nil
 }
 
+// addIssuePRs sets the backport's PRs merged into its branch, or else its main issue's master PRs.
+func addIssuePRs(ctx context.Context, src bumpSource, issue *BumpIssue) error {
+	prs, prsErr := src.MergedPRs(ctx, issue.Repo, issue.Number)
+	if prsErr != nil {
+		return prsErr
+	}
+	for _, pr := range prs {
+		if pr.Base == issue.Branch {
+			issue.PRs = append(issue.PRs, pr)
+		}
+	}
+	if len(issue.PRs) > 0 {
+		return nil
+	}
+
+	mainPRs, mainErr := masterPRs(ctx, src, issue.Repo, issue.Parent)
+	if mainErr != nil {
+		return mainErr
+	}
+	issue.PRs, issue.FromMain = mainPRs, len(mainPRs) > 0
+
+	return nil
+}
+
+// masterPRs are the main issue's PRs merged into master: a backport whose branch took the bump in a
+// commit that names no issue (an automated chart update) is checked against them on its branch.
+func masterPRs(ctx context.Context, src bumpSource, repo string, parent int) ([]BumpPR, error) {
+	if parent == 0 {
+		return nil, nil
+	}
+
+	prs, prsErr := src.MergedPRs(ctx, repo, parent)
+	if prsErr != nil {
+		return nil, prsErr
+	}
+
+	return slices.DeleteFunc(prs, func(pr BumpPR) bool { return pr.Base != "master" && pr.Base != "main" }), nil
+}
+
 // addBumpChecks reads the files of each of the issue's PRs and adds their checks to the issue, or
 // returns why a person has to validate it instead.
 func addBumpChecks(ctx context.Context, src bumpSource, cfg *BumpConfig, issue *BumpIssue) (string, error) {
@@ -279,7 +313,21 @@ func addBumpChecks(ctx context.Context, src bumpSource, cfg *BumpConfig, issue *
 			issue.Accepted = true
 		}
 
-		checks, unsupported := BumpChecks(issue.Product, files, cfg.DefaultImages[issue.Product])
+		// shortcut: a later version.sh bump is not followed (findAtRef reads image lists and charts), so
+		// a branch that moved past the issue's default fails its check; read version.sh there if it bites.
+		var versionFiles, otherFiles []PRFile
+		for _, f := range files {
+			if f.Name == "scripts/version.sh" && cfg.VersionImages[issue.Product] != nil {
+				versionFiles = append(versionFiles, f)
+			} else {
+				otherFiles = append(otherFiles, f)
+			}
+		}
+		checks, unsupported := BumpChecks(issue.Product, otherFiles, cfg.DefaultImages[issue.Product])
+		for _, f := range versionFiles {
+			got, left := versionChecks(f.Patch, cfg.VersionImages[issue.Product])
+			checks, unsupported = append(checks, got...), append(unsupported, left...)
+		}
 		if len(unsupported) > 0 {
 			return fmt.Sprintf("#%d: no check yet for %s", issue.PRs[i].Number, strings.Join(unsupported, ", ")), nil
 		}
@@ -590,6 +638,9 @@ func (plan *BumpPlan) backportStates(g *BumpGroup) string {
 			state = "validate"
 			if bp.Accepted {
 				state += " (accepted)"
+			}
+			if bp.FromMain {
+				state += " (checks from the main issue's PR)"
 			}
 		}
 		if bp.OffBoard {
