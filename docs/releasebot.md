@@ -619,11 +619,14 @@ runs these commands for a captain (`rb pin`, `plan`, `run`, `resume`, `bumps-pla
 `resume-bumps`, `post`; the runbook's way); below is what each one runs.
 
 ```
-$ SHA=<reviewed commit>; D=~/releasebot/${SHA:0:7}; mkdir -p "$D"
-$ git show "${SHA}:config/releasebot/matrix.yaml" > "$D/matrix.yaml"
-$ git show "${SHA}:config/releasebot/bumps.yaml" > "$D/bumps.yaml"
-$ git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$D/triage-skill.sha256"
-$ git worktree add /tmp/releasebot-$SHA $SHA && (cd /tmp/releasebot-$SHA && go build -o "$D/releasebot" ./cmd/releasebot)
+$ SHA=<reviewed commit>; D=~/releasebot/${SHA:0:7}
+$ mkdir -p ~/releasebot; P=$(mktemp -d ~/releasebot/.pin.XXXXXX); W=$(mktemp -d)/dtf   # $P: same disk as $D
+$ git show "${SHA}:config/releasebot/matrix.yaml" > "$P/matrix.yaml"
+$ git show "${SHA}:config/releasebot/bumps.yaml" > "$P/bumps.yaml"
+$ git show "${SHA}:ops/releasebot/triage-skill.sha256" > "$P/triage-skill.sha256"
+$ git worktree add --detach "$W" "$SHA" && (cd "$W" && go build -o "$P/releasebot" ./cmd/releasebot)
+$ "$P/releasebot" -validate -matrix "$P/matrix.yaml" && chmod a-w "$P"/* && mv "$P" "$D"   # only once all passed
+$ git worktree remove --force "$W"
 $ (umask 077; mkdir -p ~/.config/releasebot && $EDITOR ~/.config/releasebot/releasebot.env)
 #   GITHUB_TOKEN, JENKINS_MOWER_AUTH, JENKINS_BALER_AUTH (for baler requests), QASE_AUTOMATION_TOKEN;
 #   the captain's own tokens, from the team vault; nothing of Slack is needed;
