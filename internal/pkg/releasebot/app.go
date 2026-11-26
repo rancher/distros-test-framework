@@ -198,7 +198,7 @@ func (a *App) Execute(ctx context.Context, p *prepared, h *hooks) (err error) {
 		if saveErr := h.save(progress); saveErr != nil {
 			return fmt.Errorf("could not save the run state before dispatching: %w", saveErr)
 		}
-		if started, err = dispatchWorkflows(ctx, h.Notify, p.GitHub, p.Plan.Workflows); err != nil {
+		if started, progress.Gates, err = dispatchWorkflows(ctx, h.Notify, p.GitHub, p.Plan.Workflows); err != nil {
 			return err
 		}
 	}
@@ -212,21 +212,42 @@ func (a *App) Execute(ctx context.Context, p *prepared, h *hooks) (err error) {
 		return nil
 	}
 
-	if qase != nil {
-		// Runs created by this dispatch carry the request id; with SkipWorkflows (runs created by
-		// hand) there is none, and the newest run with each title is used.
-		requestID := p.Plan.RequestID
-		if a.cfg.SkipWorkflows {
-			requestID = ""
-		}
-		if qErr := a.fillQaseRunIDs(ctx, h.Notify, qase, p.Plan.QaseTitles, p.Plan.Jobs, requestID); qErr != nil {
-			return qErr
-		}
+	prepErr := a.beforeJobs(ctx, h, p, qase, progress)
+	if errors.Is(prepErr, errGateStopped) {
+		// Reported as a run stopped before any build: every job ends "not triggered: run stopped".
+		return a.runJobs(ctx, h, progress, p.Matrix, builders, p.Plan.Jobs, pendingRecords(p.Plan.Jobs))
+	}
+	if prepErr != nil {
+		return prepErr
 	}
 
 	started = true
 
 	return a.runJobs(ctx, h, progress, p.Matrix, builders, p.Plan.Jobs, nil)
+}
+
+// beforeJobs waits for the gate runs, then fills the Qase run ids; a stop during the wait marks
+// progress stopped and returns errGateStopped.
+func (a *App) beforeJobs(ctx context.Context, h *hooks, p *prepared, qase *Qase, progress *Progress) error {
+	gateErr := a.waitGates(ctx, h, p.GitHub, progress.Gates)
+	if errors.Is(gateErr, errGateStopped) {
+		progress.Stopped = true
+		_ = h.save(progress)
+
+		return gateErr
+	}
+	if gateErr != nil || qase == nil {
+		return gateErr
+	}
+
+	// Runs created by this dispatch carry the request id; with SkipWorkflows (runs created by
+	// hand) there is none, and the newest run with each title is used.
+	requestID := p.Plan.RequestID
+	if a.cfg.SkipWorkflows {
+		requestID = ""
+	}
+
+	return a.fillQaseRunIDs(ctx, h.Notify, qase, p.Plan.QaseTitles, p.Plan.Jobs, requestID)
 }
 
 // errResumeFailed means a saved run could not be set up again (missing credentials, an unreadable
@@ -291,27 +312,52 @@ func (a *App) Resume(ctx context.Context, saved *Progress, h *hooks) (err error)
 
 	progress := saved
 	if saved.Stage == StageDispatched {
-		// Stopped before any build: no Qase run to wait for, the jobs are reported as stopped.
-		if !saved.Stopped && jobsNeedQaseRun(jobs) {
-			qase, qErr := a.cfg.NewQase()
-			if qErr != nil {
-				return a.resumeFailed(saved, h, fmt.Errorf("jobs use {{QASE_RUN_ID}}: %w", qErr))
-			}
-			requestID := saved.RequestID
-			if saved.QaseManualRuns {
-				requestID = ""
-			}
-			// Runs still missing after the timeout fail the run as a first attempt would (its tags are
-			// freed); only a shutdown keeps it saved (the listener checks for ctx cancellation).
-			if fillErr := a.fillQaseRunIDs(ctx, h.Notify, qase, saved.QaseTitles, jobs, requestID); fillErr != nil {
-				return fillErr
-			}
+		if prepErr := a.resumeBeforeJobs(ctx, h, saved, jobs); prepErr != nil {
+			return prepErr
 		}
 
 		return a.runJobs(ctx, h, progress, matrix, builders, jobs, pendingRecords(jobs))
 	}
 
 	return a.runJobs(ctx, h, progress, matrix, builders, jobs, saved.Jobs)
+}
+
+// resumeBeforeJobs redoes what a run stopped before any build still owes: the gate runs must pass
+// and the Qase run ids be looked up. A stopped run skips both: its jobs are reported as stopped.
+func (a *App) resumeBeforeJobs(ctx context.Context, h *hooks, saved *Progress, jobs []JenkinsJob) error {
+	if saved.Stopped {
+		return nil
+	}
+
+	if len(saved.Gates) > 0 {
+		gh := a.cfg.NewGitHub(a.cfg.GitHubToken)
+		gateErr := a.waitGates(ctx, h, gh, saved.Gates)
+		if errors.Is(gateErr, errGateStopped) {
+			saved.Stopped = true
+			_ = h.save(saved)
+
+			return nil
+		}
+		if gateErr != nil {
+			return gateErr
+		}
+	}
+
+	if !jobsNeedQaseRun(jobs) {
+		return nil
+	}
+	qase, qErr := a.cfg.NewQase()
+	if qErr != nil {
+		return a.resumeFailed(saved, h, fmt.Errorf("jobs use {{QASE_RUN_ID}}: %w", qErr))
+	}
+	requestID := saved.RequestID
+	if saved.QaseManualRuns {
+		requestID = ""
+	}
+
+	// Runs still missing after the timeout fail the run as a first attempt would (its tags are
+	// freed); only a shutdown keeps it saved (the listener checks for ctx cancellation).
+	return a.fillQaseRunIDs(ctx, h.Notify, qase, saved.QaseTitles, jobs, requestID)
 }
 
 func pendingRecords(jobs []JenkinsJob) []JobRecord {
@@ -391,17 +437,81 @@ func dispatchWorkflows(
 	notify logFunc,
 	gh *gitHub,
 	workflows []workflowDispatch,
-) (started bool, err error) {
+) (started bool, gates []GateRun, err error) {
 	for i, w := range workflows {
-		if dErr := gh.Dispatch(ctx, w); dErr != nil {
+		id, dErr := gh.Dispatch(ctx, w)
+		if dErr != nil {
 			nothing := errors.Is(dErr, errDispatchRejected) || errors.Is(dErr, errDispatchNotSent)
 
-			return i > 0 || !nothing, dErr
+			return i > 0 || !nothing, gates, dErr
 		}
 		notify("info", "dispatched %s on %s@%s", w.Workflow, w.Repo, w.Ref)
+
+		if w.Gate {
+			if id == 0 {
+				return true, gates, fmt.Errorf("gitHub returned no run id for %s: the jenkins jobs wait for it", w.Workflow)
+			}
+			gates = append(gates, GateRun{Repo: w.Repo, Workflow: w.Workflow, ID: id})
+		}
 	}
 
-	return len(workflows) > 0, nil
+	return len(workflows) > 0, gates, nil
+}
+
+// errGateStopped: the run was stopped while it waited for a gate run; no job may start.
+var errGateStopped = errors.New("stopped while waiting for the release checks")
+
+// gateTimeout bounds the wait for a gate run: release-checks itself times out after 30 minutes.
+const gateTimeout = 45 * time.Minute
+
+// waitGates returns once every gate run succeeded; a run that ends otherwise stops the jenkins jobs.
+func (a *App) waitGates(ctx context.Context, h *hooks, gh *gitHub, gates []GateRun) error {
+	notify := h.Notify
+	for _, g := range gates {
+		notify("info", "waiting for %s run %d to pass before the jenkins jobs", g.Workflow, g.ID)
+
+		link, err := a.waitGate(ctx, h, gh, g)
+		if err != nil {
+			return err
+		}
+		notify("info", "%s passed: %s", g.Workflow, link)
+	}
+
+	return nil
+}
+
+// waitGate polls one run until it completes, the run is stopped or the timeout; read errors are retried.
+func (a *App) waitGate(ctx context.Context, h *hooks, gh *gitHub, g GateRun) (string, error) {
+	notify := h.Notify
+	deadline := time.Now().Add(gateTimeout)
+	for {
+		done, conclusion, link, readErr := gh.RunResult(ctx, g.Repo, g.ID)
+		// A stop sent during the read wins over its answer, a green one included.
+		if stopRequested(h.Stop) {
+			return "", errGateStopped
+		}
+		if readErr != nil {
+			notify("warn", "%s run %d: %v", g.Workflow, g.ID, readErr)
+		} else if done {
+			if conclusion != "success" {
+				return "", fmt.Errorf("%s ended %s (%s): no jenkins job was started", g.Workflow, conclusion, link)
+			}
+
+			return link, nil
+		}
+
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("%s run %d did not pass within %s: no jenkins job was started",
+				g.Workflow, g.ID, gateTimeout)
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-h.Stop:
+			return "", errGateStopped
+		case <-time.After(a.cfg.Poll):
+		}
+	}
 }
 
 // runJobs schedules jobs, or carries on resume (a saved run) when set, saving progress at each change.

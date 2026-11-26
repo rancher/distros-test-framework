@@ -35,14 +35,23 @@ type Progress struct {
 	Stopped    bool     `json:"stopped,omitempty"`
 	QaseTitles []string `json:"qase_titles,omitempty"`
 	// QaseManualRuns: the runs were created by hand (-skip-workflows), so they carry no request id.
-	QaseManualRuns bool        `json:"qase_manual_runs,omitempty"`
-	Jobs           []JobRecord `json:"jobs,omitempty"`
+	QaseManualRuns bool `json:"qase_manual_runs,omitempty"`
+	// Gates: workflow runs that must succeed before any jenkins job starts (checked again on resume).
+	Gates []GateRun   `json:"gates,omitempty"`
+	Jobs  []JobRecord `json:"jobs,omitempty"`
+}
+
+type GateRun struct {
+	Repo     string `json:"repo"`
+	Workflow string `json:"workflow"`
+	ID       int64  `json:"id"`
 }
 
 // clone is a copy sharing nothing with p, so the saved state never changes under the run's feet.
 func (p *Progress) clone() Progress {
 	c := *p
 	c.QaseTitles = slices.Clone(p.QaseTitles)
+	c.Gates = slices.Clone(p.Gates)
 	c.Jobs = make([]JobRecord, len(p.Jobs))
 	for i := range p.Jobs {
 		c.Jobs[i] = p.Jobs[i]

@@ -24,6 +24,8 @@ type workflowDispatch struct {
 	Workflow string
 	Ref      string
 	Inputs   map[string]string
+	// Gate: no jenkins job starts until this run succeeds.
+	Gate bool
 }
 
 // JenkinsJob is one build to trigger, already expanded for a single version.
@@ -352,7 +354,7 @@ func buildPlan(ctx context.Context, req Request, m *Matrix, now time.Time, reque
 		"rke2_versions": strings.Join(req.RKE2, ","),
 	}
 	p.Workflows = append(p.Workflows, workflowDispatch{
-		Repo: m.DTFRepo, Workflow: "release-checks.yaml", Ref: m.DTFRef, Inputs: checks,
+		Repo: m.DTFRepo, Workflow: "release-checks.yaml", Ref: m.DTFRef, Inputs: checks, Gate: true,
 	})
 
 	rcs, warn := qaseRCs(req)

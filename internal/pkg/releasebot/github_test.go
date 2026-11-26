@@ -39,10 +39,11 @@ func TestGitHubTagExists(t *testing.T) {
 
 func TestGitHubDispatch(t *testing.T) {
 	var got struct {
-		Ref    string            `json:"ref"`
-		Inputs map[string]string `json:"inputs"`
+		Ref        string            `json:"ref"`
+		Inputs     map[string]string `json:"inputs"`
+		RunDetails bool              `json:"return_run_details"`
 	}
-	status := http.StatusNoContent
+	status, answer := http.StatusNoContent, `{"message":"Unexpected inputs provided: [\"request_id\"]"}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/repos/o/r/actions/workflows/wf.yaml/dispatches" ||
 			r.Header.Get("Authorization") != "Bearer tok" {
@@ -50,7 +51,7 @@ func TestGitHubDispatch(t *testing.T) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&got)
 		w.WriteHeader(status)
-		_, _ = w.Write([]byte(`{"message":"Unexpected inputs provided: [\"request_id\"]"}`))
+		_, _ = w.Write([]byte(answer))
 	}))
 	defer srv.Close()
 
@@ -60,23 +61,29 @@ func TestGitHubDispatch(t *testing.T) {
 	}
 	gh := &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
 
-	if err := gh.Dispatch(context.Background(), w); err != nil {
-		t.Fatal(err)
+	if id, err := gh.Dispatch(context.Background(), w); err != nil || id != 0 {
+		t.Fatalf("204: id=%d err=%v", id, err)
 	}
-	if got.Ref != "main" || got.Inputs["rcs"] != "v1.37.1-rc1" || got.Inputs["request_id"] != "rb-1" {
+	if got.Ref != "main" || got.Inputs["rcs"] != "v1.37.1-rc1" || got.Inputs["request_id"] != "rb-1" || !got.RunDetails {
 		t.Fatalf("body = %+v", got)
 	}
 	if _, sent := got.Inputs["empty"]; sent {
 		t.Fatal("empty inputs must be omitted")
 	}
 
+	// Asked for the run details, gitHub answers 200 with the run id.
+	status, answer = http.StatusOK, `{"workflow_run_id":45787817864,"run_url":"u","html_url":"h"}`
+	if id, err := gh.Dispatch(context.Background(), w); err != nil || id != 45787817864 {
+		t.Fatalf("200: id=%d err=%v", id, err)
+	}
+
 	// A workflow without the input answers 422: the error must carry gitHub's message.
-	status = http.StatusUnprocessableEntity
-	if err := gh.Dispatch(context.Background(), w); err == nil || !strings.Contains(err.Error(), "Unexpected inputs") {
+	status, answer = http.StatusUnprocessableEntity, `{"message":"Unexpected inputs provided: [\"request_id\"]"}`
+	if _, err := gh.Dispatch(context.Background(), w); err == nil || !strings.Contains(err.Error(), "Unexpected inputs") {
 		t.Fatalf("422: %v", err)
 	}
 
-	if err := (&gitHub{BaseURL: srv.URL, HTTP: srv.Client()}).Dispatch(context.Background(), w); err == nil {
+	if _, err := (&gitHub{BaseURL: srv.URL, HTTP: srv.Client()}).Dispatch(context.Background(), w); err == nil {
 		t.Fatal("dispatch without a token must fail")
 	}
 }

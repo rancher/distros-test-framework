@@ -3,7 +3,8 @@
 Turns a release request posted in Slack ("@bot please test v1.37.1-rc1+k3s1 v1.37.1-rc2+rke2r1")
 into the three things we do by hand today for every RC round:
 
-1. **Release checks**: dispatch `release-checks.yaml` (GitHub Actions, this repo).
+1. **Release checks**: dispatch `release-checks.yaml` (GitHub Actions, this repo). No Jenkins job
+   starts until that run passes; a run that ends otherwise stops the release before Jenkins.
 2. **Qase runs**: dispatch `qase-patch-validation-create.yaml`, which creates the patch-validation
    runs for both products (plan ids rke2=14, k3s=20).
 3. **Jenkins jobs**: schedule existing child jobs for each requested product/RC, with bounded
@@ -142,6 +143,10 @@ A message with no tags is rejected. The word `baler` (any case) asks for the Bal
   A new-minor `.0` RC has no GA in its minor for the commit comparison, so the bot resolves the
   previous minor's latest GA, shows it in the plan and passes it as `commit_baselines`; when it
   cannot be resolved the plan is refused.
+  The bot dispatches it with `return_run_details`, so GitHub returns the run id, and it waits up to
+  45 minutes for that run to pass before the Qase lookup and the Jenkins jobs. The run id is saved
+  with the run state, so a resumed run checks the same run again before any job. A `stop` during
+  the wait ends the run as stopped, with no Qase lookup and no job.
 - `qase-patch-validation-create.yaml` gets `rcs`, one `vX.Y.Z-rcN` per patch version. The script
   creates the runs for both products from each entry, so k3s and rke2 of the same version collapse
   into one. When the products are on different RCs of the same version (k3s rc1, rke2 rc2), the

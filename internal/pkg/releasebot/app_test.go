@@ -297,19 +297,160 @@ func TestRunJobsSkippedIsNotAFailure(t *testing.T) {
 // A dispatch that never left the bot says so: nothing can have started, so the run is not partial.
 func TestDispatchNotSent(t *testing.T) {
 	w := workflowDispatch{Repo: "o/r", Workflow: "wf.yaml", Ref: "main"}
-	if err := (&gitHub{Token: ""}).Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
+	if _, err := (&gitHub{Token: ""}).Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("no token: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := newGitHub("tok").Dispatch(ctx, w); !errors.Is(err, errDispatchNotSent) {
+	if _, err := newGitHub("tok").Dispatch(ctx, w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("canceled: %v", err)
 	}
 	srv := httptest.NewServer(http.NotFoundHandler())
 	addr := srv.URL
 	srv.Close()
 	gh := &gitHub{BaseURL: addr, Token: "tok", HTTP: http.DefaultClient}
-	if err := gh.Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
+	if _, err := gh.Dispatch(context.Background(), w); !errors.Is(err, errDispatchNotSent) {
 		t.Fatalf("connection refused: %v", err)
 	}
+}
+
+// The jenkins jobs start only once the gate run (release-checks) succeeded: a run that fails starts
+// none, also when a restarted bot resumes a run saved before the check ended.
+func TestJobsWaitForTheGateRun(t *testing.T) {
+	for _, conclusion := range []string{"success", "failure"} {
+		t.Run(conclusion, func(t *testing.T) {
+			srv, polls, triggers := gateServer(t, conclusion)
+			gh := &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
+
+			matrix := &Matrix{Controller: map[string]Limits{"mower": {URL: srv.URL, MaxConcurrent: 1}}}
+			job := JenkinsJob{Name: "smoke", Product: "k3s", Version: "v1", Controller: "mower", Path: "p"}
+			plan := &Plan{
+				RequestID: "rb-1", Jobs: []JenkinsJob{job},
+				Workflows: []workflowDispatch{{Repo: "o/r", Workflow: "release-checks.yaml", Ref: "m", Gate: true}},
+			}
+			app := New(&Config{
+				Poll: time.Millisecond, NewGitHub: func(string) *gitHub { return gh },
+				JenkinsAuth: func(string) (string, string, bool) { return "u", "t", true },
+			})
+
+			err := app.Execute(context.Background(), &prepared{Plan: plan, Matrix: matrix, GitHub: gh}, nil)
+			stopped := err != nil && strings.Contains(err.Error(), "no jenkins job was started")
+			if *polls != 2 || stopped != (conclusion == "failure") || (*triggers > 0) != (conclusion == "success") {
+				t.Fatalf("execute: polls=%d triggers=%d err=%v", *polls, *triggers, err)
+			}
+
+			saved := &Progress{
+				RequestID: "rb-1", Stage: StageDispatched, Jobs: pendingRecords(plan.Jobs),
+				Gates: []GateRun{{Repo: "o/r", Workflow: "release-checks.yaml", ID: 7}},
+			}
+			*triggers = 0
+			app.cfg.MatrixPath = filepath.Join(t.TempDir(), "m.yaml")
+			matrixYAML := "controllers:\n  mower: {url: " + srv.URL + ", maxConcurrent: 1}\njobs: []\n"
+			if writeErr := os.WriteFile(app.cfg.MatrixPath, []byte(matrixYAML), 0o600); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			err = app.Resume(context.Background(), saved, &hooks{})
+			stopped = err != nil && strings.Contains(err.Error(), "no jenkins job was started")
+			if *polls != 4 || stopped != (conclusion == "failure") || (*triggers > 0) != (conclusion == "success") {
+				t.Fatalf("resume: polls=%d triggers=%d err=%v", *polls, *triggers, err)
+			}
+		})
+	}
+}
+
+// gateServer fakes gitHub, jenkins and Qase: run 7 completes with conclusion on every second read,
+// and any other request counts as a jenkins or Qase call (refused).
+func gateServer(t *testing.T, conclusion string) (srv *httptest.Server, polls, triggers *int) {
+	t.Helper()
+	polls, triggers = new(int), new(int)
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/dispatches"):
+			_, _ = w.Write([]byte(`{"workflow_run_id":7}`))
+		case r.URL.Path == "/repos/o/r/actions/runs/7":
+			*polls++
+			status := "in_progress"
+			if *polls%2 == 0 {
+				status = "completed"
+			}
+			_, _ = fmt.Fprintf(w, `{"status":%q,"conclusion":%q,"html_url":"h"}`, status, conclusion)
+		default:
+			*triggers++
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv, polls, triggers
+}
+
+// A stop during the wait for the gate run ends the run at once, as stopped, whatever the read answers
+// (in progress or green): no Qase lookup and no jenkins job, also on resume.
+func TestStopEndsTheGateWait(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// reads already answered: the fake completes the run on even reads
+		before int
+	}{{name: "in progress", before: 0}, {name: "green", before: 1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			stop := make(chan struct{})
+			close(stop)
+			srv, polls, calls := gateServer(t, "success")
+			app, p := stopTestApp(t, srv)
+
+			var saved Progress
+			*polls = tc.before
+			h := &hooks{Stop: stop, Save: func(pr Progress) error { saved = pr; return nil }}
+			err := app.Execute(context.Background(), p, h)
+			if *polls != tc.before+1 || *calls != 0 || err == nil || !saved.Stopped {
+				t.Fatalf("execute: polls=%d qase/jenkins=%d stopped=%v err=%v", *polls, *calls, saved.Stopped, err)
+			}
+
+			resumed := &Progress{
+				RequestID: "rb-1", Stage: StageDispatched, Jobs: pendingRecords(p.Plan.Jobs),
+				QaseTitles: []string{"t"}, Gates: []GateRun{{Repo: "o/r", Workflow: "release-checks.yaml", ID: 7}},
+			}
+			*polls = tc.before
+			err = app.Resume(context.Background(), resumed, &hooks{Stop: stop})
+			if *polls != tc.before+1 || *calls != 0 || err == nil || !resumed.Stopped {
+				t.Fatalf("resume: polls=%d qase/jenkins=%d stopped=%v err=%v", *polls, *calls, resumed.Stopped, err)
+			}
+		})
+	}
+}
+
+// stopTestApp points jenkins and Qase at srv (each request there counts as a call) and plans one job
+// that needs a Qase run id behind the release-checks gate.
+func stopTestApp(t *testing.T, srv *httptest.Server) (*App, *prepared) {
+	t.Helper()
+	gh := &gitHub{BaseURL: srv.URL, Token: "tok", HTTP: srv.Client()}
+	matrixPath := filepath.Join(t.TempDir(), "m.yaml")
+	matrixYAML := "controllers:\n  mower: {url: " + srv.URL + ", maxConcurrent: 1}\njobs: []\n"
+	if writeErr := os.WriteFile(matrixPath, []byte(matrixYAML), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	qcfg := qaseclient.NewConfiguration()
+	qcfg.Servers = qaseclient.ServerConfigurations{{URL: srv.URL + "/v1"}}
+	qctx := context.WithValue(context.Background(), qaseclient.ContextAPIKeys,
+		map[string]qaseclient.APIKey{"TokenAuth": {Key: "tok"}})
+
+	app := New(&Config{
+		Poll: time.Hour, MatrixPath: matrixPath, QaseTimeout: 50 * time.Millisecond,
+		NewGitHub: func(string) *gitHub { return gh },
+		NewQase: func() (*Qase, error) {
+			return newQaseFrom(&qase.Client{QaseAPI: qaseclient.NewAPIClient(qcfg), Ctx: qctx}), nil
+		},
+		JenkinsAuth: func(string) (string, string, bool) { return "u", "t", true },
+	})
+	job := JenkinsJob{
+		Name: "smoke", Product: "k3s", Version: "v1", Controller: "mower", Path: "p", QaseTitle: "t",
+		Params: map[string]string{"QASE_RUN_ID": "{{QASE_RUN_ID}}"},
+	}
+	plan := &Plan{
+		RequestID: "rb-1", Jobs: []JenkinsJob{job}, QaseTitles: []string{"t"},
+		Workflows: []workflowDispatch{{Repo: "o/r", Workflow: "release-checks.yaml", Ref: "m", Gate: true}},
+	}
+	matrix := &Matrix{Controller: map[string]Limits{"mower": {URL: srv.URL, MaxConcurrent: 1}}}
+
+	return app, &prepared{Plan: plan, Matrix: matrix, GitHub: gh}
 }

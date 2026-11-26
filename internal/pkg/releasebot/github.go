@@ -159,9 +159,10 @@ var errDispatchRejected = errors.New("dispatch rejected")
 // errDispatchNotSent means the dispatch never left the bot (no token, a canceled run, no connection).
 var errDispatchNotSent = errors.New("dispatch not sent")
 
-func (g *gitHub) Dispatch(ctx context.Context, w workflowDispatch) error {
+// Dispatch starts w and returns its run id (0 when gitHub answers 204 without one).
+func (g *gitHub) Dispatch(ctx context.Context, w workflowDispatch) (int64, error) {
 	if g.Token == "" {
-		return fmt.Errorf("%w: GITHUB_TOKEN is required to dispatch %s", errDispatchNotSent, w.Workflow)
+		return 0, fmt.Errorf("%w: GITHUB_TOKEN is required to dispatch %s", errDispatchNotSent, w.Workflow)
 	}
 
 	inputs := map[string]string{}
@@ -171,36 +172,70 @@ func (g *gitHub) Dispatch(ctx context.Context, w workflowDispatch) error {
 		}
 	}
 
-	body, err := json.Marshal(map[string]any{"ref": w.Ref, "inputs": inputs})
+	body, err := json.Marshal(map[string]any{"ref": w.Ref, "inputs": inputs, "return_run_details": true})
 	if err != nil {
-		return fmt.Errorf("%w: %w", errDispatchNotSent, err)
+		return 0, fmt.Errorf("%w: %w", errDispatchNotSent, err)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return fmt.Errorf("%w: %w", errDispatchNotSent, ctxErr)
+		return 0, fmt.Errorf("%w: %w", errDispatchNotSent, ctxErr)
 	}
 
 	resp, err := g.do(ctx, http.MethodPost,
 		fmt.Sprintf("/repos/%s/actions/workflows/%s/dispatches", w.Repo, w.Workflow), bytes.NewReader(body))
 	if err != nil {
 		if notSent(err) {
-			return fmt.Errorf("%w: %w", errDispatchNotSent, err)
+			return 0, fmt.Errorf("%w: %w", errDispatchNotSent, err)
 		}
 
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNoContent {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		err = fmt.Errorf("dispatch %s: %s: %s", w.Workflow, resp.Status, bytes.TrimSpace(msg))
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			err = fmt.Errorf("%w: %w", errDispatchRejected, err)
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+		return 0, nil
+	case http.StatusOK:
+		var run struct {
+			ID int64 `json:"workflow_run_id"`
+		}
+		decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&run)
+		if decodeErr != nil {
+			return 0, fmt.Errorf("dispatch %s: read the run id: %w", w.Workflow, decodeErr)
 		}
 
-		return err
+		return run.ID, nil
 	}
 
-	return nil
+	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	err = fmt.Errorf("dispatch %s: %s: %s", w.Workflow, resp.Status, bytes.TrimSpace(msg))
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		err = fmt.Errorf("%w: %w", errDispatchRejected, err)
+	}
+
+	return 0, err
+}
+
+// RunResult reads a workflow run: done once it completed, with its conclusion ("success", "failure"...).
+func (g *gitHub) RunResult(ctx context.Context, repo string, id int64) (done bool, conclusion, link string, err error) {
+	resp, err := g.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/actions/runs/%d", repo, id), nil)
+	if err != nil {
+		return false, "", "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, "", "", fmt.Errorf("github run %s/%d: %s", repo, id, resp.Status)
+	}
+	var run struct {
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+		HTMLURL    string `json:"html_url"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&run); err != nil {
+		return false, "", "", fmt.Errorf("github run %s/%d: %w", repo, id, err)
+	}
+
+	return run.Status == "completed", run.Conclusion, run.HTMLURL, nil
 }
 
 func (g *gitHub) do(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
