@@ -1,0 +1,71 @@
+# Dockerfile.jenkins plus Chromium for the rancherday1 UI screenshots; keep the rest in sync with it.
+# Selected per job with DOCKERFILE=scripts/Dockerfile.rancherday1 (see scripts/build.sh).
+FROM golang:1.26.10-alpine@sha256:a2012b4a1d1f9f7e9f44e0d39b805a901e856b1dd80b4e6ee4338db547050308
+
+ARG TF_VERSION=1.9.0
+ARG TOFU_VERSION=1.12.6
+ENV TERRAFORM_VERSION=$TF_VERSION
+ENV TOFU_VERSION=$TOFU_VERSION
+
+ARG KUBECTL_VERSION=v1.35.3
+
+RUN apk update && \
+    apk upgrade --update-cache --available && \
+    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli python3 py3-pip gettext && \
+    rm -rf /var/cache/apk/*
+
+# Install kubectl with hardcoded checksum validation
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    case "${ARCH}" in \
+    amd64) KUBECTL_SUM="fd31c7d7129260e608f6faf92d5984c3267ad0b5ead3bced2fe125686e286ad6" ;; \
+    arm64) KUBECTL_SUM="6f0cd088a82dde5d5807122056069e2fac4ed447cc518efc055547ae46525f14" ;; \
+    esac && \
+    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" && \
+    echo "${KUBECTL_SUM}  kubectl" | sha256sum -c - && \
+    chmod +x ./kubectl && \
+    mv ./kubectl /usr/local/bin
+
+# Install terraform with checksum validation
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    if [ "${ARCH}" = "arm64" ]; then TF_ARCH="linux_arm64"; else TF_ARCH="linux_amd64"; fi && \
+    curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" -o tf_checksums.txt && \
+    curl -sL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${TF_ARCH}.zip" -o terraform.zip && \
+    TF_EXPECTED=$(grep "${TF_ARCH}.zip" tf_checksums.txt | awk '{print $1}') && \
+    echo "${TF_EXPECTED}  terraform.zip" | sha256sum -c - && \
+    unzip terraform.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/terraform && \
+    rm -f terraform.zip tf_checksums.txt
+
+# Install OpenTofu with checksum validation
+RUN ARCH=$([ "$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64") && \
+    if [ "${ARCH}" = "arm64" ]; then TOFU_ARCH="linux_arm64"; else TOFU_ARCH="linux_amd64"; fi && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" -o tofu_checksums.txt && \
+    curl -sL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" -o tofu.zip && \
+    TOFU_EXPECTED=$(grep "tofu_${TOFU_VERSION}_${TOFU_ARCH}.zip" tofu_checksums.txt | awk '{print $1}') && \
+    echo "${TOFU_EXPECTED}  tofu.zip" | sha256sum -c - && \
+    unzip tofu.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/tofu && \
+    rm -f tofu.zip tofu_checksums.txt
+
+RUN mkdir -p /root/.ssh && \
+    mkdir -p /root/.aws
+
+# Headless browser for internal/pkg/ui; fonts so dashboard text renders.
+RUN apk add --no-cache chromium ttf-freefont
+
+# Install Ansible and required collections/packages
+RUN pip3 install --break-system-packages ansible kubernetes && \
+    ansible-galaxy collection install cloud.terraform
+
+# Just to make sure its installed alright
+RUN aws --version
+
+WORKDIR $GOPATH/src/github.com/rancher/distros-test-framework
+
+COPY . .
+
+RUN CGO_ENABLED=0
+
+RUN go mod download
+
+RUN go mod tidy

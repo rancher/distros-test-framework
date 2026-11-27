@@ -10,7 +10,7 @@ ARG KUBECTL_VERSION=v1.35.3
 
 RUN apk update && \
     apk upgrade --update-cache --available && \
-    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli python3 py3-pip gettext chromium ttf-freefont && \
+    apk add --no-cache curl git jq bash openssh unzip gcc g++ make ca-certificates aws-cli python3 py3-pip gettext && \
     rm -rf /var/cache/apk/*
 
 # Install kubectl with hardcoded checksum validation

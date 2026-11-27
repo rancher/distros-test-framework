@@ -59,8 +59,11 @@ fi
 
 dollar='$'
 jenkinsfile="$repo_root/scripts/Jenkinsfile"
-if grep -Eq '^[[:space:]]*ENTRYPOINT' "$repo_root/scripts/Dockerfile.jenkins" || \
-    ! grep -Fq 'docker build . -f scripts/Dockerfile.jenkins' "$repo_root/scripts/build.sh"; then
+if grep -Eq '^[[:space:]]*ENTRYPOINT' "$repo_root/scripts/Dockerfile.jenkins" \
+    "$repo_root/scripts/Dockerfile.rancherday1" || \
+    ! grep -Fq "DOCKERFILE=\"${dollar}{DOCKERFILE:-scripts/Dockerfile.jenkins}\"" "$repo_root/scripts/build.sh" || \
+    ! grep -Fq 'scripts/Dockerfile.jenkins | scripts/Dockerfile.rancherday1) ;;' "$repo_root/scripts/build.sh" || \
+    ! grep -Fq "docker build . -f \"${dollar}DOCKERFILE\"" "$repo_root/scripts/build.sh"; then
     echo "Jenkins image execution contract changed; review its runtime mounts" >&2
     exit 1
 fi

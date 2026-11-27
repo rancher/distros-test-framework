@@ -175,7 +175,9 @@ Steps run with `ContinueOnFailure`: the import and its upgrade still run when a 
 - `kdmSource` takes a raw data.json `https` URL or a `rancher/kontainer-driver-metadata` PR URL, which is pinned to the PR head commit.
 - Both versions must be listed in that data.json for the product; this is checked before any infrastructure is created.
 - Downstream nodes are extra EC2 instances (10 with the default layouts) that use the cluster's AMI, instance type, subnet, security group and SSH key. With `-destroy true` they are terminated before the infrastructure is destroyed. An aborted run can leak them: they are tagged `<RESOURCE_NAME>-day1-*-distros-qa`.
-- Needs Chromium or Chrome (both test images include `chromium`) and a connected environment, because Rancher downloads data.json and the nodes download install scripts. Air-gap is not supported.
+- Needs Chromium or Chrome and a connected environment, because Rancher downloads data.json and the nodes download install scripts. Air-gap is not supported.
+- Only `scripts/Dockerfile.rancherday1` (`Dockerfile.jenkins` plus Chromium) installs Chromium, so other jobs keep their image size. Jenkins jobs select it with the `DOCKERFILE=scripts/Dockerfile.rancherday1` job parameter; the Jenkinsfile is unchanged, and `scripts/build.sh` accepts only the two ENTRYPOINT-less Jenkins images (`Dockerfile.jenkins`, the default, and `Dockerfile.rancherday1`).
+- Jenkins: set `TIMEOUT` to at least `240m`, and keep `RESOURCE_NAME` to 9 characters or fewer, because qainfra caps the hostname prefix built from it.
 
 Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as build artifacts.
 - `screenshots/NN-*.png`: the dropdowns, plus every cluster after each successful operation.
