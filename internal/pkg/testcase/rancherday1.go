@@ -577,6 +577,8 @@ func (r *RancherDay1) createNodes(suffixes ...string) (ips, privateIPs []string)
 }
 
 func (r *RancherDay1) waitClusterVersion(name, id, kubectlIP, version string, nodes int, timeout string) {
+	// Nodes and Rancher report an RC as its release version, e.g. v1.35.11-rc1+rke2r1 as v1.35.11+rke2r1.
+	reportedVersion := rancher.ReportedVersion(version)
 	Eventually(func(g Gomega) {
 		ready, err := rancherKubectl("get", "clusters.provisioning.cattle.io", "-n", rancher.FleetNamespace, name,
 			"-o", "jsonpath={.status.ready}")
@@ -586,13 +588,14 @@ func (r *RancherDay1) waitClusterVersion(name, id, kubectlIP, version string, no
 		reported, err := rancherKubectl("get", "clusters.management.cattle.io", id,
 			"-o", "jsonpath={.status.version.gitVersion}")
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(reported).To(Equal(version), "rancher reports %s at %q", name, reported)
+		g.Expect(reported).To(Equal(reportedVersion), "rancher reports %s at %q", name, reported)
 
 		kubelets, err := onNode(kubectlIP, downstreamKubectl(r.Product)+
 			" get nodes -o jsonpath='{.items[*].status.nodeInfo.kubeletVersion}'", time.Minute)
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(strings.Fields(kubelets)).To(HaveLen(nodes), "%s node count", name)
-		g.Expect(strings.Fields(kubelets)).To(HaveEach(Equal(version)), "%s nodes not all on %s", name, version)
+		g.Expect(strings.Fields(kubelets)).To(HaveEach(Equal(reportedVersion)),
+			"%s nodes not all on %s", name, reportedVersion)
 	}, timeout, "20s").Should(Succeed(), "%s did not become ready on %s", name, version)
 	resources.LogLevel("info", "%s is ready on %s with %d nodes", name, version, nodes)
 }

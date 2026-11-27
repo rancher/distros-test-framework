@@ -152,3 +152,10 @@ func VersionUnderTest(installVersion, k8sVersion string) (string, error) {
 	return "", fmt.Errorf("k8sVersion %q differs from INSTALL_VERSION %q: the host cluster must run the version under test",
 		k8sVersion, installVersion)
 }
+
+var rcSuffix = regexp.MustCompile(`-rc\d+`)
+
+// ReportedVersion is how kubelets and Rancher report a version: RC builds drop the -rcN suffix.
+func ReportedVersion(version string) string {
+	return rcSuffix.ReplaceAllString(version, "")
+}

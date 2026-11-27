@@ -204,15 +204,15 @@ Every suite flag can also be set in `config/.env`; a flag given on the command l
 With `DESTROY=false` the run leaves Rancher up for manual checks. It revokes its own API token, sets the admin account to "must change password", and writes `artifacts/rancherday1/rancher-access.txt` (mode 0600). That file holds the Rancher URL, the admin login and the kept downstream EC2 instance IDs; logs show only its path. Your first UI login with that password makes you choose a new one. Leave the chart's `bootstrapPassword` unset to get a random admin password.
 
 #### For executing locally via docker
-Example `config/.env` lines for rke2, Rancher 2.14, with the same host-cluster settings as the `rke2_rancher_day1_qainfra` Jenkins job:
+Example `config/.env` lines for rke2, Rancher 2.14, with the same host-cluster settings as the `rke2_rancher_day1_qainfra` Jenkins job. Quote values with spaces, because `scripts/docker_run.sh` sources this file:
 ```
 ENV_PRODUCT=rke2
 INSTALL_VERSION=v1.35.11-rc1+rke2r1
 INSTALL_MODE=INSTALL_RKE2_VERSION
 INSTALL_CHANNEL=testing
 INSTALL_METHOD=rpm
-SERVER_FLAGS=profile: cis\nselinux: true\npod-security-admission-config-file: /etc/rancher/rke2/custom-psa.yaml\ncni: cilium\n
-WORKER_FLAGS=profile: cis\nselinux: true\n
+SERVER_FLAGS="profile: cis\nselinux: true\npod-security-admission-config-file: /etc/rancher/rke2/custom-psa.yaml\ncni: cilium\n"
+WORKER_FLAGS="profile: cis\nselinux: true\n"
 OPTIONAL_FILES=/etc/rancher/rke2/custom-psa.yaml,https://gist.githubusercontent.com/rancher-max/e1c728805b1e5aae8b547b075261bb56/raw/f4fb18e53d458d093a6b3dfe113649fc7e0dea5d/pod_security_config.yaml
 CHARTS_VERSION=2.14.8-5739c20-head
 CHARTS_REPO_NAME=optimus

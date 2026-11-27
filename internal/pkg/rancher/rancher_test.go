@@ -316,3 +316,15 @@ func TestVersionUnderTest(t *testing.T) {
 		t.Error("a k8sVersion different from INSTALL_VERSION was accepted")
 	}
 }
+
+func TestReportedVersion(t *testing.T) {
+	for in, want := range map[string]string{
+		"v1.35.11-rc1+rke2r1": "v1.35.11+rke2r1", // node VERSION observed on a v1.35.11-rc1 install
+		"v1.37.3-rc12+k3s1":   "v1.37.3+k3s1",
+		"v1.35.10+rke2r1":     "v1.35.10+rke2r1",
+	} {
+		if got := ReportedVersion(in); got != want {
+			t.Errorf("ReportedVersion(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

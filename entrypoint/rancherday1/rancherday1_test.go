@@ -7,7 +7,11 @@ import (
 	"github.com/rancher/distros-test-framework/internal/pkg/testcase"
 
 	. "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2/types"
 )
+
+// rancherDeployed gates the day-1 specs: without a running Rancher they can only time out.
+var rancherDeployed bool
 
 // ContinueOnFailure keeps independent steps (e.g. import) running; dependent steps Skip on missing prerequisites.
 var _ = Describe("Test Rancher Day-1 Operations:", Ordered, ContinueOnFailure, func() {
@@ -29,9 +33,15 @@ var _ = Describe("Test Rancher Day-1 Operations:", Ordered, ContinueOnFailure, f
 
 	It("Deploys rancher manager", func() {
 		testcase.TestDeployRancher(cluster, flags)
+		rancherDeployed = true
 	})
 
-	It("Connects to the Rancher API and UI", func() { day1.ConnectRancher() })
+	It("Connects to the Rancher API and UI", func() {
+		if !rancherDeployed {
+			Skip("rancher manager was not deployed")
+		}
+		day1.ConnectRancher()
+	})
 
 	It("Loads the KDM data.json under test", func() { day1.LoadKDM() })
 
@@ -54,10 +64,13 @@ var _ = Describe("Test Rancher Day-1 Operations:", Ordered, ContinueOnFailure, f
 
 var _ = AfterEach(func() {
 	report := CurrentSpecReport()
-	if report.Failed() {
+	switch {
+	case report.Failed():
 		fmt.Printf("\nFAILED! %s\n\n", report.FullText())
 		day1.CollectDebug(report.LeafNodeText)
-	} else {
+	case report.State == types.SpecStateSkipped:
+		fmt.Printf("\nSKIPPED! %s\n\n", report.FullText())
+	default:
 		fmt.Printf("\nPASSED! %s\n\n", report.FullText())
 	}
 })
