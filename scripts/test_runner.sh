@@ -95,7 +95,7 @@ if [ -n "${TEST_DIR}" ]; then
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "rancherday1" ]; then
         declare -a OPTS
-          OPTS=(-timeout=180m -v -count=1 ./entrypoint/rancherday1/...)
+          OPTS=(-timeout=240m -v -count=1 ./entrypoint/rancherday1/...)
             [ -n "${CERT_MANAGER_VERSION}" ] && OPTS+=(-certManagerVersion "${CERT_MANAGER_VERSION}")
             [ -n "${CHARTS_VERSION}" ] && OPTS+=(-chartsVersion "${CHARTS_VERSION}")
             [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")

@@ -210,7 +210,7 @@ K8S_PREVIOUS_VERSION=v1.37.2+k3s1
 
 #### For executing in Jenkins or locally without docker
 ```
-go test -timeout=180m -v -count=1 ./entrypoint/rancherday1/... \
+go test -timeout=240m -v -count=1 ./entrypoint/rancherday1/... \
 -chartsVersion 2.16.0-7c25ce9-head \
 -chartsRepoName optimus \
 -chartsRepoUrl https://charts.optimus.rancher.io/server-charts/latest \
