@@ -133,6 +133,12 @@ func rancherServer(t *testing.T) (srv *httptest.Server, caPEM string) {
 			}
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"token":"token-abc:xyz"}`))
+		case "/v3/tokens":
+			if r.URL.Query().Get("action") != "logout" || r.Header.Get("Authorization") != "Bearer token-abc:xyz" {
+				http.Error(w, "bad logout", http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		case "/v1-k3s-release/releases":
 			if r.Header.Get("Authorization") != "Bearer token-abc:xyz" {
 				http.Error(w, "no auth", http.StatusUnauthorized)
@@ -170,6 +176,13 @@ func TestClientLoginAndReleases(t *testing.T) {
 	versions, err := c.ChannelReleases(ctx, "k3s")
 	if err != nil || strings.Join(versions, ",") != "v1.37.2+k3s1,v1.37.3-rc1+k3s1" {
 		t.Fatalf("ChannelReleases = %v, %v", versions, err)
+	}
+
+	if err = c.Logout(ctx); err != nil || c.Token() != "" {
+		t.Fatalf("Logout = %v, token left %q", err, c.Token())
+	}
+	if err = c.Logout(ctx); err != nil {
+		t.Fatalf("second Logout should be a no-op: %v", err)
 	}
 }
 

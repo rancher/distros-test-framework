@@ -106,6 +106,7 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${K8S_PREVIOUS_VERSION}" ] && OPTS+=(-k8sPreviousVersion "${K8S_PREVIOUS_VERSION}")
             [ -n "${CUSTOM_NODES}" ] && OPTS+=(-customNodes "${CUSTOM_NODES}")
             [ -n "${IMPORT_NODES}" ] && OPTS+=(-importNodes "${IMPORT_NODES}")
+            [ -n "${RANCHER_FORCE_PASSWORD_CHANGE}" ] && OPTS+=(-rancherForcePasswordChange="${RANCHER_FORCE_PASSWORD_CHANGE}")
             [ -n "${DESTROY}" ] && OPTS+=(-destroy "${DESTROY}")
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then

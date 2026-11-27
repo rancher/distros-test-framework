@@ -66,6 +66,19 @@ func (c *Client) Login(ctx context.Context, username, password string) error {
 	return nil
 }
 
+// Logout revokes the session token so it can't outlive the run.
+func (c *Client) Logout(ctx context.Context) error {
+	if c.token == "" {
+		return nil
+	}
+	if err := c.do(ctx, http.MethodPost, "/v3/tokens?action=logout", map[string]any{}, nil); err != nil {
+		return fmt.Errorf("revoke rancher session token: %w", err)
+	}
+	c.token = ""
+
+	return nil
+}
+
 // ChannelReleases lists the versions Rancher offers for product, the same list the UI dropdowns use.
 func (c *Client) ChannelReleases(ctx context.Context, product string) ([]string, error) {
 	var out struct {

@@ -33,7 +33,24 @@ var (
 	previousVersion string
 	customNodes     string
 	importNodes     string
+	forceReset      bool
 )
+
+// envFlags maps suite flags to config/.env variables used when the flag is not on the command line.
+var envFlags = map[string]string{
+	"destroy":                    "DESTROY",
+	"certManagerVersion":         "CERT_MANAGER_VERSION",
+	"chartsVersion":              "CHARTS_VERSION",
+	"chartsRepoName":             "CHARTS_REPO_NAME",
+	"chartsRepoUrl":              "CHARTS_REPO_URL",
+	"chartsArgs":                 "CHARTS_ARGS",
+	"kdmSource":                  "KDM_SOURCE",
+	"k8sVersion":                 "K8S_VERSION",
+	"k8sPreviousVersion":         "K8S_PREVIOUS_VERSION",
+	"customNodes":                "CUSTOM_NODES",
+	"importNodes":                "IMPORT_NODES",
+	"rancherForcePasswordChange": "RANCHER_FORCE_PASSWORD_CHANGE",
+}
 
 func TestMain(m *testing.M) {
 	flags = &customflag.ServiceFlag
@@ -50,21 +67,27 @@ func TestMain(m *testing.M) {
 		"custom cluster nodes as roles:count groups, roles joined by + (etcd, controlplane|cp, worker)")
 	flag.StringVar(&importNodes, "importNodes", rancher.DefaultImportLayout,
 		"imported cluster nodes: etcd+controlplane:N servers, then worker:N agents")
+	flag.BoolVar(&forceReset, "rancherForcePasswordChange", true,
+		"with destroy=false, make Rancher ask for a new admin password at the next UI login")
 	flag.Parse()
-
-	customflag.ValidateVersionFormat()
-	customflag.ValidateRancherChartsFlags()
 
 	cfg, err = config.AddEnv()
 	if err != nil {
 		resources.LogLevel("error", "error adding env vars: %w\n", err)
 		os.Exit(1)
 	}
+	// config/.env is only loaded by AddEnv, so flags fall back to it afterwards.
+	if err = customflag.FillFromEnv(flag.CommandLine, envFlags); err != nil {
+		resources.LogLevel("error", "%v\n", err)
+		os.Exit(1)
+	}
+	customflag.ValidateVersionFormat()
+	customflag.ValidateRancherChartsFlags()
 
 	// Check the layouts and data.json before paying for infrastructure.
 	day1Cfg := testcase.RancherDay1Config{
 		Product: cfg.Product, Version: version,
-		PreviousVersion: previousVersion, ResourceName: cfg.ResourceName,
+		PreviousVersion: previousVersion, ResourceName: cfg.ResourceName, ForcePasswordChange: forceReset,
 	}
 	day1Cfg.CustomNodes, day1Cfg.ImportNodes = parseLayouts()
 	day1Cfg.DataURL = validateDay1(cfg.Product)

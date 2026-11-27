@@ -40,6 +40,8 @@ type RancherDay1Config struct {
 	ResourceName    string
 	CustomNodes     [][]string // roles per custom cluster node, from rancher.ParseLayout
 	ImportNodes     [][]string // roles per imported cluster node; servers first
+	// ForcePasswordChange makes Rancher ask for a new admin password at the next UI login after the run.
+	ForcePasswordChange bool
 }
 
 // RancherDay1 carries state between the ordered Rancher day-1 specs.
@@ -49,9 +51,11 @@ type RancherDay1 struct {
 	artifactsDir string
 	baseURL      string
 
-	api       *rancher.Client
-	browser   *ui.Browser
-	awsClient *aws.Client
+	api           *rancher.Client
+	browser       *ui.Browser
+	awsClient     *aws.Client
+	adminUser     string
+	adminPassword string
 
 	customID, customKubectlIP string
 	importID, importKubectlIP string
@@ -79,6 +83,8 @@ func (r *RancherDay1) ConnectRancher() {
 	Expect(err).NotTo(HaveOccurred(), "read rancher bootstrap-secret")
 	password, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
 	Expect(err).NotTo(HaveOccurred(), "decode rancher bootstrap password")
+	r.adminPassword = string(password)
+	r.writeAccessFile()
 
 	// The dashboard sends a fresh admin to the setup wizard unless first login is already complete.
 	setRancherSetting("first-login", "false")
@@ -87,13 +93,11 @@ func (r *RancherDay1) ConnectRancher() {
 	if serverURL == "" {
 		setRancherSetting("server-url", r.baseURL)
 	}
-	adminUser, err := rancherKubectl("get", "users.management.cattle.io",
+	r.adminUser, err = rancherKubectl("get", "users.management.cattle.io",
 		"-o", `jsonpath={range .items[?(@.username=="admin")]}{.metadata.name}{end}`)
 	Expect(err).NotTo(HaveOccurred(), "find rancher admin user")
-	Expect(adminUser).NotTo(BeEmpty(), "rancher admin user not found")
-	_, err = rancherKubectl("patch", "users.management.cattle.io", adminUser, "--type=merge",
-		"-p", `{"mustChangePassword":false}`)
-	Expect(err).NotTo(HaveOccurred(), "clear admin mustChangePassword")
+	Expect(r.adminUser).NotTo(BeEmpty(), "rancher admin user not found")
+	Expect(setMustChangePassword(r.adminUser, false)).To(Succeed(), "clear admin mustChangePassword for the test session")
 
 	caPEM, err := rancherKubectl("get", "settings.management.cattle.io", "cacerts", "-o", "jsonpath={.value}")
 	Expect(err).NotTo(HaveOccurred(), "read rancher cacerts setting")
@@ -401,16 +405,30 @@ func (r *RancherDay1) saveBrowserDebug(spec string) {
 	}
 }
 
-// Cleanup closes the browser and, when destroying, terminates the downstream EC2 nodes created by this run.
+// Cleanup ends the test session and, when destroying, terminates the downstream EC2 nodes created by this run.
+// When kept, it revokes the API token, optionally forces a password change and records how to reach Rancher.
 func (r *RancherDay1) Cleanup(destroy bool) {
 	if r.browser != nil {
 		r.browser.Close()
 	}
-	ids := aws.TrackedInstanceIDs()
-	if !destroy || len(ids) == 0 {
-		if len(ids) > 0 {
-			resources.LogLevel("info", "Keeping downstream instances (destroy=false): %v", ids)
+	if r.api != nil {
+		if err := r.api.Logout(context.Background()); err != nil {
+			resources.LogLevel("warn", "%v", err)
 		}
+	}
+
+	ids := aws.TrackedInstanceIDs()
+	if !destroy {
+		if r.ForcePasswordChange && r.adminUser != "" {
+			if err := setMustChangePassword(r.adminUser, true); err != nil {
+				resources.LogLevel("error", "force admin password change: %v", err)
+			}
+		}
+		r.writeAccessFile(ids...)
+
+		return
+	}
+	if len(ids) == 0 {
 		return
 	}
 	if r.awsClient == nil {
@@ -420,6 +438,39 @@ func (r *RancherDay1) Cleanup(destroy bool) {
 	if err := r.awsClient.DeleteInstances(ids...); err != nil {
 		resources.LogLevel("error", "terminate downstream instances %v: %v", ids, err)
 	}
+}
+
+// writeAccessFile records the Rancher URL and admin login in a 0600 file; only its path is logged.
+func (r *RancherDay1) writeAccessFile(keptInstances ...string) {
+	if r.adminPassword == "" {
+		return
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Rancher URL: %s\nUsername:    admin\nPassword:    %s\n", r.baseURL, r.adminPassword)
+	if r.ForcePasswordChange {
+		b.WriteString("Rancher asks for a new password at the first UI login after the run.\n")
+	}
+	if len(keptInstances) > 0 {
+		fmt.Fprintf(&b, "Downstream EC2 instances kept (terminate when done): %s\n", strings.Join(keptInstances, " "))
+	}
+
+	path := filepath.Join(r.artifactsDir, "rancher-access.txt")
+	err := os.MkdirAll(r.artifactsDir, 0o700)
+	if err == nil {
+		err = os.WriteFile(path, []byte(b.String()), 0o600)
+	}
+	if err != nil {
+		resources.LogLevel("error", "write rancher access file: %v", err)
+		return
+	}
+	resources.LogLevel("info", "Rancher URL %s; admin login saved to %s", r.baseURL, path)
+}
+
+func setMustChangePassword(user string, value bool) error {
+	_, err := rancherKubectl("patch", "users.management.cattle.io", user, "--type=merge",
+		"-p", fmt.Sprintf(`{"mustChangePassword":%t}`, value))
+
+	return err
 }
 
 func (r *RancherDay1) requireAPI() {

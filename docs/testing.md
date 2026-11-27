@@ -183,12 +183,26 @@ Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as buil
 
 Credentials: the browser authenticates with an API session token set as an `httpOnly` cookie, so no password is typed or rendered. A screenshot is refused when the page shows the bootstrap password, the session token or a registration token. Registration and import commands are sent over SSH stdin, so their tokens never appear in logs or errors.
 
+Every suite flag can also be set in `config/.env`; a flag given on the command line wins. `CHANNEL` only matters when no version is pinned. `INSTALL_VERSION` pins the Rancher local cluster and `K8S_VERSION` pins the RC, so `CHANNEL=stable` is fine when testing an RC.
+
+| `config/.env` | Flag | Purpose |
+|---|---|---|
+| `CHARTS_VERSION`, `CHARTS_REPO_NAME`, `CHARTS_REPO_URL`, `CHARTS_ARGS` | `-chartsVersion` … | Rancher chart to install |
+| `CERT_MANAGER_VERSION` | `-certManagerVersion` | cert-manager version |
+| `KDM_SOURCE` | `-kdmSource` | data.json URL or KDM PR |
+| `K8S_VERSION` | `-k8sVersion` | version under test: custom cluster install version and imported upgrade target |
+| `K8S_PREVIOUS_VERSION` | `-k8sPreviousVersion` | released version the imported cluster starts on |
+| `CUSTOM_NODES`, `IMPORT_NODES` | `-customNodes`, `-importNodes` | node layouts |
+| `DESTROY` | `-destroy` | keep or tear down all infrastructure |
+| `RANCHER_FORCE_PASSWORD_CHANGE` | `-rancherForcePasswordChange` | default `true`; see below |
+
+With `DESTROY=false` the run leaves Rancher up for manual checks. It revokes its own API token, sets the admin account to "must change password", and writes `artifacts/rancherday1/rancher-access.txt` (mode 0600). That file holds the Rancher URL, the admin login and the kept downstream EC2 instance IDs; logs show only its path. Your first UI login with that password makes you choose a new one. Leave the chart's `bootstrapPassword` unset to get a random admin password.
+
 #### For executing locally via docker
 ```
 CHARTS_VERSION=2.16.0-7c25ce9-head
 CHARTS_REPO_NAME=optimus
 CHARTS_REPO_URL=https://charts.optimus.rancher.io/server-charts/latest
-CHARTS_ARGS=bootstrapPassword=admin
 KDM_SOURCE=https://github.com/rancher/kontainer-driver-metadata/pull/2248
 K8S_VERSION=v1.37.3-rc1+k3s1
 K8S_PREVIOUS_VERSION=v1.37.2+k3s1
