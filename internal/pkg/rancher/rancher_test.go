@@ -304,3 +304,15 @@ func TestClusterManifest(t *testing.T) {
 		t.Fatalf("imported manifest must have an empty spec: %s", imported)
 	}
 }
+
+func TestVersionUnderTest(t *testing.T) {
+	const rc = "v1.35.11-rc1+rke2r1"
+	for _, k8s := range []string{"", rc} {
+		if got, err := VersionUnderTest(rc, k8s); err != nil || got != rc {
+			t.Errorf("VersionUnderTest(%q, %q) = %q, %v; want %q", rc, k8s, got, err, rc)
+		}
+	}
+	if _, err := VersionUnderTest(rc, "v1.35.10+rke2r1"); err == nil {
+		t.Error("a k8sVersion different from INSTALL_VERSION was accepted")
+	}
+}

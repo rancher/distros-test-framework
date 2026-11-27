@@ -62,7 +62,8 @@ func TestMain(m *testing.M) {
 	flag.StringVar(&flags.Charts.RepoUrl, "chartsRepoUrl", "", "rancher helm chart repo url")
 	flag.StringVar(&flags.Charts.Args, "chartsArgs", "", "rancher helm additional args, comma separated")
 	flag.StringVar(&kdmSource, "kdmSource", "", "KDM data.json https URL or kontainer-driver-metadata PR URL")
-	flag.StringVar(&version, "k8sVersion", "", "version under test: custom cluster version and imported upgrade target")
+	flag.StringVar(&version, "k8sVersion", "",
+		"optional; must equal INSTALL_VERSION, the RC the host cluster, custom cluster and imported upgrade run")
 	flag.StringVar(&previousVersion, "k8sPreviousVersion", "", "released version the imported cluster starts on")
 	flag.StringVar(&customNodes, "customNodes", rancher.DefaultCustomLayout,
 		"custom cluster nodes as roles:count groups, roles joined by + (etcd, controlplane|cp, worker)")
@@ -84,6 +85,12 @@ func TestMain(m *testing.M) {
 	}
 	customflag.ValidateVersionFormat()
 	customflag.ValidateRancherChartsFlags()
+
+	// The host cluster (INSTALL_VERSION) runs the RC under test; the day-1 clusters use the same version.
+	if version, err = rancher.VersionUnderTest(cfg.InstallVersion, version); err != nil {
+		resources.LogLevel("error", "%v\n", err)
+		os.Exit(1)
+	}
 
 	// Check the layouts and data.json before paying for infrastructure.
 	day1Cfg := testcase.RancherDay1Config{
@@ -136,11 +143,11 @@ func parseLayouts() (custom, imported [][]string) {
 
 func validateDay1(product string) string {
 	if kdmSource == "" || version == "" || previousVersion == "" {
-		resources.LogLevel("error", "kdmSource, k8sVersion and k8sPreviousVersion are required\n")
+		resources.LogLevel("error", "kdmSource, INSTALL_VERSION and k8sPreviousVersion are required\n")
 		os.Exit(1)
 	}
 	if previousVersion == version || strings.Contains(previousVersion, "-rc") {
-		resources.LogLevel("error", "k8sPreviousVersion must be a released version older than k8sVersion\n")
+		resources.LogLevel("error", "k8sPreviousVersion must be a released version older than INSTALL_VERSION\n")
 		os.Exit(1)
 	}
 	for _, v := range []string{version, previousVersion} {

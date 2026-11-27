@@ -148,16 +148,17 @@ chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extra
 
 ## Validating Rancher Day-1 Operations
 
-`entrypoint/rancherday1` deploys Rancher like `deployrancher`, then on the same product (`ENV_PRODUCT`):
+`entrypoint/rancherday1` tests one k3s/RKE2 RC end to end. `INSTALL_VERSION` is that RC (the version under test), for example `v1.35.11-rc1+rke2r1`. On the same product (`ENV_PRODUCT`) the suite:
 
-1. points Rancher's `rke-metadata-config` at the data.json under test and waits for `k8sVersion` in `/v1-<product>-release/releases`;
-2. screenshots the create-cluster **Kubernetes Version** dropdown (must list `k8sVersion`);
-3. provisions a custom cluster on `k8sVersion` with the `customNodes` layout;
-4. takes an etcd snapshot of it, deletes a marker ConfigMap, restores the snapshot and checks the marker is back;
-5. installs `k8sPreviousVersion` (a released version) as a standalone cluster with the `importNodes` layout and imports it;
-6. screenshots the imported cluster's edit dropdown (must list `k8sVersion`) and upgrades it to `k8sVersion` through Rancher's imported-cluster version management.
+1. creates the host cluster on `INSTALL_VERSION`, with `SERVER_FLAGS`/`WORKER_FLAGS`, and deploys cert-manager and Rancher on it, like `deployrancher`;
+2. points Rancher's `rke-metadata-config` at the data.json under test and waits for `INSTALL_VERSION` in `/v1-<product>-release/releases`;
+3. screenshots the create-cluster **Kubernetes Version** dropdown, which must list `INSTALL_VERSION`;
+4. provisions a custom cluster on `INSTALL_VERSION` with the `customNodes` layout;
+5. takes an etcd snapshot of it, deletes a marker ConfigMap, restores the snapshot and checks the marker is back;
+6. installs `K8S_PREVIOUS_VERSION` (a released, older version) as a standalone cluster with the `importNodes` layout and imports it;
+7. screenshots the imported cluster's edit dropdown, which must list `INSTALL_VERSION`, then upgrades it to `INSTALL_VERSION` through Rancher's imported-cluster version management.
 
-The dashboard hides older patches of a minor version, so the create dropdown is only expected to list `k8sVersion`.
+`K8S_VERSION` / `-k8sVersion` is optional. It defaults to `INSTALL_VERSION`, and the suite rejects any other value, so the host, custom and upgraded clusters always run the same RC. The dashboard hides older patches of a minor version, so the create dropdown is only expected to list `INSTALL_VERSION`.
 
 Node layouts are comma-separated `roles:count` groups. Roles are `etcd`, `controlplane` (or `cp`) and `worker`, joined with `+`. A layout holds at most 10 nodes.
 
@@ -173,7 +174,7 @@ Node layouts are comma-separated `roles:count` groups. Roles are `etcd`, `contro
 Steps run with `ContinueOnFailure`: the import and its upgrade still run when a custom-cluster step fails, and steps whose prerequisite failed are skipped.
 
 - `kdmSource` takes a raw data.json `https` URL or a `rancher/kontainer-driver-metadata` PR URL, which is pinned to the PR head commit.
-- Both versions must be listed in that data.json for the product; this is checked before any infrastructure is created.
+- `INSTALL_VERSION` and `K8S_PREVIOUS_VERSION` must both be listed in that data.json for the product. This is checked before any infrastructure is created.
 - Downstream nodes are extra EC2 instances (10 with the default layouts) that use the cluster's AMI, instance type, subnet, security group and SSH key. With `-destroy true` they are terminated before the infrastructure is destroyed. An aborted run can leak them: they are tagged `<RESOURCE_NAME>-day1-*-distros-qa`.
 - Needs Chromium or Chrome and a connected environment, because Rancher downloads data.json and the nodes download install scripts. Air-gap is not supported.
 - Only `scripts/Dockerfile.rancherday1` (`Dockerfile.jenkins` plus Chromium) installs Chromium, so other jobs keep their image size. Jenkins jobs select it with the `DOCKERFILE=scripts/Dockerfile.rancherday1` job parameter; the Jenkinsfile is unchanged, and `scripts/build.sh` accepts only the two ENTRYPOINT-less Jenkins images (`Dockerfile.jenkins`, the default, and `Dockerfile.rancherday1`).
@@ -185,14 +186,16 @@ Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as buil
 
 Credentials: the browser authenticates with an API session token set as an `httpOnly` cookie, so no password is typed or rendered. A screenshot is refused when the page shows the bootstrap password, the session token or a registration token. Registration and import commands are sent over SSH stdin, so their tokens never appear in logs or errors.
 
-Every suite flag can also be set in `config/.env`; a flag given on the command line wins. `CHANNEL` only matters when no version is pinned. `INSTALL_VERSION` pins the Rancher local cluster and `K8S_VERSION` pins the RC, so `CHANNEL=stable` is fine when testing an RC.
+Every suite flag can also be set in `config/.env`; a flag given on the command line wins. The host cluster is installed by qainfra, so its RC must be available in `INSTALL_CHANNEL`. Use `INSTALL_CHANNEL=testing` for RCs, because RC rpms (`INSTALL_METHOD=rpm`) exist only there.
 
 | `config/.env` | Flag | Purpose |
 |---|---|---|
+| `INSTALL_VERSION`, `INSTALL_CHANNEL` | n/a (cluster config) | RC under test: host cluster, custom cluster and imported upgrade target |
+| `SERVER_FLAGS`, `WORKER_FLAGS`, `OPTIONAL_FILES`, `INSTALL_METHOD` | n/a (cluster config) | host cluster install. rke2 `profile: cis` needs the PSA file in `OPTIONAL_FILES` and `pod-security-admission-config-file` in `SERVER_FLAGS` |
 | `CHARTS_VERSION`, `CHARTS_REPO_NAME`, `CHARTS_REPO_URL`, `CHARTS_ARGS` | `-chartsVersion` … | Rancher chart to install |
 | `CERT_MANAGER_VERSION` | `-certManagerVersion` | cert-manager version |
 | `KDM_SOURCE` | `-kdmSource` | data.json URL or KDM PR |
-| `K8S_VERSION` | `-k8sVersion` | version under test: custom cluster install version and imported upgrade target |
+| `K8S_VERSION` | `-k8sVersion` | optional; defaults to, and must equal, `INSTALL_VERSION` |
 | `K8S_PREVIOUS_VERSION` | `-k8sPreviousVersion` | released version the imported cluster starts on |
 | `CUSTOM_NODES`, `IMPORT_NODES` | `-customNodes`, `-importNodes` | node layouts |
 | `DESTROY` | `-destroy` | keep or tear down all infrastructure |
@@ -201,30 +204,40 @@ Every suite flag can also be set in `config/.env`; a flag given on the command l
 With `DESTROY=false` the run leaves Rancher up for manual checks. It revokes its own API token, sets the admin account to "must change password", and writes `artifacts/rancherday1/rancher-access.txt` (mode 0600). That file holds the Rancher URL, the admin login and the kept downstream EC2 instance IDs; logs show only its path. Your first UI login with that password makes you choose a new one. Leave the chart's `bootstrapPassword` unset to get a random admin password.
 
 #### For executing locally via docker
+Example `config/.env` lines for rke2, Rancher 2.14, with the same host-cluster settings as the `rke2_rancher_day1_qainfra` Jenkins job:
 ```
-CHARTS_VERSION=2.16.0-7c25ce9-head
+ENV_PRODUCT=rke2
+INSTALL_VERSION=v1.35.11-rc1+rke2r1
+INSTALL_MODE=INSTALL_RKE2_VERSION
+INSTALL_CHANNEL=testing
+INSTALL_METHOD=rpm
+SERVER_FLAGS=profile: cis\nselinux: true\npod-security-admission-config-file: /etc/rancher/rke2/custom-psa.yaml\ncni: cilium\n
+WORKER_FLAGS=profile: cis\nselinux: true\n
+OPTIONAL_FILES=/etc/rancher/rke2/custom-psa.yaml,https://gist.githubusercontent.com/rancher-max/e1c728805b1e5aae8b547b075261bb56/raw/f4fb18e53d458d093a6b3dfe113649fc7e0dea5d/pod_security_config.yaml
+CHARTS_VERSION=2.14.8-5739c20-head
 CHARTS_REPO_NAME=optimus
 CHARTS_REPO_URL=https://charts.optimus.rancher.io/server-charts/latest
-KDM_SOURCE=https://github.com/rancher/kontainer-driver-metadata/pull/2248
-K8S_VERSION=v1.37.3-rc1+k3s1
-K8S_PREVIOUS_VERSION=v1.37.2+k3s1
+CHARTS_ARGS=bootstrapPassword=admin,rancherImage=stgregistry.suse.com/rancher/rancher
+CERT_MANAGER_VERSION=v1.21.3
+KDM_SOURCE=https://github.com/rancher/kontainer-driver-metadata/pull/2249
+K8S_PREVIOUS_VERSION=v1.35.10+rke2r1
 ```
 
 #### For executing in Jenkins or locally without docker
 ```
+# INSTALL_VERSION=v1.37.3-rc1+k3s1 (the RC under test) comes from config/.env
 go test -timeout=240m -v -count=1 ./entrypoint/rancherday1/... \
 -chartsVersion 2.16.0-7c25ce9-head \
 -chartsRepoName optimus \
 -chartsRepoUrl https://charts.optimus.rancher.io/server-charts/latest \
 -kdmSource https://github.com/rancher/kontainer-driver-metadata/pull/2248 \
--k8sVersion v1.37.3-rc1+k3s1 \
 -k8sPreviousVersion v1.37.2+k3s1 \
 -destroy true
 ```
 
 Sample map (charts repo `https://charts.optimus.rancher.io/server-charts/latest`). Each KDM PR carries the RCs of one product only:
 
-| Rancher (`chartsVersion`) | Product | `kdmSource` PR | `k8sVersion` | `k8sPreviousVersion` |
+| Rancher (`chartsVersion`) | Product | `kdmSource` PR | `INSTALL_VERSION` (RC) | `k8sPreviousVersion` |
 |---|---|---|---|---|
 | 2.16.0-7c25ce9-head | k3s | rancher/kontainer-driver-metadata#2248 | v1.37.3-rc1+k3s1 | v1.37.2+k3s1 |
 | 2.15.4-ce34ff1-head | k3s | rancher/kontainer-driver-metadata#2247 | v1.36.7-rc1+k3s1 | v1.36.6+k3s1 |

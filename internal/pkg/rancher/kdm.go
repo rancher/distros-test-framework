@@ -141,3 +141,14 @@ func truncate(b []byte) string {
 
 	return string(b)
 }
+
+// VersionUnderTest returns the RC the run tests: the host cluster's INSTALL_VERSION. An explicit
+// k8sVersion must match it, so the host, custom and upgraded clusters always run the same RC.
+func VersionUnderTest(installVersion, k8sVersion string) (string, error) {
+	if k8sVersion == "" || k8sVersion == installVersion {
+		return installVersion, nil
+	}
+
+	return "", fmt.Errorf("k8sVersion %q differs from INSTALL_VERSION %q: the host cluster must run the version under test",
+		k8sVersion, installVersion)
+}
