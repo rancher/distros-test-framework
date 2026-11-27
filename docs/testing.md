@@ -179,7 +179,7 @@ Steps run with `ContinueOnFailure`: the import and its upgrade still run when a 
 - Only `scripts/Dockerfile.rancherday1` (`Dockerfile.jenkins` plus Chromium) installs Chromium, so other jobs keep their image size. Jenkins jobs select it with the `DOCKERFILE=scripts/Dockerfile.rancherday1` job parameter; the Jenkinsfile is unchanged, and `scripts/build.sh` accepts only the two ENTRYPOINT-less Jenkins images (`Dockerfile.jenkins`, the default, and `Dockerfile.rancherday1`).
 - Jenkins: set `TIMEOUT` to at least `240m`, and keep `RESOURCE_NAME` to 9 characters or fewer, because qainfra caps the hostname prefix built from it.
 
-Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as build artifacts.
+Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as build artifacts, except `rancher-access.txt`, which holds the admin password: Jenkins deletes it instead of archiving it. On Jenkins, the admin password is therefore the job's `bootstrapPassword` chart arg, or, if that's unset, Rancher's `bootstrap-secret`.
 - `screenshots/NN-*.png`: the dropdowns, plus every cluster after each successful operation.
 - `debug/NN/`: written per failed spec. It holds Rancher logs, provisioning/control-plane/machine/snapshot objects, events, downstream node journals, cluster-agent logs, a failure screenshot and the browser console.
 

@@ -170,6 +170,19 @@ test_logs() {
 # Builds the Docker image for the test environment
 test_env_up() {
     docker build . -q -f ./scripts/Dockerfile.build -t acceptance-test-"${TAG_NAME}"
+    # Same Chromium layer as scripts/Dockerfile.rancherday1, so only this suite's local image grows.
+    if [ "${TEST_DIR:-}" = "rancherday1" ]; then
+        # A file context, not stdin: nerdctl (lima) rejects "-" as a build context.
+        local layer_dir
+        layer_dir=$(mktemp -d)
+        printf 'FROM %s\nRUN apk add --no-cache chromium ttf-freefont\n' "acceptance-test-${TAG_NAME}" > "$layer_dir/Dockerfile"
+        if ! docker build -q -t acceptance-test-"${TAG_NAME}" "$layer_dir"; then
+            rm -rf "$layer_dir"
+            echo "ERROR: failed to add Chromium for rancherday1" >&2
+            return 1
+        fi
+        rm -rf "$layer_dir"
+    fi
 }
 
 # Cleans up the test environment by removing containers,images and dangling images.

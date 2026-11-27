@@ -425,6 +425,9 @@ func (r *RancherDay1) Cleanup(destroy bool) {
 			}
 		}
 		r.writeAccessFile(ids...)
+		if len(ids) > 0 {
+			resources.LogLevel("info", "Keeping downstream EC2 instances (destroy=false): %s", strings.Join(ids, " "))
+		}
 
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rancher/distros-test-framework/config"
 	"github.com/rancher/distros-test-framework/entrypoint"
@@ -99,7 +100,15 @@ func TestMain(m *testing.M) {
 
 func TestRancherDay1Suite(t *testing.T) {
 	RegisterFailHandler(entrypoint.FailWithReport)
-	RunSpecs(t, "Rancher Day-1 Operations Test Suite")
+
+	// A full run outlasts Ginkgo's 1h default; follow -timeout (Jenkins TIMEOUT) instead.
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	deadline, hasDeadline := t.Deadline()
+	suiteConfig.Timeout = customflag.SuiteTimeout(suiteConfig.Timeout,
+		customflag.FlagGiven(flag.CommandLine, "ginkgo.timeout"), deadline, hasDeadline, time.Now(), 10*time.Minute)
+	resources.LogLevel("info", "Ginkgo suite timeout %s", suiteConfig.Timeout)
+
+	RunSpecs(t, "Rancher Day-1 Operations Test Suite", suiteConfig, reporterConfig)
 }
 
 func parseLayouts() (custom, imported [][]string) {

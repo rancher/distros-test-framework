@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
+
 	"github.com/rancher/distros-test-framework/internal/provisioning/driver"
 	"github.com/rancher/distros-test-framework/internal/resources"
 )
@@ -108,13 +110,19 @@ func patchRKE2ConfigTemplate(config *driver.InfraConfig) error {
 	return nil
 }
 
+// Galaxy downloads fail transiently (connection resets); retry before failing the whole provision.
+var (
+	galaxyRun        = runCmdWithTimeout
+	galaxyAttempts   = uint(3)
+	galaxyRetryDelay = 20 * time.Second
+)
+
 // installAnsibleCollection installs collections needed by playbooks.
 func installAnsibleCollection(workingDir string) error {
 	reqPath := filepath.Join(workingDir, "requirements.yml")
 	if _, err := os.Stat(reqPath); err == nil {
 		resources.LogLevel("debug", "Installing Ansible collections from requirements.yml")
-		if err := runCmdWithTimeout(workingDir, 5*time.Minute,
-			"ansible-galaxy", "collection", "install", "-r", "requirements.yml", "--force"); err != nil {
+		if err := galaxyInstall(workingDir, 5*time.Minute, "-r", "requirements.yml", "--force"); err != nil {
 			return fmt.Errorf("failed to install collections from requirements.yml: %w", err)
 		}
 
@@ -122,12 +130,27 @@ func installAnsibleCollection(workingDir string) error {
 	}
 
 	resources.LogLevel("debug", "Installing cloud.terraform Ansible collection")
-	if err := runCmdWithTimeout(workingDir, 3*time.Minute,
-		"ansible-galaxy", "collection", "install", "cloud.terraform", "--force"); err != nil {
+	if err := galaxyInstall(workingDir, 3*time.Minute, "cloud.terraform", "--force"); err != nil {
 		return fmt.Errorf("failed to install cloud.terraform collection: %w", err)
 	}
 
 	return nil
+}
+
+// galaxyInstall runs `ansible-galaxy collection install args...`, each attempt bounded by timeout.
+func galaxyInstall(workingDir string, timeout time.Duration, args ...string) error {
+	return retry.Do(
+		func() error {
+			return galaxyRun(workingDir, timeout, "ansible-galaxy", append([]string{"collection", "install"}, args...)...)
+		},
+		retry.Attempts(galaxyAttempts),
+		retry.Delay(galaxyRetryDelay),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			resources.LogLevel("warn", "ansible-galaxy attempt %d/%d failed: %v", n+1, galaxyAttempts, err)
+		}),
+	)
 }
 
 func setAnsibleEnvVars(config *driver.InfraConfig) error {
