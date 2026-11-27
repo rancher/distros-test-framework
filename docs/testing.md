@@ -146,6 +146,77 @@ go test -timeout=30m -v -tags=deployrancher ./entrypoint/deployrancher/... \
 chartsArgs rancherImage=<image or url>,extraEnv[0].name=CATTLE_AGENT_IMAGE,extraEnv[0].value=<image or url>-agent:v2.7.12
 ```
 
+## Validating Rancher Day-1 Operations
+
+`entrypoint/rancherday1` deploys Rancher like `deployrancher`, then on the same product (`ENV_PRODUCT`):
+
+1. points Rancher's `rke-metadata-config` at the data.json under test and waits for `k8sVersion` in `/v1-<product>-release/releases`;
+2. screenshots the create-cluster **Kubernetes Version** dropdown (must list `k8sVersion`);
+3. provisions a custom cluster on `k8sVersion` with the `customNodes` layout;
+4. takes an etcd snapshot of it, deletes a marker ConfigMap, restores the snapshot and checks the marker is back;
+5. installs `k8sPreviousVersion` (a released version) as a standalone cluster with the `importNodes` layout and imports it;
+6. screenshots the imported cluster's edit dropdown (must list `k8sVersion`) and upgrades it to `k8sVersion` through Rancher's imported-cluster version management.
+
+The dashboard hides older patches of a minor version, so the create dropdown is only expected to list `k8sVersion`.
+
+Node layouts are comma-separated `roles:count` groups. Roles are `etcd`, `controlplane` (or `cp`) and `worker`, joined with `+`. A layout holds at most 10 nodes.
+
+| Flag (env) | Default | Example |
+|---|---|---|
+| `-customNodes` (`CUSTOM_NODES`) | `etcd:3,controlplane:2,worker:1` | `etcd+cp+worker:3` (3 all-role nodes) |
+| `-importNodes` (`IMPORT_NODES`) | `etcd+controlplane:3,worker:1` | `etcd+cp:1` (single server) |
+
+- `customNodes` must include at least one etcd, one controlplane and one worker node.
+- `importNodes` must start with `etcd+controlplane` servers and may add `worker` agents. The first server starts with `cluster-init`; the other servers and agents join it over its private IP.
+- The join token is written to `/etc/rancher/<product>/config.yaml` over SSH stdin, so it never appears on a command line.
+
+Steps run with `ContinueOnFailure`: the import and its upgrade still run when a custom-cluster step fails, and steps whose prerequisite failed are skipped.
+
+- `kdmSource` takes a raw data.json `https` URL or a `rancher/kontainer-driver-metadata` PR URL, which is pinned to the PR head commit.
+- Both versions must be listed in that data.json for the product; this is checked before any infrastructure is created.
+- Downstream nodes are extra EC2 instances (10 with the default layouts) that use the cluster's AMI, instance type, subnet, security group and SSH key. With `-destroy true` they are terminated before the infrastructure is destroyed. An aborted run can leak them: they are tagged `<RESOURCE_NAME>-day1-*-distros-qa`.
+- Needs Chromium or Chrome (both test images include `chromium`) and a connected environment, because Rancher downloads data.json and the nodes download install scripts. Air-gap is not supported.
+
+Artifacts are written to `artifacts/rancherday1/`. Jenkins archives them as build artifacts.
+- `screenshots/NN-*.png`: the dropdowns, plus every cluster after each successful operation.
+- `debug/NN/`: written per failed spec. It holds Rancher logs, provisioning/control-plane/machine/snapshot objects, events, downstream node journals, cluster-agent logs, a failure screenshot and the browser console.
+
+Credentials: the browser authenticates with an API session token set as an `httpOnly` cookie, so no password is typed or rendered. A screenshot is refused when the page shows the bootstrap password, the session token or a registration token. Registration and import commands are sent over SSH stdin, so their tokens never appear in logs or errors.
+
+#### For executing locally via docker
+```
+CHARTS_VERSION=2.16.0-7c25ce9-head
+CHARTS_REPO_NAME=optimus
+CHARTS_REPO_URL=https://charts.optimus.rancher.io/server-charts/latest
+CHARTS_ARGS=bootstrapPassword=admin
+KDM_SOURCE=https://github.com/rancher/kontainer-driver-metadata/pull/2248
+K8S_VERSION=v1.37.3-rc1+k3s1
+K8S_PREVIOUS_VERSION=v1.37.2+k3s1
+```
+
+#### For executing in Jenkins or locally without docker
+```
+go test -timeout=180m -v -count=1 ./entrypoint/rancherday1/... \
+-chartsVersion 2.16.0-7c25ce9-head \
+-chartsRepoName optimus \
+-chartsRepoUrl https://charts.optimus.rancher.io/server-charts/latest \
+-kdmSource https://github.com/rancher/kontainer-driver-metadata/pull/2248 \
+-k8sVersion v1.37.3-rc1+k3s1 \
+-k8sPreviousVersion v1.37.2+k3s1 \
+-destroy true
+```
+
+Sample map (charts repo `https://charts.optimus.rancher.io/server-charts/latest`). Each KDM PR carries the RCs of one product only:
+
+| Rancher (`chartsVersion`) | Product | `kdmSource` PR | `k8sVersion` | `k8sPreviousVersion` |
+|---|---|---|---|---|
+| 2.16.0-7c25ce9-head | k3s | rancher/kontainer-driver-metadata#2248 | v1.37.3-rc1+k3s1 | v1.37.2+k3s1 |
+| 2.15.4-ce34ff1-head | k3s | rancher/kontainer-driver-metadata#2247 | v1.36.7-rc1+k3s1 | v1.36.6+k3s1 |
+| 2.14.8-5739c20-head | k3s | rancher/kontainer-driver-metadata#2246 | v1.35.11-rc1+k3s1 | v1.35.10+k3s1 |
+| 2.16.0-7c25ce9-head | rke2 | rancher/kontainer-driver-metadata#2251 | v1.37.3-rc1+rke2r1 | v1.37.2+rke2r1 |
+| 2.15.4-ce34ff1-head | rke2 | rancher/kontainer-driver-metadata#2250 | v1.36.7-rc1+rke2r1 | v1.36.6+rke2r2 |
+| 2.14.8-5739c20-head | rke2 | rancher/kontainer-driver-metadata#2249 | v1.35.11-rc1+rke2r1 | v1.35.10+rke2r1 |
+
 ## Validating with kubeconfig file
 
 - Please note that you also need to update on the `*.tfvars` the var `aws_user` with the correct one that was used to create the cluster.

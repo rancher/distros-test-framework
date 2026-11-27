@@ -15,7 +15,7 @@ function validate_test_image() {
 function validate_dir(){
   case "$TEST_DIR" in
        upgradecluster|versionbump|mixedoscluster|dualstack|validatecluster|createcluster|selinux|clusterrestore|\
-       certrotate|secretsencrypt|restartservice|deployrancher|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|kata|killalluninstall)
+       certrotate|secretsencrypt|restartservice|deployrancher|rancherday1|clusterreset|rebootinstances|airgap|ipv6only|conformance|nvidia|kata|killalluninstall)
       if [[ "$TEST_DIR" == "upgradecluster" ]];
         then
             case "$TEST_TAG" in
@@ -92,6 +92,21 @@ if [ -n "${TEST_DIR}" ]; then
             [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")
             [ -n "${CHARTS_REPO_URL}" ] && OPTS+=(-chartsRepoUrl "${CHARTS_REPO_URL}")
             [ -n "${CHARTS_ARGS}" ] && OPTS+=(-chartsArgs "${CHARTS_ARGS}")
+        go test "${OPTS[@]}"
+    elif [ "${TEST_DIR}" = "rancherday1" ]; then
+        declare -a OPTS
+          OPTS=(-timeout=180m -v -count=1 ./entrypoint/rancherday1/...)
+            [ -n "${CERT_MANAGER_VERSION}" ] && OPTS+=(-certManagerVersion "${CERT_MANAGER_VERSION}")
+            [ -n "${CHARTS_VERSION}" ] && OPTS+=(-chartsVersion "${CHARTS_VERSION}")
+            [ -n "${CHARTS_REPO_NAME}" ] && OPTS+=(-chartsRepoName "${CHARTS_REPO_NAME}")
+            [ -n "${CHARTS_REPO_URL}" ] && OPTS+=(-chartsRepoUrl "${CHARTS_REPO_URL}")
+            [ -n "${CHARTS_ARGS}" ] && OPTS+=(-chartsArgs "${CHARTS_ARGS}")
+            [ -n "${KDM_SOURCE}" ] && OPTS+=(-kdmSource "${KDM_SOURCE}")
+            [ -n "${K8S_VERSION}" ] && OPTS+=(-k8sVersion "${K8S_VERSION}")
+            [ -n "${K8S_PREVIOUS_VERSION}" ] && OPTS+=(-k8sPreviousVersion "${K8S_PREVIOUS_VERSION}")
+            [ -n "${CUSTOM_NODES}" ] && OPTS+=(-customNodes "${CUSTOM_NODES}")
+            [ -n "${IMPORT_NODES}" ] && OPTS+=(-importNodes "${IMPORT_NODES}")
+            [ -n "${DESTROY}" ] && OPTS+=(-destroy "${DESTROY}")
         go test "${OPTS[@]}"
     elif [ "${TEST_DIR}" = "dualstack" ]; then
         go test -timeout=65m -v -count=1 ./entrypoint/dualstack/...
