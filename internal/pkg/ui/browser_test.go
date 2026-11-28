@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,18 @@ const dropdownPage = `<html><body>
 </ul>
 <script>console.log(document.cookie.includes('R_SESS') ? 'cookie visible' : 'cookie httpOnly')</script>
 </body></html>`
+
+// welcomeOverlay mimics Rancher Prime 2.16's first-load popup: it appears late and covers the page.
+func welcomeOverlay(closable bool) string {
+	closeButton := ""
+	if closable {
+		closeButton = `<button aria-label="Close" onclick="document.getElementById('w').remove()">x</button>`
+	}
+
+	return `<div id="w" role="dialog" style="display:none;position:fixed;inset:0;background:#fff;z-index:9">
+<h2>Welcome to Rancher Prime</h2>` + closeButton + `</div>
+<script>setTimeout(() => { document.getElementById('w').style.display = 'block'; }, 1500)</script></body>`
+}
 
 func requireChrome(t *testing.T) {
 	t.Helper()
@@ -43,6 +56,10 @@ func testServer(t *testing.T) (srv *httptest.Server, spki string, gotCookie *str
 			*gotCookie = c.Value
 		}
 		switch r.URL.Path {
+		case "/welcome":
+			_, _ = w.Write([]byte(strings.Replace(dropdownPage, "</body>", welcomeOverlay(true), 1)))
+		case "/welcome-stuck":
+			_, _ = w.Write([]byte(strings.Replace(dropdownPage, "</body>", welcomeOverlay(false), 1)))
 		case "/secret":
 			_, _ = w.Write([]byte(`<html><body>Registration: curl ... --token token-abc:xyz</body></html>`))
 		default:
@@ -119,5 +136,52 @@ func TestBrowserRejectsUnpinnedCertificate(t *testing.T) {
 	err = b.Open("/create", "Kubernetes Version", 15*time.Second)
 	if err == nil || !strings.Contains(err.Error(), "ERR_CERT") {
 		t.Fatalf("untrusted self-signed certificate not rejected by Chrome: %v", err)
+	}
+}
+
+func TestBrowserClosesWelcomeDialog(t *testing.T) {
+	requireChrome(t)
+	srv, spki, _ := testServer(t)
+	defer srv.Close()
+	dir := t.TempDir()
+
+	b, err := New(Options{BaseURL: srv.URL, TrustedSPKI: spki, ArtifactsDir: dir, WelcomeWait: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+
+	if err = b.Open("/welcome", "Kubernetes Version", 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	// The overlay covers the select, so reading the options proves the dialog was closed.
+	opts, err := b.DropdownOptions(`[data-testid="clusterBasics__kubernetesVersions"]`, "v1.37.3-rc1+k3s1", 15*time.Second)
+	if err != nil || len(opts) != 2 {
+		t.Fatalf("dropdown behind the welcome dialog: %v, %v", opts, err)
+	}
+	if shots, _ := filepath.Glob(filepath.Join(dir, "*-rancher-welcome-dialog.png")); len(shots) != 1 {
+		t.Fatalf("expected one screenshot of the welcome dialog, got %v", shots)
+	}
+}
+
+func TestBrowserReportsUnclosableWelcomeDialog(t *testing.T) {
+	requireChrome(t)
+	srv, spki, _ := testServer(t)
+	defer srv.Close()
+	dir := t.TempDir()
+
+	b, err := New(Options{BaseURL: srv.URL, TrustedSPKI: spki, ArtifactsDir: dir, WelcomeWait: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+
+	err = b.Open("/welcome-stuck", "Kubernetes Version", 30*time.Second)
+	if err == nil || !strings.Contains(err.Error(), "no recognizable close control") {
+		t.Fatalf("expected an unclosable-dialog error, got %v", err)
+	}
+	html, readErr := os.ReadFile(filepath.Join(dir, "welcome-dialog.html"))
+	if readErr != nil || !strings.Contains(string(html), "Welcome to Rancher Prime") {
+		t.Fatalf("dialog markup not saved: %v", readErr)
 	}
 }

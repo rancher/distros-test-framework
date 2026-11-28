@@ -30,10 +30,14 @@ type Browser struct {
 	baseURL string
 	dir     string
 
-	mu      sync.Mutex
-	secrets []string
-	console []string
-	shots   int
+	welcomeWait time.Duration
+
+	mu          sync.Mutex
+	secrets     []string
+	console     []string
+	shots       int
+	welcomeSeen bool // a later page load only checks once instead of waiting for the dialog
+	welcomeShot bool
 }
 
 // Options configure New.
@@ -42,6 +46,7 @@ type Options struct {
 	SessionToken string // set as the R_SESS cookie, so no password is ever typed into the page
 	TrustedSPKI  string // base64 sha256 of the only self-signed key Chrome may accept; empty trusts system CAs
 	ArtifactsDir string
+	WelcomeWait  time.Duration // how long the first page load waits for a welcome dialog; 0 means 10s
 }
 
 // New starts Chrome and opens an authenticated session.
@@ -63,10 +68,14 @@ func New(opts Options) (*Browser, error) {
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), allocOpts...)
 	ctx, ctxCancel := chromedp.NewContext(allocCtx)
 	b := &Browser{
-		ctx:     ctx,
-		cancel:  func() { ctxCancel(); allocCancel() },
-		baseURL: strings.TrimRight(opts.BaseURL, "/"),
-		dir:     opts.ArtifactsDir,
+		ctx:         ctx,
+		cancel:      func() { ctxCancel(); allocCancel() },
+		baseURL:     strings.TrimRight(opts.BaseURL, "/"),
+		dir:         opts.ArtifactsDir,
+		welcomeWait: opts.WelcomeWait,
+	}
+	if b.welcomeWait == 0 {
+		b.welcomeWait = defaultWelcomeWait
 	}
 	if opts.SessionToken != "" {
 		b.AddSecrets(opts.SessionToken)
@@ -127,6 +136,18 @@ func (b *Browser) Open(path, waitText string, timeout time.Duration) error {
 		return fmt.Errorf("open %s waiting for %q: %w", path, waitText, err)
 	}
 
+	// Rancher Prime 2.16+ opens a "Welcome to Rancher Prime" dialog over the first page; it blocks clicks.
+	b.mu.Lock()
+	wait := b.welcomeWait
+	if b.welcomeSeen {
+		wait = 0
+	}
+	b.welcomeSeen = true
+	b.mu.Unlock()
+	if err = b.dismissWelcome(wait); err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+
 	return nil
 }
 
@@ -147,6 +168,9 @@ func (b *Browser) DropdownOptions(selector, highlight string, timeout time.Durat
 		return items.map(li => li.innerText.trim());
 	})()`, items, h)
 
+	if welcomeErr := b.dismissWelcome(0); welcomeErr != nil {
+		return nil, welcomeErr
+	}
 	var options []string
 	err = b.run(timeout,
 		chromedp.WaitVisible(selector, chromedp.ByQuery),
