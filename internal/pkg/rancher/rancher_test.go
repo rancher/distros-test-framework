@@ -266,11 +266,33 @@ func TestRegistrationAndImportCommand(t *testing.T) {
 	if _, err := ParseRegistrationToken(`{"items":[{"status":{"token":"t"}}]}`); err == nil {
 		t.Fatal("token without commands accepted")
 	}
-	tok, err := ParseRegistrationToken(`{"items":[{"status":{"token":"t",
-		"insecureNodeCommand":"curl --insecure -fL https://r/system-agent-install.sh | sudo sh -s - --token t",
-		"insecureCommand":"curl --insecure -sfL https://r/v3/import/t_c-m-1.yaml | kubectl apply -f -"}}]}`)
-	if err != nil {
-		t.Fatal(err)
+
+	// Rancher 2.14 (observed): status.token is empty and the commands carry a {token} placeholder.
+	tok, err := ParseRegistrationToken(`{"items":[{"status":{"token":"","tokenSecretName":"crt-abc",
+		"insecureNodeCommand":"curl --insecure -fL https://r/system-agent-install.sh | sudo  sh -s - --server https://r ` +
+		`--label 'cattle.io/os=linux' --token {token} --ca-checksum ff",
+		"insecureCommand":"curl --insecure -sfL https://r/v3/import/{token}_c-m-1.yaml | kubectl apply -f -"}}]}`)
+	if err != nil || !tok.NeedsSecret() || tok.TokenSecretName != "crt-abc" {
+		t.Fatalf("templated token: %+v, %v", tok, err)
+	}
+	tok.Fill("realtoken54")
+	if tok.NeedsSecret() || !strings.Contains(tok.InsecureNodeCommand, "--token realtoken54 --ca-checksum") ||
+		!strings.Contains(tok.InsecureCommand, "/v3/import/realtoken54_c-m-1.yaml") {
+		t.Fatalf("Fill left templates: %+v", tok)
+	}
+	if got := tok.Secrets(); got[0] != "realtoken54" {
+		t.Fatalf("Secrets() = %q", got)
+	}
+
+	templatedOnly := `{"items":[{"status":{"insecureCommand":"x/v3/import/{token}_c.yaml | kubectl apply -f -"}}]}`
+	if _, err = ParseRegistrationToken(templatedOnly); err == nil {
+		t.Fatal("templated commands without a token secret accepted")
+	}
+
+	legacy, err := ParseRegistrationToken(`{"items":[{"status":{"token":"statustok",
+		"insecureNodeCommand":"curl ... | sh -s - --token statustok"}}]}`)
+	if err != nil || legacy.NeedsSecret() || legacy.Token != "statustok" {
+		t.Fatalf("pre-2.14 token: %+v, %v", legacy, err)
 	}
 
 	cmd, err := ImportCommand(tok.InsecureCommand, "sudo k3s kubectl")

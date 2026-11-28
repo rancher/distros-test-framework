@@ -163,7 +163,8 @@ func (r *RancherDay1) CheckCreateDropdown() {
 func (r *RancherDay1) ProvisionCustom() {
 	r.requireAPI()
 	id := createRancherCluster(day1CustomCluster, r.Version)
-	token := r.registrationToken(id)
+	token := r.registrationToken(id, "node command",
+		func(t *rancher.RegistrationToken) string { return t.InsecureNodeCommand })
 
 	names := make([]string, len(r.CustomNodes))
 	for i, roles := range r.CustomNodes {
@@ -250,7 +251,8 @@ func (r *RancherDay1) ImportStandalone() {
 	r.installStandalone(ips, privateIPs[0])
 
 	id := createRancherCluster(day1ImportCluster, "")
-	token := r.registrationToken(id)
+	token := r.registrationToken(id, "import command",
+		func(t *rancher.RegistrationToken) string { return t.InsecureCommand })
 	cmd, err := rancher.ImportCommand(token.InsecureCommand, downstreamKubectl(r.Product))
 	Expect(err).NotTo(HaveOccurred())
 	Eventually(func() error {
@@ -537,18 +539,38 @@ func createRancherCluster(name, version string) string {
 	return id
 }
 
-func (r *RancherDay1) registrationToken(clusterID string) *rancher.RegistrationToken {
+// registrationToken waits until Rancher has generated the command need returns for clusterID.
+func (r *RancherDay1) registrationToken(clusterID, what string,
+	need func(*rancher.RegistrationToken) string,
+) *rancher.RegistrationToken {
 	var token *rancher.RegistrationToken
 	Eventually(func() error {
 		raw, err := rancherKubectl("get", "clusterregistrationtokens.management.cattle.io", "-n", clusterID, "-o", "json")
 		if err != nil {
 			return err
 		}
-		token, err = rancher.ParseRegistrationToken(raw)
+		if token, err = rancher.ParseRegistrationToken(raw); err != nil {
+			return err
+		}
+		if token.NeedsSecret() {
+			encoded, serr := rancherKubectl("get", "secret", "-n", clusterID, token.TokenSecretName,
+				"-o", "jsonpath={.data.token}")
+			if serr != nil {
+				return fmt.Errorf("read registration token secret: %w", serr)
+			}
+			value, derr := base64.StdEncoding.DecodeString(encoded)
+			if derr != nil || len(value) == 0 {
+				return fmt.Errorf("registration token secret %s has no token", token.TokenSecretName)
+			}
+			token.Fill(string(value))
+		}
+		if need(token) == "" {
+			return fmt.Errorf("registration token has no %s yet", what)
+		}
 
-		return err
-	}, "5m", "10s").Should(Succeed(), "registration token for %s", clusterID)
-	r.browser.AddSecrets(token.Token)
+		return nil
+	}, "5m", "10s").Should(Succeed(), "%s for %s", what, clusterID)
+	r.browser.AddSecrets(token.Secrets()...)
 
 	return token
 }

@@ -128,10 +128,19 @@ func (b *Browser) Open(path, waitText string, timeout time.Duration) error {
 	}
 	cond := fmt.Sprintf("document.body && document.body.innerText.includes(%s)", text)
 
-	err = b.run(timeout,
-		chromedp.Navigate(b.baseURL+path),
-		chromedp.Poll(cond, nil, chromedp.WithPollingInterval(time.Second)),
-	)
+	deadline := time.Now().Add(timeout)
+	err = b.run(timeout, chromedp.Navigate(b.baseURL+path))
+	for err == nil || navigatedAway(err) {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			err = fmt.Errorf("page kept navigating: %w", context.DeadlineExceeded)
+
+			break
+		}
+		if err = b.run(remaining, chromedp.Poll(cond, nil, chromedp.WithPollingInterval(time.Second))); err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("open %s waiting for %q: %w", path, waitText, err)
 	}
@@ -219,6 +228,16 @@ func (b *Browser) SaveConsole(name string) (string, error) {
 	path := filepath.Join(b.dir, unsafeName.ReplaceAllString(name, "_")+"-console.log")
 
 	return path, os.WriteFile(path, []byte(lines), 0o600)
+}
+
+// navigatedAway reports Chrome losing the page's JS context to a redirect or reload during a wait;
+// the dashboard does this on load, so the wait just restarts on the new page.
+func navigatedAway(err error) bool {
+	msg := err.Error()
+
+	return strings.Contains(msg, "Cannot find context with specified id") ||
+		strings.Contains(msg, "Execution context was destroyed") ||
+		strings.Contains(msg, "Inspected target navigated or closed")
 }
 
 func (b *Browser) run(timeout time.Duration, actions ...chromedp.Action) error {

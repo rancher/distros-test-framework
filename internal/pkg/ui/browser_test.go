@@ -2,8 +2,10 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +58,12 @@ func testServer(t *testing.T) (srv *httptest.Server, spki string, gotCookie *str
 			*gotCookie = c.Value
 		}
 		switch r.URL.Path {
+		case "/reloads":
+			// Reloads once mid-wait and only then shows the text, like the dashboard's load-time redirect.
+			_, _ = w.Write([]byte(`<html><body><div id="t"></div><script>
+if (!sessionStorage.getItem('r')) { sessionStorage.setItem('r', '1'); setTimeout(() => location.reload(), 300); }
+else { setTimeout(() => { document.getElementById('t').innerText = 'Kubernetes Version'; }, 1500); }
+</script></body></html>`))
 		case "/welcome":
 			_, _ = w.Write([]byte(strings.Replace(dropdownPage, "</body>", welcomeOverlay(true), 1)))
 		case "/welcome-stuck":
@@ -183,5 +191,30 @@ func TestBrowserReportsUnclosableWelcomeDialog(t *testing.T) {
 	html, readErr := os.ReadFile(filepath.Join(dir, "welcome-dialog.html"))
 	if readErr != nil || !strings.Contains(string(html), "Welcome to Rancher Prime") {
 		t.Fatalf("dialog markup not saved: %v", readErr)
+	}
+}
+
+func TestBrowserOpenSurvivesReloadDuringWait(t *testing.T) {
+	requireChrome(t)
+	srv, spki, _ := testServer(t)
+	defer srv.Close()
+
+	b, err := New(Options{BaseURL: srv.URL, TrustedSPKI: spki, ArtifactsDir: t.TempDir(), WelcomeWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+
+	if err = b.Open("/reloads", "Kubernetes Version", 30*time.Second); err != nil {
+		t.Fatalf("Open must keep waiting across the page reload: %v", err)
+	}
+}
+
+func TestNavigatedAway(t *testing.T) {
+	if !navigatedAway(errors.New("Cannot find context with specified id (-32000)")) ||
+		!navigatedAway(errors.New("Execution context was destroyed.")) ||
+		!navigatedAway(errors.New("Inspected target navigated or closed (-32000)")) ||
+		navigatedAway(context.DeadlineExceeded) {
+		t.Fatal("navigatedAway misclassifies errors")
 	}
 }

@@ -119,11 +119,33 @@ func NewSnapshot(raw string, before map[string]bool) (name, fileName string, err
 // RegistrationToken holds the registration commands Rancher generates. All fields are secrets.
 type RegistrationToken struct {
 	Token               string `json:"token"`
+	TokenSecretName     string `json:"tokenSecretName"`
 	InsecureNodeCommand string `json:"insecureNodeCommand"`
 	InsecureCommand     string `json:"insecureCommand"`
 }
 
-// ParseRegistrationToken returns the first token with commands from `kubectl get clusterregistrationtokens -o json`.
+// tokenPlaceholder is what Rancher 2.14+ puts in the commands; the token itself is in TokenSecretName.
+const tokenPlaceholder = "{token}"
+
+// NeedsSecret reports whether the commands are templates that need the token from TokenSecretName.
+func (t *RegistrationToken) NeedsSecret() bool {
+	return strings.Contains(t.InsecureNodeCommand+t.InsecureCommand, tokenPlaceholder)
+}
+
+// Fill substitutes the token read from TokenSecretName into the command templates.
+func (t *RegistrationToken) Fill(token string) {
+	t.Token = token
+	t.InsecureNodeCommand = strings.ReplaceAll(t.InsecureNodeCommand, tokenPlaceholder, token)
+	t.InsecureCommand = strings.ReplaceAll(t.InsecureCommand, tokenPlaceholder, token)
+}
+
+// Secrets returns every value that must stay out of logs and screenshots: the token and both commands.
+func (t *RegistrationToken) Secrets() []string {
+	return []string{t.Token, t.InsecureNodeCommand, t.InsecureCommand}
+}
+
+// ParseRegistrationToken returns the first token that has a registration command, from
+// `kubectl get clusterregistrationtokens -o json`.
 func ParseRegistrationToken(raw string) (*RegistrationToken, error) {
 	var l struct {
 		Items []struct {
@@ -134,9 +156,15 @@ func ParseRegistrationToken(raw string) (*RegistrationToken, error) {
 		return nil, fmt.Errorf("decode clusterregistrationtokens: %w", err)
 	}
 	for _, i := range l.Items {
-		if i.Status.Token != "" && i.Status.InsecureNodeCommand != "" && i.Status.InsecureCommand != "" {
-			return &i.Status, nil
+		t := i.Status
+		if t.InsecureNodeCommand == "" && t.InsecureCommand == "" {
+			continue
 		}
+		if t.NeedsSecret() && t.TokenSecretName == "" {
+			return nil, errors.New("registration commands are templates but name no token secret")
+		}
+
+		return &t, nil
 	}
 
 	return nil, errors.New("cluster registration token has no commands yet")
