@@ -238,17 +238,29 @@ func (r *RancherDay1) RestoreCustom() {
 // ImportStandalone installs the previous release on the ImportNodes layout and imports it into Rancher.
 func (r *RancherDay1) ImportStandalone() {
 	r.requireAPI()
-	names := make([]string, len(r.ImportNodes))
+	names, kinds := make([]string, len(r.ImportNodes)), make([]string, len(r.ImportNodes))
 	for i, roles := range r.ImportNodes {
-		kind := "agent"
+		kinds[i] = "agent"
 		if rancher.IsServer(roles) {
-			kind = "server"
+			kinds[i] = "server"
 		}
-		names[i] = fmt.Sprintf("day1-import-%d-%s", i+1, kind)
+		names[i] = fmt.Sprintf("day1-import-%d-%s", i+1, kinds[i])
 	}
 	ips, privateIPs := r.createNodes(names...)
+	var servers, agents []string
+	for i := range names {
+		resources.LogLevel("info", "Standalone %s %s node %s: public IP %s, private IP %s",
+			r.Product, kinds[i], names[i], ips[i], privateIPs[i])
+		if kinds[i] == "server" {
+			servers = append(servers, ips[i]+" ("+privateIPs[i]+")")
+		} else {
+			agents = append(agents, ips[i]+" ("+privateIPs[i]+")")
+		}
+	}
 	r.importKubectlIP = ips[0]
 	r.installStandalone(ips, privateIPs[0])
+	resources.LogLevel("info", "Standalone %s %s cluster installed; servers: %s; agents: %s",
+		r.Product, r.PreviousVersion, strings.Join(servers, ", "), orNone(agents))
 
 	id := createRancherCluster(day1ImportCluster, "")
 	token := r.registrationToken(id, "import command",
@@ -685,6 +697,14 @@ func setRancherSetting(name, value string) {
 	Expect(err).NotTo(HaveOccurred())
 	_, err = rancherKubectl("patch", "settings.management.cattle.io", name, "--type=merge", "-p", string(patch))
 	Expect(err).NotTo(HaveOccurred(), "set rancher setting %s", name)
+}
+
+func orNone(items []string) string {
+	if len(items) == 0 {
+		return "none"
+	}
+
+	return strings.Join(items, ", ")
 }
 
 // downstreamKubectl is a server node's own kubectl; sudo's secure_path may lack the product bin dirs.
