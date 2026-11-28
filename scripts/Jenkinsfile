@@ -213,6 +213,11 @@ node {
             } finally {
               stage('Cleanup') {
                 sh "docker stop ${testContainer} || true"
+                // Screenshots and failure debug data (rancherday1); absent for other suites.
+                // rancher-access.txt holds the Rancher admin password: deleted, never archived.
+                sh "rm -rf artifacts && docker cp ${testContainer}:${containerRoot}/artifacts ./artifacts || true"
+                sh "find artifacts -name rancher-access.txt -delete 2>/dev/null || true"
+                archiveArtifacts artifacts: 'artifacts/**', excludes: '**/rancher-access.txt', allowEmptyArchive: true
                 sh "docker rm -v ${testContainer} || true"
                 // Destroy exactly this run from its persisted manifest, even after a partial apply,
                 // timeout or abort. Honours -destroy false (script exits 0 and keeps resources).
